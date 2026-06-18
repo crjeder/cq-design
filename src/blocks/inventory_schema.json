@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Block Inventory",
+  "description": "Schema for blocks/inventory.json — machine-readable catalog of parametric building blocks",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["name", "module", "function", "use", "params", "dimensions", "interfaces"],
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "description": "Unique kebab/snake-case identifier referenced in BUILD_PLAN.json blocks_needed"
+      },
+      "module": {
+        "type": "string",
+        "description": "Python dotted module path, e.g. blocks.fasteners"
+      },
+      "function": {
+        "type": "string",
+        "description": "Python function name to call"
+      },
+      "use": {
+        "type": "string",
+        "minLength": 10,
+        "description": "Plain-English description of purpose and when to select this block"
+      },
+      "motion": {
+        "type": "string",
+        "enum": ["rigid", "hinge", "ball"],
+        "description": "Relative movement the joint permits after assembly (selection axis). Omit for non-joint blocks."
+      },
+      "reversible": {
+        "type": "boolean",
+        "description": "Whether the joint separates non-destructively at its default fit (selection axis). Set by the clearance regime; records the default."
+      },
+      "carries": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Load directions the joint transmits across the seam, e.g. shear-xy, lock-z. Supports anisotropy-driven split selection."
+      },
+      "dof": {
+        "type": "object",
+        "description": "Intrinsic degree of freedom for kinematic range validation. Omit for blocks with no rigid DOF (non-joints, flexures such as living_hinge). mechanical_limit is a nominal sanity bound; the geometry sweep is authoritative for a specific instance.",
+        "required": ["type", "axis", "mechanical_limit", "unit"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["revolute", "prismatic", "spherical", "fixed"],
+            "description": "Joint kinematic type"
+          },
+          "axis": {
+            "type": "string",
+            "enum": ["X", "Y", "Z"],
+            "description": "Block-local axis the motion is built around"
+          },
+          "mechanical_limit": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Nominal full range [lo, hi] in the field unit"
+          },
+          "unit": {
+            "type": "string",
+            "enum": ["deg", "mm"],
+            "description": "deg for revolute/spherical, mm for prismatic"
+          }
+        }
+      },
+      "params": {
+        "type": "object",
+        "description": "Map of parameter name to unit string (e.g. {d_screw: mm})",
+        "additionalProperties": { "type": "string" }
+      },
+      "dimensions": {
+        "oneOf": [
+          {
+            "type": "array",
+            "items": { "type": "number", "minimum": 0 },
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Typical bounding box [w_mm, d_mm, h_mm] for inventory display"
+          },
+          { "type": "null", "description": "Variable — depends on params" }
+        ]
+      },
+      "interfaces": {
+        "type": "array",
+        "description": "Physical connection points on this block",
+        "items": {
+          "type": "object",
+          "required": ["type", "orientation", "origin"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "face_mount", "screw_hole", "snap_hook", "snap_socket",
+                "axis", "pin", "socket", "slot", "port_cutout", "sliding_interface",
+                "nut_trap", "hinge_axis", "ball", "ball_socket",
+                "finger", "mortise", "tenon", "dowel", "seam"
+              ]
+            },
+            "orientation": {
+              "type": "string",
+              "pattern": "^[+-][XYZ]$",
+              "description": "Direction the interface faces, e.g. +Z"
+            },
+            "origin": {
+              "type": "array",
+              "items": { "type": "number" },
+              "minItems": 3,
+              "maxItems": 3,
+              "description": "Interface point in block-local coordinates [x, y, z] mm"
+            }
+          }
+        }
+      }
+    }
+  }
+}

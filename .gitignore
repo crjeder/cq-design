@@ -1,0 +1,20 @@
+
+.claude/*
+!.claude/worktrees/
+.playwright/
+.playwright-mcp/
+
+.venv/
+__pycache__/
+*.pyc
+*.stl
+*.3mf
+*_preview.png
+.vscode/
+
+# CocoIndex Code (ccc)
+/.cocoindex_code/
+.sentrux/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/

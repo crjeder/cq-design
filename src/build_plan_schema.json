@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BUILD_PLAN",
+  "description": "Structured build plan produced by the planning phase before any code is generated",
+  "type": "object",
+  "required": ["schema_version", "intent", "printer", "material", "nozzle_mm", "parts", "constraints"],
+  "additionalProperties": false,
+  "properties": {
+    "planning_notes": {
+      "type": "string",
+      "description": "LLM design reasoning: part decomposition choices, material decisions, dimension sources"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "intent": {
+      "type": "string",
+      "minLength": 5,
+      "description": "Plain-English description of what is being built and why"
+    },
+    "printer": {
+      "type": "string",
+      "description": "Printer model, e.g. 'Bambu P1S', 'Prusa MK4', 'Ender 3'"
+    },
+    "material": {
+      "type": "string",
+      "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC"],
+      "description": "Filament material"
+    },
+    "nozzle_mm": {
+      "type": "number",
+      "enum": [0.2, 0.4, 0.6, 0.8],
+      "description": "Nozzle diameter in mm"
+    },
+    "parts": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of parts to generate",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "dimensions", "interfaces", "blocks_needed"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Unique snake_case identifier, used as script filename"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 5
+          },
+          "dimensions": {
+            "type": "object",
+            "required": ["w_mm", "d_mm", "h_mm"],
+            "additionalProperties": false,
+            "properties": {
+              "w_mm": {"type": "number", "exclusiveMinimum": 0},
+              "d_mm": {"type": "number", "exclusiveMinimum": 0},
+              "h_mm": {"type": "number", "exclusiveMinimum": 0}
+            }
+          },
+          "interfaces": {
+            "type": "array",
+            "description": "Physical connection points with external objects",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Interface category (port_cutout, screw_mount, pcb_mount, snap_fit, etc.)"
+                },
+                "description": {"type": "string"},
+                "clearance_mm": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Per-interface clearance override; takes precedence over assembly.clearance_mm"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "blocks_needed": {
+            "type": "array",
+            "description": "Blocks from inventory.json required for this part. Each item is either a block name string, or an object carrying the block name plus its instance extents (enables the script-level thin-block DFM check before any code is generated).",
+            "items": {
+              "oneOf": [
+                {"type": "string"},
+                {
+                  "type": "object",
+                  "required": ["name"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {"type": "string"},
+                    "extents_mm": {
+                      "type": "array",
+                      "description": "Block instance bounding box [x, y, z] in mm",
+                      "items": {"type": "number", "exclusiveMinimum": 0},
+                      "minItems": 3,
+                      "maxItems": 3
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "part_notes": {
+            "type": "string",
+            "description": "LLM reasoning for this part: blocks chosen, geometry written from scratch, unusual decisions"
+          }
+        }
+      }
+    },
+    "assembly": {
+      "type": "object",
+      "description": "Assembly strategy (required when parts > 1)",
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "description": "How parts connect: snap_fit, screws, press_fit, glue, hinged"
+        },
+        "clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Fit clearance between mating parts in mm"
+        },
+        "notes": {"type": "string"}
+      }
+    },
+    "kinematics": {
+      "type": "array",
+      "description": "Declared range-of-motion checks for articulating joints. Each entry verifies a moving part clears its required range against a fixed part. Optional; absent or empty skips the kinematic stage.",
+      "items": {
+        "type": "object",
+        "required": ["joint_id", "moving_part", "fixed_part", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "unit", "step"],
+        "additionalProperties": false,
+        "properties": {
+          "joint_id": {"type": "string", "description": "Unique identifier for this joint"},
+          "moving_part": {"type": "string", "description": "Part id that moves relative to fixed_part"},
+          "fixed_part": {"type": "string", "description": "Part id held fixed during the sweep"},
+          "block": {"type": "string", "description": "Joint block name from inventory.json (must carry a dof)"},
+          "axis_origin_mm": {
+            "type": "array",
+            "items": {"type": "number"},
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "World-space pivot point [x, y, z] in mm"
+          },
+          "axis_dir": {"type": "string", "enum": ["X", "Y", "Z"], "description": "World-space joint axis direction"},
+          "type": {"type": "string", "enum": ["revolute", "prismatic", "spherical"], "description": "Joint kinematic type"},
+          "required_range": {
+            "type": "array",
+            "items": {"type": "number"},
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Range [lo, hi] the design requires, in the field unit"
+          },
+          "unit": {"type": "string", "enum": ["deg", "mm"], "description": "Must match the block dof.unit"},
+          "step": {"type": "number", "exclusiveMinimum": 0, "description": "Sweep increment in the field unit"}
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "required": ["wall_min_mm", "overhang_max_deg", "dimension_tolerance_mm"],
+      "additionalProperties": true,
+      "properties": {
+        "wall_min_mm": {
+          "type": "number",
+          "minimum": 0.4,
+          "description": "Minimum wall thickness for DFM check"
+        },
+        "overhang_max_deg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 90,
+          "description": "Maximum overhang angle before support required"
+        },
+        "dimension_tolerance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Tolerance for dimension mismatch check"
+        }
+      }
+    }
+  },
+  "if": {
+    "properties": {"parts": {"minItems": 2}}
+  },
+  "then": {
+    "required": ["assembly"]
+  }
+}

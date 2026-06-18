@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+"""
+Quality gate for the CAD skill build pipeline.
+
+Runs two checks against the final model script:
+  1. Wrapper DFM checks (thin walls, non-manifold edges) via run_cadquery_model.py
+  2. Geometry + overhang analysis via trimesh (in-process)
+
+Aggregates issues with severity (error/warning), generates a targeted fix prompt
+if any errors are found, invokes `claude -p` for up to MAX_FIX_ROUNDS, then
+re-runs the gate. On a clean pass emits a print recipe JSON.
+
+Usage:
+    python3 quality_gate.py --script assembly.py --plan BUILD_PLAN.json
+    python3 quality_gate.py --script assembly.py --plan BUILD_PLAN.json --stl out/assembly.stl
+    python3 quality_gate.py --script assembly.py --plan BUILD_PLAN.json --no-fix
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+
+SKILL_ROOT = os.path.dirname(os.path.abspath(__file__))
+MAX_FIX_ROUNDS = 2
+
+# ---------------------------------------------------------------------------
+# DFM check via wrapper
+# ---------------------------------------------------------------------------
+
+
+def _run_wrapper_check(
+    script_path: str, plan: dict
+) -> tuple[list[dict], str | None, dict | None]:
+    """Run run_cadquery_model.py DFM checks; return list of issue dicts."""
+    constraints = plan.get("constraints", {})
+    # Line width approximates nozzle diameter * 1.1; drives the brittle thin-wall
+    # threshold in the wrapper's thin-interface check.
+    line_width = round(plan.get("nozzle_mm", 0.4) * 1.1, 2)
+    cmd = [
+        sys.executable,
+        os.path.join(SKILL_ROOT, "run_cadquery_model.py"),
+        script_path,
+        "--wall-min",
+        str(constraints.get("wall_min_mm", 1.2)),
+        "--line-width",
+        str(line_width),
+        "--deliver",
+        "--formats",
+        "stl",
+    ]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = SKILL_ROOT + os.pathsep + env.get("PYTHONPATH", "")
+
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return (
+            [
+                {
+                    "source": "wrapper",
+                    "severity": "error",
+                    "type": "wrapper_error",
+                    "message": "Wrapper produced no JSON output",
+                    "hint": result.stdout + result.stderr,
+                }
+            ],
+            None,
+            None,
+        )
+
+    issues = []
+    for err in data.get("errors", []):
+        severity = (
+            "error"
+            if err["type"]
+            in (
+                "non_manifold_edge",
+                "non_watertight",
+                "occ_exception",
+                "dimension_mismatch",
+            )
+            else "warning"
+        )
+        issues.append(
+            {
+                "source": "wrapper",
+                "severity": severity,
+                "type": err["type"],
+                "message": err["message"],
+                "hint": err.get("hint", ""),
+            }
+        )
+    # Expose STL path for downstream MCP checks
+    stl_path: str | None = data.get("stl")
+    return issues, stl_path, data.get("geometry")
+
+
+# ---------------------------------------------------------------------------
+# Geometry + overhang analysis (trimesh, in-process)
+# ---------------------------------------------------------------------------
+
+
+def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
+    """Analyze STL geometry and overhangs using trimesh. Returns issues."""
+    try:
+        import numpy as np
+        import trimesh
+    except ImportError as exc:
+        return [
+            {
+                "source": "geometry",
+                "severity": "warning",
+                "type": "check_skipped",
+                "message": f"trimesh/numpy not available: {exc}",
+                "hint": "pip install trimesh numpy",
+            }
+        ]
+
+    try:
+        tm = trimesh.load(stl_path, force="mesh")
+    except Exception as exc:
+        return [
+            {
+                "source": "geometry",
+                "severity": "error",
+                "type": "mesh_load_error",
+                "message": f"Failed to load STL: {exc}",
+                "hint": "Check that the STL was exported correctly.",
+            }
+        ]
+
+    issues: list[dict] = []
+
+    if not hasattr(tm, "faces") or len(tm.faces) == 0:
+        issues.append(
+            {
+                "source": "geometry",
+                "severity": "error",
+                "type": "invalid_geometry",
+                "message": "STL has no triangles",
+                "hint": "Check for degenerate faces or zero-volume bodies.",
+            }
+        )
+        return issues
+
+    if not tm.is_watertight:  # type: ignore[attr-defined]
+        issues.append(
+            {
+                "source": "geometry",
+                "severity": "error",
+                "type": "non_watertight",
+                "message": "Mesh is not watertight",
+                "hint": "Close all open edges before printing.",
+            }
+        )
+
+    # Overhang: faces whose normals point downward (nz < 0).
+    # Overhang angle from horizontal = arcsin(min(1, -nz)) for a unit normal.
+    # Faces with overhang_angle strictly greater than overhang_deg need support.
+    normals = tm.face_normals  # type: ignore[attr-defined]
+    downward_mask = normals[:, 2] < 0
+    if np.any(downward_mask):
+        angles = np.degrees(np.arcsin(np.clip(-normals[:, 2], 0.0, 1.0)))
+        support_mask = downward_mask & (angles > overhang_deg)
+        if np.any(support_mask):
+            overhang_area = float(tm.area_faces[support_mask].sum())  # type: ignore[attr-defined]
+            # Worst face = steepest overhang among support-needed faces.
+            support_indices = np.nonzero(support_mask)[0]
+            worst_local = int(angles[support_indices].argmax())
+            worst_face = int(support_indices[worst_local])
+            worst_angle = float(angles[worst_face])
+            centroid = tm.triangles[worst_face].mean(axis=0)  # type: ignore[attr-defined]
+            location = [round(float(c), 3) for c in centroid]
+            issues.append(
+                {
+                    "source": "geometry",
+                    "severity": "warning",
+                    "type": "overhang_exceeded",
+                    "message": (
+                        f"Worst overhang {worst_angle:.1f}° exceeds limit "
+                        f"{overhang_deg}° over {overhang_area:.1f} mm² of faces"
+                    ),
+                    "hint": "Add chamfers or redesign overhanging features.",
+                    "overhang_area_mm2": round(overhang_area, 3),
+                    "worst_angle_deg": round(worst_angle, 3),
+                    "location_xyz_mm": location,
+                }
+            )
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# Print recipe
+# ---------------------------------------------------------------------------
+
+
+def _emit_print_recipe(plan: dict, geometry: dict | None) -> dict:
+    """Build a recommended print recipe from plan constraints + geometry."""
+    constraints = plan.get("constraints", {})
+    wall_min = constraints.get("wall_min_mm", 1.2)
+    nozzle = plan.get("nozzle_mm", 0.4)
+
+    # Walls = ceil(wall_min / nozzle), at least 2
+    walls = max(2, int((wall_min / nozzle) + 0.999))
+
+    recipe = {
+        "material": plan.get("material", "PLA"),
+        "printer": plan.get("printer", ""),
+        "nozzle_mm": nozzle,
+        "layer_height_mm": round(nozzle * 0.5, 2),
+        "walls": walls,
+        "top_bottom_layers": 4,
+        "infill_percent": 20,
+        "infill_pattern": "gyroid",
+        "supports": False,
+        "support_threshold_deg": constraints.get("overhang_max_deg", 45),
+        "orientation": "flat_bottom_down",
+    }
+    if geometry:
+        recipe["estimated_weight_g"] = geometry.get("weight_g")
+        recipe["volume_cm3"] = geometry.get("volume_cm3")
+
+    return recipe
+
+
+# ---------------------------------------------------------------------------
+# Fix prompt
+# ---------------------------------------------------------------------------
+
+
+def _render_fix_prompt(
+    script_path: str, issues: list[dict], prompt_template: str
+) -> str:
+    """Render a targeted fix prompt listing only failing checks."""
+    errors = [i for i in issues if i["severity"] == "error"]
+    warnings = [i for i in issues if i["severity"] == "warning"]
+
+    lines = [
+        "## Quality Gate Failed — Fix the following issues\n",
+        "You are a CadQuery expert. Fix the script below to resolve these issues.",
+        "Output only valid Python code. No explanation, no markdown fences.\n",
+        "### Errors (must fix)\n",
+    ]
+    for e in errors:
+        lines.append(f"- **[{e['source']}] {e['type']}**: {e['message']}")
+        if e.get("hint"):
+            lines.append(f"  Hint: {e['hint']}")
+    if warnings:
+        lines.append("\n### Warnings (fix if possible)\n")
+        for w in warnings:
+            lines.append(f"- **[{w['source']}] {w['type']}**: {w['message']}")
+            if w.get("hint"):
+                lines.append(f"  Hint: {w['hint']}")
+
+    lines.append("\n### Script to fix\n")
+    try:
+        code = open(script_path, encoding="utf-8").read()
+    except OSError:
+        code = "(script not readable)"
+    lines.append(f"```python\n{code}\n```")
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Gate runner
+# ---------------------------------------------------------------------------
+
+
+def _call_claude(prompt_text: str) -> str:
+    """Call claude -p with the prompt text, return generated code."""
+    result = subprocess.run(
+        ["claude", "-p", prompt_text],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"claude -p failed (exit {result.returncode}):\n{result.stderr}"
+        )
+    return result.stdout.strip()
+
+
+def _extract_python(raw: str) -> str:
+    import re
+
+    fenced = re.search(r"```(?:python)?\n(.*?)```", raw, re.DOTALL)
+    if fenced:
+        return fenced.group(1).strip()
+    return raw.strip()
+
+
+def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
+    """Run the kinematic range check when the plan declares any joints.
+
+    Runs once (not inside the fix loop): the auto-fixer operates on a single
+    script and cannot regenerate the separate part STLs a joint sweep compares.
+    """
+    if not plan.get("kinematics"):
+        return []
+    from kinematic_check import run_kinematic_check
+
+    return run_kinematic_check(plan, stl_dir or ".")
+
+
+def run_gate(
+    script_path: str,
+    plan_path: str,
+    stl_path: str | None = None,
+    allow_fix: bool = True,
+    stl_dir: str | None = None,
+) -> dict:
+    """
+    Run all quality checks against script_path.
+
+    Returns a report dict:
+        {
+            "passed": bool,
+            "issues": [...],
+            "print_recipe": {...} | null,
+            "fix_rounds": int,
+        }
+    """
+    plan = json.load(open(plan_path, encoding="utf-8"))
+    overhang_deg = plan.get("constraints", {}).get("overhang_max_deg", 45)
+    if stl_dir is None:
+        stl_dir = os.path.dirname(os.path.abspath(script_path))
+
+    all_issues: list = []
+    geometry = None
+    fix_round = 0
+    for fix_round in range(MAX_FIX_ROUNDS + 1):
+        # ---- wrapper DFM ----
+        wrapper_issues, discovered_stl, geometry = _run_wrapper_check(script_path, plan)
+
+        effective_stl = stl_path or discovered_stl
+
+        # ---- geometry + overhang ----
+        if effective_stl and os.path.exists(effective_stl):
+            geo_issues = _analyze_stl(effective_stl, overhang_deg)
+        else:
+            geo_issues = [
+                {
+                    "source": "geometry",
+                    "severity": "warning",
+                    "type": "check_skipped",
+                    "message": "No STL available for geometry analysis",
+                    "hint": "Run with --stl <path> or ensure wrapper produces an STL.",
+                }
+            ]
+
+        all_issues = wrapper_issues + geo_issues
+        errors = [i for i in all_issues if i["severity"] == "error"]
+
+        if not errors:
+            break
+
+        if not allow_fix or fix_round >= MAX_FIX_ROUNDS:
+            break
+
+        # ---- fix round ----
+        print(
+            f"[QUALITY GATE] Round {fix_round + 1}: {len(errors)} error(s) — invoking fix..."
+        )
+        fix_prompt = _render_fix_prompt(script_path, all_issues, "")
+        try:
+            raw = _call_claude(fix_prompt)
+            code = _extract_python(raw)
+            with open(script_path, "w", encoding="utf-8") as f:
+                f.write(code)
+        except Exception as exc:
+            print(f"[QUALITY GATE] Fix attempt failed: {exc}")
+            break
+
+    # ---- kinematic range check (once, outside the fix loop) ----
+    all_issues += _run_kinematic_stage(plan, stl_dir)
+    errors = [i for i in all_issues if i["severity"] == "error"]
+    passed = not errors
+
+    return {
+        "passed": passed,
+        "issues": all_issues,
+        "print_recipe": _emit_print_recipe(plan, geometry) if passed else None,
+        "fix_rounds": fix_round,
+    }
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run quality gate on a CAD model script"
+    )
+    parser.add_argument(
+        "--script", required=True, help="Path to the model/assembly Python script"
+    )
+    parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
+    parser.add_argument("--stl", default=None, help="Pre-exported STL path (optional)")
+    parser.add_argument(
+        "--no-fix",
+        action="store_true",
+        help="Report issues only; do not invoke claude for fixes",
+    )
+    args = parser.parse_args()
+
+    report = run_gate(
+        args.script, args.plan, stl_path=args.stl, allow_fix=not args.no_fix
+    )
+
+    print(json.dumps(report, indent=2))
+    sys.exit(0 if report["passed"] else 1)
+
+
+if __name__ == "__main__":
+    main()

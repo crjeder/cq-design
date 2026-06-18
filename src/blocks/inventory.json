@@ -1,0 +1,573 @@
+[
+  {
+    "name": "fillet_box",
+    "module": "blocks.primitives",
+    "function": "fillet_box",
+    "use": "A rectangular solid with filleted vertical edges. Use as the outer shell of enclosures, bases, or any box-shaped body where sharp vertical edges are undesirable.",
+    "params": {
+      "w": "mm",
+      "d": "mm",
+      "h": "mm",
+      "r": "mm fillet radius on vertical edges"
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "hollow_box",
+    "module": "blocks.primitives",
+    "function": "hollow_box",
+    "use": "An open-top hollow enclosure body built via boolean subtraction. Use instead of .shell() for stability. Suitable for electronics cases, trays, and any body that needs walls and a floor but no lid.",
+    "params": {
+      "w": "mm outer width",
+      "d": "mm outer depth",
+      "h": "mm outer height",
+      "wall": "mm wall thickness (min 1.2)",
+      "floor_t": "mm floor thickness",
+      "corner_r": "mm outer corner fillet radius (0 = sharp)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "screw_boss",
+    "module": "blocks.fasteners",
+    "function": "screw_boss",
+    "use": "A solid cylinder boss with a central through-hole for a self-tapping screw. Union onto an enclosure floor or wall. The screw cuts its own thread on first insertion. Use for M2–M4 self-tapping screws.",
+    "params": {
+      "d_screw": "mm screw shaft diameter",
+      "d_outer": "mm outer boss diameter (recommend >= 2.5x d_screw)",
+      "h": "mm boss height"
+    },
+    "dimensions": [6, 6, 5],
+    "interfaces": [
+      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]},
+      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "pcb_standoff",
+    "module": "blocks.fasteners",
+    "function": "pcb_standoff",
+    "use": "A hollow cylindrical standoff for mounting PCBs with M2, M2.5, or M3 screws. The PCB sits on the top face. Place at each PCB mounting hole position.",
+    "params": {
+      "d_screw": "mm screw clearance diameter",
+      "d_outer": "mm outer standoff diameter (recommend >= 2x d_screw)",
+      "h": "mm standoff height (PCB clearance from floor)"
+    },
+    "dimensions": [6, 6, 5],
+    "interfaces": [
+      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]},
+      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "snap_hook_clip",
+    "module": "blocks.fasteners",
+    "function": "snap_hook_clip",
+    "use": "A cantilever snap-fit hook clip for lid-to-body connections. The beam flexes to let the hook pass, then springs back to lock. Union onto the lid inner wall. Mate with snap_socket_receiver on the body.",
+    "params": {
+      "w": "mm clip width",
+      "l": "mm cantilever beam length",
+      "h": "mm beam thickness (thinner = easier to deflect)",
+      "hook_h": "mm hook tooth protrusion"
+    },
+    "dimensions": [6, 12, 2],
+    "interfaces": [
+      {"type": "snap_hook", "orientation": "+Y", "origin": [0, 12, 2]},
+      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "snap_socket_receiver",
+    "module": "blocks.fasteners",
+    "function": "snap_socket_receiver",
+    "use": "A rectangular slot to subtract from a wall to receive a snap_hook_clip. Size slot width and height to match the hook dimensions plus 0.2 mm clearance. Subtract from the body inner wall at the same height as the hook.",
+    "params": {
+      "w": "mm slot width (match snap_hook_clip w + 0.2)",
+      "h": "mm slot height (match snap_hook_clip hook_h + 0.3)",
+      "depth": "mm slot depth (match wall thickness)"
+    },
+    "dimensions": [6, 3, 3],
+    "interfaces": [
+      {"type": "snap_socket", "orientation": "-Y", "origin": [0, 0, 1.5]}
+    ]
+  },
+  {
+    "name": "alignment_pin",
+    "module": "blocks.fasteners",
+    "function": "alignment_pin",
+    "use": "A slightly tapered cylinder pin for press-fit part registration and alignment. Union onto one part face. Mates with alignment_socket on the mating part. Use 2–4 pins per mating surface.",
+    "params": {
+      "d": "mm pin base diameter",
+      "h": "mm pin height"
+    },
+    "dimensions": [3, 3, 4],
+    "interfaces": [
+      {"type": "pin", "orientation": "+Z", "origin": [0, 0, 0]},
+      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "alignment_socket",
+    "module": "blocks.fasteners",
+    "function": "alignment_socket",
+    "use": "A receiving hole for an alignment_pin. Subtract from the mating face. Use with clearance=0.2 for loose fit or clearance=0.05 for press fit. Must match alignment_pin d.",
+    "params": {
+      "d": "mm pin diameter (match alignment_pin d)",
+      "h": "mm socket depth (match or exceed pin height)",
+      "clearance": "mm added to radius for fit (default 0.2)"
+    },
+    "dimensions": [3, 3, 4],
+    "interfaces": [
+      {"type": "socket", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "port_cutout",
+    "module": "blocks.connectors",
+    "function": "port_cutout",
+    "use": "A rectangular opening to subtract from a wall for a connector port. Use for USB-C (9x3.5 mm), USB-A (12x6 mm), barrel jack, HDMI, or any rectangular port opening. Add 0.3–0.5 mm clearance to both dimensions.",
+    "params": {
+      "w": "mm opening width (connector width + clearance)",
+      "h": "mm opening height (connector height + clearance)",
+      "depth": "mm wall thickness to cut through",
+      "chamfer": "mm edge chamfer (default 0.5, set 0 to disable)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "port_cutout", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "cable_slot",
+    "module": "blocks.connectors",
+    "function": "cable_slot",
+    "use": "An elongated rectangular slot to subtract from a wall or floor for cable routing. Use for strain relief openings, cable pass-throughs, and wire management channels.",
+    "params": {
+      "w": "mm slot width",
+      "h": "mm slot height",
+      "depth": "mm material thickness to cut through",
+      "chamfer": "mm edge chamfer (default 0.5, set 0 to disable)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "slot", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "vent_grid",
+    "module": "blocks.connectors",
+    "function": "vent_grid",
+    "use": "A regular grid of rectangular ventilation slots. Subtract from a face (wall or lid). Centered at origin. Choose spacing >= slot_w/2 for structural integrity between slots.",
+    "params": {
+      "cols": "count columns",
+      "rows": "count rows",
+      "slot_w": "mm individual slot width",
+      "slot_l": "mm individual slot length",
+      "spacing": "mm gap between slots",
+      "depth": "mm depth to cut (wall thickness)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "slot", "orientation": "+Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "teardrop_bore",
+    "module": "blocks.connectors",
+    "function": "teardrop_bore",
+    "use": "A drop-shaped (teardrop) bore cutter for a HORIZONTAL hole. The lower half is circular and the upper half is a '^' peak so the roof self-supports and prints without internal supports. Subtract from a wall. Bore axis runs along +Y, peak points +Z, so the part must print in its modeled orientation. Use for horizontal rod/shaft/dowel/pin pass-throughs; for vertical holes use a plain bore instead.",
+    "params": {
+      "d": "mm bore diameter (circular lower portion)",
+      "depth": "mm wall thickness to cut through",
+      "angle": "degrees roof face angle from horizontal (default 45, the overhang limit; keep >= 45)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "axis", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "teardrop_post",
+    "module": "blocks.connectors",
+    "function": "teardrop_post",
+    "use": "Additive dual of teardrop_bore: a self-supporting HORIZONTAL solid peg/pin/boss. The upper half is circular and the lower half is two flat faces meeting a narrow flat bottom, so the underside self-supports and prints without supports. Union onto a part. Axis runs along +Y, flat bottom points -Z, so the part must print in its modeled orientation. Use for free-standing horizontal pegs/locating pins/bosses with d >= ~3 mm; below that a plain cylinder self-bridges, so use a plain cylinder instead. For a peg that must SEAT in a mating hole, use a 45-degree-rotated cube (diamond peg in a diamond hole) instead, which self-supports on every face and locates positively.",
+    "params": {
+      "d": "mm cylinder diameter (circular upper portion)",
+      "length": "mm protrusion length along the axis",
+      "angle": "degrees underside face angle from horizontal (default 45, the overhang limit; keep >= 45)",
+      "flat": "mm width of the flat bottom (default 1.2; clamped if >= d; 0 = sharp point)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "axis", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "heat_set_boss",
+    "module": "blocks.hardware",
+    "function": "heat_set_boss",
+    "use": "Printed cylinder boss with a heat-set threaded insert pocket bored from the top. Stronger and more reusable than a self-tapping screw boss. Union onto an enclosure floor; press the insert in with a soldering iron after printing. Use for M2-M6 heat-set inserts.",
+    "params": {
+      "size": "HeatSetNut size string 'Mx-pitch-length_mm' e.g. 'M3-0.5-6'. Valid: M2-0.4-3/4/6/8, M3-0.5-6/8/10, M4-0.7-6/8/10, M5-0.8-6/8/10, M6-1-10/12",
+      "d_outer": "mm outer boss diameter (recommend >= 7 for M3, >= 9 for M4)",
+      "h": "mm boss height (must be >= insert length in size string)",
+      "manufacturing_compensation": "mm radial FDM over-extrusion compensation (default 0.1)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]},
+      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "socket_head_cap_screw",
+    "module": "blocks.hardware",
+    "function": "socket_head_cap_screw",
+    "use": "ISO 4762 socket head cap screw solid for assembly visualization. Shaft points down (-Z), head at Z=0. Translate to the mounting position. Use Solid(x.wrapped) before boolean operations. Common sizes: M3-0.5 to M8-1.25.",
+    "params": {
+      "size": "ISO metric thread spec e.g. 'M3-0.5', 'M4-0.7', 'M5-0.8', 'M6-1'",
+      "length": "mm shaft length under the head"
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "hex_head_screw",
+    "module": "blocks.hardware",
+    "function": "hex_head_screw",
+    "use": "ISO 4014 hex head bolt solid for assembly visualization. Shaft points down (-Z), head at Z=0. Translate to the mounting position. Use Solid(x.wrapped) before boolean operations. Common sizes: M3-0.5 to M8-1.25.",
+    "params": {
+      "size": "ISO metric thread spec e.g. 'M3-0.5', 'M4-0.7', 'M5-0.8', 'M6-1'",
+      "length": "mm shaft length under the head"
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "hex_nut",
+    "module": "blocks.hardware",
+    "function": "hex_nut",
+    "use": "ISO 4032 hex nut solid for assembly visualization. Centered on Z-axis, flat face on XY plane. Pair with hex_head_screw or socket_head_cap_screw. Use Solid(x.wrapped) before boolean operations.",
+    "params": {
+      "size": "ISO metric thread spec e.g. 'M3-0.5', 'M4-0.7', 'M5-0.8', 'M6-1'"
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "counterbore_hole",
+    "module": "blocks.fasteners",
+    "function": "counterbore_hole",
+    "use": "A counterbore pocket + shaft clearance hole subtraction for socket head cap screws (ISO 4762). Subtract from a body so the bolt head sits flush. Standard sizes: M3 (d_screw=3.4, d_head=5.5, h_head=3.0), M4 (4.5, 7.0, 4.0), M5 (5.5, 8.5, 5.0).",
+    "params": {
+      "d_screw": "mm shaft clearance diameter",
+      "d_head": "mm counterbore pocket diameter",
+      "h_head": "mm counterbore pocket depth",
+      "depth": "mm total hole depth (>= h_head)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "countersink_hole",
+    "module": "blocks.fasteners",
+    "function": "countersink_hole",
+    "use": "A countersink taper + shaft clearance hole subtraction for flat-head screws (DIN 7991). Subtract from a body so the screw head sits flush with the surface. Standard 90-degree angle. Standard sizes: M3 (d_screw=3.2, d_sink=6.0), M4 (4.3, 8.0), M5 (5.3, 10.0).",
+    "params": {
+      "d_screw": "mm shaft clearance diameter",
+      "d_sink": "mm countersink opening diameter at the top surface",
+      "depth": "mm total hole depth",
+      "angle": "degrees included angle of countersink (default 90, DIN 7991)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "hex_nut_trap",
+    "module": "blocks.fasteners",
+    "function": "hex_nut_trap",
+    "use": "A hexagonal pocket subtraction for a top-drop captured nut. Subtract from a wall or floor so a nut can be pressed in from above and held captive. Pass d_screw to also cut a bolt clearance hole through the full depth. Standard sizes: M3 (nut_flat=5.5, nut_h=2.4), M4 (7.0, 3.2), M5 (8.0, 4.7).",
+    "params": {
+      "nut_flat": "mm across-flats nut width",
+      "nut_h": "mm nut thickness; sets hex pocket depth when d_screw > 0",
+      "depth": "mm total subtraction depth",
+      "d_screw": "mm screw clearance diameter through full depth (0 = no hole, default)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "nut_trap", "orientation": "+Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "dovetail_groove",
+    "module": "blocks.joints",
+    "function": "dovetail_groove",
+    "motion": "rigid",
+    "reversible": true,
+    "carries": ["shear-xy", "lock-z"],
+    "dof": {"type": "prismatic", "axis": "Y", "mechanical_limit": [0, 200], "unit": "mm"},
+    "use": "Dovetail slot cut into a box top inner edge. Wider at base than opening, preventing vertical pull-out. Subtract from the body. Mate with dovetail_tongue() on the sliding lid. Typical usage: width=box_w, wall=box_wall, depth=lid_t, length=box_d - box_wall.",
+    "params": {
+      "width": "mm outer box width (groove spans width - 2*wall)",
+      "wall": "mm wall thickness",
+      "depth": "mm groove depth, equals lid thickness",
+      "length": "mm groove length along sliding direction (+Y), typically box_d - wall",
+      "angle": "degrees from vertical, default 55 (35 deg overhang, printable without supports)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "sliding_interface", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "dovetail_tongue",
+    "module": "blocks.joints",
+    "function": "dovetail_tongue",
+    "motion": "rigid",
+    "reversible": true,
+    "carries": ["shear-xy", "lock-z"],
+    "dof": {"type": "prismatic", "axis": "Y", "mechanical_limit": [0, 200], "unit": "mm"},
+    "use": "Sliding dovetail lid panel for a rectangular box. The tongue IS the lid — height equals depth (lid_t), so the lid sits flush with the box top (no extra height added). Slides along +Y into dovetail_groove(). Use clearance=0.1 for smooth sliding, 0.05 for snug fit. Params must match the mating dovetail_groove.",
+    "params": {
+      "width": "mm outer box width (must match dovetail_groove width)",
+      "wall": "mm wall thickness (must match dovetail_groove wall)",
+      "depth": "mm tongue height, equals lid thickness (must match groove depth)",
+      "length": "mm tongue length (must match groove length)",
+      "angle": "degrees from vertical, default 55 (must match groove angle)",
+      "clearance": "mm clearance per side subtracted from opening width, default 0.1"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "sliding_interface", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "finger_joint",
+    "module": "blocks.joints",
+    "function": "finger_joint",
+    "motion": "rigid",
+    "reversible": true,
+    "carries": ["shear-xy"],
+    "use": "One interlocking comb half of a finger (box) joint. Divides width into equal slots along X and fills the alternating set chosen by start_high. Union onto a part edge; call twice with opposite start_high for the two halves. Best joint for splitting a model so each half prints flat with load in-layer; large shear + glue area. Glue to make permanent.",
+    "params": {
+      "width": "mm total joint span across the fingers (X)",
+      "thickness": "mm finger height (Z)",
+      "fingers": "count of equal slots across the width",
+      "length": "mm finger depth along the mate direction (Y)",
+      "clearance": "mm per-side gap subtracted from each finger width, default 0.1",
+      "start_high": "bool, True fills even slots, False fills odd (complementary halves)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "finger", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "tenon",
+    "module": "blocks.joints",
+    "function": "tenon",
+    "motion": "rigid",
+    "reversible": true,
+    "carries": ["shear-xy", "lock-xy"],
+    "use": "Rectangular keyed peg. Union onto a part face along +Z. Mate with mortise(). The rectangular section locks rotation about the mate axis, unlike a round alignment_pin. Use w != h to key orientation. Add glue for a permanent split-for-strength join.",
+    "params": {
+      "w": "mm peg width (X)",
+      "h": "mm peg depth (Y)",
+      "length": "mm peg length along the mate axis (Z)",
+      "clearance": "mm per-side reduction of the cross-section, default 0.0"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "tenon", "orientation": "+Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "mortise",
+    "module": "blocks.joints",
+    "function": "mortise",
+    "motion": "rigid",
+    "reversible": true,
+    "carries": ["shear-xy", "lock-xy"],
+    "use": "Rectangular pocket to subtract from a part for a tenon(). Cross-section grown by clearance per side. clearance > 0 is a slip fit, clearance < 0 an interference (press) fit. Match w and h to the mating tenon.",
+    "params": {
+      "w": "mm mating tenon width (X)",
+      "h": "mm mating tenon depth (Y)",
+      "depth": "mm pocket depth (Z)",
+      "clearance": "mm per-side gap added to the cross-section, default 0.2"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "mortise", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "dowel_pin",
+    "module": "blocks.joints",
+    "function": "dowel_pin",
+    "motion": "rigid",
+    "reversible": false,
+    "carries": ["shear-xy"],
+    "use": "Cylindrical dowel with a lead-in chamfer at the top. Union onto a part or print separately and press into two dowel_bore() holes to register split halves. Reversibility is set by the mating dowel_bore clearance (press fit is permanent).",
+    "params": {
+      "d": "mm dowel diameter",
+      "length": "mm dowel length",
+      "chamfer": "mm lead-in chamfer at the top edge, default 0.4 (0 disables)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "dowel", "orientation": "+Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "dowel_bore",
+    "module": "blocks.joints",
+    "function": "dowel_bore",
+    "motion": "rigid",
+    "reversible": false,
+    "carries": ["shear-xy"],
+    "use": "Bore to subtract for a dowel_pin. Fit is set by the sign of clearance: clearance > 0 is a slip (separable) fit, clearance < 0 an interference (press, permanent) fit (PLA ~ -0.1 mm radial; FDM holes print undersized, test on a coupon). Match d to the dowel_pin.",
+    "params": {
+      "d": "mm nominal dowel diameter (match dowel_pin d)",
+      "depth": "mm bore depth",
+      "clearance": "mm per-side gap added to the radius, default 0.1 (slip fit)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "dowel", "orientation": "-Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "ball_stud",
+    "module": "blocks.joints",
+    "function": "ball_stud",
+    "motion": "ball",
+    "reversible": true,
+    "carries": ["lock-xy", "lock-z"],
+    "dof": {"type": "spherical", "axis": "Z", "mechanical_limit": [0, 30], "unit": "deg"},
+    "use": "Ball on a stem for a ball-and-socket joint. Mate with ball_socket(). The ball sits above the stem with a conical fillet blending into its underside so it prints support-free with the stem pointing down. Multi-axis articulation.",
+    "params": {
+      "d_ball": "mm ball diameter",
+      "d_stem": "mm stem diameter",
+      "stem_l": "mm stem length",
+      "fillet": "mm stem-to-ball conical blend height, default 2.0 (0 disables)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "ball", "orientation": "+Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "ball_socket",
+    "module": "blocks.joints",
+    "function": "ball_socket",
+    "motion": "ball",
+    "reversible": true,
+    "carries": ["lock-xy", "lock-z"],
+    "dof": {"type": "spherical", "axis": "Z", "mechanical_limit": [0, 30], "unit": "deg"},
+    "use": "Slotted snap-in socket that captures a ball past its equator. Internal cavity is d_ball + 2*clearance; the cup wraps to retention_angle degrees past the equator so the mouth retains the ball, and a slot lets it flex during snap-in. Print flat with the mouth facing up. Mate with ball_stud().",
+    "params": {
+      "d_ball": "mm mating ball diameter (match ball_stud d_ball)",
+      "retention_angle": "degrees past the equator the cup grips (more = stronger hold)",
+      "slot_w": "mm flex slot width",
+      "wall": "mm cup wall thickness",
+      "clearance": "mm cavity radius added over the ball radius, default 0.2"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "ball_socket", "orientation": "+Z", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "hinge_leaf",
+    "module": "blocks.joints",
+    "function": "hinge_leaf",
+    "motion": "hinge",
+    "reversible": false,
+    "carries": ["shear-xy"],
+    "dof": {"type": "revolute", "axis": "Y", "mechanical_limit": [0, 180], "unit": "deg"},
+    "use": "One leaf of a knuckle hinge (one rotational DOF). Call twice with side 'A' and 'B' for the meshing pair; the leaves lie on opposite sides of the pin axis and the knuckles interleave. variant='pin' bores a hole for a separate pin/filament; variant='print_in_place' prints both leaves as one assembly through the clearance gaps. PRINT FLAT with the leaf on the bed and the hinge axis (Y) in the build plane (leaves print great this way). The knuckles then lie as horizontal cylinders: their lower quadrants are convex overhangs that self-support, and the pin bore prints as a short horizontal bridge - keep d_pin small (~3 mm) so it bridges cleanly, or insert a separate pin. For print_in_place the clearance gap must exceed one layer height to avoid fusing.",
+    "params": {
+      "length": "mm total hinge length along the axis (Y)",
+      "knuckles": "count of knuckle segments across the length",
+      "d_outer": "mm knuckle outer diameter",
+      "d_pin": "mm pin hole diameter (used when variant='pin')",
+      "leaf_w": "mm flat leaf width (X)",
+      "leaf_t": "mm flat leaf thickness (Z)",
+      "clearance": "mm axial gap between adjacent knuckles, default 0.3",
+      "side": "'A' fills even positions, 'B' fills odd positions",
+      "variant": "'pin' bores a pin hole; 'print_in_place' leaves knuckles solid"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "hinge_axis", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "pin_hinge",
+    "module": "blocks.joints",
+    "function": "pin_hinge",
+    "motion": "hinge",
+    "reversible": true,
+    "carries": ["shear-xy"],
+    "dof": {"type": "revolute", "axis": "Y", "mechanical_limit": [0, 180], "unit": "deg"},
+    "use": "A NORMAL revolute knuckle hinge - treat it kinematically like any door hinge (one rotational DOF about +Y, 0-180 deg). Two RIGID leaves rotate freely about a separate pin threaded through interleaved knuckles; the pin is a snipped strand of 1.75 mm filament, but the motion is the free rotation of the pin, NOT material flex. This is NOT a living_hinge (which has no pin and bends a thin web instead) - choose pin_hinge when you need a durable, freely rotating, near-frictionless pivot. Returns BOTH leaves interleaved on a shared axis as one print-in-place body (unlike hinge_leaf, which returns one leaf for two separate parts); push a piece of filament through the coaxial bore as the pivot pin after printing. Knuckle outer diameter is d_filament + 2 mm. PRINT FLAT with the knuckle axis (Y) in the build plane so the bore bridges cleanly and the undersides self-support; clearance between knuckles must exceed one layer height to avoid fusing. d_filament default 1.9 gives a slip fit over 1.75 mm filament (FDM holes print undersized).",
+    "params": {
+      "length": "mm total hinge length along the axis (Y)",
+      "knuckles": "count of knuckle segments across the length",
+      "leaf_w": "mm flat leaf width (X)",
+      "leaf_t": "mm flat leaf thickness (Z)",
+      "d_filament": "mm pin bore diameter, default 1.9 (slip fit over 1.75 mm filament)",
+      "clearance": "mm axial gap between adjacent knuckles, default 0.25 (> one layer height)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "hinge_axis", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "living_hinge",
+    "module": "blocks.joints",
+    "function": "living_hinge",
+    "motion": "hinge",
+    "reversible": false,
+    "carries": ["shear-xy"],
+    "use": "A FLEXURE hinge with NO pin and NO moving parts: two panels joined by a single paper-thin continuous web that BENDS. The bending is the elastic flex of the thin plastic web itself; there is no axle. This is NOT a pin_hinge (which threads a separate filament pin through knuckles and rotates rigidly) - choose living_hinge for a thin, one-piece fold line (lids, foldable flat-pack walls) where a few-degrees-to-180 fold is needed, not a free-spinning pivot. One continuous body; the web is flush with the top (+Z) face so the panels fold away from the web side. PRINT FLAT with the fold axis (Y) in the build plane and the web continuous along Y so filament paths cross the bend. MATERIAL MATTERS: PP, PETG, and TPU survive repeated folding; PLA is brittle and cracks after a few cycles. web_t default 0.6 mm is a few FDM layers.",
+    "params": {
+      "length": "mm hinge/panel length along the fold axis (Y)",
+      "panel_w": "mm width of each panel (X)",
+      "panel_t": "mm panel thickness (Z)",
+      "web_t": "mm flexure web thickness, default 0.6 (a few layers)",
+      "web_w": "mm flexure web width across the fold, default 2.0"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "hinge_axis", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  },
+  {
+    "name": "shadow_gap",
+    "module": "blocks.joints",
+    "function": "shadow_gap",
+    "motion": "rigid",
+    "reversible": true,
+    "carries": ["lock-z"],
+    "use": "Return lip for an end-to-end seam that hides the real joint behind a deliberate reveal. Where two parts butt end to end the seam always shows an irregular tolerance gap; this is the tongue to union onto the inner face of the FRONT (visible) member at the seam plane (Y=0), a bar of length (X) by overlap (Y) by wall (Z thickness) projecting behind the seam. PLACEMENT CONTRACT: place the back member shortened by a deliberate reveal (~1 mm) and butted against the lip with a small clearance, so the only visible gap is the uniform recessed reveal while the real seam is concealed behind the front wall.",
+    "params": {
+      "length": "mm seam length along the front member edge (X)",
+      "wall": "mm lip thickness (Z), typically the member wall thickness",
+      "overlap": "mm how far the lip projects behind the seam to hide the back member, default 3.0"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {"type": "seam", "orientation": "+Y", "origin": [0, 0, 0]}
+    ]
+  }
+]
