@@ -76,7 +76,7 @@
                 "clearance_mm": {
                   "type": "number",
                   "minimum": 0,
-                  "description": "Per-interface clearance override; takes precedence over assembly.clearance_mm"
+                  "description": "Per-mate fit clearance for this interface, in mm"
                 }
               },
               "additionalProperties": true
@@ -109,54 +109,86 @@
           "part_notes": {
             "type": "string",
             "description": "LLM reasoning for this part: blocks chosen, geometry written from scratch, unusual decisions"
+          },
+          "plate": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Print-group id. Parts sharing a plate print in one job (print-in-place). Defaults to the part's own id (one part per plate) when omitted."
+          },
+          "load": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["dir"],
+            "description": "Optional principal load direction in the part's own authored frame. Drives print-orientation strength scoring: orientations that keep this direction in the layer plane (perpendicular to build Z) score stronger. Omit to let the optimizer infer a load axis from geometry.",
+            "properties": {
+              "dir": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Direction vector [x, y, z] in the authored frame; need not be unit length"
+              }
+            }
+          },
+          "placement": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Pose of this union in the shared assembled frame. Rotations apply in listed order, then the translation. Omit for identity (union authored directly in the assembled frame).",
+            "properties": {
+              "translate_mm": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Translation [x, y, z] in mm, applied after rotations"
+              },
+              "rotate": {
+                "type": "array",
+                "description": "Ordered rotation steps about axes through the origin",
+                "items": {
+                  "type": "object",
+                  "required": ["axis", "angle_deg"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "axis": {"type": "string", "enum": ["X", "Y", "Z"]},
+                    "angle_deg": {"type": "number"}
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "assembly": {
-      "type": "object",
-      "description": "Assembly strategy (required when parts > 1)",
-      "properties": {
-        "strategy": {
-          "type": "string",
-          "description": "How parts connect: snap_fit, screws, press_fit, glue, hinged"
-        },
-        "clearance_mm": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Fit clearance between mating parts in mm"
-        },
-        "notes": {"type": "string"}
-      }
-    },
     "kinematics": {
       "type": "array",
-      "description": "Declared range-of-motion checks for articulating joints. Each entry verifies a moving part clears its required range against a fixed part. Optional; absent or empty skips the kinematic stage.",
+      "description": "Declared range-of-motion checks for articulating joints. Each entry sweeps a moving union through its required range against every other union in the assembled model. Optional; absent or empty skips the kinematic stage.",
       "items": {
         "type": "object",
-        "required": ["joint_id", "moving_part", "fixed_part", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "unit", "step"],
+        "required": ["joint_id", "moving_union", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "unit", "step"],
         "additionalProperties": false,
         "properties": {
           "joint_id": {"type": "string", "description": "Unique identifier for this joint"},
-          "moving_part": {"type": "string", "description": "Part id that moves relative to fixed_part"},
-          "fixed_part": {"type": "string", "description": "Part id held fixed during the sweep"},
+          "moving_union": {"type": "string", "description": "Union (part id) that moves; the fixed set is every other union in the model"},
           "block": {"type": "string", "description": "Joint block name from inventory.json (must carry a dof)"},
           "axis_origin_mm": {
             "type": "array",
             "items": {"type": "number"},
             "minItems": 3,
             "maxItems": 3,
-            "description": "World-space pivot point [x, y, z] in mm"
+            "description": "Assembled-frame pivot point [x, y, z] in mm"
           },
-          "axis_dir": {"type": "string", "enum": ["X", "Y", "Z"], "description": "World-space joint axis direction"},
+          "axis_dir": {"type": "string", "enum": ["X", "Y", "Z"], "description": "Assembled-frame joint axis direction"},
           "type": {"type": "string", "enum": ["revolute", "prismatic", "spherical"], "description": "Joint kinematic type"},
           "required_range": {
             "type": "array",
             "items": {"type": "number"},
             "minItems": 2,
             "maxItems": 2,
-            "description": "Range [lo, hi] the design requires, in the field unit"
+            "description": "Range [lo, hi] the design requires, RELATIVE to the union's authored pose (zero), in the field unit. May be negative and may straddle zero (e.g. [-30, 90])."
           },
+          "lo_inclusive": {"type": "boolean", "default": true, "description": "Whether the lower bound must be cleared (closed). False = open: lo need not be reached and a collision exactly at lo is not reported."},
+          "hi_inclusive": {"type": "boolean", "default": true, "description": "Whether the upper bound must be cleared (closed). False = open."},
           "unit": {"type": "string", "enum": ["deg", "mm"], "description": "Must match the block dof.unit"},
           "step": {"type": "number", "exclusiveMinimum": 0, "description": "Sweep increment in the field unit"}
         }
@@ -185,11 +217,5 @@
         }
       }
     }
-  },
-  "if": {
-    "properties": {"parts": {"minItems": 2}}
-  },
-  "then": {
-    "required": ["assembly"]
   }
 }

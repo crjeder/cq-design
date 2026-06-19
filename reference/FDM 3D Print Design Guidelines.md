@@ -17,9 +17,10 @@ Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for
 
 | Item | Value | Note |
 |---|---|---|
-| Min wall thickness | ≥ 0.8 mm | nozzle × 2 |
-| Fillet radius | ≥ 0.5 mm | smaller is dropped by slicer |
-| Screw hole clearance | +0.2–0.3 mm | M3 → ⌀3.2–3.3 mm |
+| Min wall thickness | ≥ 0.8 mm absolute, design ≥ 1.2 mm | 0.8 = nozzle × 2 (2 perimeters, slicer floor); 1.2 mm (3 perimeters) is the pipeline default the DFM gate checks |
+| Fillet radius | ≥ 0.5 mm, default 3 mm | smaller is dropped by slicer |
+| Chamfer | ≥ 0.5 mm, default 3 mm | smaller is dropped by slicer |
+| Screw hole clearance | +0.4 mm | M3 → ⌀3.4 mm (matches counterbore_hole) |
 | Interface clearance | press 0.0 / snap 0.15 / sliding 0.25 / loose 0.5 mm | planning.md overrides |
 | Bridge span | ≤ 20 mm | reliable no-support; ~50 mm only with good cooling |
 | Overhang angle | ≤ 45° | printable without supports |
@@ -29,21 +30,25 @@ Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for
 ## Wall Thickness
 <!-- applies_to: always -->
 
-- Outer walls: 0.8–2.5 mm (default 2.0); must be a multiple of nozzle diameter.
+- Outer walls: 1.2–2.5 mm (default 2.0; 0.8 mm absolute floor); must be a multiple of nozzle diameter.
 - Internal ribs: 1.0–1.5 mm.
 - Bottom face: ≥ outer wall thickness.
 - Strength comes from walls, not infill — add perimeter/wall count before raising infill %.
 
-## Fillets (Corner Rounding)
-<!-- applies_to: hollow_box, fillet_box -->
+## Chamfer / Fillet 
+<!-- applies_to: always -->
 
-- Exterior corners: 2–5 mm (default 3).
-- Interior corners: 0.5–1.0 mm — relieves stress concentration.
-- Apply to vertical outer edges: `edges("|Z")`.
+| Edge | Use | Why |
+|---|---|---|
+| Horizontal (∥ bed) | Chamfer | constant overhang angle, clean layer stepping |
+| Vertical (⊥ bed `edges("|Z")`) | Fillet | smooth head motion, fewer acceleration artifacts |
+
+- Apply whenever possible to improve part strength and print quality
 - Modeling mechanics (fillet sizing limits, fillet-before-shell, cut depth) → CadQuery Pattern Reference "Common Gotchas".
+- Combine fillets and chamfers to mitigate overhang issues -> replace a downward face steeper than 45° from horizontal (un-printable) with a chamfer.
 
 ## Screw Mount Structure
-<!-- applies_to: screw_boss, pcb_standoff -->
+<!-- applies_to: screw_boss, pcb_standoff, heat_set_boss -->
 
 - Boss OD: ≥ screw ⌀ × 2.5 (M3 → ⌀7.5 mm+).
 - Boss height: = effective screw engagement length.
@@ -81,6 +86,8 @@ Priority order:
 - Vertical hole (axis ∥ Z): best accuracy, but the perimeter seam can shift the wall ~0.4 mm
   and move the centerline; a teardrop keeps the seam off the round wall.
 - Large opening: respect bridge span (≤ 20 mm reliable, ~50 mm with good cooling).
+- thin, sacrificial bridging can reduce the need for support material.
+- stacked triangles in the edges can be used for large sacrificial bridges
 
 ## Protrusions & Pegs
 <!-- applies_to: teardrop_post -->
@@ -100,18 +107,6 @@ Self-supporting horizontal features — pick by function:
 - Large cross-sections: thick beats thin; reduce surface area before volume. Square section
   ≥ I-beam in FDM with no time penalty.
 - Round transitions and corners — spreads stress, guides loads on short direct paths.
-
-## Chamfer vs Fillet Rule
-<!-- applies_to: always -->
-
-| Edge | Use | Why |
-|---|---|---|
-| Horizontal (∥ bed) | Chamfer | constant overhang angle, clean layer stepping |
-| Vertical (⊥ bed) | Fillet | smooth head motion, fewer acceleration artifacts |
-
-- Bottom outer edge: 45° chamfer also hides elephant's foot.
-- Motion = accuracy: sharp XY corners force hard decel/accel → ringing, corner bulge. Prefer
-  rounded in-plane contours where function allows.
 
 ## Make It Adjustable (Tolerance Compensation)
 <!-- applies_to: always -->
@@ -152,7 +147,7 @@ When you can't hit a dimension, design in adjustment:
 - Break-away tabs support floating geometry in print-in-place mechanisms.
 
 ## Threads & Fasteners (Plastic Parts)
-<!-- applies_to: screw_boss, pcb_standoff -->
+<!-- applies_to: screw_boss, pcb_standoff, heat_set_boss -->
 
 | Method | When |
 |---|---|

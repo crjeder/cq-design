@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **cq-design** Claude Code skill. It generates parametric 3D models
 using [CadQuery](https://cadquery.readthedocs.io/) (Python) via the pipeline:
-Planning -> Part Loop -> Assembly -> Quality Gate.
+Planning -> Part Loop -> Model Export -> Quality Gate.
 
 The skill definition and phase descriptions live in `SKILL.md`. Claude itself drives
 the pipeline inline (reads `BUILD_PLAN.json`, writes each part script, runs the tool
@@ -56,8 +56,11 @@ run real CadQuery scripts (a few seconds each).
 | `src/run_cadquery_model.py` | Subprocess wrapper: runs a `.py` model (via `run_model_shim.py`), validates geometry, checks DFM constraints, emits structured JSON with `errors` and `geometry` fields. STL paths are hidden during iteration (temp dir); use `--deliver` to get deliverable files. Sets `PYTHONPATH=<src>` itself so the model can `from blocks import ...`. |
 | `src/run_model_shim.py` | Tiny shim invoked by the wrapper: `runpy`-executes the model script and auto-exports its `result` Workplane to STL if the script did not export one itself. |
 | `src/quality_gate.py` | Aggregates wrapper DFM + in-process trimesh geometry/overhang analysis (watertightness, overhang area/worst-angle/location vs `overhang_max_deg`); no slicer or MCP required. Emits structured report; invokes `claude -p` for targeted fixes (up to 2 rounds); emits print recipe on clean pass. Sets `PYTHONPATH=<src>` itself. Real slicer-based printability validation (e.g. the orca-check MCP) is optional and external, not part of the gate. |
-| `src/plan_validate.py` | Validates `BUILD_PLAN.json` against JSON Schema draft-7; cross-checks `blocks_needed` against `blocks/inventory.json`, and `kinematics` entries against part ids and the referenced block's `dof` (existence + matching `unit`). |
-| `src/kinematic_check.py` | Kinematic range-of-motion validation: for each plan `kinematics` entry, checks the declared `required_range` against the block's nominal `dof.mechanical_limit`, then sweeps the moving part's STL through that range against the fixed part with trimesh + python-fcl (scipy-backed), flagging the binding value. Emits the shared `{source, severity, type, message, hint}` issue contract. Requires `python-fcl` and `scipy`; degrades to a `check_skipped` warning otherwise. |
+| `src/plan_validate.py` | Validates `BUILD_PLAN.json` against JSON Schema draft-7; cross-checks `blocks_needed` against `blocks/inventory.json`, part `placement` rotation axes, and `kinematics` entries (`moving_union` is a part id; referenced block exists, carries a `dof`, and `unit` matches). |
+| `src/placement.py` | Shared assembled-frame placement helper: builds a 4x4 transform (`to_matrix`, for trimesh/3MF) and positions a CadQuery Workplane (`apply_cq`) from a part `placement` (ordered X/Y/Z rotations through origin, then translation). Identity when absent. |
+| `src/model_export.py` | Model-level export: loads each union's `result`, applies its `placement`, and emits one named-object `model.3mf` (each union a separately named object with `plate` metadata), one assembled-pose STL per union (the kinematic check's input), and one fused STL per multi-union plate. Uses `exporters/threemf_multi.py`. |
+| `src/build_template.py` | Deliverable build-script template. The skill copies it to `build/build.py`, substituting the `{{SKILL_SRC}}` placeholder with its `src/` path. Running `python build/build.py` regenerates all plates with objects in print orientation: reuses `build/orientations.json` when present, recomputes via `print_orientation.py` otherwise, then calls `model_export.export_model`. Standalone; not invoked by the rest of the pipeline. |
+| `src/kinematic_check.py` | Whole-model kinematic validation: for each plan `kinematics` entry, checks `required_range` (relative to the union's authored pose; may be negative/straddle zero; per-bound `lo_inclusive`/`hi_inclusive`) against the block's nominal `dof.mechanical_limit`, then sweeps the `moving_union`'s assembled STL against **every other union** (each a separately named collision object) with trimesh + python-fcl, reporting the binding value and `colliding_union`. Print-in-place joints are swept like any other (no special case). Emits the shared `{source, severity, type, message, hint}` contract. Requires `python-fcl` and `scipy`; degrades to a `check_skipped` warning otherwise. |
 | `src/measure_stl.py` | Geometry feature extractor: detects bounding box, horizontal layers, vertical cylindrical features, and thin regions (local ray-cast wall thickness, classified thin-in-XY vs thin-in-Z) from an STL using trimesh + numpy. Emits structured JSON. |
 | `src/preview.py` | Headless preview renderer using CadQuery tessellation + matplotlib (Agg backend) -> multi-view PNG. No OpenGL or display server required. |
 | `src/render_preview.py` | Subprocess entry point for previews: runs a model script in an isolated namespace, captures `result`, calls `preview.render_multi_view`/`render_single`. |
@@ -94,6 +97,10 @@ run real CadQuery scripts (a few seconds each).
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
     quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes
     plan_validate.py         # BUILD_PLAN.json schema + inventory cross-check
+    kinematic_check.py       # Whole-model range-of-motion sweep (trimesh + fcl)
+    placement.py             # Assembled-frame placement helper (cq + trimesh)
+    model_export.py          # Model-level export: named 3MF + per-union/plate STL
+    build_template.py        # build.py template copied to build/; regenerates plates in print orientation
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer
     render_preview.py        # Subprocess entry point for preview.py
@@ -114,11 +121,11 @@ run real CadQuery scripts (a few seconds each).
     exporters/
       __init__.py            # run_exporters(script, formats, output_dir)
       stl.py step.py threemf.py obj.py iges.py scad.py
+      threemf_multi.py       # Multi-object 3MF writer (named unions + plate metadata)
 
   prompts/
     planning.md          # Planning phase prompt (outputs BUILD_PLAN.json)
     part.md              # Per-part code generation prompt
-    assembly.md          # Assembly phase prompt
 
   reference/             # Injected design references (CadQuery patterns, FDM DFM)
   openspec/              # OpenSpec specs and change history

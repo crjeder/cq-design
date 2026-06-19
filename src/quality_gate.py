@@ -11,9 +11,9 @@ if any errors are found, invokes `claude -p` for up to MAX_FIX_ROUNDS, then
 re-runs the gate. On a clean pass emits a print recipe JSON.
 
 Usage:
-    python3 quality_gate.py --script assembly.py --plan BUILD_PLAN.json
-    python3 quality_gate.py --script assembly.py --plan BUILD_PLAN.json --stl out/assembly.stl
-    python3 quality_gate.py --script assembly.py --plan BUILD_PLAN.json --no-fix
+    python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json
+    python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json --stl build/body.stl
+    python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json --no-fix
 """
 
 import argparse
@@ -106,7 +106,6 @@ def _run_wrapper_check(
 def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
     """Analyze STL geometry and overhangs using trimesh. Returns issues."""
     try:
-        import numpy as np
         import trimesh
     except ImportError as exc:
         return [
@@ -157,38 +156,30 @@ def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
             }
         )
 
-    # Overhang: faces whose normals point downward (nz < 0).
-    # Overhang angle from horizontal = arcsin(min(1, -nz)) for a unit normal.
-    # Faces with overhang_angle strictly greater than overhang_deg need support.
-    normals = tm.face_normals  # type: ignore[attr-defined]
-    downward_mask = normals[:, 2] < 0
-    if np.any(downward_mask):
-        angles = np.degrees(np.arcsin(np.clip(-normals[:, 2], 0.0, 1.0)))
-        support_mask = downward_mask & (angles > overhang_deg)
-        if np.any(support_mask):
-            overhang_area = float(tm.area_faces[support_mask].sum())  # type: ignore[attr-defined]
-            # Worst face = steepest overhang among support-needed faces.
-            support_indices = np.nonzero(support_mask)[0]
-            worst_local = int(angles[support_indices].argmax())
-            worst_face = int(support_indices[worst_local])
-            worst_angle = float(angles[worst_face])
-            centroid = tm.triangles[worst_face].mean(axis=0)  # type: ignore[attr-defined]
-            location = [round(float(c), 3) for c in centroid]
-            issues.append(
-                {
-                    "source": "geometry",
-                    "severity": "warning",
-                    "type": "overhang_exceeded",
-                    "message": (
-                        f"Worst overhang {worst_angle:.1f}° exceeds limit "
-                        f"{overhang_deg}° over {overhang_area:.1f} mm² of faces"
-                    ),
-                    "hint": "Add chamfers or redesign overhanging features.",
-                    "overhang_area_mm2": round(overhang_area, 3),
-                    "worst_angle_deg": round(worst_angle, 3),
-                    "location_xyz_mm": location,
-                }
-            )
+    # Overhang: faces whose normals point downward (nz < 0). Faces with overhang
+    # angle strictly greater than overhang_deg need support. Shared definition with
+    # the print-orientation optimizer (mesh_io.overhang_metrics).
+    from mesh_io import overhang_metrics
+
+    metrics = overhang_metrics(tm, overhang_deg)
+    if metrics["worst_angle_deg"] is not None:
+        overhang_area = metrics["overhang_area_mm2"]
+        worst_angle = metrics["worst_angle_deg"]
+        issues.append(
+            {
+                "source": "geometry",
+                "severity": "warning",
+                "type": "overhang_exceeded",
+                "message": (
+                    f"Worst overhang {worst_angle:.1f}° exceeds limit "
+                    f"{overhang_deg}° over {overhang_area:.1f} mm² of faces"
+                ),
+                "hint": "Add chamfers or redesign overhanging features.",
+                "overhang_area_mm2": overhang_area,
+                "worst_angle_deg": worst_angle,
+                "location_xyz_mm": metrics["worst_location_xyz_mm"],
+            }
+        )
 
     return issues
 
@@ -198,14 +189,31 @@ def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _emit_print_recipe(plan: dict, geometry: dict | None) -> dict:
-    """Build a recommended print recipe from plan constraints + geometry."""
+def _emit_print_recipe(
+    plan: dict, geometry: dict | None, orientation: dict | None = None
+) -> dict:
+    """Build a recommended print recipe from plan constraints + geometry.
+
+    When `orientation` (a print_orientation.py result) is supplied, the recipe's
+    `orientation` field carries the computed rotation and its rationale; otherwise
+    it falls back to the default flat-bottom-down assumption.
+    """
     constraints = plan.get("constraints", {})
     wall_min = constraints.get("wall_min_mm", 1.2)
     nozzle = plan.get("nozzle_mm", 0.4)
 
     # Walls = ceil(wall_min / nozzle), at least 2
     walls = max(2, int((wall_min / nozzle) + 0.999))
+
+    if orientation:
+        orientation_field: dict | str = {
+            "rotate": orientation.get("rotate"),
+            "strength_score": orientation.get("strength_score"),
+            "support_score": orientation.get("support_score"),
+            "rationale": orientation.get("rationale"),
+        }
+    else:
+        orientation_field = "flat_bottom_down"
 
     recipe = {
         "material": plan.get("material", "PLA"),
@@ -218,7 +226,7 @@ def _emit_print_recipe(plan: dict, geometry: dict | None) -> dict:
         "infill_pattern": "gyroid",
         "supports": False,
         "support_threshold_deg": constraints.get("overhang_max_deg", 45),
-        "orientation": "flat_bottom_down",
+        "orientation": orientation_field,
     }
     if geometry:
         recipe["estimated_weight_g"] = geometry.get("weight_g")
@@ -308,12 +316,52 @@ def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     return run_kinematic_check(plan, stl_dir or ".")
 
 
+def _analyze_3mf(model_3mf_path: str) -> list[dict]:
+    """Check a 3MF deliverable for non-manifold edges as a slicer reads it.
+
+    Loads the mesh without vertex welding (process=False) so unwelded
+    tessellation seams surface here instead of being silently auto-repaired the
+    way the STL/trimesh path does. An STL cannot use this check (it stores no
+    shared vertices), so it is 3MF-only.
+    """
+    try:
+        from exporters.threemf_multi import count_nonmanifold_edges
+    except ImportError as exc:
+        return [
+            {
+                "source": "geometry",
+                "severity": "warning",
+                "type": "check_skipped",
+                "message": f"trimesh not available for 3MF manifold check: {exc}",
+                "hint": "pip install trimesh numpy",
+            }
+        ]
+
+    nonmanifold = count_nonmanifold_edges(model_3mf_path)
+    if nonmanifold:
+        return [
+            {
+                "source": "geometry",
+                "severity": "error",
+                "type": "non_manifold_edge",
+                "message": (
+                    f"3MF has {nonmanifold} non-manifold edges by vertex index "
+                    "(a slicer will reject or repair it)"
+                ),
+                "hint": "Weld coincident tessellation vertices before writing the 3MF.",
+            }
+        ]
+    return []
+
+
 def run_gate(
     script_path: str,
     plan_path: str,
     stl_path: str | None = None,
     allow_fix: bool = True,
     stl_dir: str | None = None,
+    model_3mf_path: str | None = None,
+    orientation: dict | None = None,
 ) -> dict:
     """
     Run all quality checks against script_path.
@@ -377,6 +425,10 @@ def run_gate(
             print(f"[QUALITY GATE] Fix attempt failed: {exc}")
             break
 
+    # ---- 3MF deliverable manifold check (index topology, as a slicer reads it) ----
+    if model_3mf_path and os.path.exists(model_3mf_path):
+        all_issues += _analyze_3mf(model_3mf_path)
+
     # ---- kinematic range check (once, outside the fix loop) ----
     all_issues += _run_kinematic_stage(plan, stl_dir)
     errors = [i for i in all_issues if i["severity"] == "error"]
@@ -385,7 +437,9 @@ def run_gate(
     return {
         "passed": passed,
         "issues": all_issues,
-        "print_recipe": _emit_print_recipe(plan, geometry) if passed else None,
+        "print_recipe": _emit_print_recipe(plan, geometry, orientation)
+        if passed
+        else None,
         "fix_rounds": fix_round,
     }
 
@@ -400,10 +454,21 @@ def main():
         description="Run quality gate on a CAD model script"
     )
     parser.add_argument(
-        "--script", required=True, help="Path to the model/assembly Python script"
+        "--script", required=True, help="Path to the part/union Python script"
     )
     parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
     parser.add_argument("--stl", default=None, help="Pre-exported STL path (optional)")
+    parser.add_argument(
+        "--model-3mf",
+        default=None,
+        help="3MF deliverable to check for non-manifold edges (optional)",
+    )
+    parser.add_argument(
+        "--orientation",
+        default=None,
+        help="JSON file with this union's print_orientation.py result; drives the "
+        "recipe's orientation field",
+    )
     parser.add_argument(
         "--no-fix",
         action="store_true",
@@ -411,8 +476,17 @@ def main():
     )
     args = parser.parse_args()
 
+    orientation = None
+    if args.orientation:
+        orientation = json.load(open(args.orientation, encoding="utf-8"))
+
     report = run_gate(
-        args.script, args.plan, stl_path=args.stl, allow_fix=not args.no_fix
+        args.script,
+        args.plan,
+        stl_path=args.stl,
+        allow_fix=not args.no_fix,
+        model_3mf_path=args.model_3mf,
+        orientation=orientation,
     )
 
     print(json.dumps(report, indent=2))

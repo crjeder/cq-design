@@ -41,7 +41,7 @@ Before committing to any dimension values, populate `planning_notes` with your r
 
 3. **Select blocks from the inventory.** For each part's `blocks_needed`, choose only names that appear in the block inventory below. If no block fits, leave `blocks_needed` empty and explain the scratch geometry in `part_notes` for that part. When a block's instance size is known, give it as an object `{"name": "...", "extents_mm": [x, y, z]}` instead of a bare name string, so the thin-block DFM check can flag any extent below `wall_min_mm` before code is generated. A bare string is still valid when the size is not yet fixed.
 
-4. **Clearance depends on fit type.** Use these defaults and write the resolved value into the relevant interface's `clearance_mm` and/or `assembly.clearance_mm`. Ask the user if the fit type is unclear.
+4. **Clearance depends on fit type.** Use these defaults and write the resolved value into each mating interface's `clearance_mm`. Ask the user if the fit type is unclear.
 
    | Fit type        | Default clearance |
    |-----------------|-------------------|
@@ -50,13 +50,43 @@ Before committing to any dimension values, populate `planning_notes` with your r
    | sliding         | 0.25 mm           |
    | loose / cover   | 0.5 mm            |
 
-   - `assembly.clearance_mm` is the default for the whole assembly.
-   - Each interface may carry its own `clearance_mm` to override the assembly default.
+   - Each interface carries its own `clearance_mm` for that mate.
    - If the user states a preferred clearance, use that instead.
 
-5. **Assembly strategy is required for multi-part models.** Specify how parts connect: `snap_fit`, `screws`, `press_fit`, `glue`, or `hinged`.
+5. **The model is assembled declaratively; there is no `assembly` object.** Parts are
+   positioned with `placement` (rule 8) and the whole model is treated as one assembly.
+   Express the connection method (snap, screw, press, hinge) by choosing the matching
+   mating blocks/interfaces -- e.g. `snap_hook_clip` for a snap-fit lid, `screw_boss`
+   for screwed parts -- and narrate the intended connection in `planning_notes`.
 
-6. **Omit the `assembly` key entirely for single-part models.**
+6. **Each part is a union (one rigid body). Group prints with `plate`.** A part maps
+   to one printed rigid body. Parts default to their own plate (one part per print).
+   Set the same `plate` id on several parts only for a **print-in-place** mechanism
+   that must print together in one job (e.g. both leaves of a pin/knuckle hinge);
+   keep a clearance gap > one layer height between co-plated bodies so they do not
+   fuse. Model the two leaves of a print-in-place hinge as two parts sharing a plate,
+   never as one combined body.
+
+7. **Place parts in the shared assembled frame with `placement`.** The whole model
+   is treated as one assembly. If a part is authored already in its assembled
+   position, omit `placement` (identity). Otherwise give a `placement` mapping its
+   local frame into the assembled frame: an ordered `rotate` list of
+   `{axis, angle_deg}` (applied in order, about X/Y/Z through the origin) followed by
+   `translate_mm`. The model export and the kinematic check both consume `placement`.
+
+8. **Declare moving joints in `kinematics`.** Each entry names the `moving_union`
+   (a part id); the fixed set is every other union in the model, so the sweep catches
+   in-context binding (a lid fouling the body). `required_range` is RELATIVE to the
+   union's authored pose (zero) and may be negative or straddle zero (e.g.
+   `[-30, 90]`); set `lo_inclusive`/`hi_inclusive` to `false` for an open bound that
+   need not be reached. `unit` must match the joint block's `dof.unit`.
+
+9. **Hint the principal load with `load`** (optional, per part). FDM is weakest across
+   layer lines (build Z), so print-orientation optimization favors orientations that
+   keep the main load in the layer plane. If a part carries a clear primary load
+   (a bracket arm in bending, a hook in tension, a shaft in shear), give `load.dir` as
+   the load direction `[x, y, z]` in the part's own authored frame. Omit it to let the
+   optimizer infer the load axis from geometry.
 
 ## Block inventory (name and use only)
 
@@ -87,14 +117,27 @@ Before committing to any dimension values, populate `planning_notes` with your r
         }
       ],
       "blocks_needed": [{"name": "hollow_box", "extents_mm": [50, 35, 20]}, "port_cutout"],
+      "plate": "body",
+      "placement": {"rotate": [{"axis": "X", "angle_deg": 0}], "translate_mm": [0, 0, 0]},
+      "load": {"dir": [1, 0, 0]},
       "part_notes": "<omit if blocks_needed is non-empty and geometry is standard>"
     }
   ],
-  "assembly": {
-    "strategy": "snap_fit",
-    "clearance_mm": 0.15,
-    "notes": ""
-  },
+  "kinematics": [
+    {
+      "joint_id": "lid_hinge",
+      "moving_union": "lid",
+      "block": "hinge_leaf",
+      "axis_origin_mm": [0, 35, 20],
+      "axis_dir": "Y",
+      "type": "revolute",
+      "required_range": [0, 110],
+      "lo_inclusive": true,
+      "hi_inclusive": true,
+      "unit": "deg",
+      "step": 5
+    }
+  ],
   "constraints": {
     "wall_min_mm": 1.2,
     "overhang_max_deg": 45,
@@ -103,7 +146,9 @@ Before committing to any dimension values, populate `planning_notes` with your r
 }
 ```
 
-Note: omit `assembly` entirely when `parts` has exactly one entry.
+Note: `plate`, `placement`, and `load` are optional (default: own plate, identity
+placement, inferred load axis). Omit `kinematics` unless the model has a declared range
+of motion to verify.
 
 ## FDM Design Guidelines
 
