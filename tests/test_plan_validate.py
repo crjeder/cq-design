@@ -1,10 +1,13 @@
 """Tests for BUILD_PLAN.json validation."""
 
+import importlib.util
 import json
 import os
 import sys
 from typing import Any
 import pytest
+
+_HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 
 SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
@@ -47,7 +50,6 @@ VALID_PLAN_TWO_PARTS: dict[str, Any] = {
             "blocks_needed": ["fillet_box", "snap_hook_clip"],
         },
     ],
-    "assembly": {"strategy": "snap_fit", "clearance_mm": 0.3},
 }
 
 
@@ -69,6 +71,26 @@ def test_valid_single_part(plan_file):
 def test_valid_two_parts(plan_file):
     errors = validate_plan(plan_file(VALID_PLAN_TWO_PARTS))
     assert errors == []
+
+
+def test_valid_load_hint(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [1, 0, 0]}
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
+
+
+def test_missing_load_hint_is_valid(plan_file):
+    # VALID_PLAN omits `load`; absence must not be an error.
+    errors = validate_plan(plan_file(VALID_PLAN))
+    assert errors == []
+
+
+def test_zero_load_direction_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, 0]}
+    errors = validate_plan(plan_file(plan))
+    assert any("non-zero direction" in e for e in errors)
 
 
 def test_missing_dimensions(plan_file):
@@ -99,9 +121,20 @@ def test_unknown_block_name(plan_file):
     assert any("nonexistent_block_xyz" in e for e in errors)
 
 
-def test_two_parts_missing_assembly(plan_file):
+def test_two_parts_no_assembly_field(plan_file):
+    """A multi-part plan validates with no `assembly` field; assembly is declarative."""
+    errors = validate_plan(plan_file(VALID_PLAN_TWO_PARTS))
+    assert errors == []
+
+
+@pytest.mark.skipif(
+    not _HAS_JSONSCHEMA,
+    reason="additionalProperties enforcement requires jsonschema",
+)
+def test_assembly_field_rejected(plan_file):
+    """A supplied `assembly` object is rejected by the schema (additionalProperties)."""
     plan = json.loads(json.dumps(VALID_PLAN_TWO_PARTS))
-    del plan["assembly"]
+    plan["assembly"] = {"strategy": "snap_fit", "clearance_mm": 0.3}
     errors = validate_plan(plan_file(plan))
     assert any("assembly" in e for e in errors)
 

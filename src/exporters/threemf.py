@@ -1,36 +1,19 @@
 """3MF exporter for Bambu Studio / PrusaSlicer / OrcaSlicer.
 
-Strategy: use cq.exporters.export() directly when available (preserves cavities),
-falling back to trimesh for older CadQuery versions.
-
-WARNING on the trimesh fallback: trimesh's 3MF writer can mangle internal
-cavities (enclosed voids, magnet pockets). Prefer direct CadQuery export.
+Tessellates the shape and welds coincident vertices before writing (via
+exporters.threemf_multi.write_single_3mf). CadQuery's native ThreeMFWriter emits
+the raw per-face tessellation without welding shared face seams, which slicers
+report as thousands of non-manifold edges even though the geometry is sound; the
+welded path avoids that. Internal cavities are preserved because tessellation
+includes inner-wall faces.
 """
-
-import os
-import tempfile
 
 import cadquery as cq
 
+from exporters.threemf_multi import write_single_3mf
+
 
 def export(result: cq.Workplane, path: str) -> None:
-    """Export CadQuery result to 3MF format."""
-    # Try native CadQuery export first (preserves internal cavities)
-    try:
-        cq.exporters.export(result, path)
-        return
-    except Exception:
-        pass
-
-    # Fallback: STL -> trimesh -> 3MF (no cavity preservation)
-    import trimesh
-
-    with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as tf:
-        tmp_stl = tf.name
-    try:
-        cq.exporters.export(result, tmp_stl, tolerance=0.01, angularTolerance=0.1)
-        mesh = trimesh.load(tmp_stl, force="mesh")
-        mesh.export(path)
-    finally:
-        if os.path.exists(tmp_stl):
-            os.unlink(tmp_stl)
+    """Export CadQuery result to 3MF format with welded (manifold) vertices."""
+    shape = cq.Compound.makeCompound(result.vals())
+    write_single_3mf(shape, path)

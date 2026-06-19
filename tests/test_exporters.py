@@ -59,6 +59,20 @@ def test_threemf_export(simple_box_script, tmp_path):
     assert os.path.getsize(paths[0]) > 0
 
 
+def test_threemf_export_is_manifold(tmp_path):
+    """3MF must weld tessellation seams; a curved face exposes the worst case."""
+    from exporters.threemf_multi import count_nonmanifold_edges
+
+    script = tmp_path / "holed.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        "result = cq.Workplane('XY').box(20, 20, 6).faces('>Z').workplane()"
+        ".hole(8)\n"
+    )
+    paths = run_exporters(str(script), ["3mf"], str(tmp_path))
+    assert count_nonmanifold_edges(paths[0]) == 0
+
+
 def test_obj_export(simple_box_script, tmp_path):
     paths = run_exporters(str(simple_box_script), ["obj"], str(tmp_path))
     assert len(paths) == 1

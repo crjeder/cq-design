@@ -71,16 +71,57 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
                     f"(not in inventory). Available: {sorted(valid_blocks)}"
                 )
 
+    errors.extend(_check_placements(plan))
+    errors.extend(_check_loads(plan))
     errors.extend(_check_kinematics(plan, inventory_path))
 
+    return errors
+
+
+def _check_loads(plan: dict[str, Any]) -> list[str]:
+    """Validate each part's optional `load` hint: the direction must be non-zero.
+
+    Shape (3-vector) is enforced by the schema; a zero vector has no orientation
+    and cannot drive strength scoring, so it is rejected here.
+    """
+    errors = []
+    for part in plan.get("parts", []):
+        load = part.get("load")
+        if not load:
+            continue
+        direction = load.get("dir", [])
+        if len(direction) == 3 and not any(abs(c) > 0 for c in direction):
+            pid = part.get("id", "(unknown)")
+            errors.append(f"Part '{pid}': load.dir must be a non-zero direction")
+    return errors
+
+
+def _check_placements(plan: dict[str, Any]) -> list[str]:
+    """Validate each part's optional `placement` (always-run, no jsonschema needed).
+
+    Rotation axes must be X/Y/Z. This guards the assembled-frame placement the model
+    export and kinematic check consume.
+    """
+    errors = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        placement = part.get("placement")
+        if not placement:
+            continue
+        for step in placement.get("rotate", []):
+            axis = step.get("axis")
+            if axis not in ("X", "Y", "Z"):
+                errors.append(
+                    f"Part '{pid}': placement rotate axis '{axis}' is not X, Y, or Z"
+                )
     return errors
 
 
 def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     """Cross-check kinematics entries against parts and inventory dof descriptors.
 
-    Each entry must reference existing part ids, a block that exists and carries a
-    `dof`, and a `unit` that matches the block's `dof.unit`.
+    Each entry's `moving_union` must reference an existing part id, the `block` must
+    exist and carry a `dof`, and the entry `unit` must match the block's `dof.unit`.
     """
     kinematics = plan.get("kinematics", [])
     if not kinematics:
@@ -92,10 +133,9 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     errors = []
     for entry in kinematics:
         jid = entry.get("joint_id", "(unknown)")
-        for role in ("moving_part", "fixed_part"):
-            ref = entry.get(role)
-            if ref not in part_ids:
-                errors.append(f"Kinematics '{jid}': {role} '{ref}' is not a part id")
+        ref = entry.get("moving_union")
+        if ref not in part_ids:
+            errors.append(f"Kinematics '{jid}': moving_union '{ref}' is not a part id")
         block_name = entry.get("block")
         block = get_block(block_name, inventory_path)
         if block is None:
@@ -183,9 +223,6 @@ def _manual_check(plan: dict[str, Any]) -> list[str]:
 
     if not plan.get("parts"):
         errors.append("'parts' array must have at least one entry")
-
-    if len(plan.get("parts", [])) > 1 and "assembly" not in plan:
-        errors.append("'assembly' is required when parts has more than one entry")
 
     return errors
 

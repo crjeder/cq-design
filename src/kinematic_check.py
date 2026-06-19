@@ -4,19 +4,26 @@
 For each entry in a build plan's `kinematics` array, verify the joint achieves
 its author-declared range of motion:
 
-  1. Numeric check (no mesh): the declared `required_range` lies within the joint
+  1. Numeric check (no mesh): the declared `required_range` (relative to the union's
+     authored pose, so it may be negative or straddle zero) lies within the joint
      block's nominal `dof.mechanical_limit` from the inventory.
-  2. Collision sweep (trimesh + fcl): step the moving part through the required
-     range against the fixed part; flag the first pose where the parts interfere
-     by more than `penetration_tol_mm` (designed surface contact at the joint is
-     not interference, so a small tolerance avoids false positives).
+  2. Whole-model collision sweep (trimesh + fcl): step the moving union through the
+     required range against EVERY other union in the assembled model, each added as a
+     separately named collision object so the colliding union is identifiable. Flag
+     the first pose where penetration exceeds `penetration_tol_mm` (designed surface
+     contact at the joint is not interference, so a small tolerance avoids false
+     positives). Bound inclusivity is honoured: a collision exactly at an open bound
+     is not reported. A print-in-place joint (several unions on one plate) is swept
+     the same way -- no special case.
 
-The inventory limit is a nominal sanity bound; the sweep is authoritative for a
-specific printed instance. Findings use the shared quality-gate issue contract:
-`{source, severity, type, message, hint, ...}`.
+Meshes are the assembled per-union STLs from `model_export.py` (placement already
+applied), so `--stl-dir` points at that export. The inventory limit is a nominal
+sanity bound; the sweep is authoritative for a specific assembled instance. Findings
+use the shared quality-gate issue contract: `{source, severity, type, message,
+hint, ...}`.
 
 Usage:
-    python3 kinematic_check.py --plan BUILD_PLAN.json --stl-dir build
+    python3 kinematic_check.py --plan BUILD_PLAN.json --stl-dir dist
 """
 
 import argparse
@@ -47,16 +54,26 @@ def _issue(severity: str, type_: str, message: str, hint: str, **extra: Any) -> 
     return issue
 
 
-def _sweep_values(lo: float, hi: float, step: float) -> list[float]:
-    """Sweep values from lo to hi inclusive in `step` increments, never past hi."""
+def _sweep_values(
+    lo: float, hi: float, step: float, lo_inc: bool = True, hi_inc: bool = True
+) -> list[float]:
+    """Sweep from lo to hi in `step` increments, honouring bound inclusivity.
+
+    A closed bound (`*_inc=True`) is sampled; an open bound is excluded, so a
+    collision exactly at an open endpoint is never evaluated. Interior samples are
+    `lo + k*step` strictly between the bounds. Never steps past `hi`.
+    """
     if hi <= lo:
-        return [lo]
+        return [lo] if (lo_inc and hi_inc) else []
     values = []
-    v = lo
+    if lo_inc:
+        values.append(lo)
+    v = lo + step
     while v < hi - 1e-9:
         values.append(v)
         v += step
-    values.append(hi)
+    if hi_inc:
+        values.append(hi)
     return values
 
 
@@ -85,16 +102,18 @@ def iter_poses(entry: dict) -> Iterator[tuple[float, Any]]:
     origin = np.asarray(entry["axis_origin_mm"], dtype=float)
     lo, hi = entry["required_range"]
     step = entry["step"]
+    lo_inc = entry.get("lo_inclusive", True)
+    hi_inc = entry.get("hi_inclusive", True)
 
     if jtype == "revolute":
-        for v in _sweep_values(lo, hi, step):
+        for v in _sweep_values(lo, hi, step, lo_inc, hi_inc):
             yield v, rotation_matrix(np.radians(v), axis, origin)
     elif jtype == "prismatic":
-        for v in _sweep_values(lo, hi, step):
+        for v in _sweep_values(lo, hi, step, lo_inc, hi_inc):
             yield v, translation_matrix(axis * v)
     elif jtype == "spherical":
         base_perp = _perpendicular(axis)
-        for v in _sweep_values(lo, hi, step):
+        for v in _sweep_values(lo, hi, step, lo_inc, hi_inc):
             if abs(v) < 1e-9:
                 yield v, np.eye(4)
                 continue
@@ -107,27 +126,25 @@ def iter_poses(entry: dict) -> Iterator[tuple[float, Any]]:
 
 
 def _sweep_collision(
-    moving_mesh: Any, fixed_mesh: Any, entry: dict, penetration_tol_mm: float
-) -> float | None:
-    """Sweep moving_mesh against fixed_mesh; return the first binding value or None.
+    moving_mesh: Any, manager: Any, entry: dict, penetration_tol_mm: float
+) -> tuple[float, list[str]] | None:
+    """Sweep moving_mesh against a manager of named fixed unions.
 
-    A pose binds when the deepest contact penetration exceeds penetration_tol_mm.
+    Returns (binding_value, sorted colliding union names) for the first pose whose
+    deepest contact penetration exceeds penetration_tol_mm, or None if clear. The
+    manager holds each fixed union as a separately named object so the colliding
+    union is identifiable.
     """
-    from trimesh.collision import CollisionManager
-
-    manager = CollisionManager()
-    manager.add_object("fixed", fixed_mesh)
-
     for value, transform in iter_poses(entry):
         moved = moving_mesh.copy()
         moved.apply_transform(transform)
-        hit, _, data = manager.in_collision_single(
+        hit, names, data = manager.in_collision_single(
             moved, return_names=True, return_data=True
         )
         if hit:
             max_depth = max((abs(c.depth) for c in data), default=0.0)
             if max_depth > penetration_tol_mm:
-                return value
+                return value, sorted(names)
     return None
 
 
@@ -167,10 +184,13 @@ def run_kinematic_check(
             )
         )
 
+    all_union_ids = [part.get("id") for part in plan.get("parts", [])]
+
     for entry in kinematics:
         jid = entry.get("joint_id", "(unknown)")
         unit = entry.get("unit")
         lo, hi = entry["required_range"]
+        moving_id = entry["moving_union"]
         block = get_block(entry.get("block"), inventory_path)
         dof = (block or {}).get("dof")
 
@@ -195,40 +215,50 @@ def run_kinematic_check(
                 # Mechanically impossible: do not load a mesh or sweep this joint.
                 continue
 
-        # ---- collision sweep ----
+        # ---- collision sweep (whole model: moving union vs all other unions) ----
         if not collision_ok:
             continue
 
         import trimesh
+        from trimesh.collision import CollisionManager
 
-        moving_path = _stl_path(stl_dir, entry["moving_part"])
-        fixed_path = _stl_path(stl_dir, entry["fixed_part"])
-        if not (os.path.exists(moving_path) and os.path.exists(fixed_path)):
+        moving_path = _stl_path(stl_dir, moving_id)
+        fixed_ids = [uid for uid in all_union_ids if uid != moving_id]
+        missing = [
+            uid
+            for uid in [moving_id, *fixed_ids]
+            if not os.path.exists(_stl_path(stl_dir, uid))
+        ]
+        if missing:
             issues.append(
                 _issue(
                     "warning",
                     "check_skipped",
-                    f"Joint '{jid}': part STL not found "
-                    f"({entry['moving_part']} or {entry['fixed_part']})",
-                    "Export parts in deliver mode before the kinematic check.",
+                    f"Joint '{jid}': assembled union STL not found ({', '.join(missing)})",
+                    "Run the model export so each union has an assembled STL.",
                     joint_id=jid,
                 )
             )
             continue
 
         moving = trimesh.load(moving_path, force="mesh")
-        fixed = trimesh.load(fixed_path, force="mesh")
-        binding = _sweep_collision(moving, fixed, entry, penetration_tol_mm)
+        manager = CollisionManager()
+        for uid in fixed_ids:
+            manager.add_object(uid, trimesh.load(_stl_path(stl_dir, uid), force="mesh"))
+
+        binding = _sweep_collision(moving, manager, entry, penetration_tol_mm)
         if binding is not None:
+            value, colliding = binding
             issues.append(
                 _issue(
                     "error",
                     "motion_collision",
-                    f"Joint '{jid}' binds at {binding} {unit} "
-                    f"(required up to {hi} {unit})",
+                    f"Joint '{jid}' (moving union '{moving_id}') binds at {value} "
+                    f"{unit} against {', '.join(colliding)} (required up to {hi} {unit})",
                     "Increase joint clearance or relieve the colliding feature.",
                     joint_id=jid,
-                    binding_value=binding,
+                    binding_value=value,
+                    colliding_union=colliding,
                     required_range=[lo, hi],
                     unit=unit,
                 )

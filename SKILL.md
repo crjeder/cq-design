@@ -23,7 +23,7 @@ This skill generates parametric 3D-printable CadQuery models via a four-phase pi
 
 1. **Planning** - gather requirements, produce and validate `BUILD_PLAN.json`
 2. **Part loop** - you write each part script inline, validate geometry, retry on failure
-3. **Assembly** - if multiple parts all succeed, generate an assembly script
+3. **Model export** - if multiple parts all succeed, assemble them declaratively from each part's `placement` via `model_export.py`
 4. **Quality gate** - DFM checks, in-process trimesh geometry + overhang analysis (no slicer required), print recipe
 
 ## Prerequisites
@@ -185,19 +185,18 @@ The summary must include:
 
 **Parts**
 
-| # | ID | Description | W x D x H (mm) | Orientation | Blocks |
-|---|-----|-------------|----------------|-------------|--------|
-| 1 | ... | ... | ... x ... x ... | ... | ... |
+| # | ID | Description | W x D x H (mm) | Orientation | Load | Blocks |
+|---|-----|-------------|----------------|-------------|------|--------|
+| 1 | ... | ... | ... x ... x ... | ... | ... | ... |
+
+(The `Load` column shows each part's `load.dir` hint, or `inferred` when the part omits
+it — it drives print-orientation strength scoring.)
 
 **Interfaces** (omit section if no part has any interfaces)
 
 | Part | Type | Connector | Wall | Position (mm) |
 |------|------|-----------|------|---------------|
 | ... | ... | ... | ... | ... |
-
-**Assembly strategy** (omit section for single-part models)
-
-`<one-line description from plan's assembly field>`
 
 **Constraints**
 
@@ -328,37 +327,106 @@ For each stage, in order:
 satisfies the plan dimensions within tolerance AND passes the **full** visual self-review —
 the same bar as the autonomous path. Progressive build does not lower the criteria.
 
-### Assembly phase
+### Print-orientation optimization
 
-Only if `len(plan["parts"]) > 1` and all parts succeeded.
+After every union passes the part loop, choose how each one sits on the bed before
+exporting. The objective is fixed and ordered: **part strength first, minimal support
+second**. FDM is weakest across layer lines (build Z), so the optimizer favors
+orientations that keep the part's load in the layer plane, then — among orientations of
+comparable strength — the one needing the least support.
 
-Read `$SKILL_DIR/prompts/assembly.md` and substitute:
+Run the optimizer once per union, on the union's **authored-frame** STL (the part's own
+`result`, before any `placement`), since print orientation is a property of the part, not
+of its assembled pose. Export that authored STL first (hidden during the loop), then
+optimize:
 
-| Placeholder | Value |
-|-------------|-------|
-| `{{PARTS_TABLE}}` | Markdown table: part ID, script path, actual dimensions (from recorded `geometry.bbox` for each part) |
-| `{{PART_LOAD_LINES}}` | One line per part: `part_id = _load_part(os.path.join(os.path.dirname(__file__), "<part_id>.py"))` |
-| `{{STRATEGY}}` | `plan["assembly"]["strategy"]` |
-| `{{CLEARANCE_MM}}` | `plan["assembly"]["clearance_mm"]` |
-| `{{NOTES}}` | `plan["assembly"]["notes"]` |
-| `{{CQ_REFERENCE}}` | Full contents of `CadQuery Pattern Reference.md` |
+```bash
+# authored-frame STL for the part (deliver mode writes it out)
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
+    build/<part_id>.py --deliver --formats stl
+# orientation: pass the part's load.dir when the plan declares one, else omit to infer
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
+    build/<part_id>.stl --overhang-max-deg <overhang_max_deg> [--load x,y,z]
+```
 
-Write `build/assembly.py`, run the validator without `--expected-dims`, check result.
+Each run prints a JSON result: a `rotate` transform (placement convention), the
+`strength_score`, `support_score`, `bed_contact_mm2`, the `load_dir` used (with
+`load_inferred`), and a `rationale`.
+
+**The loop:** read the score breakdown and decide.
+- **Accept** the recommended orientation when its support is acceptable, or when no better
+  orientation exists at comparable strength.
+- **Reduce support** when the best-strength orientation still incurs significant support:
+  make a targeted geometry edit to the part script (chamfer a steep overhang, add a
+  print-in-place foot, split a feature), re-validate it (Step 3), and re-run the optimizer.
+  Re-scoring on identical input is deterministic, so a changed score reflects the edit.
+- Never trade strength away for less support — the optimizer enforces that, and so should
+  the loop: support is only the tiebreaker.
+
+Collect the accepted orientations into `build/orientations.json` mapping each part id to
+its result (`{"<part_id>": {"rotate": [...], ...}}`). This file feeds the model export and
+the quality-gate recipe below.
+
+### Model export
+
+The model is assembled declaratively from each part's `placement` — there is no
+hand-written fused-assembly script. Run the model export to emit the deliverables. Pass
+`--orientations build/orientations.json` so the **deliverable 3MF/STL are written in each
+union's recommended print orientation**; the assembled-pose per-union STLs that the
+kinematic check consumes are still written from `placement`, unaffected:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/model_export.py" \
+    --plan BUILD_PLAN.json --parts-dir build --out build \
+    --orientations build/orientations.json
+```
+
+This writes a named-object `model.3mf` (each union a separately named object in its print
+orientation, carrying its `plate` metadata), one **assembled-pose** STL per union
+(`build/<part_id>.stl`, the kinematic check's input, in `placement` pose), and one fused
+STL per plate that holds more than one union (in the plate's print orientation). Run the
+export even for a single-part model to get the print-oriented deliverable; omit
+`--orientations` to fall back to assembled-pose deliverables.
+
+Then drop a re-runnable build script into the deliverable directory: copy
+`$SKILL_DIR/src/build_template.py` to `build/build.py`, substituting the `{{SKILL_SRC}}`
+placeholder with the absolute path to `$SKILL_DIR/src`. This gives the user a
+self-contained `python build/build.py` that regenerates every plate with its object in
+print orientation after a manual part edit, without re-invoking the skill. It reuses
+`build/orientations.json` when present (so the plates match the ones just delivered) and
+recomputes orientations otherwise.
+
+```bash
+# POSIX
+sed "s|{{SKILL_SRC}}|$SKILL_DIR/src|" "$SKILL_DIR/src/build_template.py" > build/build.py
+```
+
+```powershell
+# Windows (PowerShell)
+(Get-Content "$SKILL_DIR/src/build_template.py" -Raw) -replace '\{\{SKILL_SRC\}\}', "$SKILL_DIR/src" |
+    Set-Content build/build.py
+```
 
 ### Quality gate
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/quality_gate.py" \
-    <final_script> BUILD_PLAN.json
+    --script build/<part_id>.py --plan BUILD_PLAN.json \
+    --orientation build/<part_id>.orientation.json
 ```
 
-`<final_script>` is `build/assembly.py` for multi-part builds, `build/<part_id>.py` for single-part.
+DFM, geometry, and overhang are per-rigid-body concerns, so the gate runs on each
+union's own part script: run it once per union for a multi-part model. Pass the union's
+own orientation result (one object split out of `build/orientations.json`) via
+`--orientation` so the emitted print recipe's `orientation` field carries the computed
+rotation and rationale instead of the default `flat_bottom_down`. The whole-model
+kinematic check runs once over the per-union assembled STLs produced by the model export.
 
 Parse `build/quality_gate.json` and proceed to Phase 4.
 
 The gate runs entirely in-process (trimesh + numpy geometry and overhang analysis); it needs no slicer or MCP. Real slicer-based printability validation (e.g. the orca-check MCP) is optional and external, not part of the gate.
 
-If the plan has a `kinematics` array, the gate also runs the **kinematic range check** (`src/kinematic_check.py`) once, after the geometry checks. This stage needs each referenced part's STL present in the gate's STL directory (the directory of `<final_script>`, i.e. `build/`) as `<part_id>.stl`, so deliver the moving and fixed parts before the gate (`run_cadquery_model.py --deliver --formats stl` per part). The stage degrades to a `check_skipped` warning when a part STL or the `python-fcl`/`scipy` backend is missing. See **Kinematic validation** below.
+If the plan has a `kinematics` array, the gate also runs the **kinematic range check** (`src/kinematic_check.py`) once, after the geometry checks. The sweep is whole-model, so it needs **every union's assembled STL** present in the gate's STL directory as `<part_id>.stl`. Produce these with the **model export** (`src/model_export.py`), which applies each part's `placement` and writes one assembled STL per union (plus the named-object `model.3mf` and any fused-per-plate STL). The stage degrades to a `check_skipped` warning when a union STL or the `python-fcl`/`scipy` backend is missing. See **Kinematic validation** below.
 
 The `build/` directory is in your current working directory (the directory you called the skill from), not inside `$SKILL_DIR`.
 
@@ -371,7 +439,8 @@ Report to the user:
 1. **Status** - which parts passed, which had remaining warnings or errors
 2. **Preview images** - display any `.png` files from `build/`
 3. **Print recipe** - show `print_recipe` from `build/quality_gate.json`
-4. **Output files** - list the STL / 3MF files in `build/`
+4. **Output files** - list the STL / 3MF files in `build/`, and note `build/build.py`
+   as the re-runnable script that regenerates the plates in print orientation
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually or re-run the gate with `--no-fix` to get a clean report.
 
@@ -487,28 +556,38 @@ instance actually achieves.
 ```json
 "kinematics": [{
   "joint_id": "phone_hinge",
-  "moving_part": "arm",
-  "fixed_part": "base",
+  "moving_union": "arm",
   "block": "hinge_leaf",
   "axis_origin_mm": [0, 0, 4],
   "axis_dir": "Y",
   "type": "revolute",
   "required_range": [0, 90],
+  "lo_inclusive": true,
+  "hi_inclusive": true,
   "unit": "deg",
   "step": 5
 }]
 ```
 
-`axis_origin_mm` + `axis_dir` give the world-space joint axis (you declare it; it is
-not inferred). `required_range` is the arc the design depends on (e.g. fold the arm
-0->90 deg), swept in `step` increments. `plan_validate.py` checks each entry's parts
-exist, the block exists and carries a `dof`, and `unit` matches the block `dof.unit`.
+`axis_origin_mm` + `axis_dir` give the assembled-frame joint axis (you declare it; it
+is not inferred). `moving_union` is the part that moves; **the fixed set is every
+other union in the model**, so the sweep is whole-model and catches in-context binding
+(a lid blocked by the body, not just the hinge in isolation). `required_range` is the
+arc the design depends on, **relative to the union's authored pose (zero)**; it may be
+negative or straddle zero (e.g. `[-30, 90]`), and `lo_inclusive`/`hi_inclusive`
+(default `true`) mark whether each bound must be cleared. `plan_validate.py` checks
+`moving_union` exists, the block exists and carries a `dof`, and `unit` matches the
+block `dof.unit`.
 
 The gate then performs two checks per joint: (1) `required_range` within the block's
 `mechanical_limit` -> `range_exceeds_limit` on failure (no mesh loaded); (2) a
-collision sweep of `moving_part` against `fixed_part` -> `motion_collision` with the
-binding value if the parts interfere before the range end. Designed surface contact
-at the joint is tolerated (small penetration tolerance); only real interference binds.
+collision sweep of the moving union against every other union, each added as a
+separately named collision object -> `motion_collision` carrying the binding value
+and the `colliding_union` so the design loop knows what to fix. A print-in-place
+joint (several unions on one plate) is swept the same way -- no special case. Designed
+surface contact at the joint is tolerated (small penetration tolerance); only real
+interference binds. The check reads the assembled per-union STLs from the model export
+(see **Model export** / `model_export.py`).
 
 ---
 
@@ -648,7 +727,7 @@ Add 0.3-0.5 mm to `nut_flat` for a pocket that doesn't require force-fitting in 
 | `src/plan_validate.py` | Validates BUILD_PLAN.json against schema and inventory |
 | `prompts/planning.md` | Planning phase prompt template |
 | `prompts/part.md` | Per-part code generation prompt template |
-| `prompts/assembly.md` | Assembly phase prompt template |
+| `src/model_export.py` | Assembles placed unions into model.3mf + per-union/plate STL |
 | `src/blocks/inventory.json` | Machine-readable block descriptors |
 | `reference/CadQuery Pattern Reference.md` | CadQuery idioms injected into part prompts |
 | `reference/FDM 3D Print Design Guidelines.md` | FDM guidelines injected into planning and part prompts |
