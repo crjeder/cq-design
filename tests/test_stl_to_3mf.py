@@ -23,5 +23,5 @@ def test_convert_happy_path(tmp_stl, tmp_path):
 def test_convert_missing_file():
     import pytest
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         mesh_io.load_mesh("/nonexistent/path/nope.stl")

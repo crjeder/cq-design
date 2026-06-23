@@ -30,7 +30,8 @@ import argparse
 import json
 import os
 import sys
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 _INVENTORY_PATH = os.path.join(os.path.dirname(__file__), "blocks", "inventory.json")
 
@@ -138,9 +139,7 @@ def _sweep_collision(
     for value, transform in iter_poses(entry):
         moved = moving_mesh.copy()
         moved.apply_transform(transform)
-        hit, names, data = manager.in_collision_single(
-            moved, return_names=True, return_data=True
-        )
+        hit, names, data = manager.in_collision_single(moved, return_names=True, return_data=True)
         if hit:
             max_depth = max((abs(c.depth) for c in data), default=0.0)
             if max_depth > penetration_tol_mm:
@@ -225,9 +224,7 @@ def run_kinematic_check(
         moving_path = _stl_path(stl_dir, moving_id)
         fixed_ids = [uid for uid in all_union_ids if uid != moving_id]
         missing = [
-            uid
-            for uid in [moving_id, *fixed_ids]
-            if not os.path.exists(_stl_path(stl_dir, uid))
+            uid for uid in [moving_id, *fixed_ids] if not os.path.exists(_stl_path(stl_dir, uid))
         ]
         if missing:
             issues.append(
@@ -286,10 +283,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    plan = json.load(open(args.plan, encoding="utf-8"))
-    issues = run_kinematic_check(
-        plan, args.stl_dir, args.inventory, args.penetration_tol
-    )
+    with open(args.plan, encoding="utf-8") as f:
+        plan = json.load(f)
+    issues = run_kinematic_check(plan, args.stl_dir, args.inventory, args.penetration_tol)
     print(json.dumps({"issues": issues}, indent=2))
     has_error = any(i["severity"] == "error" for i in issues)
     sys.exit(1 if has_error else 0)

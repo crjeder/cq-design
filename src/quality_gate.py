@@ -30,9 +30,7 @@ MAX_FIX_ROUNDS = 2
 # ---------------------------------------------------------------------------
 
 
-def _run_wrapper_check(
-    script_path: str, plan: dict
-) -> tuple[list[dict], str | None, dict | None]:
+def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | None, dict | None]:
     """Run run_cadquery_model.py DFM checks; return list of issue dicts."""
     constraints = plan.get("constraints", {})
     # Line width approximates nozzle diameter * 1.1; drives the brittle thin-wall
@@ -189,9 +187,7 @@ def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _emit_print_recipe(
-    plan: dict, geometry: dict | None, orientation: dict | None = None
-) -> dict:
+def _emit_print_recipe(plan: dict, geometry: dict | None, orientation: dict | None = None) -> dict:
     """Build a recommended print recipe from plan constraints + geometry.
 
     When `orientation` (a print_orientation.py result) is supplied, the recipe's
@@ -240,9 +236,7 @@ def _emit_print_recipe(
 # ---------------------------------------------------------------------------
 
 
-def _render_fix_prompt(
-    script_path: str, issues: list[dict], prompt_template: str
-) -> str:
+def _render_fix_prompt(script_path: str, issues: list[dict], prompt_template: str) -> str:
     """Render a targeted fix prompt listing only failing checks."""
     errors = [i for i in issues if i["severity"] == "error"]
     warnings = [i for i in issues if i["severity"] == "warning"]
@@ -266,7 +260,8 @@ def _render_fix_prompt(
 
     lines.append("\n### Script to fix\n")
     try:
-        code = open(script_path, encoding="utf-8").read()
+        with open(script_path, encoding="utf-8") as f:
+            code = f.read()
     except OSError:
         code = "(script not readable)"
     lines.append(f"```python\n{code}\n```")
@@ -288,9 +283,7 @@ def _call_claude(prompt_text: str) -> str:
         timeout=120,
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f"claude -p failed (exit {result.returncode}):\n{result.stderr}"
-        )
+        raise RuntimeError(f"claude -p failed (exit {result.returncode}):\n{result.stderr}")
     return result.stdout.strip()
 
 
@@ -374,7 +367,8 @@ def run_gate(
             "fix_rounds": int,
         }
     """
-    plan = json.load(open(plan_path, encoding="utf-8"))
+    with open(plan_path, encoding="utf-8") as f:
+        plan = json.load(f)
     overhang_deg = plan.get("constraints", {}).get("overhang_max_deg", 45)
     if stl_dir is None:
         stl_dir = os.path.dirname(os.path.abspath(script_path))
@@ -412,9 +406,7 @@ def run_gate(
             break
 
         # ---- fix round ----
-        print(
-            f"[QUALITY GATE] Round {fix_round + 1}: {len(errors)} error(s) — invoking fix..."
-        )
+        print(f"[QUALITY GATE] Round {fix_round + 1}: {len(errors)} error(s) — invoking fix...")
         fix_prompt = _render_fix_prompt(script_path, all_issues, "")
         try:
             raw = _call_claude(fix_prompt)
@@ -437,9 +429,7 @@ def run_gate(
     return {
         "passed": passed,
         "issues": all_issues,
-        "print_recipe": _emit_print_recipe(plan, geometry, orientation)
-        if passed
-        else None,
+        "print_recipe": _emit_print_recipe(plan, geometry, orientation) if passed else None,
         "fix_rounds": fix_round,
     }
 
@@ -450,12 +440,8 @@ def run_gate(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run quality gate on a CAD model script"
-    )
-    parser.add_argument(
-        "--script", required=True, help="Path to the part/union Python script"
-    )
+    parser = argparse.ArgumentParser(description="Run quality gate on a CAD model script")
+    parser.add_argument("--script", required=True, help="Path to the part/union Python script")
     parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
     parser.add_argument("--stl", default=None, help="Pre-exported STL path (optional)")
     parser.add_argument(
@@ -478,7 +464,8 @@ def main():
 
     orientation = None
     if args.orientation:
-        orientation = json.load(open(args.orientation, encoding="utf-8"))
+        with open(args.orientation, encoding="utf-8") as f:
+            orientation = json.load(f)
 
     report = run_gate(
         args.script,

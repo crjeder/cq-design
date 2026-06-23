@@ -27,8 +27,8 @@ _RELS = (
 _CONTENT_TYPES = (
     '<?xml version="1.0" encoding="UTF-8"?>'
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-    '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>'
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'  # noqa: E501
+    '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>'  # noqa: E501
     "</Types>"
 )
 
@@ -99,9 +99,7 @@ def write_named_3mf(
         objects: list of (union_name, plate_id, cq_shape) in assembled pose
         path: output .3mf path
     """
-    model = ET.Element(
-        "model", {"unit": "millimeter", "xml:lang": "en-US", "xmlns": _CORE}
-    )
+    model = ET.Element("model", {"unit": "millimeter", "xml:lang": "en-US", "xmlns": _CORE})
     resources = ET.SubElement(model, "resources")
     build = ET.SubElement(model, "build")
 
@@ -126,9 +124,7 @@ def write_single_3mf(
     raw per-face tessellation without welding, which slicers flag as non-manifold;
     this path welds first (see `_weld`).
     """
-    model = ET.Element(
-        "model", {"unit": "millimeter", "xml:lang": "en-US", "xmlns": _CORE}
-    )
+    model = ET.Element("model", {"unit": "millimeter", "xml:lang": "en-US", "xmlns": _CORE})
     resources = ET.SubElement(model, "resources")
     build = ET.SubElement(model, "build")
     _add_object(resources, "1", name, None, shape, tolerance, angular_tolerance)
@@ -156,6 +152,7 @@ def count_nonmanifold_edges(path: str) -> int:
     import trimesh
 
     mesh = trimesh.load(path, force="mesh", process=False)
+    assert isinstance(mesh, trimesh.Trimesh)  # force="mesh" guarantees a single mesh
     edges = np.sort(mesh.edges, axis=1)
     _, counts = np.unique(edges, axis=0, return_counts=True)
     return int((counts != 2).sum())

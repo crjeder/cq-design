@@ -33,6 +33,11 @@
       "enum": [0.2, 0.4, 0.6, 0.8],
       "description": "Nozzle diameter in mm"
     },
+    "optimize_for": {
+      "type": "string",
+      "enum": ["strength", "min_support", "visual_quality"],
+      "description": "Plan-level print-orientation objective. 'strength' (default when omitted) keeps the part's load in the layer plane; 'min_support' minimizes support material; 'visual_quality' favors clean visible surfaces (penalizes gentle inclines under 45 deg, orients the cosmetic show_face against the bed). A per-part optimize_for overrides this for that part."
+    },
     "parts": {
       "type": "array",
       "minItems": 1,
@@ -120,6 +125,26 @@
             "additionalProperties": false,
             "required": ["dir"],
             "description": "Optional principal load direction in the part's own authored frame. Drives print-orientation strength scoring: orientations that keep this direction in the layer plane (perpendicular to build Z) score stronger. Omit to let the optimizer infer a load axis from geometry.",
+            "properties": {
+              "dir": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Direction vector [x, y, z] in the authored frame; need not be unit length"
+              }
+            }
+          },
+          "optimize_for": {
+            "type": "string",
+            "enum": ["strength", "min_support", "visual_quality"],
+            "description": "Per-part print-orientation objective; overrides the plan-level optimize_for for this part. Omit to inherit the plan-level value (or 'strength' when that is also absent)."
+          },
+          "show_face": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["dir"],
+            "description": "Optional outward normal of the part's primary cosmetic surface in its own authored frame. Used by the 'visual_quality' optimization mode as the surface to orient face-down against the smooth bed. Omit to let the optimizer infer a cosmetic surface from geometry.",
             "properties": {
               "dir": {
                 "type": "array",

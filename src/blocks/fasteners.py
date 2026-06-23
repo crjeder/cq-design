@@ -96,9 +96,7 @@ def alignment_socket(d: float, h: float, clearance: float = 0.2) -> cq.Workplane
     return cq.Workplane("XY").circle((d + clearance) / 2).extrude(h + _EPS)
 
 
-def counterbore_hole(
-    d_screw: float, d_head: float, h_head: float, depth: float
-) -> cq.Workplane:
+def counterbore_hole(d_screw: float, d_head: float, h_head: float, depth: float) -> cq.Workplane:
     """Counterbore pocket + shaft clearance hole for socket head cap screws (ISO 4762).
 
     Subtract from your body. Head pocket at the top face; shaft clearance runs full depth.
@@ -112,12 +110,7 @@ def counterbore_hole(
         depth: total hole depth in mm (must be >= h_head)
     """
     shaft = cq.Workplane("XY").circle(d_screw / 2).extrude(depth + _EPS)
-    cbore = (
-        cq.Workplane("XY")
-        .workplane(offset=depth - h_head)
-        .circle(d_head / 2)
-        .extrude(h_head)
-    )
+    cbore = cq.Workplane("XY").workplane(offset=depth - h_head).circle(d_head / 2).extrude(h_head)
     return shaft.union(cbore)
 
 
@@ -147,9 +140,7 @@ def countersink_hole(
     return shaft.union(sink)
 
 
-def hex_nut_trap(
-    nut_flat: float, nut_h: float, depth: float, d_screw: float = 0
-) -> cq.Workplane:
+def hex_nut_trap(nut_flat: float, nut_h: float, depth: float, d_screw: float = 0) -> cq.Workplane:
     """Hexagonal pocket for a top-drop captured nut. Subtract from your body.
 
     Without d_screw: full-depth hex prism (use depth = nut_h + ~0.5 clearance).

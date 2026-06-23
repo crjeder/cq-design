@@ -56,6 +56,46 @@ Generated output files (`BUILD_PLAN.json`, `build/`, exports) are always written
 the directory you called the skill from (your current working directory) — not to
 `$SKILL_DIR`.
 
+### Permission bootstrap (first use per directory)
+
+The pipeline issues many `uv run`, `python`, `uv sync`, file-copy, `WebSearch`, and
+`WebFetch` commands. To avoid a permission prompt for each one, seed the working
+directory's `.claude/settings.local.json` with the patterns these commands need, once
+per directory. Do this immediately after establishing `SKILL_DIR` and before Phase 1.
+
+First check whether this directory was already seeded, then merge if not:
+
+```bash
+# --check exits 0 if already seeded, 1 if not
+if ! python "$SKILL_DIR/src/init_permissions.py" --check .; then
+    python "$SKILL_DIR/src/init_permissions.py" .
+fi
+```
+
+```powershell
+# Windows (PowerShell)
+python "$SKILL_DIR/src/init_permissions.py" --check .
+if ($LASTEXITCODE -ne 0) { python "$SKILL_DIR/src/init_permissions.py" . }
+```
+
+The merge is additive and idempotent: it creates `.claude/settings.local.json` if
+absent, appends only missing patterns to `permissions.allow`, and never removes,
+reorders, or duplicates existing entries or other settings keys. On a truly fresh
+directory the very first invocation of `init_permissions.py` itself may prompt once;
+that single approval seeds everything else.
+
+**Explicit init:** if the user asks to "init permissions" (or to re-seed after updating
+the skill), run `python "$SKILL_DIR/src/init_permissions.py" .` unconditionally (skip the
+`--check`) so any newly added patterns are merged in.
+
+**Fallback when the helper cannot run:** if `init_permissions.py` is unavailable or its
+first run is declined, read `$SKILL_DIR/src/skill_permissions.json` and merge its `allow`
+array into `.claude/settings.local.json` yourself with the Read/Write tools (same
+additive, dedup, order-preserving merge — do not drop existing entries or other keys).
+
+Known gaps: arbitrary manufacturer `WebFetch` domains and browser MCP tools (whose
+server name is environment-dependent) are not in the seeded set and may still prompt.
+
 ---
 
 ## Phase 1: Requirements gathering
@@ -191,6 +231,13 @@ The summary must include:
 
 (The `Load` column shows each part's `load.dir` hint, or `inferred` when the part omits
 it — it drives print-orientation strength scoring.)
+
+**Print optimization**
+
+State the plan-level `optimize_for` (`strength` default, `min_support`, or
+`visual_quality`) and call out any part that overrides it. For `visual_quality`, note each
+part's `show_face.dir` (or `inferred`). This is the objective the print-orientation step
+uses.
 
 **Interfaces** (omit section if no part has any interfaces)
 
@@ -330,38 +377,53 @@ the same bar as the autonomous path. Progressive build does not lower the criter
 ### Print-orientation optimization
 
 After every union passes the part loop, choose how each one sits on the bed before
-exporting. The objective is fixed and ordered: **part strength first, minimal support
-second**. FDM is weakest across layer lines (build Z), so the optimizer favors
-orientations that keep the part's load in the layer plane, then — among orientations of
-comparable strength — the one needing the least support.
+exporting. The objective is **user-selectable** via the plan's `optimize_for` field (a
+plan-level default with optional per-part override; defaults to `strength`):
+
+- **`strength`** (default): keep the part's load in the layer plane (FDM is weakest across
+  layer lines, build Z), then least support as the tiebreaker.
+- **`min_support`**: minimize support material first, strength as the tiebreaker. For jigs,
+  drafts, and parts where print time/cleanup matters more than load capacity.
+- **`visual_quality`**: best surface appearance first, strength then support as tiebreakers.
+  Penalizes gentle inclines (surfaces sloped under 45 deg, which stair-step visibly) and
+  rewards orienting the part's cosmetic surface (`show_face`) face-down against the smooth
+  bed. For display pieces.
+
+When the user states a priority ("optimize for looks", "minimize supports"), it should
+already be recorded as `optimize_for` in `BUILD_PLAN.json` during planning; honor it here.
 
 Run the optimizer once per union, on the union's **authored-frame** STL (the part's own
 `result`, before any `placement`), since print orientation is a property of the part, not
 of its assembled pose. Export that authored STL first (hidden during the loop), then
-optimize:
+optimize with the part's effective mode:
 
 ```bash
 # authored-frame STL for the part (deliver mode writes it out)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
     build/<part_id>.py --deliver --formats stl
-# orientation: pass the part's load.dir when the plan declares one, else omit to infer
+# orientation: pass the part's load.dir / show_face.dir when the plan declares them,
+# else omit to infer; --optimize-for is the part's effective mode (default strength)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
-    build/<part_id>.stl --overhang-max-deg <overhang_max_deg> [--load x,y,z]
+    build/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
+    --optimize-for <strength|min_support|visual_quality> [--load x,y,z] [--show-face x,y,z]
 ```
 
-Each run prints a JSON result: a `rotate` transform (placement convention), the
-`strength_score`, `support_score`, `bed_contact_mm2`, the `load_dir` used (with
-`load_inferred`), and a `rationale`.
+Each run prints a JSON result: the active `optimize_for`, a `rotate` transform (placement
+convention), the `strength_score`, `support_score`, `bed_contact_mm2`, `visual_score` (with
+`cosmetic_down` and `gentle_incline_fraction`), the `load_dir` used (with `load_inferred`),
+the `show_face` used (with `show_face_inferred`), and a `rationale`.
 
 **The loop:** read the score breakdown and decide.
-- **Accept** the recommended orientation when its support is acceptable, or when no better
-  orientation exists at comparable strength.
-- **Reduce support** when the best-strength orientation still incurs significant support:
-  make a targeted geometry edit to the part script (chamfer a steep overhang, add a
+- **Accept** the recommended orientation when its scores are acceptable for the chosen mode,
+  or when no better orientation exists at comparable primary score.
+- **Improve** the part when the chosen mode's primary score is poor: make a targeted geometry
+  edit to the part script (chamfer a steep overhang or a gentle incline, add a
   print-in-place foot, split a feature), re-validate it (Step 3), and re-run the optimizer.
   Re-scoring on identical input is deterministic, so a changed score reflects the edit.
-- Never trade strength away for less support — the optimizer enforces that, and so should
-  the loop: support is only the tiebreaker.
+- Respect the user's mode: `visual_quality` and `min_support` may deliberately accept a
+  weaker or higher-support pose. The non-primary scores stay in the result and rationale, so
+  if the trade-off looks unacceptable, surface it to the user rather than silently overriding
+  the mode.
 
 Collect the accepted orientations into `build/orientations.json` mapping each part id to
 its result (`{"<part_id>": {"rotate": [...], ...}}`). This file feeds the model export and
@@ -388,24 +450,54 @@ STL per plate that holds more than one union (in the plate's print orientation).
 export even for a single-part model to get the print-oriented deliverable; omit
 `--orientations` to fall back to assembled-pose deliverables.
 
-Then drop a re-runnable build script into the deliverable directory: copy
-`$SKILL_DIR/src/build_template.py` to `build/build.py`, substituting the `{{SKILL_SRC}}`
-placeholder with the absolute path to `$SKILL_DIR/src`. This gives the user a
-self-contained `python build/build.py` that regenerates every plate with its object in
-print orientation after a manual part edit, without re-invoking the skill. It reuses
-`build/orientations.json` when present (so the plates match the ones just delivered) and
-recomputes orientations otherwise.
+Then make the working directory a **self-contained uv project** so the user can
+regenerate the plates on any machine with uv, without the skill installed. Three steps:
+
+1. **Drop in the re-runnable build script and bundle the tooling.** Copy
+   `$SKILL_DIR/src/build_template.py` verbatim to `build/build.py` (no placeholder
+   substitution), then copy the build tooling it imports into `build/` so it sits on
+   `build.py`'s own `sys.path`: the modules `mesh_io.py`, `model_export.py`,
+   `print_orientation.py`, `placement.py` and the packages `exporters/` and `blocks/`
+   (copy the whole directories, including their `*.json` data files). Re-running the skill
+   overwrites these with the current `src/` versions.
+
+2. **Scaffold the uv project files** at the working-directory root: copy
+   `$SKILL_DIR/src/project_template/pyproject.toml` to `pyproject.toml` and
+   `$SKILL_DIR/src/project_template/.python-version` to `.python-version`.
+
+3. **Sync and verify.** Run `uv sync` in the working directory to create `.venv` and
+   produce a committed `uv.lock`, then verify the build runs in that environment with
+   `uv run python build/build.py`.
 
 ```bash
 # POSIX
-sed "s|{{SKILL_SRC}}|$SKILL_DIR/src|" "$SKILL_DIR/src/build_template.py" > build/build.py
+cp "$SKILL_DIR/src/build_template.py" build/build.py
+for m in mesh_io.py model_export.py print_orientation.py placement.py; do
+    cp "$SKILL_DIR/src/$m" build/
+done
+cp -r "$SKILL_DIR/src/exporters" "$SKILL_DIR/src/blocks" build/
+cp "$SKILL_DIR/src/project_template/pyproject.toml" pyproject.toml
+cp "$SKILL_DIR/src/project_template/.python-version" .python-version
+uv sync
+uv run python build/build.py
 ```
 
 ```powershell
 # Windows (PowerShell)
-(Get-Content "$SKILL_DIR/src/build_template.py" -Raw) -replace '\{\{SKILL_SRC\}\}', "$SKILL_DIR/src" |
-    Set-Content build/build.py
+Copy-Item "$SKILL_DIR/src/build_template.py" build/build.py
+'mesh_io.py','model_export.py','print_orientation.py','placement.py' |
+    ForEach-Object { Copy-Item "$SKILL_DIR/src/$_" build/ }
+Copy-Item "$SKILL_DIR/src/exporters","$SKILL_DIR/src/blocks" build/ -Recurse
+Copy-Item "$SKILL_DIR/src/project_template/pyproject.toml" pyproject.toml
+Copy-Item "$SKILL_DIR/src/project_template/.python-version" .python-version
+uv sync
+uv run python build/build.py
 ```
+
+This gives the user a self-contained project where `uv run python build/build.py`
+regenerates every plate with its object in print orientation after a manual part edit,
+without re-invoking the skill. It reuses `build/orientations.json` when present (so the
+plates match the ones just delivered) and recomputes orientations otherwise.
 
 ### Quality gate
 
@@ -439,8 +531,9 @@ Report to the user:
 1. **Status** - which parts passed, which had remaining warnings or errors
 2. **Preview images** - display any `.png` files from `build/`
 3. **Print recipe** - show `print_recipe` from `build/quality_gate.json`
-4. **Output files** - list the STL / 3MF files in `build/`, and note `build/build.py`
-   as the re-runnable script that regenerates the plates in print orientation
+4. **Output files** - list the STL / 3MF files in `build/`, and note that the working
+   directory is a self-contained uv project (committed `uv.lock`): the user regenerates
+   the plates in print orientation with `uv run python build/build.py`, no skill re-invoke
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually or re-run the gate with `--no-fix` to get a clean report.
 

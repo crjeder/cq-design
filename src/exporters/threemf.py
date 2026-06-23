@@ -15,5 +15,5 @@ from exporters.threemf_multi import write_single_3mf
 
 def export(result: cq.Workplane, path: str) -> None:
     """Export CadQuery result to 3MF format with welded (manifold) vertices."""
-    shape = cq.Compound.makeCompound(result.vals())
+    shape = cq.Compound.makeCompound(result.vals())  # type: ignore[arg-type]  # vals() are Shapes here
     write_single_3mf(shape, path)

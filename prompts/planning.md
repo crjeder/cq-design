@@ -88,6 +88,17 @@ Before committing to any dimension values, populate `planning_notes` with your r
    the load direction `[x, y, z]` in the part's own authored frame. Omit it to let the
    optimizer infer the load axis from geometry.
 
+10. **Record the print-orientation priority with `optimize_for`.** Set the user's stated
+    optimization preference, one of `strength` (default), `min_support`, or
+    `visual_quality`, as a plan-level `optimize_for`; add a per-part `optimize_for` only
+    when one part needs a different objective. Map the user's intent: load-bearing or
+    structural -> `strength`; jig/draft/throwaway or "minimize supports/print time" ->
+    `min_support`; display piece or "make it look good" -> `visual_quality`. Default to
+    `strength` when the user says nothing. For `visual_quality`, when the user identifies
+    a display/show surface, declare its outward normal as `show_face.dir` `[x, y, z]` in
+    the part's authored frame (the surface the optimizer orients face-down against the
+    bed); omit it to let the optimizer infer the cosmetic surface.
+
 ## Block inventory (name and use only)
 
 {{BLOCK_INVENTORY}}
@@ -102,6 +113,7 @@ Before committing to any dimension values, populate `planning_notes` with your r
   "printer": "<printer model>",
   "material": "PLA",
   "nozzle_mm": 0.4,
+  "optimize_for": "strength",
   "parts": [
     {
       "id": "body",
@@ -120,6 +132,8 @@ Before committing to any dimension values, populate `planning_notes` with your r
       "plate": "body",
       "placement": {"rotate": [{"axis": "X", "angle_deg": 0}], "translate_mm": [0, 0, 0]},
       "load": {"dir": [1, 0, 0]},
+      "optimize_for": "strength",
+      "show_face": {"dir": [0, 0, 1]},
       "part_notes": "<omit if blocks_needed is non-empty and geometry is standard>"
     }
   ],
