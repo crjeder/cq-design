@@ -1,13 +1,17 @@
 """Hardware blocks backed by cq_warehouse fastener geometry.
 
-Requires cq_warehouse (already a project dependency). The module-level
-extensions import activates Workplane.insertHole and related methods.
+Requires cq_warehouse (already a project dependency). The `cq_warehouse.extensions`
+import is lazy: it is imported inside `heat_set_boss` (the only function that needs
+`Workplane.insertHole`), not at module load. This avoids installing the global
+`Shape._apply_transform`/`Shape.copy` monkeypatch as a side effect of importing the
+block package. The import is routed through `cq_compat`, which restores cadquery's
+native (serialization-free) `Shape.copy`/`_apply_transform` after loading the extensions
+-- the cq_warehouse versions deepcopy through BinTools and crash on some OCCT 7.8 geometry
+-- so even after `heat_set_boss` runs, no transform path goes through that round-trip.
 """
 
 import cadquery as cq
 from cadquery import Solid
-
-import cq_warehouse.extensions  # noqa: F401 -- side-effect: patches insertHole etc. onto Workplane
 
 
 def heat_set_boss(
@@ -33,13 +37,18 @@ def heat_set_boss(
     """
     from cq_warehouse.fastener import HeatSetNut
 
+    from cq_compat import import_cq_warehouse_extensions
+
+    import_cq_warehouse_extensions()  # Workplane.insertHole side effect; native Shape.copy kept
+
     nut = HeatSetNut(size=size, fastener_type="Hilitchi", simple=True)
     return (
         cq.Workplane("XY")
         .circle(d_outer / 2)
         .extrude(h)
         .faces(">Z")
-        .insertHole(nut, manufacturingCompensation=manufacturing_compensation)
+        # insertHole is injected onto Workplane by import_cq_warehouse_extensions()
+        .insertHole(nut, manufacturingCompensation=manufacturing_compensation)  # type: ignore[attr-defined]
     )
 
 
@@ -55,9 +64,7 @@ def socket_head_cap_screw(size: str, length: float) -> cq.Workplane:
     """
     from cq_warehouse.fastener import SocketHeadCapScrew
 
-    screw = SocketHeadCapScrew(
-        size=size, length=length, fastener_type="iso4762", simple=True
-    )
+    screw = SocketHeadCapScrew(size=size, length=length, fastener_type="iso4762", simple=True)
     return cq.Workplane("XY").add(Solid(screw.wrapped))
 
 

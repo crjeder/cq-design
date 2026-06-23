@@ -25,12 +25,8 @@ import tempfile
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Render a CadQuery model script as a preview PNG"
-    )
-    parser.add_argument(
-        "--script", required=True, help="Path to the CadQuery .py model script"
-    )
+    parser = argparse.ArgumentParser(description="Render a CadQuery model script as a preview PNG")
+    parser.add_argument("--script", required=True, help="Path to the CadQuery .py model script")
     parser.add_argument("--output", required=True, help="Output PNG path")
     parser.add_argument("--views", choices=["iso", "multi"], default="multi")
     parser.add_argument("--title", default=None)
@@ -59,9 +55,7 @@ def main():
     try:
         os.chdir(run_dir)
         try:
-            namespace = runpy.run_path(
-                script_path, init_globals={"__file__": script_path}
-            )
+            namespace = runpy.run_path(script_path, init_globals={"__file__": script_path})
         except Exception as exc:
             print(f"ERROR: model script failed: {exc}", file=sys.stderr)
             sys.exit(1)
@@ -82,8 +76,7 @@ def main():
         sys.exit(1)
     if not isinstance(result, (cq.Workplane, cq.Shape)):
         print(
-            f"ERROR: `result` is {type(result).__name__}, "
-            "expected a CadQuery Workplane or Shape.",
+            f"ERROR: `result` is {type(result).__name__}, expected a CadQuery Workplane or Shape.",
             file=sys.stderr,
         )
         sys.exit(1)

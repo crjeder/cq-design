@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+# type: ignore  # CAD/trimesh stub-union noise; tests are ruff-linted, not type-checked
 """Tests for the model-level export (placement, named 3MF, STL fallback).
 
 Uses CadQuery to produce real part scripts, so these are integration-speed.
@@ -186,6 +188,41 @@ def test_object_name_sanitizes_hostile_and_oversized_description(tmp_path):
     assert name.startswith("Mounting bracket with cable routing")
     # The 3MF still loads as valid geometry.
     assert len(trimesh.load(result["model_3mf"]).geometry) == 1
+
+
+def test_block_importing_part_with_rotation_exports_without_bintools_error(tmp_path):
+    """Regression: a part that imports blocks (activating the cq_warehouse Shape
+    patch) and carries a non-identity print orientation must export through
+    apply_cq without a BinTools deepcopy round-trip / BRep_PointRepresentation error.
+    """
+    import pytest
+
+    pytest.importorskip("cq_warehouse", reason="cq_warehouse not installed")
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    # Importing blocks.hardware + building a heat-set boss installs the global
+    # Shape patch in this process, the condition that previously broke the
+    # oriented export.
+    (parts_dir / "boss.py").write_text(
+        "import cadquery as cq\n"
+        "from blocks.hardware import heat_set_boss\n"
+        "result = cq.Workplane('XY').box(20, 20, 6).union(\n"
+        "    heat_set_boss('M3-0.5-6', d_outer=7, h=6)\n"
+        ")\n"
+    )
+    out = tmp_path / "dist"
+    plan = _plan([{"id": "boss", "description": "boss plate"}])
+    # Non-identity print orientation: stand the part up.
+    orientations = {"boss": {"rotate": [{"axis": "X", "angle_deg": 90}]}}
+
+    result = export_model(plan, str(parts_dir), str(out), orientations)
+
+    # 3MF written in the print orientation, and all STLs produced + watertight.
+    scene = trimesh.load(result["model_3mf"])
+    assert len(scene.geometry) == 1
+    union = trimesh.load(result["union_stls"]["boss"], force="mesh")
+    assert union.is_watertight
 
 
 def test_object_name_falls_back_to_id_when_description_empty(tmp_path):

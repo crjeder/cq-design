@@ -53,8 +53,7 @@ def bad_script(tmp_path):
     """CadQuery script that raises (fillet radius too large)."""
     script = tmp_path / "bad.py"
     script.write_text(
-        "import cadquery as cq\n"
-        "cq.Workplane('XY').box(10, 10, 10).edges('|Z').fillet(99)\n"
+        "import cadquery as cq\ncq.Workplane('XY').box(10, 10, 10).edges('|Z').fillet(99)\n"
     )
     return script
 

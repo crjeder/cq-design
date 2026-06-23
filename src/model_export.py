@@ -95,7 +95,7 @@ def export_model(
         (
             _object_name(part.get("description", ""), part["id"]),
             _plate_of(part),
-            cq.Compound.makeCompound(_deliverable(part["id"]).vals()),
+            cq.Compound.makeCompound(_deliverable(part["id"]).vals()),  # type: ignore[arg-type]
         )
         for part in parts
     ]
@@ -144,9 +144,7 @@ def export_model(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Model-level union/plate export")
     parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
-    parser.add_argument(
-        "--parts-dir", required=True, help="Directory of <id>.py scripts"
-    )
+    parser.add_argument("--parts-dir", required=True, help="Directory of <id>.py scripts")
     parser.add_argument("--out", required=True, help="Output directory")
     parser.add_argument(
         "--orientations",
@@ -156,10 +154,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    plan = json.load(open(args.plan, encoding="utf-8"))
+    with open(args.plan, encoding="utf-8") as f:
+        plan = json.load(f)
     print_orientations = None
     if args.orientations:
-        print_orientations = json.load(open(args.orientations, encoding="utf-8"))
+        with open(args.orientations, encoding="utf-8") as f:
+            print_orientations = json.load(f)
     result = export_model(plan, args.parts_dir, args.out, print_orientations)
     print(json.dumps(result, indent=2))
     sys.exit(0)

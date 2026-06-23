@@ -18,10 +18,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import trimesh
-
 
 # ---------------------------------------------------------------------------
 # Loading
@@ -127,9 +127,7 @@ def _union_find(nodes: list[int], edges: np.ndarray) -> list[list[int]]:
     return list(groups.values())
 
 
-def _cylinders(
-    mesh: trimesh.Trimesh, min_radius_mm: float, min_area_mm2: float
-) -> list[dict]:
+def _cylinders(mesh: trimesh.Trimesh, min_radius_mm: float, min_area_mm2: float) -> list[dict]:
     """Detect vertical cylindrical features grouped by face adjacency.
 
     Classifies each group as boss (outward-pointing normals) or hole
@@ -154,7 +152,7 @@ def _cylinders(
     side_idx = np.where(is_side)[0].tolist()
     components = _union_find(side_idx, sub_adj)
 
-    results = []
+    results: list[dict[str, Any]] = []
     for comp in components:
         comp_arr = np.array(comp)
         total_area = float(mesh.area_faces[comp_arr].sum())
@@ -321,12 +319,12 @@ def _thin_regions(
     sub_adj = adj[is_thin[adj[:, 0]] & is_thin[adj[:, 1]]]
     components = _union_find(np.where(is_thin)[0].tolist(), sub_adj)
 
-    results = []
+    results: list[dict[str, Any]] = []
     for comp in components:
         if len(comp) < 2:
             continue
-        comp = np.array(comp)
-        c_norm = mesh.face_normals[comp]
+        comp_arr = np.array(comp)
+        c_norm = mesh.face_normals[comp_arr]
         # Thinness axis is the dominant normal direction; sum of outer products
         # makes +n and -n (the two faces of a wall) reinforce instead of cancel.
         m = c_norm.T @ c_norm
@@ -334,9 +332,9 @@ def _thin_regions(
         axis = axis / max(np.linalg.norm(axis), 1e-9)
         orientation = "xy" if abs(float(axis[2])) < 0.707 else "z"
 
-        centroid = mesh.triangles_center[comp].mean(axis=0)
-        t_min = float(thickness[comp].min())
-        t_mean = float(thickness[comp].mean())
+        centroid = mesh.triangles_center[comp_arr].mean(axis=0)
+        t_min = float(thickness[comp_arr].min())
+        t_mean = float(thickness[comp_arr].mean())
 
         results.append(
             {

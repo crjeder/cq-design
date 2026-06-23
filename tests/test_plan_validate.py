@@ -1,13 +1,11 @@
 """Tests for BUILD_PLAN.json validation."""
 
-import importlib.util
 import json
 import os
 import sys
 from typing import Any
-import pytest
 
-_HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
+import pytest
 
 SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
@@ -25,9 +23,7 @@ VALID_PLAN: dict[str, Any] = {
             "id": "body",
             "description": "Main enclosure body",
             "dimensions": {"w_mm": 50, "d_mm": 35, "h_mm": 20},
-            "interfaces": [
-                {"type": "port_cutout", "connector": "usb_c", "wall": "front"}
-            ],
+            "interfaces": [{"type": "port_cutout", "connector": "usb_c", "wall": "front"}],
             "blocks_needed": ["hollow_box", "port_cutout"],
         }
     ],
@@ -93,6 +89,43 @@ def test_zero_load_direction_rejected(plan_file):
     assert any("non-zero direction" in e for e in errors)
 
 
+def test_plan_level_optimize_for(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["optimize_for"] = "visual_quality"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_per_part_optimize_for_override(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN_TWO_PARTS))
+    plan["optimize_for"] = "strength"
+    plan["parts"][1]["optimize_for"] = "min_support"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_missing_optimize_for_is_valid(plan_file):
+    assert validate_plan(plan_file(VALID_PLAN)) == []
+
+
+def test_invalid_optimize_for_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["optimize_for"] = "speed"
+    errors = validate_plan(plan_file(plan))
+    assert any("optimize_for" in e for e in errors)
+
+
+def test_valid_show_face(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["show_face"] = {"dir": [0, 0, 1]}
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_zero_show_face_direction_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["show_face"] = {"dir": [0, 0, 0]}
+    errors = validate_plan(plan_file(plan))
+    assert any("non-zero direction" in e for e in errors)
+
+
 def test_missing_dimensions(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     del plan["parts"][0]["dimensions"]
@@ -127,10 +160,6 @@ def test_two_parts_no_assembly_field(plan_file):
     assert errors == []
 
 
-@pytest.mark.skipif(
-    not _HAS_JSONSCHEMA,
-    reason="additionalProperties enforcement requires jsonschema",
-)
 def test_assembly_field_rejected(plan_file):
     """A supplied `assembly` object is rejected by the schema (additionalProperties)."""
     plan = json.loads(json.dumps(VALID_PLAN_TWO_PARTS))
@@ -165,9 +194,7 @@ def test_thin_block_flagged_with_attribution():
     """A block whose smallest extent is below wall_min is flagged by part,
     block, and axis."""
     plan = json.loads(json.dumps(VALID_PLAN))
-    plan["parts"][0]["blocks_needed"] = [
-        {"name": "fillet_box", "extents_mm": [0.8, 35, 20]}
-    ]
+    plan["parts"][0]["blocks_needed"] = [{"name": "fillet_box", "extents_mm": [0.8, 35, 20]}]
     findings = check_block_thinness(plan)
     assert len(findings) == 1
     assert "body" in findings[0]
