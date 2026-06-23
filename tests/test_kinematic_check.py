@@ -204,7 +204,6 @@ def _write_plan(tmp_path, kinematics, extra_part=None):
         "material": "PLA",
         "nozzle_mm": 0.4,
         "parts": [base_part, arm_part],
-        "assembly": {"strategy": "hinged", "clearance_mm": 0.3},
         "kinematics": kinematics,
         "constraints": {
             "wall_min_mm": 1.2,
