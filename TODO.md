@@ -11,8 +11,6 @@ change lives in that change's `tasks.md`, not here.
       checks); surrounding-geometry questions stay out of scope (external simulation)
 - [ ] kinematic: articulated chains (a moving union carries other unions through
       the sweep) -- deferred
-- [ ] gate: plate clearance check -- co-plated unions must keep a gap > layer
-      height everywhere or they fuse in the print
 - [ ] joints: side-tagged `face_mount` docks so the planner derives union
       membership and the world joint axis automatically (interface naming: keep
       assembly/mating docks conceptually distinct from kinematic axes even though
