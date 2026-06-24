@@ -81,8 +81,7 @@ def validate_inventory(inventory: list[Any]) -> list[str]:
         if "reversible" in entry and not isinstance(entry["reversible"], bool):
             errors.append(f"{tag}: reversible must be a boolean")
         if "carries" in entry and not (
-            isinstance(entry["carries"], list)
-            and all(isinstance(c, str) for c in entry["carries"])
+            isinstance(entry["carries"], list) and all(isinstance(c, str) for c in entry["carries"])
         ):
             errors.append(f"{tag}: carries must be a list of strings")
 
@@ -96,9 +95,7 @@ def validate_inventory(inventory: list[Any]) -> list[str]:
             if "orientation" not in iface:
                 errors.append(f"{tag}: interface missing 'orientation'")
             if "origin" not in iface or len(iface.get("origin", [])) != 3:
-                errors.append(
-                    f"{tag}: interface missing or invalid 'origin' (must be [x,y,z])"
-                )
+                errors.append(f"{tag}: interface missing or invalid 'origin' (must be [x,y,z])")
 
     return errors
 

@@ -10,6 +10,8 @@ dependencies = [
     "pillow>=10,<13",
     "numpy>=1.24,<3",
     "lxml>=4.9,<7",
+    # jsonschema: BUILD_PLAN.json draft-7 validation (enum + additionalProperties)
+    "jsonschema>=4,<5",
     "cq-warehouse",
     "python-fcl>=0.7.0.11",
     # scipy: required by trimesh's CollisionManager (is_convex) for the kinematic sweep
@@ -25,7 +27,83 @@ cq-warehouse = { git = "https://github.com/gumyr/cq_warehouse.git" }
 package = false
 
 [dependency-groups]
-dev = ["pytest>=9.0.3,<10"]
+dev = [
+    "pytest>=9.0.3,<10",
+    "pytest-cov>=4.0",
+    "ruff>=0.8.0",
+    "mypy>=1.0",
+    "basedpyright>=1.0",
+    "types-jsonschema",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Quality tooling targets py310 (the project's minimum), NOT py313: CadQuery's OCC
+# kernel has no wheels for 3.13+, so requires-python is >=3.10,<3.13. Targeting the
+# floor keeps pyupgrade/type checks from accepting syntax that breaks on 3.10.
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+ignore = []
+
+# Gradual adoption: this codebase predates type checking, so strict mode floods
+# ~160 errors and makes the lint gate unusable. Start lenient (do NOT require
+# annotations everywhere), keep the high-signal correctness checks on, and tighten
+# toward strict module-by-module as annotations land.
+[tool.mypy]
+python_version = "3.10"
+# Tests import src/ modules directly (conftest.py injects src into sys.path); tell
+# the checkers where to resolve them.
+mypy_path = "src"
+strict = false
+warn_unused_configs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_no_return = true
+check_untyped_defs = true
+
+# CAD / scientific deps ship no type stubs; ignore their missing imports.
+# Tests exercise CadQuery/trimesh objects whose stub return types are broad unions
+# (Workplane.val() -> Vector|Location|Shape|Sketch, trimesh.load() -> Geometry).
+# Type-checking assertion code against those is high-noise/low-value, so CAD-heavy
+# test files carry a top-of-file `# mypy: ignore-errors` / `# type: ignore` and are
+# linted by ruff only. src/ remains fully type-checked. (mypy override patterns can't
+# match the bare, non-package `test_*` module names, hence the per-file directive.)
+[[tool.mypy.overrides]]
+module = [
+    "cadquery.*",
+    "cq_warehouse.*",
+    "trimesh.*",
+    "fcl",
+    "scipy.*",
+    "matplotlib.*",
+    "mpl_toolkits.*",
+    "networkx.*",
+    "OCP.*",
+]
+ignore_missing_imports = true
+
+[tool.basedpyright]
+pythonVersion = "3.10"
+extraPaths = ["src"]
+exclude = ["tests"]  # tests are ruff-linted but not type-checked (see mypy note above)
+typeCheckingMode = "standard"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false

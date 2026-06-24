@@ -13,16 +13,16 @@ Adding a new format:
 import importlib.util
 import os
 import sys
-# importlib.util is used only in _load_result (spec_from_file_location)
 
+# importlib.util is used only in _load_result (spec_from_file_location)
 import cadquery as cq
 
-from exporters import stl as _stl_mod
-from exporters import step as _step_mod
-from exporters import threemf as _threemf_mod
-from exporters import obj as _obj_mod
 from exporters import iges as _iges_mod
+from exporters import obj as _obj_mod
 from exporters import scad as _scad_mod
+from exporters import step as _step_mod
+from exporters import stl as _stl_mod
+from exporters import threemf as _threemf_mod
 
 # Map format key → (exporter_module, file_extension)
 # All values are statically imported above — no dynamic module loading.
@@ -85,9 +85,7 @@ def run_exporters(script_path: str, formats: list[str], output_dir: str) -> list
     """
     unknown = [f for f in formats if f not in _REGISTRY]
     if unknown:
-        raise ExportError(
-            f"Unknown export format(s): {unknown}. Supported: {sorted(_REGISTRY)}"
-        )
+        raise ExportError(f"Unknown export format(s): {unknown}. Supported: {sorted(_REGISTRY)}")
 
     os.makedirs(output_dir, exist_ok=True)
     cq_result = _load_result(script_path)

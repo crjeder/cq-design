@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+# type: ignore  # CAD/trimesh stub-union noise; tests are ruff-linted, not type-checked
 """Integration tests for the blocks library.
 
 Each block is called with valid params and the result is checked to be
@@ -7,47 +9,47 @@ a CadQuery Workplane containing at least one solid.
 import cadquery as cq
 import pytest
 
-from blocks.primitives import fillet_box, hollow_box
+from blocks.connectors import (
+    cable_slot,
+    port_cutout,
+    teardrop_bore,
+    teardrop_post,
+    vent_grid,
+)
 from blocks.fasteners import (
-    screw_boss,
-    pcb_standoff,
-    snap_hook_clip,
-    snap_socket_receiver,
     alignment_pin,
     alignment_socket,
     counterbore_hole,
     countersink_hole,
     hex_nut_trap,
-)
-from blocks.connectors import (
-    port_cutout,
-    cable_slot,
-    vent_grid,
-    teardrop_bore,
-    teardrop_post,
+    pcb_standoff,
+    screw_boss,
+    snap_hook_clip,
+    snap_socket_receiver,
 )
 from blocks.hardware import (
     heat_set_boss,
-    socket_head_cap_screw,
     hex_head_screw,
     hex_nut,
+    socket_head_cap_screw,
 )
 from blocks.joints import (
+    ball_socket,
+    ball_stud,
     dovetail_groove,
     dovetail_tongue,
-    finger_joint,
-    tenon,
-    mortise,
-    dowel_pin,
     dowel_bore,
-    ball_stud,
-    ball_socket,
+    dowel_pin,
+    finger_joint,
     hinge_leaf,
-    pin_hinge,
     living_hinge,
+    mortise,
+    pin_hinge,
     shadow_gap,
+    tenon,
 )
-from blocks.validate import load_inventory, validate_inventory, get_block_names
+from blocks.primitives import fillet_box, hollow_box
+from blocks.validate import get_block_names, load_inventory, validate_inventory
 
 
 def _is_solid(result) -> bool:
@@ -222,9 +224,7 @@ def test_teardrop_post_flat_bottom_at_min_z():
     assert abs(bb.zmax - r) < 1e-3
     assert abs(bb.zmin - z_flat) < 1e-3
     # the bottom is a narrow flat, not a wide circular arc
-    slab = (
-        cq.Workplane("XY").transformed(offset=(0, 3.0, z_flat + 0.05)).box(20, 6.1, 0.1)
-    )
+    slab = cq.Workplane("XY").transformed(offset=(0, 3.0, z_flat + 0.05)).box(20, 6.1, 0.1)
     assert _bb(post.intersect(slab)).xlen < 2.0
 
 
@@ -620,9 +620,7 @@ def test_shadow_gap_dimensions():
     bb = _bb(lip)
     assert abs(bb.xlen - 50) < 1e-3  # seam length (X)
     assert abs(bb.zlen - 1.6) < 1e-3  # lip thickness (Z)
-    assert (
-        abs(bb.ymin - 0) < 1e-3 and abs(bb.ymax - 3.0) < 1e-3
-    )  # projects Y=0..overlap
+    assert abs(bb.ymin - 0) < 1e-3 and abs(bb.ymax - 3.0) < 1e-3  # projects Y=0..overlap
 
 
 def test_shadow_gap_union_watertight():
@@ -641,6 +639,8 @@ def test_shadow_gap_descriptor():
 
 
 def test_flex_blocks_top_level_import():
-    from blocks import pin_hinge as fh, living_hinge as lh, shadow_gap as sg
+    from blocks import living_hinge as lh
+    from blocks import pin_hinge as fh
+    from blocks import shadow_gap as sg
 
     assert callable(fh) and callable(lh) and callable(sg)

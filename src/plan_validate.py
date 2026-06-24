@@ -14,6 +14,8 @@ import os
 import sys
 from typing import Any
 
+import jsonschema
+
 _SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "build_plan_schema.json")
 _INVENTORY_PATH = os.path.join(os.path.dirname(__file__), "blocks", "inventory.json")
 
@@ -36,18 +38,11 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
     except (OSError, json.JSONDecodeError) as e:
         return [f"Cannot load plan: {e}"]
 
-    # JSON Schema validation via jsonschema if available, else manual checks
-    try:
-        import jsonschema  # type: ignore[import-untyped]
-
-        schema = _load_json(_SCHEMA_PATH)
-        validator = jsonschema.Draft7Validator(schema)
-        for err in sorted(validator.iter_errors(plan), key=lambda e: e.path):
-            path = " -> ".join(str(p) for p in err.absolute_path) or "(root)"
-            errors.append(f"Schema error at {path}: {err.message}")
-    except ImportError:
-        # Fallback: manual required-field checks
-        errors.extend(_manual_check(plan))
+    schema = _load_json(_SCHEMA_PATH)
+    validator = jsonschema.Draft7Validator(schema)
+    for err in sorted(validator.iter_errors(plan), key=lambda e: e.path):
+        path = " -> ".join(str(p) for p in err.absolute_path) or "(root)"
+        errors.append(f"Schema error at {path}: {err.message}")
 
     if errors:
         return errors
@@ -71,16 +66,57 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
                     f"(not in inventory). Available: {sorted(valid_blocks)}"
                 )
 
+    errors.extend(_check_placements(plan))
+    errors.extend(_check_nonzero_dir(plan, "load"))
+    errors.extend(_check_nonzero_dir(plan, "show_face"))
     errors.extend(_check_kinematics(plan, inventory_path))
 
+    return errors
+
+
+def _check_nonzero_dir(plan: dict[str, Any], field: str) -> list[str]:
+    """Reject a zero `field`.dir vector on any part.
+
+    Shape (3-vector) is enforced by the schema; a zero vector has no orientation
+    and cannot drive scoring, so it is rejected here. Used for `load` (strength
+    scoring) and `show_face` (visual-quality scoring).
+    """
+    errors = []
+    for part in plan.get("parts", []):
+        hint = part.get(field)
+        if not hint:
+            continue
+        direction = hint.get("dir", [])
+        if len(direction) == 3 and not any(abs(c) > 0 for c in direction):
+            pid = part.get("id", "(unknown)")
+            errors.append(f"Part '{pid}': {field}.dir must be a non-zero direction")
+    return errors
+
+
+def _check_placements(plan: dict[str, Any]) -> list[str]:
+    """Validate each part's optional `placement` (always-run, no jsonschema needed).
+
+    Rotation axes must be X/Y/Z. This guards the assembled-frame placement the model
+    export and kinematic check consume.
+    """
+    errors = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        placement = part.get("placement")
+        if not placement:
+            continue
+        for step in placement.get("rotate", []):
+            axis = step.get("axis")
+            if axis not in ("X", "Y", "Z"):
+                errors.append(f"Part '{pid}': placement rotate axis '{axis}' is not X, Y, or Z")
     return errors
 
 
 def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     """Cross-check kinematics entries against parts and inventory dof descriptors.
 
-    Each entry must reference existing part ids, a block that exists and carries a
-    `dof`, and a `unit` that matches the block's `dof.unit`.
+    Each entry's `moving_union` must reference an existing part id, the `block` must
+    exist and carry a `dof`, and the entry `unit` must match the block's `dof.unit`.
     """
     kinematics = plan.get("kinematics", [])
     if not kinematics:
@@ -92,22 +128,17 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     errors = []
     for entry in kinematics:
         jid = entry.get("joint_id", "(unknown)")
-        for role in ("moving_part", "fixed_part"):
-            ref = entry.get(role)
-            if ref not in part_ids:
-                errors.append(f"Kinematics '{jid}': {role} '{ref}' is not a part id")
+        ref = entry.get("moving_union")
+        if ref not in part_ids:
+            errors.append(f"Kinematics '{jid}': moving_union '{ref}' is not a part id")
         block_name = entry.get("block")
         block = get_block(block_name, inventory_path)
         if block is None:
-            errors.append(
-                f"Kinematics '{jid}': unknown block '{block_name}' (not in inventory)"
-            )
+            errors.append(f"Kinematics '{jid}': unknown block '{block_name}' (not in inventory)")
             continue
         dof = block.get("dof")
         if dof is None:
-            errors.append(
-                f"Kinematics '{jid}': block '{block_name}' has no 'dof' descriptor"
-            )
+            errors.append(f"Kinematics '{jid}': block '{block_name}' has no 'dof' descriptor")
             continue
         if entry.get("unit") != dof.get("unit"):
             errors.append(
@@ -125,7 +156,7 @@ def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     with full attribution to the part, block, and axis. Returns advisory findings
     (not hard validation errors). Blocks without declared `extents_mm` are skipped.
     """
-    findings = []
+    findings: list[str] = []
     wall_min = plan.get("constraints", {}).get("wall_min_mm")
     if not wall_min:
         return findings
@@ -150,46 +181,6 @@ def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     return findings
 
 
-def _manual_check(plan: dict[str, Any]) -> list[str]:
-    """Minimal required-field check used when jsonschema is not installed."""
-    errors = []
-    for field in (
-        "schema_version",
-        "intent",
-        "printer",
-        "material",
-        "nozzle_mm",
-        "parts",
-        "constraints",
-    ):
-        if field not in plan:
-            errors.append(f"Missing required field: '{field}'")
-
-    for i, part in enumerate(plan.get("parts", [])):
-        tag = f"parts[{i}] id={part.get('id', '?')!r}"
-        for field in (
-            "id",
-            "description",
-            "dimensions",
-            "interfaces",
-            "blocks_needed",
-        ):
-            if field not in part:
-                errors.append(f"{tag}: missing required field '{field}'")
-        dims = part.get("dimensions", {})
-        for d in ("w_mm", "d_mm", "h_mm"):
-            if d not in dims:
-                errors.append(f"{tag}: dimensions missing '{d}'")
-
-    if not plan.get("parts"):
-        errors.append("'parts' array must have at least one entry")
-
-    if len(plan.get("parts", [])) > 1 and "assembly" not in plan:
-        errors.append("'assembly' is required when parts has more than one entry")
-
-    return errors
-
-
 def main():
     parser = argparse.ArgumentParser(description="Validate BUILD_PLAN.json")
     parser.add_argument("plan", help="Path to BUILD_PLAN.json")
@@ -207,9 +198,7 @@ def main():
 
     plan = _load_json(args.plan)
     n_parts = len(plan.get("parts", []))
-    print(
-        f"BUILD_PLAN OK — {n_parts} part(s), schema_version={plan.get('schema_version')}"
-    )
+    print(f"BUILD_PLAN OK — {n_parts} part(s), schema_version={plan.get('schema_version')}")
 
     findings = check_block_thinness(plan)
     if findings:
