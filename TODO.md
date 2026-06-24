@@ -27,11 +27,8 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
+
 ## Prior-art ideas
-
-Grouped by change. Items under one heading are a single change (same files /
-tests); separate headings are independent.
-
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
 how much they preserve upstream updates while staying self-contained and inline
 (no MCP):
