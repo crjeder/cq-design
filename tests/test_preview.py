@@ -9,11 +9,10 @@ import sys
 
 import pytest
 
-sys.path.insert(
-    0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
-)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 import cadquery as cq
+
 import preview
 
 
@@ -89,9 +88,7 @@ def test_render_multi_view_cross_sections_taller(box_workplane, tmp_path):
     out6 = tmp_path / "six_view.png"
     out9 = tmp_path / "nine_view.png"
     preview.render_multi_view(box_workplane, str(out6), view_size=100)
-    preview.render_multi_view(
-        box_workplane, str(out9), view_size=100, cross_sections=True
-    )
+    preview.render_multi_view(box_workplane, str(out9), view_size=100, cross_sections=True)
     h6 = Image.open(str(out6)).height
     h9 = Image.open(str(out9)).height
     assert h9 > h6
@@ -100,13 +97,12 @@ def test_render_multi_view_cross_sections_taller(box_workplane, tmp_path):
 def test_render_multi_view_cross_sections_fallback(box_workplane, tmp_path):
     """When _cut_half returns None for all axes, render completes with blank tiles."""
     from unittest.mock import patch
+
     from PIL import Image
 
     out = tmp_path / "fallback.png"
     with patch("preview._cut_half", return_value=None):
-        preview.render_multi_view(
-            box_workplane, str(out), view_size=100, cross_sections=True
-        )
+        preview.render_multi_view(box_workplane, str(out), view_size=100, cross_sections=True)
 
     assert out.exists()
     img = Image.open(str(out))

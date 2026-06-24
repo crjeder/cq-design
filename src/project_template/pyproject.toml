@@ -1,0 +1,25 @@
+[project]
+name = "cq-design-build"
+version = "0.1.0"
+description = "Self-contained uv project for regenerating cq-design build plates"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "cadquery>=2.6.1,<3",
+    "trimesh>=4.0,<5",
+    # matplotlib: headless preview rendering via Agg backend (no OpenGL required)
+    "matplotlib>=3.7,<4",
+    "pillow>=10,<13",
+    "numpy>=1.24,<3",
+    "lxml>=4.9,<7",
+    "cq-warehouse",
+    # scipy: required by trimesh's CollisionManager (is_convex)
+    "scipy>=1.10,<2",
+    # networkx: required by trimesh's scene graph (3MF export path)
+    "networkx>=3,<4",
+]
+
+[tool.uv.sources]
+cq-warehouse = { git = "https://github.com/gumyr/cq_warehouse.git" }
+
+[tool.uv]
+package = false

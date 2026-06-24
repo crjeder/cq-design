@@ -51,9 +51,7 @@ def _trapezoid_profile(
     ]
 
 
-def _cylinder_along_y(
-    radius: float, length: float, y0: float, z_axis: float
-) -> cq.Workplane:
+def _cylinder_along_y(radius: float, length: float, y0: float, z_axis: float) -> cq.Workplane:
     """Cylinder of revolution whose axis runs +Y, from y0, at (x=0, z=z_axis)."""
     cyl = cq.Solid.makeCylinder(
         radius, length, pnt=cq.Vector(0, y0, z_axis), dir=cq.Vector(0, 1, 0)
@@ -168,6 +166,7 @@ def finger_joint(
             .box(finger_w, length, thickness, centered=(True, False, False))
         )
         result = slot if result is None else result.union(slot)
+    assert result is not None, "finger joint needs at least one solid finger"
     return result
 
 
@@ -247,9 +246,7 @@ def dowel_bore(d: float, depth: float, clearance: float = 0.1) -> cq.Workplane:
 # ---- ball joint (revolve core) ----------------------------------------------
 
 
-def ball_stud(
-    d_ball: float, d_stem: float, stem_l: float, fillet: float = 2.0
-) -> cq.Workplane:
+def ball_stud(d_ball: float, d_stem: float, stem_l: float, fillet: float = 2.0) -> cq.Workplane:
     """Ball on a stem for a ball-and-socket joint. Mate with ball_socket().
 
     The ball sits fully above the stem (ball bottom at Z=stem_l). A conical fillet
@@ -458,6 +455,7 @@ def pin_hinge(
         result = part if result is None else result.union(part)
 
     bore = _cylinder_along_y(d_filament / 2, length + 2 * _EPS, -_EPS, z_axis)
+    assert result is not None  # both sides always produce a leaf
     return result.cut(bore)
 
 

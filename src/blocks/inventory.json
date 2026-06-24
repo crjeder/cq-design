@@ -28,7 +28,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -41,10 +49,30 @@
       "d_outer": "mm outer boss diameter (recommend >= 2.5x d_screw)",
       "h": "mm boss height"
     },
-    "dimensions": [6, 6, 5],
+    "dimensions": [
+      6,
+      6,
+      5
+    ],
     "interfaces": [
-      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]},
-      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "screw_hole",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -57,10 +85,30 @@
       "d_outer": "mm outer standoff diameter (recommend >= 2x d_screw)",
       "h": "mm standoff height (PCB clearance from floor)"
     },
-    "dimensions": [6, 6, 5],
+    "dimensions": [
+      6,
+      6,
+      5
+    ],
     "interfaces": [
-      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]},
-      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "screw_hole",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -74,10 +122,30 @@
       "h": "mm beam thickness (thinner = easier to deflect)",
       "hook_h": "mm hook tooth protrusion"
     },
-    "dimensions": [6, 12, 2],
+    "dimensions": [
+      6,
+      12,
+      2
+    ],
     "interfaces": [
-      {"type": "snap_hook", "orientation": "+Y", "origin": [0, 12, 2]},
-      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "snap_hook",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          12,
+          2
+        ]
+      },
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -90,9 +158,21 @@
       "h": "mm slot height (match snap_hook_clip hook_h + 0.3)",
       "depth": "mm slot depth (match wall thickness)"
     },
-    "dimensions": [6, 3, 3],
+    "dimensions": [
+      6,
+      3,
+      3
+    ],
     "interfaces": [
-      {"type": "snap_socket", "orientation": "-Y", "origin": [0, 0, 1.5]}
+      {
+        "type": "snap_socket",
+        "orientation": "-Y",
+        "origin": [
+          0,
+          0,
+          1.5
+        ]
+      }
     ]
   },
   {
@@ -104,10 +184,30 @@
       "d": "mm pin base diameter",
       "h": "mm pin height"
     },
-    "dimensions": [3, 3, 4],
+    "dimensions": [
+      3,
+      3,
+      4
+    ],
     "interfaces": [
-      {"type": "pin", "orientation": "+Z", "origin": [0, 0, 0]},
-      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "pin",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -120,9 +220,21 @@
       "h": "mm socket depth (match or exceed pin height)",
       "clearance": "mm added to radius for fit (default 0.2)"
     },
-    "dimensions": [3, 3, 4],
+    "dimensions": [
+      3,
+      3,
+      4
+    ],
     "interfaces": [
-      {"type": "socket", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "socket",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -138,7 +250,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "port_cutout", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "port_cutout",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -154,7 +274,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "slot", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "slot",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -172,7 +300,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "slot", "orientation": "+Z", "origin": [0, 0, 0]}
+      {
+        "type": "slot",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -187,7 +323,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "axis", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "axis",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -203,7 +347,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "axis", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "axis",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -219,8 +371,24 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]},
-      {"type": "face_mount", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "screw_hole",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -271,7 +439,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]}
+      {
+        "type": "screw_hole",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -287,7 +463,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "screw_hole", "orientation": "+Z", "origin": [0, 0, 0]}
+      {
+        "type": "screw_hole",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -303,7 +487,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "nut_trap", "orientation": "+Z", "origin": [0, 0, 0]}
+      {
+        "type": "nut_trap",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -312,8 +504,19 @@
     "function": "dovetail_groove",
     "motion": "rigid",
     "reversible": true,
-    "carries": ["shear-xy", "lock-z"],
-    "dof": {"type": "prismatic", "axis": "Y", "mechanical_limit": [0, 200], "unit": "mm"},
+    "carries": [
+      "shear-xy",
+      "lock-z"
+    ],
+    "dof": {
+      "type": "prismatic",
+      "axis": "Y",
+      "mechanical_limit": [
+        0,
+        200
+      ],
+      "unit": "mm"
+    },
     "use": "Dovetail slot cut into a box top inner edge. Wider at base than opening, preventing vertical pull-out. Subtract from the body. Mate with dovetail_tongue() on the sliding lid. Typical usage: width=box_w, wall=box_wall, depth=lid_t, length=box_d - box_wall.",
     "params": {
       "width": "mm outer box width (groove spans width - 2*wall)",
@@ -324,7 +527,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "sliding_interface", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "sliding_interface",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -333,8 +544,19 @@
     "function": "dovetail_tongue",
     "motion": "rigid",
     "reversible": true,
-    "carries": ["shear-xy", "lock-z"],
-    "dof": {"type": "prismatic", "axis": "Y", "mechanical_limit": [0, 200], "unit": "mm"},
+    "carries": [
+      "shear-xy",
+      "lock-z"
+    ],
+    "dof": {
+      "type": "prismatic",
+      "axis": "Y",
+      "mechanical_limit": [
+        0,
+        200
+      ],
+      "unit": "mm"
+    },
     "use": "Sliding dovetail lid panel for a rectangular box. The tongue IS the lid — height equals depth (lid_t), so the lid sits flush with the box top (no extra height added). Slides along +Y into dovetail_groove(). Use clearance=0.1 for smooth sliding, 0.05 for snug fit. Params must match the mating dovetail_groove.",
     "params": {
       "width": "mm outer box width (must match dovetail_groove width)",
@@ -346,7 +568,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "sliding_interface", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "sliding_interface",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -355,7 +585,9 @@
     "function": "finger_joint",
     "motion": "rigid",
     "reversible": true,
-    "carries": ["shear-xy"],
+    "carries": [
+      "shear-xy"
+    ],
     "use": "One interlocking comb half of a finger (box) joint. Divides width into equal slots along X and fills the alternating set chosen by start_high. Union onto a part edge; call twice with opposite start_high for the two halves. Best joint for splitting a model so each half prints flat with load in-layer; large shear + glue area. Glue to make permanent.",
     "params": {
       "width": "mm total joint span across the fingers (X)",
@@ -367,7 +599,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "finger", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "finger",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -376,7 +616,10 @@
     "function": "tenon",
     "motion": "rigid",
     "reversible": true,
-    "carries": ["shear-xy", "lock-xy"],
+    "carries": [
+      "shear-xy",
+      "lock-xy"
+    ],
     "use": "Rectangular keyed peg. Union onto a part face along +Z. Mate with mortise(). The rectangular section locks rotation about the mate axis, unlike a round alignment_pin. Use w != h to key orientation. Add glue for a permanent split-for-strength join.",
     "params": {
       "w": "mm peg width (X)",
@@ -386,7 +629,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "tenon", "orientation": "+Z", "origin": [0, 0, 0]}
+      {
+        "type": "tenon",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -395,7 +646,10 @@
     "function": "mortise",
     "motion": "rigid",
     "reversible": true,
-    "carries": ["shear-xy", "lock-xy"],
+    "carries": [
+      "shear-xy",
+      "lock-xy"
+    ],
     "use": "Rectangular pocket to subtract from a part for a tenon(). Cross-section grown by clearance per side. clearance > 0 is a slip fit, clearance < 0 an interference (press) fit. Match w and h to the mating tenon.",
     "params": {
       "w": "mm mating tenon width (X)",
@@ -405,7 +659,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "mortise", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "mortise",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -414,7 +676,9 @@
     "function": "dowel_pin",
     "motion": "rigid",
     "reversible": false,
-    "carries": ["shear-xy"],
+    "carries": [
+      "shear-xy"
+    ],
     "use": "Cylindrical dowel with a lead-in chamfer at the top. Union onto a part or print separately and press into two dowel_bore() holes to register split halves. Reversibility is set by the mating dowel_bore clearance (press fit is permanent).",
     "params": {
       "d": "mm dowel diameter",
@@ -423,7 +687,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "dowel", "orientation": "+Z", "origin": [0, 0, 0]}
+      {
+        "type": "dowel",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -432,7 +704,9 @@
     "function": "dowel_bore",
     "motion": "rigid",
     "reversible": false,
-    "carries": ["shear-xy"],
+    "carries": [
+      "shear-xy"
+    ],
     "use": "Bore to subtract for a dowel_pin. Fit is set by the sign of clearance: clearance > 0 is a slip (separable) fit, clearance < 0 an interference (press, permanent) fit (PLA ~ -0.1 mm radial; FDM holes print undersized, test on a coupon). Match d to the dowel_pin.",
     "params": {
       "d": "mm nominal dowel diameter (match dowel_pin d)",
@@ -441,7 +715,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "dowel", "orientation": "-Z", "origin": [0, 0, 0]}
+      {
+        "type": "dowel",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -450,8 +732,19 @@
     "function": "ball_stud",
     "motion": "ball",
     "reversible": true,
-    "carries": ["lock-xy", "lock-z"],
-    "dof": {"type": "spherical", "axis": "Z", "mechanical_limit": [0, 30], "unit": "deg"},
+    "carries": [
+      "lock-xy",
+      "lock-z"
+    ],
+    "dof": {
+      "type": "spherical",
+      "axis": "Z",
+      "mechanical_limit": [
+        0,
+        30
+      ],
+      "unit": "deg"
+    },
     "use": "Ball on a stem for a ball-and-socket joint. Mate with ball_socket(). The ball sits above the stem with a conical fillet blending into its underside so it prints support-free with the stem pointing down. Multi-axis articulation.",
     "params": {
       "d_ball": "mm ball diameter",
@@ -461,7 +754,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "ball", "orientation": "+Z", "origin": [0, 0, 0]}
+      {
+        "type": "ball",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -470,8 +771,19 @@
     "function": "ball_socket",
     "motion": "ball",
     "reversible": true,
-    "carries": ["lock-xy", "lock-z"],
-    "dof": {"type": "spherical", "axis": "Z", "mechanical_limit": [0, 30], "unit": "deg"},
+    "carries": [
+      "lock-xy",
+      "lock-z"
+    ],
+    "dof": {
+      "type": "spherical",
+      "axis": "Z",
+      "mechanical_limit": [
+        0,
+        30
+      ],
+      "unit": "deg"
+    },
     "use": "Slotted snap-in socket that captures a ball past its equator. Internal cavity is d_ball + 2*clearance; the cup wraps to retention_angle degrees past the equator so the mouth retains the ball, and a slot lets it flex during snap-in. Print flat with the mouth facing up. Mate with ball_stud().",
     "params": {
       "d_ball": "mm mating ball diameter (match ball_stud d_ball)",
@@ -482,7 +794,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "ball_socket", "orientation": "+Z", "origin": [0, 0, 0]}
+      {
+        "type": "ball_socket",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -491,8 +811,18 @@
     "function": "hinge_leaf",
     "motion": "hinge",
     "reversible": false,
-    "carries": ["shear-xy"],
-    "dof": {"type": "revolute", "axis": "Y", "mechanical_limit": [0, 180], "unit": "deg"},
+    "carries": [
+      "shear-xy"
+    ],
+    "dof": {
+      "type": "revolute",
+      "axis": "Y",
+      "mechanical_limit": [
+        0,
+        180
+      ],
+      "unit": "deg"
+    },
     "use": "One leaf of a knuckle hinge (one rotational DOF). Call twice with side 'A' and 'B' for the meshing pair; the leaves lie on opposite sides of the pin axis and the knuckles interleave. variant='pin' bores a hole for a separate pin/filament; variant='print_in_place' prints both leaves as one assembly through the clearance gaps. PRINT FLAT with the leaf on the bed and the hinge axis (Y) in the build plane (leaves print great this way). The knuckles then lie as horizontal cylinders: their lower quadrants are convex overhangs that self-support, and the pin bore prints as a short horizontal bridge - keep d_pin small (~3 mm) so it bridges cleanly, or insert a separate pin. For print_in_place the clearance gap must exceed one layer height to avoid fusing.",
     "params": {
       "length": "mm total hinge length along the axis (Y)",
@@ -507,7 +837,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "hinge_axis", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "hinge_axis",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -516,9 +854,19 @@
     "function": "pin_hinge",
     "motion": "hinge",
     "reversible": true,
-    "carries": ["shear-xy"],
-    "dof": {"type": "revolute", "axis": "Y", "mechanical_limit": [0, 180], "unit": "deg"},
-    "use": "A NORMAL revolute knuckle hinge - treat it kinematically like any door hinge (one rotational DOF about +Y, 0-180 deg). Two RIGID leaves rotate freely about a separate pin threaded through interleaved knuckles; the pin is a snipped strand of 1.75 mm filament, but the motion is the free rotation of the pin, NOT material flex. This is NOT a living_hinge (which has no pin and bends a thin web instead) - choose pin_hinge when you need a durable, freely rotating, near-frictionless pivot. Returns BOTH leaves interleaved on a shared axis as one print-in-place body (unlike hinge_leaf, which returns one leaf for two separate parts); push a piece of filament through the coaxial bore as the pivot pin after printing. Knuckle outer diameter is d_filament + 2 mm. PRINT FLAT with the knuckle axis (Y) in the build plane so the bore bridges cleanly and the undersides self-support; clearance between knuckles must exceed one layer height to avoid fusing. d_filament default 1.9 gives a slip fit over 1.75 mm filament (FDM holes print undersized).",
+    "carries": [
+      "shear-xy"
+    ],
+    "dof": {
+      "type": "revolute",
+      "axis": "Y",
+      "mechanical_limit": [
+        0,
+        180
+      ],
+      "unit": "deg"
+    },
+    "use": "A NORMAL revolute knuckle hinge - treat it kinematically like any door hinge (one rotational DOF about +Y, 0-180 deg). Two RIGID leaves rotate freely about a separate pin threaded through interleaved knuckles; the pin is a snipped strand of 1.75 mm filament, but the motion is the free rotation of the pin, NOT material flex. This is NOT a living_hinge (which has no pin and bends a thin web instead) - choose pin_hinge when you need a durable, freely rotating, near-frictionless pivot. Returns BOTH leaves interleaved on a shared axis as one print-in-place body (unlike hinge_leaf, which returns one leaf for two separate parts); push a piece of filament through the coaxial bore as the pivot pin after printing. Knuckle outer diameter is d_filament + 2 mm. PRINT FLAT with the knuckle axis (Y) in the build plane so the bore bridges cleanly and the undersides self-support; clearance between knuckles must exceed one layer height to avoid fusing. d_filament default 1.9 gives a slip fit over 1.75 mm filament (FDM holes print undersized). For whole-model kinematic validation, model the two leaves as TWO unions (two parts) sharing one plate, not a single combined body: the sweep needs each leaf as its own assembled mesh. The shared pin makes no kinematic difference - treat it exactly like any pinned hinge.",
     "params": {
       "length": "mm total hinge length along the axis (Y)",
       "knuckles": "count of knuckle segments across the length",
@@ -529,7 +877,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "hinge_axis", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "hinge_axis",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -538,7 +894,9 @@
     "function": "living_hinge",
     "motion": "hinge",
     "reversible": false,
-    "carries": ["shear-xy"],
+    "carries": [
+      "shear-xy"
+    ],
     "use": "A FLEXURE hinge with NO pin and NO moving parts: two panels joined by a single paper-thin continuous web that BENDS. The bending is the elastic flex of the thin plastic web itself; there is no axle. This is NOT a pin_hinge (which threads a separate filament pin through knuckles and rotates rigidly) - choose living_hinge for a thin, one-piece fold line (lids, foldable flat-pack walls) where a few-degrees-to-180 fold is needed, not a free-spinning pivot. One continuous body; the web is flush with the top (+Z) face so the panels fold away from the web side. PRINT FLAT with the fold axis (Y) in the build plane and the web continuous along Y so filament paths cross the bend. MATERIAL MATTERS: PP, PETG, and TPU survive repeated folding; PLA is brittle and cracks after a few cycles. web_t default 0.6 mm is a few FDM layers.",
     "params": {
       "length": "mm hinge/panel length along the fold axis (Y)",
@@ -549,7 +907,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "hinge_axis", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "hinge_axis",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   },
   {
@@ -558,7 +924,9 @@
     "function": "shadow_gap",
     "motion": "rigid",
     "reversible": true,
-    "carries": ["lock-z"],
+    "carries": [
+      "lock-z"
+    ],
     "use": "Return lip for an end-to-end seam that hides the real joint behind a deliberate reveal. Where two parts butt end to end the seam always shows an irregular tolerance gap; this is the tongue to union onto the inner face of the FRONT (visible) member at the seam plane (Y=0), a bar of length (X) by overlap (Y) by wall (Z thickness) projecting behind the seam. PLACEMENT CONTRACT: place the back member shortened by a deliberate reveal (~1 mm) and butted against the lip with a small clearance, so the only visible gap is the uniform recessed reveal while the real seam is concealed behind the front wall.",
     "params": {
       "length": "mm seam length along the front member edge (X)",
@@ -567,7 +935,15 @@
     },
     "dimensions": null,
     "interfaces": [
-      {"type": "seam", "orientation": "+Y", "origin": [0, 0, 0]}
+      {
+        "type": "seam",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
     ]
   }
 ]

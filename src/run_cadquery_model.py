@@ -68,9 +68,7 @@ _OCC_HINTS = {
         "referenced a shape that does not exist — check selector strings "
         "('.faces(\">Z\")', etc.) and workplane offsets"
     ),
-    "Standard_OutOfRange": (
-        "index out of range — check pushPoints list or loop bounds"
-    ),
+    "Standard_OutOfRange": ("index out of range — check pushPoints list or loop bounds"),
     "Standard_TypeMismatch": (
         "wrong shape type for this operation — verify the workplane and "
         "selector are targeting the correct geometry"
@@ -108,11 +106,7 @@ def _translate_stderr(stderr: str) -> list[dict]:
             if (
                 candidate
                 and " " not in candidate
-                and (
-                    candidate[0].isupper()
-                    or candidate.startswith("OCC")
-                    or "Error" in candidate
-                )
+                and (candidate[0].isupper() or candidate.startswith("OCC") or "Error" in candidate)
             ):
                 exc_class = candidate
                 exc_message = parts[1].strip() if len(parts) > 1 else ""
@@ -146,10 +140,10 @@ def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict]]:
     Returns (geometry_dict, errors_list).
     geometry_dict is None if the mesh cannot be loaded.
     """
-    import mesh_io
     import numpy as np
 
-    geo = None
+    import mesh_io
+
     errors = []
 
     try:
@@ -214,7 +208,9 @@ def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict]]:
                     errors.append(
                         {
                             "type": "non_manifold_edge",
-                            "message": f"edge between {' and '.join(face_tags)}, gap {round(gap, 4)} mm",
+                            "message": (
+                                f"edge between {' and '.join(face_tags)}, gap {round(gap, 4)} mm"
+                            ),
                             "gap_mm": str(round(gap, 4)),
                             "hint": (
                                 "boolean subtraction left a gap — extend the inner "
@@ -246,9 +242,7 @@ def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict]]:
     return geo, errors
 
 
-def _check_dimensions(
-    geo: dict, expected_dims: list[float], tolerance: float = 1.0
-) -> list[dict]:
+def _check_dimensions(geo: dict, expected_dims: list[float], tolerance: float = 1.0) -> list[dict]:
     """Compare actual bbox against expected [w, d, h]. Return mismatch errors."""
     if not geo or not expected_dims or len(expected_dims) != 3:
         return []
@@ -258,7 +252,7 @@ def _check_dimensions(
         ("y", geo["bbox"]["y_mm"]),
         ("z", geo["bbox"]["z_mm"]),
     ]
-    for (axis, actual), expected in zip(axes, expected_dims):
+    for (axis, actual), expected in zip(axes, expected_dims, strict=True):
         delta = actual - expected
         if abs(delta) > tolerance:
             errors.append(
@@ -316,9 +310,7 @@ def _check_thin_interfaces(
     try:
         import measure_stl
 
-        data = measure_stl.measure(
-            stl_path, thin_max_mm=wall_min_mm, line_width_mm=line_width_mm
-        )
+        data = measure_stl.measure(stl_path, thin_max_mm=wall_min_mm, line_width_mm=line_width_mm)
         thin_regions = data.get("thin_regions", [])
     except Exception:
         return [], []
@@ -434,9 +426,7 @@ def main():
         epilog="Exit codes: 0 success, 1 failure, 2 cannot launch, 3 timeout.",
     )
     parser.add_argument("script", help="Path to the CadQuery .py file")
-    parser.add_argument(
-        "--preview", action="store_true", help="Render a multi-view preview PNG"
-    )
+    parser.add_argument("--preview", action="store_true", help="Render a multi-view preview PNG")
     parser.add_argument(
         "--cross-sections",
         action="store_true",
@@ -549,9 +539,7 @@ def main():
 
         # --strict: require at least one STL
         if args.strict and not stls_in_temp:
-            _append_stderr(
-                result, "No STL files produced by the script (--strict set)."
-            )
+            _append_stderr(result, "No STL files produced by the script (--strict set).")
             result["errors"].append(
                 {
                     "type": "no_geometry",
@@ -570,8 +558,7 @@ def main():
             result["geometry"] = geo
             result["errors"].extend(geo_errors)
             result["watertight"] = geo is not None and not any(
-                e["type"] in ("non_manifold_edge", "non_watertight")
-                for e in result["errors"]
+                e["type"] in ("non_manifold_edge", "non_watertight") for e in result["errors"]
             )
 
             # Dimension check against plan expectations
@@ -580,14 +567,10 @@ def main():
                     expected = [float(x) for x in args.expected_dims.split(",")]
                     if result["geometry"] is not None:
                         result["errors"].extend(
-                            _check_dimensions(
-                                result["geometry"], expected, args.dim_tolerance
-                            )
+                            _check_dimensions(result["geometry"], expected, args.dim_tolerance)
                         )
                 except ValueError:
-                    _append_stderr(
-                        result, f"Invalid --expected-dims value: {args.expected_dims}"
-                    )
+                    _append_stderr(result, f"Invalid --expected-dims value: {args.expected_dims}")
 
             # Thin-interface DFM check (local thickness, XY/Z classified)
             if args.wall_min > 0:
@@ -628,24 +611,21 @@ def main():
                 result["stls"] = [p for p in delivered if p.endswith(".stl")]
                 result["threemfs"] = [p for p in delivered if p.endswith(".3mf")]
                 result["stl"] = result["stls"][0] if result["stls"] else None
-                result["threemf"] = (
-                    result["threemfs"][0] if result["threemfs"] else None
-                )
+                result["threemf"] = result["threemfs"][0] if result["threemfs"] else None
             except Exception as e:
                 _append_stderr(result, f"Exporter failed: {e}")
                 result["success"] = False
 
         # Mark success=False if any error-severity issues were found
         error_types = {e["type"] for e in result["errors"]}
-        if error_types & {
+        if args.strict and error_types & {
             "mesh_load_error",
             "non_manifold_edge",
             "non_watertight",
             "dimension_mismatch",
             "occ_exception",
         }:
-            if args.strict:
-                result["success"] = False
+            result["success"] = False
 
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)

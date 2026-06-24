@@ -3,9 +3,7 @@ import os
 import subprocess
 import sys
 
-SRC_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"
-)
+SRC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 
 WRAPPER = os.path.join(SRC_DIR, "run_cadquery_model.py")
 RENDER_PREVIEW = os.path.join(SRC_DIR, "render_preview.py")
@@ -186,9 +184,7 @@ def test_preview_cross_sections(good_script):
 def test_render_preview_cli_produces_png(tmp_path):
     """render_preview.py CLI creates a PNG from a script with a `result` variable."""
     script = tmp_path / "box_model.py"
-    script.write_text(
-        "import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n"
-    )
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
     output = tmp_path / "box_preview.png"
     proc = subprocess.run(
         [

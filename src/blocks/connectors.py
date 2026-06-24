@@ -1,5 +1,6 @@
 """Connector building blocks: port cutouts, cable slots, ventilation grids."""
 
+import contextlib
 import math
 import warnings
 
@@ -53,10 +54,9 @@ def port_cutout(w: float, h: float, depth: float, chamfer: float = 0.5) -> cq.Wo
     """
     cutter = cq.Workplane("XY").box(w, depth + _EPS, h, centered=(True, False, False))
     if chamfer > 0:
-        try:
+        # skip if chamfer fails on this geometry
+        with contextlib.suppress(Exception):
             cutter = cutter.edges("|Y").chamfer(chamfer)
-        except Exception:
-            pass  # skip if chamfer fails on this geometry
     return cutter
 
 
@@ -73,10 +73,8 @@ def cable_slot(w: float, h: float, depth: float, chamfer: float = 0.5) -> cq.Wor
     """
     cutter = cq.Workplane("XY").box(w, depth + _EPS, h, centered=(True, False, False))
     if chamfer > 0:
-        try:
+        with contextlib.suppress(Exception):
             cutter = cutter.edges("|Y").chamfer(chamfer)
-        except Exception:
-            pass
     return cutter
 
 
@@ -107,12 +105,7 @@ def vent_grid(
         for c in range(cols)
     ]
 
-    return (
-        cq.Workplane("XY")
-        .pushPoints(positions)
-        .rect(slot_w, slot_l)
-        .extrude(depth + _EPS)
-    )
+    return cq.Workplane("XY").pushPoints(positions).rect(slot_w, slot_l).extrude(depth + _EPS)
 
 
 def teardrop_bore(d: float, depth: float, angle: float = 45.0) -> cq.Workplane:
@@ -137,9 +130,7 @@ def teardrop_bore(d: float, depth: float, angle: float = 45.0) -> cq.Workplane:
     return profile.extrude(-(depth + _EPS))
 
 
-def teardrop_post(
-    d: float, length: float, angle: float = 45.0, flat: float = 1.2
-) -> cq.Workplane:
+def teardrop_post(d: float, length: float, angle: float = 45.0, flat: float = 1.2) -> cq.Workplane:
     """Self-supporting horizontal solid peg (the additive dual of teardrop_bore).
 
     Use for a HORIZONTAL cylindrical protrusion (peg, pin, boss) printed in the

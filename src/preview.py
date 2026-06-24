@@ -19,15 +19,13 @@ Both functions accept a CadQuery Workplane or Shape as the first argument.
 import os
 import sys
 
-import numpy as np
+import cadquery as cq
 import mpl_toolkits.mplot3d  # noqa: F401 -- registers the '3d' projection
+import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from PIL import Image, ImageDraw, ImageFont
-
-import cadquery as cq
-
 
 DEFAULT_VIEW_SIZE = 600
 _SINGLE_WIDTH = 900
@@ -114,18 +112,18 @@ def _cut_half(shape, axis: str, center: float, remove_positive: bool = True):
     """
     try:
         bb = shape.BoundingBox()
-        L = max(bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin, 1.0) * 4
+        span = max(bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin, 1.0) * 4
         cx = (bb.xmax + bb.xmin) / 2
         cy = (bb.ymax + bb.ymin) / 2
         cz = (bb.zmax + bb.zmin) / 2
         sign = 1 if remove_positive else -1
         if axis == "x":
-            tx, ty, tz = center + sign * L / 2, cy, cz
+            tx, ty, tz = center + sign * span / 2, cy, cz
         elif axis == "y":
-            tx, ty, tz = cx, center + sign * L / 2, cz
+            tx, ty, tz = cx, center + sign * span / 2, cz
         else:
-            tx, ty, tz = cx, cy, center + sign * L / 2
-        cutter = cq.Workplane().box(L, L, L).translate((tx, ty, tz)).val()
+            tx, ty, tz = cx, cy, center + sign * span / 2
+        cutter = cq.Workplane().box(span, span, span).translate((tx, ty, tz)).val()
         return shape.cut(cutter)
     except Exception:
         return None
@@ -197,6 +195,15 @@ def _render_cq_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW
     ax.set_facecolor(_BG_COLOR)
 
     if triangles:
+        # NOTE: flat faces can show triangular bright/dark patches here. This is a
+        # matplotlib mplot3d limitation, not a geometry or normals bug: mplot3d has
+        # no z-buffer and depth-sorts whole triangles by average depth (painter's
+        # algorithm). A steeply-shaded wall/fillet triangle occasionally sorts in
+        # front of a coplanar flat-face triangle and paints over it. The exported
+        # STL/3MF are watertight and winding-consistent, and _shade_triangles
+        # computes correct per-face normals (a flat top face is uniformly +Z). The
+        # artifact is cosmetic and confined to the preview. A real z-buffered
+        # renderer would remove it -- see TODO ("preview: z-buffered renderer").
         face_colors = _shade_triangles(triangles)
         coll = Poly3DCollection(triangles, facecolors=face_colors, edgecolor="none")
         ax.add_collection3d(coll)
@@ -218,7 +225,7 @@ def _render_cq_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW
 
     canvas.draw()
     buf = canvas.buffer_rgba()
-    img = Image.frombytes("RGBA", canvas.get_width_height(), buf)
+    img = Image.frombytes("RGBA", canvas.get_width_height(), bytes(buf))
     return img.convert("RGB")
 
 
@@ -242,9 +249,7 @@ def render_single(
     info_font = _get_font(13)
     line1, line2 = _info_lines(wp, len(triangles))
 
-    draw.text(
-        (canvas.width // 2, 10), title, fill="black", font=title_font, anchor="mt"
-    )
+    draw.text((canvas.width // 2, 10), title, fill="black", font=title_font, anchor="mt")
     draw.text(
         (canvas.width // 2, canvas.height - 30),
         line1,
@@ -343,9 +348,7 @@ def render_multi_view(
 
     draw.text((w // 2, 12), title, fill="black", font=title_font, anchor="mt")
     if subtitle:
-        draw.text(
-            (w // 2, 34), subtitle, fill="#666666", font=subtitle_font, anchor="mt"
-        )
+        draw.text((w // 2, 34), subtitle, fill="#666666", font=subtitle_font, anchor="mt")
 
     for idx, (img, label) in enumerate(images):
         col = idx % cols
