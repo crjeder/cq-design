@@ -2,9 +2,14 @@
 """
 Quality gate for the CAD skill build pipeline.
 
-Runs two checks against the final model script:
+Runs these checks against the final model script:
   1. Wrapper DFM checks (thin walls, non-manifold edges) via run_cadquery_model.py
   2. Geometry + overhang analysis via trimesh (in-process)
+  3. Plan validation via plan_validate.validate_plan (once, before plan-consuming
+     stages); a malformed plan is reported as a structured `plan_invalid` error and
+     the kinematic stage is skipped rather than crashing on raw field access.
+  4. Kinematic range-of-motion sweep when the plan declares joints and validates
+     (once, outside the fix loop) via kinematic_check.py
 
 Aggregates issues with severity (error/warning), generates a targeted fix prompt
 if any errors are found, invokes `claude -p` for up to MAX_FIX_ROUNDS, then
@@ -296,6 +301,27 @@ def _extract_python(raw: str) -> str:
     return raw.strip()
 
 
+def _run_plan_validation_stage(plan_path: str) -> list[dict]:
+    """Validate BUILD_PLAN.json before any plan-consuming stage runs.
+
+    Maps each `plan_validate.validate_plan` error string to a structured `plan_invalid`
+    issue. An invalid plan would otherwise crash the kinematic stage (which raw-indexes
+    plan fields) with a bare traceback; the gate skips that stage when this returns errors.
+    """
+    from plan_validate import validate_plan
+
+    return [
+        {
+            "source": "plan",
+            "severity": "error",
+            "type": "plan_invalid",
+            "message": err,
+            "hint": "Fix BUILD_PLAN.json so it passes plan validation (schema + cross-checks).",
+        }
+        for err in validate_plan(plan_path)
+    ]
+
+
 def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     """Run the kinematic range check when the plan declares any joints.
 
@@ -421,8 +447,16 @@ def run_gate(
     if model_3mf_path and os.path.exists(model_3mf_path):
         all_issues += _analyze_3mf(model_3mf_path)
 
+    # ---- plan validation (once, before any plan-consuming stage) ----
+    # The wrapper/geometry stages above read the plan only through defaulted .get
+    # lookups, so they are safe on a malformed plan; the kinematic stage raw-indexes
+    # plan fields, so it must not run unless the plan validates.
+    plan_issues = _run_plan_validation_stage(plan_path)
+    all_issues += plan_issues
+
     # ---- kinematic range check (once, outside the fix loop) ----
-    all_issues += _run_kinematic_stage(plan, stl_dir)
+    if not any(i["severity"] == "error" for i in plan_issues):
+        all_issues += _run_kinematic_stage(plan, stl_dir)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
 
