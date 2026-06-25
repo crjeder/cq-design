@@ -94,14 +94,6 @@ Severities and `file:line` as reported; mostly pre-existing, not from the lint
 cleanup. Confirmed unless marked SPECULATIVE.
 
 ### High value
-- [ ] **gate runs no plan validation before the kinematic stage** (medium).
-      `quality_gate.run_gate` never calls `plan_validate`, but
-      `kinematic_check.py:191` raw-indexes `entry["required_range"]`,
-      `entry["axis_dir"]`, `entry["moving_union"]`, etc., and
-      `_AXIS_VEC[entry["axis_dir"]]` (`kinematic_check.py:102`) KeyErrors on any
-      non-XYZ axis. A hand-written/partial plan raises a bare traceback instead of
-      the module's structured `{source, severity, type, message, hint}` finding.
-      Fix: validate (or guard field access) before the kinematic stage.
 - [ ] **thin-wall detection silently weakens above 3000 faces** (medium).
       `measure_stl.py:307-324`: `is_thin` is only true on subsampled faces, but the
       adjacency grouping needs both edge endpoints sampled; above `max_samples=3000`
