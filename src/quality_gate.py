@@ -5,11 +5,10 @@ Quality gate for the CAD skill build pipeline.
 Runs these checks against the final model script:
   1. Wrapper DFM checks (thin walls, non-manifold edges) via run_cadquery_model.py
   2. Geometry + overhang analysis via trimesh (in-process)
-  3. Plan validation via plan_validate.validate_plan (once, before plan-consuming
-     stages); a malformed plan is reported as a structured `plan_invalid` error and
-     the kinematic stage is skipped rather than crashing on raw field access.
-  4. Kinematic range-of-motion sweep when the plan declares joints and validates
-     (once, outside the fix loop) via kinematic_check.py
+  3. Kinematic range-of-motion sweep when the plan declares joints (once, outside the
+     fix loop) via kinematic_check.py
+  4. Plate clearance: co-plated unions must keep a gap above one layer height or they
+     fuse in the print (once, outside the fix loop) via plate_clearance_check.py
 
 Aggregates issues with severity (error/warning), generates a targeted fix prompt
 if any errors are found, invokes `claude -p` for up to MAX_FIX_ROUNDS, then
@@ -335,6 +334,17 @@ def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     return run_kinematic_check(plan, stl_dir or ".")
 
 
+def _run_plate_clearance_stage(plan: dict, stl_dir: str | None) -> list[dict]:
+    """Check co-plated unions keep a gap above one layer height (once, outside the fix loop).
+
+    No-op unless some plate holds more than one union; the auto-fixer operates on a
+    single script and cannot regenerate the separate per-union STLs the check compares.
+    """
+    from plate_clearance_check import run_plate_clearance_check
+
+    return run_plate_clearance_check(plan, stl_dir or ".")
+
+
 def _analyze_3mf(model_3mf_path: str) -> list[dict]:
     """Check a 3MF deliverable for non-manifold edges as a slicer reads it.
 
@@ -455,8 +465,9 @@ def run_gate(
     all_issues += plan_issues
 
     # ---- kinematic range check (once, outside the fix loop) ----
-    if not any(i["severity"] == "error" for i in plan_issues):
-        all_issues += _run_kinematic_stage(plan, stl_dir)
+    all_issues += _run_kinematic_stage(plan, stl_dir)
+    # ---- plate clearance check (once, outside the fix loop) ----
+    all_issues += _run_plate_clearance_stage(plan, stl_dir)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
 

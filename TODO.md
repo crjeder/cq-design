@@ -11,8 +11,6 @@ change lives in that change's `tasks.md`, not here.
       checks); surrounding-geometry questions stay out of scope (external simulation)
 - [ ] kinematic: articulated chains (a moving union carries other unions through
       the sweep) -- deferred
-- [ ] gate: plate clearance check -- co-plated unions must keep a gap > layer
-      height everywhere or they fuse in the print
 - [ ] joints: side-tagged `face_mount` docks so the planner derives union
       membership and the world joint axis automatically (interface naming: keep
       assembly/mating docks conceptually distinct from kinematic axes even though
@@ -27,11 +25,8 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
+
 ## Prior-art ideas
-
-Grouped by change. Items under one heading are a single change (same files /
-tests); separate headings are independent.
-
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
 how much they preserve upstream updates while staying self-contained and inline
 (no MCP):
