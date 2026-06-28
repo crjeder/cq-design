@@ -17,8 +17,11 @@ supplied the object SHALL be written in its assembled-pose transform as before. 
 object's name SHALL be derived from the part's `description` in the build plan, sanitized
 into a valid, readable label (internal whitespace collapsed, control characters removed,
 length bounded); when the sanitized description is empty the exporter SHALL fall back to
-the part `id`. Each object SHALL carry its `plate` tag as metadata. The exporter SHALL NOT
-boolean-fuse distinct unions in the 3MF.
+the part `id`. Object names SHALL be unique across the 3MF: when two or more parts would
+otherwise produce the same name, the exporter SHALL disambiguate each colliding object by
+suffixing its name with the part `id` (which is unique), and SHALL leave non-colliding
+names unchanged. Each object SHALL carry its `plate` tag as metadata. The exporter SHALL
+NOT boolean-fuse distinct unions in the 3MF.
 
 #### Scenario: Each union is a named 3MF object
 - **WHEN** a model with multiple unions is exported to 3MF
@@ -38,6 +41,17 @@ boolean-fuse distinct unions in the 3MF.
 - **WHEN** a part with `description` "Hinged lid that snaps onto the base" is exported
 - **THEN** the corresponding 3MF object's `name` attribute is the sanitized description,
   not the part `id` or a kernel-generated placeholder such as "CadQuery Shape 0"
+
+#### Scenario: Duplicate descriptions are disambiguated by part id
+- **WHEN** two parts (e.g. ids "left_leaf" and "right_leaf") share the description
+  "Hinge leaf"
+- **THEN** the two 3MF objects get distinct names, each the description suffixed with its
+  part id (e.g. "Hinge leaf (left_leaf)" and "Hinge leaf (right_leaf)"), so no two objects
+  share a name
+
+#### Scenario: Distinct descriptions are left unchanged
+- **WHEN** every part's sanitized name is already unique across the model
+- **THEN** each object keeps its plain sanitized description with no id suffix appended
 
 #### Scenario: Description with hostile or oversized content is sanitized
 - **WHEN** a part description contains newlines, control characters, or exceeds the name
