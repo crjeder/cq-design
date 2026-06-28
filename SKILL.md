@@ -520,6 +520,8 @@ The gate runs entirely in-process (trimesh + numpy geometry and overhang analysi
 
 If the plan has a `kinematics` array, the gate also runs the **kinematic range check** (`src/kinematic_check.py`) once, after the geometry checks. The sweep is whole-model, so it needs **every union's assembled STL** present in the gate's STL directory as `<part_id>.stl`. Produce these with the **model export** (`src/model_export.py`), which applies each part's `placement` and writes one assembled STL per union (plus the named-object `model.3mf` and any fused-per-plate STL). The stage degrades to a `check_skipped` warning when a union STL or the `python-fcl`/`scipy` backend is missing. See **Kinematic validation** below.
 
+Whenever any plate carries more than one union (print-in-place), the gate also runs the **plate-clearance check** (`src/plate_clearance_check.py`) once, over the same assembled per-union STLs. For every co-plated union pair it measures the minimum surface-to-surface gap and flags any pair within one layer height (`nozzle_mm * 0.5`) as a `plate_clearance` **error** -- those unions fuse on the bed. The gate runs this automatically (no separate command); it degrades to a `check_skipped` warning when trimesh or the `python-fcl` backend is missing. Measuring on the assembled STLs is valid because a plate fuses as a rigid cluster, so its print-orientation rotation preserves the pairwise gaps.
+
 The `build/` directory is in your current working directory (the directory you called the skill from), not inside `$SKILL_DIR`.
 
 ---
