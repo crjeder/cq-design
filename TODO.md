@@ -73,6 +73,73 @@ and `prompts/part.md`.
 - [ ] DeepCAD evaluation metric: Chamfer distance for golden-mesh regression tests
       -- strategy: reimplement (trimesh already computes it)
 
+### From market research (info/market_research.md)
+
+Recent LLM-CAD / parametric / FDM-printability projects surveyed 2023-2026. The
+central finding: LLM-CAD tools stop at "valid geometry" while printability work
+(support, orientation, self-supporting design) lives in separate pipelines --
+bridging them inline is this skill's clearest opening. Items below are the
+reusable primitives, not whole-tool adoptions.
+
+#### Diagnostics-as-assertions (cad-khana, FreeCAD-AI) -- one change -- strategy: reimplement
+cad-khana (`github.com/cyberchitta/cad-khana`) is a Claude Code skill / build123d
+wrapper that emits a structured `diagnostics.json` (overhangs, wall thickness,
+clearances, interferences) and turns geometric constraints into build-failing
+assertions (`assert_min_wall`, `assert_clearance`, `assert_no_interference`).
+This is the closest analog to our gate; extends `quality_gate.py`.
+- [ ] geometric constraints as build-failing assertions feeding the structured
+      `{source, severity, type, message, hint}` contract the gate already emits
+- [ ] per-project FDM design-rule file (FreeCAD-AI's `AGENTS.md`/`FREECAD_AI.md`
+      pattern, e.g. "min wall 1.2mm, all edges >=0.8mm fillet") consumed by the gate
+
+#### Normalized Support Volume score (SEG / ODPO, arXiv 2511.16434) -- one change -- strategy: reimplement
+NSV = support-material volume / model volume: a scale-invariant printability cost
+(validated against Cura, Pearson r > 0.85 on 50 Thingi10k models). SEG itself is a
+diffusion model with no public code; only the *metric* is reusable. Pairs with the
+Tweaker-3 print-orientation work above (NSV scores a given orientation).
+- [ ] NSV as a quantitative gate score / orientation-selection objective in
+      `print_orientation.py` (support volume from the overhang+bed-projection model)
+
+#### Orientation scoring (orient-stl) -- folds into the Tweaker-3 change -- strategy: reimplement
+`github.com/sameer/orient-stl` finds best FDM orientation via DIRECT global
+optimization (sub-second). Overlaps the existing Tweaker-3 item; the overhang-area +
+slice-count fitness from the build-orientation research (genetic-algorithm,
+connected-components, "Part Orientation Fused Shape Optimization") is the reusable
+scoring function.
+- [ ] overhang-area + slice-count fitness as an alternative/cross-check candidate
+      score alongside the Tweaker-3 formulas
+
+#### Iterative visual-feedback repair (CADReasoner, CADCodeVerify) -- one change -- strategy: reimplement
+CADReasoner (CVPR 2026) and CADCodeVerify (arXiv 2410.05340) close a render ->
+diff -> regenerate loop: render the part, auto-generate validation questions,
+answer them against the render, feed discrepancies back. We already render
+previews (`preview.py`) and run a bounded `claude -p` fix loop in the gate; this
+adds the visual-discrepancy signal to that loop.
+- [ ] feed multi-view preview renders + auto-generated check questions into the
+      gate's correction prompts (currently text-only DFM/geometry findings)
+
+#### Print-friendly parameterizations (cq-gridfinity / Gridfinity practice) -- strategy: reimplement (blocks)
+`github.com/michaelgale/cq-gridfinity` and the wider Gridfinity ecosystem encode
+concrete DFM heuristics: "lite" thin shells for less material, bridge-over (teardrop)
+magnet/screw holes, variable wall thickness. Block-library additions, not a gate change.
+- [ ] teardrop / bridged horizontal holes in `blocks/connectors.py` +
+      `blocks/fasteners.py` so bosses and ports stay self-supporting
+
+#### Verify-against-criteria tool (CadQuery-MCP `verify_cad_query`) -- strategy: optional external
+`github.com/rishigundakaram/cadquery-mcp-server` exposes a `verify_cad_query`
+validator that checks geometry against natural-language criteria. The LLM
+intent-match overlaps the cadgate item above; same optional-external rationale
+(native gate runs without it, augments when present).
+- [ ] (covered by the cadgate-style item under Independent changes)
+
+#### Reference-only (no action, recorded for the README survey)
+LLM->CadQuery models/datasets reusable only if fine-tuning is ever contemplated:
+CAD-Recode (1M procedural CadQuery programs), cadrille (online-RL/GRPO recipe),
+CAD-Coder (163,671-pair GenCAD-Code dataset), Text-to-CadQuery (170k annotations).
+Benchmarks: CADBench, Text2CAD-Bench. Ecosystem/integration layer (MCP bridges,
+PartCAD `requirements:` part-type schema, build123d topology-optimization, Zoo/KCL
+B-rep) noted but off-design for an inline no-MCP skill.
+
 ## Tech debt
 
 - [x] repo-wide type-checker cleanup. ruff, mypy (gradual-adoption `strict=false`,
@@ -108,10 +175,6 @@ cleanup. Confirmed unless marked SPECULATIVE.
       in `quality_gate._analyze_3mf`. Consolidate on the numpy one.
 
 ### Other confirmed
-- [ ] **3MF object names not deduped** (low-med). `model_export.py:94-101` derives
-      `<object name=...>` from `description`; identical/empty descriptions become
-      indistinguishable to a slicer operator (defeats the named-object feature).
-      Suffix collisions with the part id.
 - [ ] **`_check_thin_interfaces` swallows all exceptions** (low).
       `run_cadquery_model.py:315` `except Exception: return [], []` makes a real
       `measure_stl` bug look identical to "no thin regions". Narrow the except or
