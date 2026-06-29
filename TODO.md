@@ -215,5 +215,5 @@ cleanup. Confirmed unless marked SPECULATIVE.
       regression) -- DONE (PR #10)
 - [x] `model_export` two parts with identical descriptions -> assert object-name
       uniqueness -- DONE (PR #8)
-- [ ] `_translate_stderr` false-positive: a model printing `Foo: bar` to stderr is
+- [x] `_translate_stderr` false-positive: a model printing `Foo: bar` to stderr is
       not reported as `occ_exception`
