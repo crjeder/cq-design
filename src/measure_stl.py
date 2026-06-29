@@ -304,6 +304,9 @@ def _thin_regions(
     e2 = tris[:, 2] - v0
     tmin = 1e-3
 
+    sampled = np.zeros(n_faces, dtype=bool)
+    sampled[idx] = True
+
     thickness = np.full(n_faces, np.inf)
     for k in range(len(idx)):
         t = _ray_thickness(v0, e1, e2, origins[k], -normals[k], tmin)
@@ -314,16 +317,23 @@ def _thin_regions(
     if int(is_thin.sum()) < 2:
         return []
 
-    # Group thin faces by adjacency (robust on coarse and dense meshes alike).
+    # Group thin (seed) faces into regions, robust to triangle density. The ray-cast
+    # only measures the subsampled faces, so on a mesh above `max_samples` the thin
+    # seeds of one wall are stride-spaced and rarely share an edge. Reconnect them by
+    # flooding through the full adjacency graph, treating unmeasured (unsampled) faces
+    # as transparent and only confirmed-thick (sampled, not-thin) faces as barriers.
+    # Below the cap every face is sampled, so this reduces to thin-thin adjacency.
+    barrier = sampled & ~is_thin
     adj = mesh.face_adjacency
-    sub_adj = adj[is_thin[adj[:, 0]] & is_thin[adj[:, 1]]]
-    components = _union_find(np.where(is_thin)[0].tolist(), sub_adj)
+    open_adj = adj[~barrier[adj[:, 0]] & ~barrier[adj[:, 1]]]
+    components = _union_find(np.where(~barrier)[0].tolist(), open_adj)
 
     results: list[dict[str, Any]] = []
     for comp in components:
-        if len(comp) < 2:
+        seeds = [f for f in comp if is_thin[f]]
+        if len(seeds) < 2:
             continue
-        comp_arr = np.array(comp)
+        comp_arr = np.array(seeds)
         c_norm = mesh.face_normals[comp_arr]
         # Thinness axis is the dominant normal direction; sum of outer products
         # makes +n and -n (the two faces of a wall) reinforce instead of cancel.

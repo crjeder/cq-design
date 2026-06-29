@@ -27,8 +27,8 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
-## Prior-art ideas
 
+## Prior-art ideas
 Grouped by change. Items under one heading are a single change (same files /
 tests); separate headings are independent.
 
@@ -107,12 +107,6 @@ cleanup. Confirmed unless marked SPECULATIVE.
       non-XYZ axis. A hand-written/partial plan raises a bare traceback instead of
       the module's structured `{source, severity, type, message, hint}` finding.
       Fix: validate (or guard field access) before the kinematic stage.
-- [ ] **thin-wall detection silently weakens above 3000 faces** (medium).
-      `measure_stl.py:307-324`: `is_thin` is only true on subsampled faces, but the
-      adjacency grouping needs both edge endpoints sampled; above `max_samples=3000`
-      thin regions fragment into singletons dropped by `len(comp) < 2`. Grow
-      `is_thin` to unsampled faces adjacent to thin sampled faces, or raise the
-      sample cap for the thin pass.
 - [ ] **O(faces) pure-Python non-manifold loop + triplicated logic** (medium).
       `run_cadquery_model.py:191-201` builds the full `edge_faces` dict over every
       face in Python (the `>= 5` cap only limits reporting, not the build). A
