@@ -33,6 +33,7 @@ _VALID_INTERFACE_TYPES = frozenset(
         "tenon",
         "dowel",
         "seam",
+        "union",
     }
 )
 
