@@ -161,7 +161,7 @@ Severities and `file:line` as reported; mostly pre-existing, not from the lint
 cleanup. Confirmed unless marked SPECULATIVE.
 
 ### High value
-- [ ] **gate runs no plan validation before the kinematic stage** (medium).
+- [x] **gate runs no plan validation before the kinematic stage** (medium). DONE (PR #7).
       `quality_gate.run_gate` never calls `plan_validate`, but
       `kinematic_check.py:191` raw-indexes `entry["required_range"]`,
       `entry["axis_dir"]`, `entry["moving_union"]`, etc., and
@@ -169,7 +169,7 @@ cleanup. Confirmed unless marked SPECULATIVE.
       non-XYZ axis. A hand-written/partial plan raises a bare traceback instead of
       the module's structured `{source, severity, type, message, hint}` finding.
       Fix: validate (or guard field access) before the kinematic stage.
-- [ ] **thin-wall detection silently weakens above 3000 faces** (medium).
+- [x] **thin-wall detection silently weakens above 3000 faces** (medium). DONE (PR #10).
       `measure_stl.py:307-324`: `is_thin` is only true on subsampled faces, but the
       adjacency grouping needs both edge endpoints sampled; above `max_samples=3000`
       thin regions fragment into singletons dropped by `len(comp) < 2`. Grow
@@ -209,11 +209,11 @@ cleanup. Confirmed unless marked SPECULATIVE.
       suffix or OCC prefix. -- DONE
 
 ### Test-coverage gaps
-- [ ] malformed-plan kinematic path emits a structured issue, not a traceback (ties
-      to the gate-validation item)
-- [ ] `measure_stl` thin-wall fixture above 3000 faces (catches the fragmentation
-      regression)
-- [ ] `model_export` two parts with identical descriptions -> assert object-name
-      uniqueness
-- [x] `_translate_stderr` false-positive: a model printing `Foo: bar` to stderr is
-      not reported as `occ_exception` -- DONE
+- [x] malformed-plan kinematic path emits a structured issue, not a traceback (ties
+      to the gate-validation item) -- DONE (PR #7)
+- [x] `measure_stl` thin-wall fixture above 3000 faces (catches the fragmentation
+      regression) -- DONE (PR #10)
+- [x] `model_export` two parts with identical descriptions -> assert object-name
+      uniqueness -- DONE (PR #8)
+- [ ] `_translate_stderr` false-positive: a model printing `Foo: bar` to stderr is
+      not reported as `occ_exception`
