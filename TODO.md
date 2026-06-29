@@ -147,8 +147,6 @@ cleanup. Confirmed unless marked SPECULATIVE.
 ### Test-coverage gaps
 - [ ] malformed-plan kinematic path emits a structured issue, not a traceback (ties
       to the gate-validation item)
-- [ ] `measure_stl` thin-wall fixture above 3000 faces (catches the fragmentation
-      regression)
 - [ ] `model_export` two parts with identical descriptions -> assert object-name
       uniqueness
 - [ ] `_translate_stderr` false-positive: a model printing `Foo: bar` to stderr is
