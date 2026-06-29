@@ -59,6 +59,13 @@ Before committing to any dimension values, populate `planning_notes` with your r
    mating blocks/interfaces -- e.g. `snap_hook_clip` for a snap-fit lid, `screw_boss`
    for screwed parts -- and narrate the intended connection in `planning_notes`.
 
+   - **Choosing an interface `type`.** Use a **mating dock** (`face_mount`, `snap_hook`,
+     `snap_socket`, `dovetail`/`finger`/`mortise`/`tenon`, `pin`/`socket`, ...) when the
+     interface joins this block to a **separately printed** part across an assembly seam;
+     use a **kinematic axis** (`hinge_axis`, `axis`, `ball`/`ball_socket`, ...) for a
+     **moving** joint; use `union` when the block is **rigidly fused** (boolean-unioned)
+     into the same part's body -- one printed rigid body, no seam, no motion.
+
 6. **Each part is a union (one rigid body). Group prints with `plate`.** A part maps
    to one printed rigid body. Parts default to their own plate (one part per print).
    Set the same `plate` id on several parts only for a **print-in-place** mechanism
