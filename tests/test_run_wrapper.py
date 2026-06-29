@@ -146,6 +146,27 @@ def test_occ_error_translated(bad_script):
     assert isinstance(data["errors"], list)
 
 
+def test_translate_stderr_ignores_plain_capitalized_lines():
+    """A model printing a 'Capitalized: ...' diagnostic to stderr must not be
+    misread as an occ_exception (which is error-severity in the gate)."""
+    from run_cadquery_model import _translate_stderr
+
+    for line in ("Foo: bar", "Status: ready", "Warning: low memory", "note: fine"):
+        assert _translate_stderr(line) == [], f"{line!r} wrongly parsed as an exception"
+
+
+def test_translate_stderr_detects_real_exceptions():
+    """Genuine Python and OCC exception lines still translate to occ_exception."""
+    from run_cadquery_model import _translate_stderr
+
+    py = _translate_stderr("ValueError: bad radius")
+    assert len(py) == 1 and py[0]["type"] == "occ_exception"
+    assert py[0]["occ_class"] == "ValueError"
+
+    occ = _translate_stderr("StdFail_NotDone: operation incomplete")
+    assert len(occ) == 1 and occ[0]["occ_class"] == "StdFail_NotDone"
+
+
 def test_expected_dims_mismatch(good_script):
     """--expected-dims with a large mismatch should produce dimension_mismatch errors."""
     # good_script produces a 10x10x10 cube; expect 50x50x50 → big mismatch

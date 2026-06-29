@@ -203,10 +203,10 @@ cleanup. Confirmed unless marked SPECULATIVE.
 - [ ] `plan_validate.py:43` sorts jsonschema errors by `e.path` (deque) -- latent
       `TypeError` if str/int collide at one position; no trigger found against the
       real schema. Safer key: `lambda e: list(map(str, e.absolute_path))`.
-- [ ] `_translate_stderr` (`run_cadquery_model.py:96-113`) may misclassify a model's
+- [x] `_translate_stderr` (`run_cadquery_model.py:96-113`) may misclassify a model's
       `print("Foo: bar")` on stderr as a fake `occ_exception`, which is
       error-severity downstream in the gate. Tighten to require an `Error`/`Exception`
-      suffix or OCC prefix.
+      suffix or OCC prefix. -- DONE
 
 ### Test-coverage gaps
 - [ ] malformed-plan kinematic path emits a structured issue, not a traceback (ties
@@ -215,5 +215,5 @@ cleanup. Confirmed unless marked SPECULATIVE.
       regression)
 - [ ] `model_export` two parts with identical descriptions -> assert object-name
       uniqueness
-- [ ] `_translate_stderr` false-positive: a model printing `Foo: bar` to stderr is
-      not reported as `occ_exception`
+- [x] `_translate_stderr` false-positive: a model printing `Foo: bar` to stderr is
+      not reported as `occ_exception` -- DONE
