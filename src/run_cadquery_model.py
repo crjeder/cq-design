@@ -250,6 +250,42 @@ def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict]]:
     return geo, errors
 
 
+def _aggregate_geometry(per_union: list[tuple[str, dict | None]]) -> dict | None:
+    """Combine per-union geometry into one `geometry` block for a multi-union part.
+
+    Sums volume/weight/face_count and reports a per-axis bounding-box envelope across the
+    unions (a loose summary; the unions are in their own authored frames). A single union
+    returns its own geometry unchanged.
+    """
+    geos = [g for _, g in per_union if g is not None]
+    if not geos:
+        return None
+    if len(per_union) == 1:
+        return per_union[0][1]
+
+    def _sum(key: str) -> float | None:
+        vals = [g[key] for g in geos if g.get(key) is not None]
+        return round(sum(vals), 3) if vals else None
+
+    return {
+        "bbox": {
+            "x_mm": max(g["bbox"]["x_mm"] for g in geos),
+            "y_mm": max(g["bbox"]["y_mm"] for g in geos),
+            "z_mm": max(g["bbox"]["z_mm"] for g in geos),
+        },
+        "volume_cm3": _sum("volume_cm3"),
+        "weight_g": _sum("weight_g"),
+        "face_count": int(sum(g["face_count"] for g in geos)),
+    }
+
+
+def _attribute_to_union(errs: list[dict], uid: str, multi: bool) -> list[dict]:
+    """Tag each error with its union id (and prefix the message) when a part has many unions."""
+    if not multi:
+        return errs
+    return [{**e, "union": uid, "message": f"[{uid}] {e['message']}"} for e in errs]
+
+
 def _check_dimensions(geo: dict, expected_dims: list[float], tolerance: float = 1.0) -> list[dict]:
     """Compare actual bbox against expected [w, d, h]. Return mismatch errors."""
     if not geo or not expected_dims or len(expected_dims) != 3:
@@ -560,34 +596,53 @@ def main():
             print(json.dumps(result, indent=2))
             sys.exit(1)
 
-        # Geometry analysis (runs when STLs are present, regardless of --strict/--preview)
+        # Geometry analysis. A part may emit several union STLs (one per named union);
+        # validate EACH so a thin wall / open mesh in any union is caught, attributing each
+        # finding to its union when there is more than one. The `geometry` block aggregates
+        # to keep the JSON contract a single object.
         if stls_in_temp:
-            geo, geo_errors = _compute_geometry(stls_in_temp[0])
-            result["geometry"] = geo
-            result["errors"].extend(geo_errors)
-            result["watertight"] = geo is not None and not any(
-                e["type"] in ("non_manifold_edge", "non_watertight") for e in result["errors"]
-            )
+            union_stls = sorted(stls_in_temp)
+            multi = len(union_stls) > 1
+            per_union_geo: list[tuple[str, dict | None]] = []
+            thin_regions_all: list = []
+            watertight_all = True
 
-            # Dimension check against plan expectations
-            if args.expected_dims:
+            for stl in union_stls:
+                uid = os.path.splitext(os.path.basename(stl))[0]
+
+                geo_i, geo_errors_i = _compute_geometry(stl)
+                per_union_geo.append((uid, geo_i))
+                result["errors"].extend(_attribute_to_union(geo_errors_i, uid, multi))
+                watertight_all = watertight_all and (
+                    geo_i is not None
+                    and not any(
+                        e["type"] in ("non_manifold_edge", "non_watertight") for e in geo_errors_i
+                    )
+                )
+
+                if args.wall_min > 0:
+                    thin_regions_i, thin_errors_i = _check_thin_interfaces(
+                        stl, args.wall_min, args.line_width
+                    )
+                    for r in thin_regions_i:
+                        thin_regions_all.append({**r, "union": uid} if multi else r)
+                    result["errors"].extend(_attribute_to_union(thin_errors_i, uid, multi))
+
+            result["geometry"] = _aggregate_geometry(per_union_geo)
+            result["watertight"] = watertight_all
+            if result["geometry"] is not None and args.wall_min > 0:
+                result["geometry"]["thin_regions"] = thin_regions_all
+
+            # Dimension check against plan expectations (single-union parts only; a multi-union
+            # part has no single bounding box to compare against the plan's w/d/h).
+            if args.expected_dims and not multi and result["geometry"] is not None:
                 try:
                     expected = [float(x) for x in args.expected_dims.split(",")]
-                    if result["geometry"] is not None:
-                        result["errors"].extend(
-                            _check_dimensions(result["geometry"], expected, args.dim_tolerance)
-                        )
+                    result["errors"].extend(
+                        _check_dimensions(result["geometry"], expected, args.dim_tolerance)
+                    )
                 except ValueError:
                     _append_stderr(result, f"Invalid --expected-dims value: {args.expected_dims}")
-
-            # Thin-interface DFM check (local thickness, XY/Z classified)
-            if args.wall_min > 0:
-                thin_regions, thin_errors = _check_thin_interfaces(
-                    stls_in_temp[0], args.wall_min, args.line_width
-                )
-                if result["geometry"] is not None:
-                    result["geometry"]["thin_regions"] = thin_regions
-                result["errors"].extend(thin_errors)
 
             # Fail on strict + non-watertight
             if args.strict and not result["watertight"]:

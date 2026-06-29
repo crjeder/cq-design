@@ -74,6 +74,13 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
+    if isinstance(result, dict):
+        # Multi-union part: preview all unions together (added as separate solids, not fused).
+        union_wps = list(result.values())
+        combined = union_wps[0]
+        for wp in union_wps[1:]:
+            combined = combined.add(wp)
+        result = combined
     if not isinstance(result, (cq.Workplane, cq.Shape)):
         print(
             f"ERROR: `result` is {type(result).__name__}, expected a CadQuery Workplane or Shape.",

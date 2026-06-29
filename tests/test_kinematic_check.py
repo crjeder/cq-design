@@ -219,7 +219,7 @@ def _write_plan(tmp_path, kinematics, extra_part=None):
 def test_plan_validate_rejects_unknown_moving_union(tmp_path):
     plan_path = _write_plan(tmp_path, [_revolute_entry([0, 90], moving="ghost")])
     errors = validate_plan(plan_path)
-    assert any("moving_union 'ghost' is not a part id" in e for e in errors)
+    assert any("moving_union 'ghost' is not a union id" in e for e in errors)
 
 
 def test_plan_validate_rejects_invalid_placement_axis(tmp_path):

@@ -258,6 +258,99 @@ def test_duplicate_descriptions_are_disambiguated_by_part_id(tmp_path):
     assert names == {"Hinge leaf (left_leaf)", "Hinge leaf (right_leaf)"}
 
 
+def _write_multi_union_part(parts_dir, pid, uid_a, uid_b, sep_y=30):
+    (parts_dir / f"{pid}.py").write_text(
+        "import cadquery as cq\n"
+        "result = {\n"
+        f"  {uid_a!r}: cq.Workplane('XY').box(20, 20, 4),\n"
+        f"  {uid_b!r}: cq.Workplane('XY').box(20, 20, 4).translate((0, {sep_y}, 0)),\n"
+        "}\n"
+    )
+
+
+def test_multi_union_part_exports_object_and_stl_per_union(tmp_path):
+    """One part declaring two unions exports two named 3MF objects + two STLs, one per union,
+    on the two plates declared per union."""
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_multi_union_part(parts_dir, "hinge", "leaf_a", "leaf_b")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {
+                "id": "hinge",
+                "description": "Hinge",
+                "unions": [{"id": "leaf_a", "plate": "p1"}, {"id": "leaf_b", "plate": "p2"}],
+            }
+        ]
+    )
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    # Two distinct unions, keyed by union id (not part id).
+    assert set(result["union_stls"]) == {"leaf_a", "leaf_b"}
+    for path in result["union_stls"].values():
+        assert trimesh.load(path, force="mesh").is_watertight
+    # Two named 3MF objects, deduped by union id since they share the part description.
+    objects = _read_3mf_objects(result["model_3mf"])
+    assert set(objects) == {"Hinge (leaf_a)", "Hinge (leaf_b)"}
+    assert objects == {"Hinge (leaf_a)": "p1", "Hinge (leaf_b)": "p2"}
+    # Each union on its own plate -> no fused multi-union plate STL.
+    assert result["plate_stls"] == {}
+
+
+def test_multi_union_part_co_plated_produces_fused_plate(tmp_path):
+    """Two unions of one part sharing a plate fuse into one plate STL (print-in-place)."""
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_multi_union_part(parts_dir, "hinge", "leaf_a", "leaf_b")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {
+                "id": "hinge",
+                "description": "Hinge",
+                "unions": [{"id": "leaf_a", "plate": "shared"}, {"id": "leaf_b", "plate": "shared"}],
+            }
+        ]
+    )
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    assert set(result["union_stls"]) == {"leaf_a", "leaf_b"}
+    assert set(result["plate_stls"]) == {"shared"}
+
+
+def test_multi_union_result_key_mismatch_errors(tmp_path):
+    """A part declaring `unions` whose script result keys differ is a structured error."""
+    import pytest
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_multi_union_part(parts_dir, "hinge", "leaf_a", "WRONG")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [{"id": "hinge", "description": "Hinge", "unions": [{"id": "leaf_a"}, {"id": "leaf_b"}]}]
+    )
+
+    with pytest.raises(ValueError, match="do not match declared unions"):
+        export_model(plan, str(parts_dir), str(out))
+
+
+def test_single_union_part_unchanged(tmp_path):
+    """Backward compat: a plain-Workplane part is one union keyed by the part id."""
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "solo")
+    out = tmp_path / "dist"
+    plan = _plan([{"id": "solo", "description": "Solo"}])
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    assert set(result["union_stls"]) == {"solo"}
+    assert set(_read_3mf_objects(result["model_3mf"])) == {"Solo"}
+
+
 def test_distinct_descriptions_keep_plain_names(tmp_path):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
