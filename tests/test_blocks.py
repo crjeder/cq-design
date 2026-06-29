@@ -644,3 +644,34 @@ def test_flex_blocks_top_level_import():
     from blocks import shadow_gap as sg
 
     assert callable(fh) and callable(lh) and callable(sg)
+
+
+# ---- interface vocabulary ----
+
+
+def _block_with_interface(itype):
+    return {
+        "name": "iface_fixture",
+        "module": "blocks.primitives",
+        "function": "fillet_box",
+        "use": "interface vocabulary fixture",
+        "params": {},
+        "dimensions": [1, 1, 1],
+        "interfaces": [{"type": itype, "orientation": "+Z", "origin": [0, 0, 0]}],
+    }
+
+
+def test_union_interface_type_accepted():
+    """A block declaring a `union` interface (fused into the parent body) validates."""
+    errors = validate_inventory([_block_with_interface("union")])
+    assert errors == [], errors
+
+
+def test_unknown_interface_type_still_rejected():
+    errors = validate_inventory([_block_with_interface("glue_tab")])
+    assert any("glue_tab" in e and "allowed vocabulary" in e for e in errors)
+
+
+def test_shipped_inventory_still_valid():
+    """Regression guard: adding `union` to the vocabulary keeps inventory.json valid."""
+    assert validate_inventory(load_inventory()) == []
