@@ -2,9 +2,13 @@
 """
 Quality gate for the CAD skill build pipeline.
 
-Runs two checks against the final model script:
+Runs these checks against the final model script:
   1. Wrapper DFM checks (thin walls, non-manifold edges) via run_cadquery_model.py
   2. Geometry + overhang analysis via trimesh (in-process)
+  3. Kinematic range-of-motion sweep when the plan declares joints (once, outside the
+     fix loop) via kinematic_check.py
+  4. Plate clearance: co-plated unions must keep a gap above one layer height or they
+     fuse in the print (once, outside the fix loop) via plate_clearance_check.py
 
 Aggregates issues with severity (error/warning), generates a targeted fix prompt
 if any errors are found, invokes `claude -p` for up to MAX_FIX_ROUNDS, then
@@ -296,6 +300,27 @@ def _extract_python(raw: str) -> str:
     return raw.strip()
 
 
+def _run_plan_validation_stage(plan_path: str) -> list[dict]:
+    """Validate BUILD_PLAN.json before any plan-consuming stage runs.
+
+    Maps each `plan_validate.validate_plan` error string to a structured `plan_invalid`
+    issue. An invalid plan would otherwise crash the kinematic stage (which raw-indexes
+    plan fields) with a bare traceback; the gate skips that stage when this returns errors.
+    """
+    from plan_validate import validate_plan
+
+    return [
+        {
+            "source": "plan",
+            "severity": "error",
+            "type": "plan_invalid",
+            "message": err,
+            "hint": "Fix BUILD_PLAN.json so it passes plan validation (schema + cross-checks).",
+        }
+        for err in validate_plan(plan_path)
+    ]
+
+
 def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     """Run the kinematic range check when the plan declares any joints.
 
@@ -307,6 +332,17 @@ def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     from kinematic_check import run_kinematic_check
 
     return run_kinematic_check(plan, stl_dir or ".")
+
+
+def _run_plate_clearance_stage(plan: dict, stl_dir: str | None) -> list[dict]:
+    """Check co-plated unions keep a gap above one layer height (once, outside the fix loop).
+
+    No-op unless some plate holds more than one union; the auto-fixer operates on a
+    single script and cannot regenerate the separate per-union STLs the check compares.
+    """
+    from plate_clearance_check import run_plate_clearance_check
+
+    return run_plate_clearance_check(plan, stl_dir or ".")
 
 
 def _analyze_3mf(model_3mf_path: str) -> list[dict]:
@@ -421,8 +457,17 @@ def run_gate(
     if model_3mf_path and os.path.exists(model_3mf_path):
         all_issues += _analyze_3mf(model_3mf_path)
 
+    # ---- plan validation (once, before any plan-consuming stage) ----
+    # The wrapper/geometry stages above read the plan only through defaulted .get
+    # lookups, so they are safe on a malformed plan; the kinematic stage raw-indexes
+    # plan fields, so it must not run unless the plan validates.
+    plan_issues = _run_plan_validation_stage(plan_path)
+    all_issues += plan_issues
+
     # ---- kinematic range check (once, outside the fix loop) ----
     all_issues += _run_kinematic_stage(plan, stl_dir)
+    # ---- plate clearance check (once, outside the fix loop) ----
+    all_issues += _run_plate_clearance_stage(plan, stl_dir)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
 
