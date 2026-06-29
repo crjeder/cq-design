@@ -38,6 +38,43 @@ def test_thin_vertical_fin_detected_as_xy(tmp_path):
     assert any(1.5 <= r["thickness_mm"] <= 2.5 for r in xy)
 
 
+def test_thin_wall_detected_above_sample_cap(tmp_path):
+    """Regression: a thin wall must still be found when the mesh has more faces than
+    the ray-cast sample cap. Measuring the same dense mesh with a large cap (sample
+    everything) and a tiny cap (high-stride subsampling) must give the same finding --
+    previously the strided samples fragmented into dropped singletons and the wall
+    silently vanished."""
+    block = _box([20, 20, 20])
+    fin = _box([2, 10, 20], translate=(0, 15, 0))  # 2 mm thin in X
+    mesh = trimesh.util.concatenate([block, fin])
+    for _ in range(3):  # 24 -> 1536 faces, well past the tiny cap below
+        mesh = mesh.subdivide()
+    stl = _write(mesh, tmp_path / "fin_dense.stl")
+
+    full = measure_stl.measure(stl, thin_max_mm=3.0, max_samples=100_000)["thin_regions"]
+    capped = measure_stl.measure(stl, thin_max_mm=3.0, max_samples=100)["thin_regions"]
+
+    full_xy = [r for r in full if r["orientation"] == "xy"]
+    capped_xy = [r for r in capped if r["orientation"] == "xy"]
+    assert full_xy, "fin not found even when every face is sampled"
+    assert capped_xy, "fin lost under high-stride subsampling (fragmentation regression)"
+    # Stable across density: both report the wall at ~2 mm.
+    assert any(1.5 <= r["thickness_mm"] <= 2.5 for r in full_xy)
+    assert any(1.5 <= r["thickness_mm"] <= 2.5 for r in capped_xy)
+
+
+def test_uniform_thick_mesh_above_cap_reports_nothing(tmp_path):
+    """The density-robust grouping must not manufacture regions from the transparent
+    unsampled faces: a uniformly thick dense mesh still reports no thin regions."""
+    cube = _box([20, 20, 20])
+    for _ in range(3):  # 12 -> 768 faces
+        cube = cube.subdivide()
+    stl = _write(cube, tmp_path / "cube_dense.stl")
+
+    regions = measure_stl.measure(stl, thin_max_mm=3.0, max_samples=100)["thin_regions"]
+    assert regions == [], f"expected no thin regions on a 20 mm-thick cube; got {regions}"
+
+
 def test_flat_slab_thin_in_z_not_xy(tmp_path):
     """A 1 mm plate lying flat is thin only along Z and must classify as 'z'."""
     stl = _write(_box([40, 40, 1]), tmp_path / "slab.stl")
