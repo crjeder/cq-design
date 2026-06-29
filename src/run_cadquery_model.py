@@ -102,11 +102,19 @@ def _translate_stderr(stderr: str) -> list[dict]:
         ):
             parts = stripped.split(":", 1)
             candidate = parts[0].strip()
-            # Must look like an exception class (no spaces, starts with capital or OCC prefix)
+            # Must look like an exception class, not just any "Capitalized: ..." line a
+            # model prints to stderr. Real Python exceptions end in Error/Exception/etc.;
+            # OCC kernel classes carry a known prefix. A bare uppercase first letter is
+            # too loose ("Foo: bar" must not register as an occ_exception).
             if (
                 candidate
                 and " " not in candidate
-                and (candidate[0].isupper() or candidate.startswith("OCC") or "Error" in candidate)
+                and (
+                    candidate.endswith(("Error", "Exception", "Failure", "Interrupt", "Exit"))
+                    or candidate.startswith(
+                        ("Standard_", "StdFail", "BRep", "Geom_", "TopoDS_", "OCC", "OSD_")
+                    )
+                )
             ):
                 exc_class = candidate
                 exc_message = parts[1].strip() if len(parts) > 1 else ""
