@@ -28,13 +28,9 @@ import cadquery as cq
 from exporters import _load_result
 from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
 from placement import apply_cq
+from units import plate_of, resolve_unions
 
 _NAME_MAX_LEN = 64
-
-
-def _plate_of(part: dict) -> str:
-    """Plate id for a part: explicit `plate`, else the part's own id (one per plate)."""
-    return part.get("plate") or part["id"]
 
 
 def _object_name(description: str, fallback: str) -> str:
@@ -51,18 +47,20 @@ def _object_name(description: str, fallback: str) -> str:
     return cleaned or fallback
 
 
-def _dedupe_object_names(parts: list[dict]) -> list[str]:
-    """One unique 3MF object name per part, in order.
+def _dedupe_object_names(records: list[tuple[str, dict]]) -> list[str]:
+    """One unique 3MF object name per union, in order.
 
-    Each name is the sanitized description (`_object_name`); when several parts share
-    a base name, each colliding name is disambiguated by suffixing the part `id` (which
-    is unique). Non-colliding names are left unchanged.
+    `records` is `[(union_id, part), ...]`. Each base name is the part description
+    (`_object_name`, falling back to the union id); when several unions share a base name
+    -- the common case for the two unions of one multi-union part -- each colliding name is
+    disambiguated by suffixing the union id (which is unique). Non-colliding names are left
+    unchanged.
     """
-    base_names = [_object_name(p.get("description", ""), p["id"]) for p in parts]
+    base_names = [_object_name(part.get("description", ""), uid) for uid, part in records]
     counts = Counter(base_names)
     return [
-        f"{base} ({p['id']})" if counts[base] > 1 else base
-        for base, p in zip(base_names, parts, strict=True)
+        f"{base} ({uid})" if counts[base] > 1 else base
+        for base, (uid, _part) in zip(base_names, records, strict=True)
     ]
 
 
@@ -88,33 +86,41 @@ def export_model(
     parts = plan.get("parts", [])
     print_orientations = print_orientations or {}
 
+    # Expand each part into its unions: a part declaring `unions` returns a dict
+    # {union_id: Workplane}; a plain Workplane is the single-union default (id = part id).
     authored: dict[str, cq.Workplane] = {}
     placed: dict[str, cq.Workplane] = {}
+    plate_by_uid: dict[str, str] = {}
+    records: list[tuple[str, dict]] = []  # (union_id, part) in order
     plates: dict[str, list[str]] = {}
     for part in parts:
-        pid = part["id"]
-        script = os.path.join(parts_dir, f"{pid}.py")
-        wp = _load_result(script)
-        authored[pid] = wp
-        placed[pid] = apply_cq(wp, part.get("placement"))
-        plates.setdefault(_plate_of(part), []).append(pid)
+        script = os.path.join(parts_dir, f"{part['id']}.py")
+        result = _load_result(script)
+        declared = {u["id"]: u for u in part.get("unions", [])}
+        for uid, wp in resolve_unions(part, result):
+            authored[uid] = wp
+            placed[uid] = apply_cq(wp, part.get("placement"))
+            plate = plate_of(part, uid, declared.get(uid))
+            plate_by_uid[uid] = plate
+            plates.setdefault(plate, []).append(uid)
+            records.append((uid, part))
 
     # 1. named 3MF: each object in its print orientation when one is supplied,
     # else its assembled pose.
-    def _deliverable(pid: str) -> cq.Workplane:
-        orientation = print_orientations.get(pid)
+    def _deliverable(uid: str) -> cq.Workplane:
+        orientation = print_orientations.get(uid)
         if orientation:
-            return apply_cq(authored[pid], {"rotate": orientation.get("rotate", [])})
-        return placed[pid]
+            return apply_cq(authored[uid], {"rotate": orientation.get("rotate", [])})
+        return placed[uid]
 
-    object_names = _dedupe_object_names(parts)
+    object_names = _dedupe_object_names(records)
     objects = [
         (
             name,
-            _plate_of(part),
-            cq.Compound.makeCompound(_deliverable(part["id"]).vals()),  # type: ignore[arg-type]
+            plate_by_uid[uid],
+            cq.Compound.makeCompound(_deliverable(uid).vals()),  # type: ignore[arg-type]
         )
-        for name, part in zip(object_names, parts, strict=True)
+        for name, (uid, _part) in zip(object_names, records, strict=True)
     ]
     model_3mf = os.path.join(output_dir, "model.3mf")
     write_named_3mf(objects, model_3mf)

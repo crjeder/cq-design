@@ -120,6 +120,28 @@
             "pattern": "^[a-z][a-z0-9_]*$",
             "description": "Print-group id. Parts sharing a plate print in one job (print-in-place). Defaults to the part's own id (one part per plate) when omitted."
           },
+          "unions": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Optional named unions this part's script produces. When present, the script's top-level `result` MUST be a dict mapping each union id to its CadQuery Workplane. When absent, the part is a single union whose id is the part id and whose plate is the part's `plate` (the default). The part's `placement` applies to every union it produces; union ids are unique across the model and are the namespace that `kinematics.moving_union` and plate grouping reference.",
+            "items": {
+              "type": "object",
+              "required": ["id"],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "Unique snake_case union id; the per-union STL/object name and the kinematics/plate reference key"
+                },
+                "plate": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "Print-group id for this union; defaults to the part's `plate`, else the union id"
+                }
+              }
+            }
+          },
           "load": {
             "type": "object",
             "additionalProperties": false,

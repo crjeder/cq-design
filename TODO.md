@@ -11,6 +11,26 @@ change lives in that change's `tasks.md`, not here.
       checks); surrounding-geometry questions stay out of scope (external simulation)
 - [ ] kinematic: articulated chains (a moving union carries other unions through
       the sweep) -- deferred
+- [ ] joints: multi-DOF / coupled simultaneous movements. A joint is a LIST of
+      single-axis movements (`rotate`/`translate`, each with axis + reference
+      vector + range); independent movements for now. A spherical/ball joint is
+      two coupled `rotate` movements sharing a center -- listing them as two
+      independent entries models a 2-axis gimbal, NOT the ball's coupled cone.
+      Capture coupling (e.g. helical screw pitch, ball cone) as a later field.
+- [ ] export: separate unions into print-plates. Today all unions compile to one
+      "world" result and model_export already writes each as a separately named
+      3MF `<object>` with `plate` metadata. Core 3MF has no native print-plate
+      concept (objects + `<build><item>` only); true multi-plate assignment is a
+      slicer-specific extension (Bambu/Prusa project-3MF). Decide: emit the
+      slicer plate structure, or leave plate split to the operator.
+- [ ] blocks: assembly placeholder geometry. A block may declare PSEUDO geometry
+      marking the volume that must stay clear to ASSEMBLE it (e.g. a hinge's pin-
+      insertion path / leaf-swing-during-assembly envelope). It is exempt from
+      export (not printed) and from the kinematic sweep (not a moving body), but
+      other geometry must not intrude into it or assembly is blocked. Pairs with
+      the mating-area footprint (2D where-to-connect) -- this is the 3D keep-clear-
+      for-assembly volume. The gate should flag real geometry that violates a
+      declared placeholder. Distinct from the model's own clearance gaps.
 - [ ] joints: side-tagged `face_mount` docks so the planner derives union
       membership and the world joint axis automatically (interface naming: keep
       assembly/mating docks conceptually distinct from kinematic axes even though
