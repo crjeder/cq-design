@@ -183,7 +183,9 @@ def run_kinematic_check(
             )
         )
 
-    all_union_ids = [part.get("id") for part in plan.get("parts", [])]
+    from units import iter_unions
+
+    all_union_ids = [uid for _part, uid, _plate in iter_unions(plan)]
 
     for entry in kinematics:
         jid = entry.get("joint_id", "(unknown)")

@@ -45,20 +45,17 @@ def _issue(severity: str, type_: str, message: str, hint: str, **extra: Any) -> 
     return issue
 
 
-def _plate_of(part: dict) -> str:
-    """Plate id for a part: explicit `plate`, else the part's own id.
-
-    Mirrors `model_export._plate_of` so the gate and the exporter agree on which
-    unions are co-plated (replicated rather than imported to avoid pulling in cadquery).
-    """
-    return part.get("plate") or part["id"]
-
-
 def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
-    """Group part ids by plate, keeping only plates that hold more than one union."""
+    """Group union ids by plate, keeping only plates that hold more than one union.
+
+    Uses the shared `units.iter_unions` expansion so a multi-union part's unions are grouped
+    by their own plate, agreeing with the exporter on which unions are co-plated.
+    """
+    from units import iter_unions
+
     plates: dict[str, list[str]] = {}
-    for part in plan.get("parts", []):
-        plates.setdefault(_plate_of(part), []).append(part["id"])
+    for _part, uid, plate in iter_unions(plan):
+        plates.setdefault(plate, []).append(uid)
     return {plate: ids for plate, ids in plates.items() if len(ids) > 1}
 
 

@@ -38,6 +38,24 @@ def _clearance_issues(issues):
     return [i for i in issues if i["type"] == "plate_clearance"]
 
 
+def test_multi_union_part_co_plated_unions_flagged(tmp_path):
+    """Two unions of ONE part sharing a plate are grouped and clearance-checked, just like
+    two separate parts -- the per-union plate grouping uses the shared union expansion."""
+    _box_stl(tmp_path / "leaf_a.stl", (0, 0, 0))
+    _box_stl(tmp_path / "leaf_b.stl", (10.1, 0, 0))  # gap 0.1 < 0.2 layer height
+    plan = _plan(
+        [
+            {
+                "id": "hinge",
+                "unions": [{"id": "leaf_a", "plate": "shared"}, {"id": "leaf_b", "plate": "shared"}],
+            }
+        ]
+    )
+    flagged = _clearance_issues(run_plate_clearance_check(plan, str(tmp_path)))
+    assert len(flagged) == 1
+    assert {flagged[0]["union_a"], flagged[0]["union_b"]} == {"leaf_a", "leaf_b"}
+
+
 # ---- 3.1 pair below threshold flagged ----------------------------------------
 
 

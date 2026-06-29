@@ -66,11 +66,28 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
                     f"(not in inventory). Available: {sorted(valid_blocks)}"
                 )
 
+    errors.extend(_check_unions(plan))
     errors.extend(_check_placements(plan))
     errors.extend(_check_nonzero_dir(plan, "load"))
     errors.extend(_check_nonzero_dir(plan, "show_face"))
     errors.extend(_check_kinematics(plan, inventory_path))
 
+    return errors
+
+
+def _check_unions(plan: dict[str, Any]) -> list[str]:
+    """Union ids (a part's declared `unions`, else the part id) must be unique across the model."""
+    from units import iter_unions
+
+    errors = []
+    seen: dict[str, str] = {}
+    for part, uid, _plate in iter_unions(plan):
+        pid = part.get("id", "(unknown)")
+        if uid in seen:
+            errors.append(
+                f"Union id '{uid}' is declared more than once (parts '{seen[uid]}' and '{pid}')"
+            )
+        seen[uid] = pid
     return errors
 
 
@@ -123,14 +140,15 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
         return []
 
     from blocks.validate import get_block
+    from units import iter_unions
 
-    part_ids = {part.get("id") for part in plan.get("parts", [])}
+    union_ids = {uid for _part, uid, _plate in iter_unions(plan)}
     errors = []
     for entry in kinematics:
         jid = entry.get("joint_id", "(unknown)")
         ref = entry.get("moving_union")
-        if ref not in part_ids:
-            errors.append(f"Kinematics '{jid}': moving_union '{ref}' is not a part id")
+        if ref not in union_ids:
+            errors.append(f"Kinematics '{jid}': moving_union '{ref}' is not a union id")
         block_name = entry.get("block")
         block = get_block(block_name, inventory_path)
         if block is None:

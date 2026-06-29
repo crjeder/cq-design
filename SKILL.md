@@ -320,6 +320,13 @@ from blocks.fasteners import screw_boss     # example
 
 Then a `PARAMETERS` block, then the geometry, then `result = ...`. See generated-script rules below.
 
+**Multi-union parts.** When the part declares a `unions` array in `BUILD_PLAN.json` (one script
+that builds several rigid bodies in one coordinate frame, e.g. both leaves of a print-in-place
+hinge), set `result` to a **dict** mapping each declared union id to its `Workplane` --
+`result = {"leaf_a": <wp>, "leaf_b": <wp>}` -- with keys exactly the declared union ids. Each
+union is then exported, posed, and kinematically/clearance checked as a distinct body. A part
+without a `unions` array keeps the single `result = <wp>` form (one union, id = part id).
+
 On retry attempts: review the error types and hints from the previous attempt, apply targeted fixes. Do not start over blindly — you have full planning context.
 
 **Step 3 — Validate**
@@ -457,7 +464,7 @@ regenerate the plates on any machine with uv, without the skill installed. Three
    `$SKILL_DIR/src/build_template.py` verbatim to `build/build.py` (no placeholder
    substitution), then copy the build tooling it imports into `build/` so it sits on
    `build.py`'s own `sys.path`: the modules `mesh_io.py`, `model_export.py`,
-   `print_orientation.py`, `placement.py` and the packages `exporters/` and `blocks/`
+   `print_orientation.py`, `placement.py`, `units.py` and the packages `exporters/` and `blocks/`
    (copy the whole directories, including their `*.json` data files). Re-running the skill
    overwrites these with the current `src/` versions.
 

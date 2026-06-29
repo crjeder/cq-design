@@ -40,8 +40,12 @@ class ExportError(Exception):
     pass
 
 
-def _load_result(script_path: str) -> cq.Workplane:
-    """Import a model script and return its top-level `result` variable."""
+def _load_result(script_path: str) -> "cq.Workplane | dict[str, cq.Workplane]":
+    """Import a model script and return its top-level `result` variable.
+
+    `result` is a `cq.Workplane` (one union) or a `dict[str, cq.Workplane]` mapping union id
+    to geometry (a multi-union part); callers normalize via `units.resolve_unions`.
+    """
     script_path = os.path.abspath(script_path)
     script_dir = os.path.dirname(script_path)
     skill_root = os.path.dirname(os.path.abspath(__file__))

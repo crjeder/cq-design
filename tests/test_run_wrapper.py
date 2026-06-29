@@ -146,6 +146,25 @@ def test_occ_error_translated(bad_script):
     assert isinstance(data["errors"], list)
 
 
+def test_multi_union_dict_result_validates_each_union(tmp_path):
+    """A part whose `result` is a {union_id: Workplane} dict is validated per union: the
+    wrapper finds one STL per union and reports aggregate geometry over both bodies."""
+    script = tmp_path / "hinge.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        "result = {\n"
+        "  'leaf_a': cq.Workplane('XY').box(20, 20, 4),\n"
+        "  'leaf_b': cq.Workplane('XY').box(20, 20, 4).translate((0, 30, 0)),\n"
+        "}\n"
+    )
+    code, data = run(script, "--strict")
+    assert code == 0
+    assert data["success"] is True
+    assert data["watertight"] is True
+    # Two solid boxes -> aggregate face_count is the sum of both bodies.
+    assert data["geometry"]["face_count"] >= 24
+
+
 def test_translate_stderr_ignores_plain_capitalized_lines():
     """A model printing a 'Capitalized: ...' diagnostic to stderr must not be
     misread as an occ_exception (which is error-severity in the gate)."""
