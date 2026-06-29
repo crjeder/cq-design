@@ -210,3 +210,55 @@ def test_thick_blocks_no_findings():
         "port_cutout",
     ]
     assert check_block_thinness(plan) == []
+
+
+# ---- multi-union parts: union namespace ----
+
+
+def test_part_with_unions_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "u_a"}, {"id": "u_b", "plate": "p2"}]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_duplicate_union_ids_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "dup"}, {"id": "dup"}]
+    errors = validate_plan(plan_file(plan))
+    assert any("declared more than once" in e for e in errors)
+
+
+def test_union_id_colliding_with_part_id_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "shared_name"}]
+    plan["parts"].append(
+        {
+            "id": "shared_name",
+            "description": "Another part whose id collides with a sub-union id",
+            "dimensions": {"w_mm": 10, "d_mm": 10, "h_mm": 10},
+            "interfaces": [],
+            "blocks_needed": [],
+        }
+    )
+    errors = validate_plan(plan_file(plan))
+    assert any("declared more than once" in e for e in errors)
+
+
+def test_moving_union_may_reference_a_sub_union(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "leaf_a"}, {"id": "leaf_b"}]
+    plan["kinematics"] = [
+        {
+            "joint_id": "j1",
+            "moving_union": "leaf_a",
+            "block": "hinge_leaf",
+            "axis_origin_mm": [0, 0, 0],
+            "axis_dir": "Z",
+            "type": "revolute",
+            "required_range": [0, 90],
+            "unit": "deg",
+            "step": 5,
+        }
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert not any("is not a union id" in e for e in errors)

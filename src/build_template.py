@@ -59,6 +59,7 @@ from exporters import _load_result
 from mesh_io import load_mesh
 from model_export import export_model
 from print_orientation import optimize_orientation
+from units import resolve_unions
 
 
 def _orientation_for(
@@ -105,18 +106,22 @@ def resolve_orientations(
     summary: dict[str, dict] = {}
     for part in plan.get("parts", []):
         pid = part["id"]
-        if pid in accepted:
-            chosen = accepted[pid]
-        else:
-            script = os.path.join(parts_dir, f"{pid}.py")
-            optimize_for = part.get("optimize_for", plan_mode)
-            try:
-                result = _load_result(script)
-                chosen = _orientation_for(result, part, overhang_deg, optimize_for)
-            except Exception as exc:
-                raise RuntimeError(f"union {pid!r}: {exc}") from exc
-        orientations[pid] = {"rotate": chosen["rotate"]}
-        summary[pid] = chosen
+        script = os.path.join(parts_dir, f"{pid}.py")
+        optimize_for = part.get("optimize_for", plan_mode)
+        union_ids = [u["id"] for u in part.get("unions", [])] or [pid]
+        wp_by_uid: dict[str, cq.Workplane] | None = None  # loaded lazily, once per part
+        for uid in union_ids:
+            if uid in accepted:
+                chosen = accepted[uid]
+            else:
+                try:
+                    if wp_by_uid is None:
+                        wp_by_uid = dict(resolve_unions(part, _load_result(script)))
+                    chosen = _orientation_for(wp_by_uid[uid], part, overhang_deg, optimize_for)
+                except Exception as exc:
+                    raise RuntimeError(f"union {uid!r}: {exc}") from exc
+            orientations[uid] = {"rotate": chosen["rotate"]}
+            summary[uid] = chosen
     return orientations, summary
 
 

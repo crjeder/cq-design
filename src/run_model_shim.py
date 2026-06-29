@@ -32,8 +32,14 @@ def main() -> None:
 
     import cadquery as cq
 
-    stem = os.path.splitext(os.path.basename(script_path))[0]
-    cq.exporters.export(result, f"{stem}.stl")
+    # A multi-union part sets `result` to a dict {union_id: Workplane}; export one STL per
+    # union so the wrapper validates each body. A plain Workplane keeps the script-stem name.
+    if isinstance(result, dict):
+        for uid, wp in result.items():
+            cq.exporters.export(wp, f"{uid}.stl")
+    else:
+        stem = os.path.splitext(os.path.basename(script_path))[0]
+        cq.exporters.export(result, f"{stem}.stl")
 
 
 if __name__ == "__main__":

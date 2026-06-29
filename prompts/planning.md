@@ -71,8 +71,13 @@ Before committing to any dimension values, populate `planning_notes` with your r
    Set the same `plate` id on several parts only for a **print-in-place** mechanism
    that must print together in one job (e.g. both leaves of a pin/knuckle hinge);
    keep a clearance gap > one layer height between co-plated bodies so they do not
-   fuse. Model the two leaves of a print-in-place hinge as two parts sharing a plate,
-   never as one combined body.
+   fuse. A print-in-place mechanism may be authored either as two parts sharing a plate,
+   or -- when one block builds both members in one coordinate frame -- as **one part that
+   declares a `unions` array** and whose script sets `result` to a dict mapping each union
+   id to its `Workplane` (e.g. `result = {"leaf_a": ..., "leaf_b": ...}`). Each declared
+   union is its own rigid body for export and the kinematic/clearance checks, may sit on
+   its own `plate`, and is the id that `kinematics.moving_union` references. Union ids are
+   unique across the model.
 
 7. **Place parts in the shared assembled frame with `placement`.** The whole model
    is treated as one assembly. If a part is authored already in its assembled
