@@ -21,6 +21,7 @@ import json
 import os
 import re
 import sys
+from collections import Counter
 
 import cadquery as cq
 
@@ -48,6 +49,21 @@ def _object_name(description: str, fallback: str) -> str:
     if len(cleaned) > _NAME_MAX_LEN:
         cleaned = cleaned[:_NAME_MAX_LEN].rstrip()
     return cleaned or fallback
+
+
+def _dedupe_object_names(parts: list[dict]) -> list[str]:
+    """One unique 3MF object name per part, in order.
+
+    Each name is the sanitized description (`_object_name`); when several parts share
+    a base name, each colliding name is disambiguated by suffixing the part `id` (which
+    is unique). Non-colliding names are left unchanged.
+    """
+    base_names = [_object_name(p.get("description", ""), p["id"]) for p in parts]
+    counts = Counter(base_names)
+    return [
+        f"{base} ({p['id']})" if counts[base] > 1 else base
+        for base, p in zip(base_names, parts, strict=True)
+    ]
 
 
 def export_model(
@@ -91,13 +107,14 @@ def export_model(
             return apply_cq(authored[pid], {"rotate": orientation.get("rotate", [])})
         return placed[pid]
 
+    object_names = _dedupe_object_names(parts)
     objects = [
         (
-            _object_name(part.get("description", ""), part["id"]),
+            name,
             _plate_of(part),
             cq.Compound.makeCompound(_deliverable(part["id"]).vals()),  # type: ignore[arg-type]
         )
-        for part in parts
+        for name, part in zip(object_names, parts, strict=True)
     ]
     model_3mf = os.path.join(output_dir, "model.3mf")
     write_named_3mf(objects, model_3mf)

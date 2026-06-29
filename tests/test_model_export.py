@@ -236,3 +236,42 @@ def test_object_name_falls_back_to_id_when_description_empty(tmp_path):
     result = export_model(plan, str(parts_dir), str(out))
 
     assert set(_read_3mf_objects(result["model_3mf"])) == {"spacer"}
+
+
+def test_duplicate_descriptions_are_disambiguated_by_part_id(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "left_leaf")
+    _write_part(parts_dir, "right_leaf")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {"id": "left_leaf", "description": "Hinge leaf"},
+            {"id": "right_leaf", "description": "Hinge leaf"},
+        ]
+    )
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    names = set(_read_3mf_objects(result["model_3mf"]))
+    # Two distinct names, each the shared description suffixed with its part id.
+    assert names == {"Hinge leaf (left_leaf)", "Hinge leaf (right_leaf)"}
+
+
+def test_distinct_descriptions_keep_plain_names(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    _write_part(parts_dir, "lid")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {"id": "base", "description": "Enclosure base"},
+            {"id": "lid", "description": "Snap lid"},
+        ]
+    )
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    # No collision -> no id suffix appended.
+    assert set(_read_3mf_objects(result["model_3mf"])) == {"Enclosure base", "Snap lid"}
