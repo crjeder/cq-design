@@ -253,12 +253,73 @@ def test_moving_union_may_reference_a_sub_union(plan_file):
             "moving_union": "leaf_a",
             "block": "hinge_leaf",
             "axis_origin_mm": [0, 0, 0],
-            "axis_dir": "Z",
+            "axis_dir": "Y",
             "type": "revolute",
             "required_range": [0, 90],
-            "unit": "deg",
             "step": 5,
         }
     ]
     errors = validate_plan(plan_file(plan))
     assert not any("is not a union id" in e for e in errors)
+
+
+def _plan_with_joint(**entry_over):
+    """VALID_PLAN with one sub-union `mover` and a single kinematics joint to override."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "mover"}]
+    entry = {
+        "joint_id": "j1",
+        "moving_union": "mover",
+        "block": "hinge_leaf",  # revolute, dof axis +Y through origin
+        "axis_origin_mm": [0, 0, 0],
+        "axis_dir": "Y",
+        "type": "revolute",
+        "required_range": [0, 90],
+        "step": 5,
+    }
+    entry.update(entry_over)
+    plan["kinematics"] = [entry]
+    return plan
+
+
+def test_contract_type_mismatch_rejected(plan_file):
+    # revolute wish against a spherical block (ball_socket) violates the type arm.
+    plan = _plan_with_joint(block="ball_socket", type="revolute")
+    errors = validate_plan(plan_file(plan))
+    assert any("does not match" in e and "spherical" in e for e in errors)
+
+
+def test_contract_revolute_wrong_axis_rejected(plan_file):
+    # hinge_leaf's dof axis is +Y; a Z wish is not parallel.
+    plan = _plan_with_joint(axis_dir="Z")
+    errors = validate_plan(plan_file(plan))
+    assert any("not parallel" in e for e in errors)
+
+
+def test_contract_revolute_parallel_but_off_line_rejected(plan_file):
+    # Axis parallel (+Y) but the pivot is off the block's axis line -> not coaxial.
+    plan = _plan_with_joint(axis_dir="Y", axis_origin_mm=[5, 0, 0])
+    errors = validate_plan(plan_file(plan))
+    assert any("not coaxial" in e for e in errors)
+
+
+def test_contract_prismatic_parallel_offset_passes(plan_file):
+    # Prismatic only needs parallel direction; an offset axis position is fine.
+    plan = _plan_with_joint(
+        block="dovetail_groove", type="prismatic", axis_dir="Y", axis_origin_mm=[5, 0, 0]
+    )
+    errors = validate_plan(plan_file(plan))
+    assert not any("Kinematics 'j1'" in e for e in errors)
+
+
+def test_contract_matching_revolute_passes(plan_file):
+    plan = _plan_with_joint()  # hinge_leaf, revolute, +Y axis through origin
+    errors = validate_plan(plan_file(plan))
+    assert not any("Kinematics 'j1'" in e for e in errors)
+
+
+def test_contract_spherical_joint_is_skipped(plan_file):
+    # Spherical is parked: no joint_contract finding even with a non-matching axis.
+    plan = _plan_with_joint(block="ball_socket", type="spherical", axis_dir="Z")
+    errors = validate_plan(plan_file(plan))
+    assert not any("Kinematics 'j1'" in e for e in errors)

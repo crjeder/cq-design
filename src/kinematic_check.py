@@ -37,6 +37,12 @@ _INVENTORY_PATH = os.path.join(os.path.dirname(__file__), "blocks", "inventory.j
 
 _AXIS_VEC = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
 
+
+def _unit_for(joint_type: str | None) -> str:
+    """Derive the motion unit from the joint type: mm for prismatic, deg otherwise."""
+    return "mm" if joint_type == "prismatic" else "deg"
+
+
 # Azimuth samples around the cone for a spherical joint (v1: cone-boundary sampling,
 # coarse -- a narrow interference between samples can be missed).
 _SPHERICAL_AZIMUTHS_DEG = range(0, 360, 45)
@@ -189,7 +195,7 @@ def run_kinematic_check(
 
     for entry in kinematics:
         jid = entry.get("joint_id", "(unknown)")
-        unit = entry.get("unit")
+        unit = _unit_for(entry.get("type"))
         lo, hi = entry["required_range"]
         moving_id = entry["moving_union"]
         block = get_block(entry.get("block"), inventory_path)
@@ -204,7 +210,7 @@ def run_kinematic_check(
                         "error",
                         "range_exceeds_limit",
                         f"Joint '{jid}' required range [{lo}, {hi}] {unit} exceeds "
-                        f"block mechanical limit [{mlo}, {mhi}] {dof.get('unit')}",
+                        f"block mechanical limit [{mlo}, {mhi}] {unit}",
                         "Reduce the required range or choose a joint with a larger "
                         "mechanical limit.",
                         joint_id=jid,

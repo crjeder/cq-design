@@ -43,8 +43,8 @@
       },
       "dof": {
         "type": "object",
-        "description": "Intrinsic degree of freedom for kinematic range validation. Omit for blocks with no rigid DOF (non-joints, flexures such as living_hinge). mechanical_limit is a nominal sanity bound; the geometry sweep is authoritative for a specific instance.",
-        "required": ["type", "axis", "mechanical_limit", "unit"],
+        "description": "Intrinsic degree of freedom for kinematic range validation. Omit for blocks with no rigid DOF (non-joints, flexures such as living_hinge). Axis is a block-coordinate vector; unit is derived from type (deg for revolute/spherical, mm for prismatic). mechanical_limit is a nominal sanity bound; the geometry sweep is authoritative for a specific instance.",
+        "required": ["type", "direction", "mechanical_limit"],
         "additionalProperties": false,
         "properties": {
           "type": {
@@ -52,24 +52,30 @@
             "enum": ["revolute", "prismatic", "spherical", "fixed"],
             "description": "Joint kinematic type"
           },
-          "axis": {
-            "type": "string",
-            "enum": ["X", "Y", "Z"],
-            "description": "Block-local axis the motion is built around"
+          "direction": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Block-coordinate motion axis vector: rotation axis (revolute), slide direction (prismatic). Sign sets the positive sense by the right-hand rule."
+          },
+          "origin": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Block-coordinate point on the rotation axis (the pivot). Required for revolute; omitted for prismatic (translation is position-independent)."
           },
           "mechanical_limit": {
             "type": "array",
             "items": { "type": "number" },
             "minItems": 2,
             "maxItems": 2,
-            "description": "Nominal full range [lo, hi] in the field unit"
-          },
-          "unit": {
-            "type": "string",
-            "enum": ["deg", "mm"],
-            "description": "deg for revolute/spherical, mm for prismatic"
+            "description": "Nominal full range [lo, hi] in the derived unit"
           }
-        }
+        },
+        "if": { "properties": { "type": { "const": "revolute" } } },
+        "then": { "required": ["origin"] }
       },
       "params": {
         "type": "object",
