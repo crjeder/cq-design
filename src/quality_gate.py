@@ -464,10 +464,14 @@ def run_gate(
     plan_issues = _run_plan_validation_stage(plan_path)
     all_issues += plan_issues
 
-    # ---- kinematic range check (once, outside the fix loop) ----
-    all_issues += _run_kinematic_stage(plan, stl_dir)
-    # ---- plate clearance check (once, outside the fix loop) ----
-    all_issues += _run_plate_clearance_stage(plan, stl_dir)
+    # The kinematic and plate-clearance stages raw-index plan fields, so they run only
+    # when the plan validates; a malformed plan fails on the structured plan_invalid error
+    # instead of crashing those stages.
+    if not any(i["severity"] == "error" for i in plan_issues):
+        # ---- kinematic range check (once, outside the fix loop) ----
+        all_issues += _run_kinematic_stage(plan, stl_dir)
+        # ---- plate clearance check (once, outside the fix loop) ----
+        all_issues += _run_plate_clearance_stage(plan, stl_dir)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
 
