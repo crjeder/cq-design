@@ -37,8 +37,9 @@ change lives in that change's `tasks.md`, not here.
       both live in the block `interfaces` array)
 - [x] `interface` third type: `union` (fused into the parent part's body, distinct from
       mating docks like `face_mount` and kinematic axes like `hinge_axis`) -- DONE.
-- [ ] `hinge_axis` interface type is too narrow: generalize the kinematic-axis vocabulary
-      (revolute/prismatic/spherical) rather than the single `hinge_axis` token.
+- [x] `hinge_axis` interface type is too narrow: generalize the kinematic-axis vocabulary
+      (revolute/prismatic/spherical) rather than the single `hinge_axis` token -- DONE
+      (replaced by motion-agnostic `joint_axis`).
 - [ ] preview: z-buffered renderer -- matplotlib mplot3d has no z-buffer and
       depth-sorts whole triangles (painter's algorithm), so flat faces show
       cosmetic triangular shading patches where angled wall/fillet triangles paint
