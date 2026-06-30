@@ -838,7 +838,7 @@
     "dimensions": null,
     "interfaces": [
       {
-        "type": "hinge_axis",
+        "type": "joint_axis",
         "orientation": "+Y",
         "origin": [
           0,
@@ -878,7 +878,7 @@
     "dimensions": null,
     "interfaces": [
       {
-        "type": "hinge_axis",
+        "type": "joint_axis",
         "orientation": "+Y",
         "origin": [
           0,
@@ -908,7 +908,7 @@
     "dimensions": null,
     "interfaces": [
       {
-        "type": "hinge_axis",
+        "type": "joint_axis",
         "orientation": "+Y",
         "origin": [
           0,

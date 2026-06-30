@@ -48,7 +48,7 @@ absent the carried directions SHALL be treated as unspecified.
 
 ### Requirement: Inventory schema permits the taxonomy fields
 `blocks/inventory_schema.json` SHALL allow optional `motion`, `reversible`, and
-`carries` properties on inventory items, and SHALL include `hinge_axis`, `ball`,
+`carries` properties on inventory items, and SHALL include `joint_axis`, `ball`,
 `ball_socket`, `finger`, `mortise`, `tenon`, `dowel`, and `seam` in the interface
 `type` enum. Existing entries SHALL continue to validate without modification.
 

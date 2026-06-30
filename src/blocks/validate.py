@@ -25,7 +25,7 @@ _VALID_INTERFACE_TYPES = frozenset(
         "port_cutout",
         "sliding_interface",
         "nut_trap",
-        "hinge_axis",
+        "joint_axis",
         "ball",
         "ball_socket",
         "finger",
