@@ -212,7 +212,7 @@
       "description": "Declared range-of-motion checks for articulating joints. Each entry sweeps a moving union through its required range against every other union in the assembled model. Optional; absent or empty skips the kinematic stage.",
       "items": {
         "type": "object",
-        "required": ["joint_id", "moving_union", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "unit", "step"],
+        "required": ["joint_id", "moving_union", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "step"],
         "additionalProperties": false,
         "properties": {
           "joint_id": {"type": "string", "description": "Unique identifier for this joint"},
@@ -236,8 +236,7 @@
           },
           "lo_inclusive": {"type": "boolean", "default": true, "description": "Whether the lower bound must be cleared (closed). False = open: lo need not be reached and a collision exactly at lo is not reported."},
           "hi_inclusive": {"type": "boolean", "default": true, "description": "Whether the upper bound must be cleared (closed). False = open."},
-          "unit": {"type": "string", "enum": ["deg", "mm"], "description": "Must match the block dof.unit"},
-          "step": {"type": "number", "exclusiveMinimum": 0, "description": "Sweep increment in the field unit"}
+          "step": {"type": "number", "exclusiveMinimum": 0, "description": "Sweep increment in the derived unit (deg for revolute/spherical, mm for prismatic)"}
         }
       }
     },

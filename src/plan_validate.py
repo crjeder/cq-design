@@ -129,25 +129,65 @@ def _check_placements(plan: dict[str, Any]) -> list[str]:
     return errors
 
 
+# Joint-contract satisfaction tolerances (task 3.3).
+_AXIS_PARALLEL_EPS = 1e-6  # dimensionless: |cos angle| within this of 1.0 counts as parallel
+_AXIS_ORIGIN_EPS_MM = 1e-4  # a pivot this far (mm) off the axis line still counts as on it
+
+_WISH_AXIS_VEC = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
+
+
+def _parallel(a: Any, b: Any) -> bool:
+    """True when two vectors are parallel up to sign (normalized |dot| near 1)."""
+    import math
+
+    na = math.sqrt(sum(c * c for c in a))
+    nb = math.sqrt(sum(c * c for c in b))
+    if na < _AXIS_PARALLEL_EPS or nb < _AXIS_PARALLEL_EPS:
+        return False
+    cos = sum(x * y for x, y in zip(a, b, strict=True)) / (na * nb)
+    return abs(abs(cos) - 1.0) <= _AXIS_PARALLEL_EPS
+
+
+def _point_on_line(p: Any, q: Any, direction: Any) -> bool:
+    """True when point p lies on the line through q in direction (perp distance ~ 0)."""
+    import math
+
+    nd = math.sqrt(sum(c * c for c in direction))
+    if nd < _AXIS_PARALLEL_EPS:
+        return False
+    w = (p[0] - q[0], p[1] - q[1], p[2] - q[2])
+    cx = w[1] * direction[2] - w[2] * direction[1]
+    cy = w[2] * direction[0] - w[0] * direction[2]
+    cz = w[0] * direction[1] - w[1] * direction[0]
+    dist = math.sqrt(cx * cx + cy * cy + cz * cz) / nd
+    return dist <= _AXIS_ORIGIN_EPS_MM
+
+
 def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     """Cross-check kinematics entries against parts and inventory dof descriptors.
 
-    Each entry's `moving_union` must reference an existing part id, the `block` must
-    exist and carry a `dof`, and the entry `unit` must match the block's `dof.unit`.
+    Each entry's `moving_union` must reference an existing union id, the `block` must
+    exist and carry a `dof`, and -- the joint contract -- the declared joint `type` and
+    axis must be satisfied by the block's dof: the type must match, and the block's
+    block-coordinate dof axis (pushed through the moving union's placement) must match the
+    plan's assembled-frame axis (revolute coaxial, prismatic parallel). The range arm of
+    the contract is the separate numeric range check in `kinematic_check`. Spherical joints
+    are not contract-checked.
     """
     kinematics = plan.get("kinematics", [])
     if not kinematics:
         return []
 
     from blocks.validate import get_block
+    from placement import transform_direction, transform_point
     from units import iter_unions
 
-    union_ids = {uid for _part, uid, _plate in iter_unions(plan)}
+    union_part = {uid: part for part, uid, _plate in iter_unions(plan)}
     errors = []
     for entry in kinematics:
         jid = entry.get("joint_id", "(unknown)")
         ref = entry.get("moving_union")
-        if ref not in union_ids:
+        if ref not in union_part:
             errors.append(f"Kinematics '{jid}': moving_union '{ref}' is not a union id")
         block_name = entry.get("block")
         block = get_block(block_name, inventory_path)
@@ -158,11 +198,38 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
         if dof is None:
             errors.append(f"Kinematics '{jid}': block '{block_name}' has no 'dof' descriptor")
             continue
-        if entry.get("unit") != dof.get("unit"):
+
+        # ---- contract: type arm ----
+        jtype, dtype = entry.get("type"), dof.get("type")
+        if jtype != dtype:
             errors.append(
-                f"Kinematics '{jid}': unit '{entry.get('unit')}' does not match "
-                f"block '{block_name}' dof.unit '{dof.get('unit')}'"
+                f"Kinematics '{jid}': joint type '{jtype}' does not match block "
+                f"'{block_name}' dof.type '{dtype}'"
             )
+            continue
+        # Spherical (and any non single-axis) joint is parked: no axis contract yet.
+        if dtype not in ("revolute", "prismatic"):
+            continue
+
+        # ---- contract: axis arm (compared in the assembled frame, after placement) ----
+        part = union_part.get(ref)
+        if part is None:  # moving_union already flagged above
+            continue
+        placement = part.get("placement")
+        block_dir = transform_direction(dof["direction"], placement)
+        wish_dir = _WISH_AXIS_VEC[entry["axis_dir"]]
+        if not _parallel(block_dir, wish_dir):
+            errors.append(
+                f"Kinematics '{jid}': joint axis_dir '{entry['axis_dir']}' is not parallel to "
+                f"block '{block_name}' dof axis after placement"
+            )
+        elif dtype == "revolute":
+            block_origin = transform_point(dof["origin"], placement)
+            if not _point_on_line(entry["axis_origin_mm"], block_origin, block_dir):
+                errors.append(
+                    f"Kinematics '{jid}': revolute joint is not coaxial -- axis_origin_mm "
+                    f"{entry['axis_origin_mm']} is off block '{block_name}' dof axis line"
+                )
 
     return errors
 

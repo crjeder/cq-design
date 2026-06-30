@@ -42,10 +42,9 @@ def _valid_plan():
                 "moving_union": "arm",
                 "block": "hinge_leaf",
                 "axis_origin_mm": [0, 0, 0],
-                "axis_dir": "Z",
+                "axis_dir": "Y",
                 "type": "revolute",
                 "required_range": [0, 90],
-                "unit": "deg",
                 "step": 5,
             }
         ],
