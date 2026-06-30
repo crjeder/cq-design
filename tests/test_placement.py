@@ -4,7 +4,7 @@
 
 import numpy as np
 
-from placement import apply_cq, to_matrix
+from placement import apply_cq, to_matrix, transform_direction, transform_point
 
 
 def test_identity_when_empty():
@@ -24,6 +24,23 @@ def test_rotation_order_matters():
     xz = to_matrix({"rotate": [{"axis": "X", "angle_deg": 90}, {"axis": "Z", "angle_deg": 90}]})
     zx = to_matrix({"rotate": [{"axis": "Z", "angle_deg": 90}, {"axis": "X", "angle_deg": 90}]})
     assert not np.allclose(xz, zx)
+
+
+def test_numpy_free_transform_agrees_with_to_matrix():
+    # The pure-Python transform helpers (used by plan_validate) must match to_matrix
+    # on a non-trivial placement (multiple rotations + translation).
+    placement = {
+        "rotate": [{"axis": "X", "angle_deg": 90}, {"axis": "Z", "angle_deg": 45}],
+        "translate_mm": [3, -2, 5],
+    }
+    m = to_matrix(placement)
+    for vec in ([0, 1, 0], [1, 0, 0], [0.3, -0.7, 0.5]):
+        # direction: rotation only (homogeneous w=0)
+        expected_dir = (m @ np.array([*vec, 0.0]))[:3]
+        assert np.allclose(transform_direction(vec, placement), expected_dir, atol=1e-9)
+        # point: rotation then translation (homogeneous w=1)
+        expected_pt = (m @ np.array([*vec, 1.0]))[:3]
+        assert np.allclose(transform_point(vec, placement), expected_pt, atol=1e-9)
 
 
 def test_apply_cq_identity_returns_workplane_unchanged():
