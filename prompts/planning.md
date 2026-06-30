@@ -62,7 +62,7 @@ Before committing to any dimension values, populate `planning_notes` with your r
    - **Choosing an interface `type`.** Use a **mating dock** (`face_mount`, `snap_hook`,
      `snap_socket`, `dovetail`/`finger`/`mortise`/`tenon`, `pin`/`socket`, ...) when the
      interface joins this block to a **separately printed** part across an assembly seam;
-     use a **kinematic axis** (`hinge_axis`, `axis`, `ball`/`ball_socket`, ...) for a
+     use a **kinematic axis** (`joint_axis`, `axis`, `ball`/`ball_socket`, ...) for a
      **moving** joint; use `union` when the block is **rigidly fused** (boolean-unioned)
      into the same part's body -- one printed rigid body, no seam, no motion.
 
