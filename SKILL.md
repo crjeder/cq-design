@@ -479,7 +479,7 @@ regenerate the plates on any machine with uv, without the skill installed. Three
 ```bash
 # POSIX
 cp "$SKILL_DIR/src/build_template.py" build/build.py
-for m in mesh_io.py model_export.py print_orientation.py placement.py; do
+for m in mesh_io.py model_export.py print_orientation.py placement.py units.py; do
     cp "$SKILL_DIR/src/$m" build/
 done
 cp -r "$SKILL_DIR/src/exporters" "$SKILL_DIR/src/blocks" build/
@@ -492,7 +492,7 @@ uv run python build/build.py
 ```powershell
 # Windows (PowerShell)
 Copy-Item "$SKILL_DIR/src/build_template.py" build/build.py
-'mesh_io.py','model_export.py','print_orientation.py','placement.py' |
+'mesh_io.py','model_export.py','print_orientation.py','placement.py','units.py' |
     ForEach-Object { Copy-Item "$SKILL_DIR/src/$_" build/ }
 Copy-Item "$SKILL_DIR/src/exporters","$SKILL_DIR/src/blocks" build/ -Recurse
 Copy-Item "$SKILL_DIR/src/project_template/pyproject.toml" pyproject.toml
