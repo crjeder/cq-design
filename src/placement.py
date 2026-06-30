@@ -10,9 +10,48 @@ Two appliers share this one convention:
   - `apply_cq(workplane, placement)` -> CadQuery Workplane positioned in the frame
 """
 
+import math
 from typing import Any
 
 _AXIS_VEC = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
+
+Vec3 = tuple[float, float, float]
+
+
+def _rotate_about_axis(v: Vec3, axis: str, angle_deg: float) -> Vec3:
+    """Rotate a 3-vector about a principal axis by angle_deg (right-hand rule)."""
+    a = math.radians(angle_deg)
+    c, s = math.cos(a), math.sin(a)
+    x, y, z = v
+    if axis == "X":
+        return (x, y * c - z * s, y * s + z * c)
+    if axis == "Y":
+        return (x * c + z * s, y, -x * s + z * c)
+    if axis == "Z":
+        return (x * c - y * s, x * s + y * c, z)
+    raise KeyError(f"unknown rotation axis {axis!r}")
+
+
+def transform_direction(vec: Any, placement: dict[str, Any] | None) -> Vec3:
+    """Rotate a direction vector through a placement's ordered rotations (no translation).
+
+    Pure-Python twin of `to_matrix` for the CadQuery/trimesh-free validation path: it
+    matches `to_matrix`'s convention (rotations applied in listed order) without importing
+    numpy or trimesh.
+    """
+    v: Vec3 = (float(vec[0]), float(vec[1]), float(vec[2]))
+    for step in (placement or {}).get("rotate", []):
+        v = _rotate_about_axis(v, step["axis"], step["angle_deg"])
+    return v
+
+
+def transform_point(pt: Any, placement: dict[str, Any] | None) -> Vec3:
+    """Map a point through a placement: rotations (listed order) then translation."""
+    v = transform_direction(pt, placement)
+    translate = (placement or {}).get("translate_mm")
+    if translate:
+        v = (v[0] + translate[0], v[1] + translate[1], v[2] + translate[2])
+    return v
 
 
 def to_matrix(placement: dict[str, Any] | None) -> Any:

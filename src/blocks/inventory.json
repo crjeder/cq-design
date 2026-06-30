@@ -510,12 +510,15 @@
     ],
     "dof": {
       "type": "prismatic",
-      "axis": "Y",
+      "direction": [
+        0,
+        1,
+        0
+      ],
       "mechanical_limit": [
         0,
         200
-      ],
-      "unit": "mm"
+      ]
     },
     "use": "Dovetail slot cut into a box top inner edge. Wider at base than opening, preventing vertical pull-out. Subtract from the body. Mate with dovetail_tongue() on the sliding lid. Typical usage: width=box_w, wall=box_wall, depth=lid_t, length=box_d - box_wall.",
     "params": {
@@ -550,12 +553,15 @@
     ],
     "dof": {
       "type": "prismatic",
-      "axis": "Y",
+      "direction": [
+        0,
+        1,
+        0
+      ],
       "mechanical_limit": [
         0,
         200
-      ],
-      "unit": "mm"
+      ]
     },
     "use": "Sliding dovetail lid panel for a rectangular box. The tongue IS the lid — height equals depth (lid_t), so the lid sits flush with the box top (no extra height added). Slides along +Y into dovetail_groove(). Use clearance=0.1 for smooth sliding, 0.05 for snug fit. Params must match the mating dovetail_groove.",
     "params": {
@@ -738,12 +744,15 @@
     ],
     "dof": {
       "type": "spherical",
-      "axis": "Z",
+      "direction": [
+        0,
+        0,
+        1
+      ],
       "mechanical_limit": [
         0,
         30
-      ],
-      "unit": "deg"
+      ]
     },
     "use": "Ball on a stem for a ball-and-socket joint. Mate with ball_socket(). The ball sits above the stem with a conical fillet blending into its underside so it prints support-free with the stem pointing down. Multi-axis articulation.",
     "params": {
@@ -777,12 +786,15 @@
     ],
     "dof": {
       "type": "spherical",
-      "axis": "Z",
+      "direction": [
+        0,
+        0,
+        1
+      ],
       "mechanical_limit": [
         0,
         30
-      ],
-      "unit": "deg"
+      ]
     },
     "use": "Slotted snap-in socket that captures a ball past its equator. Internal cavity is d_ball + 2*clearance; the cup wraps to retention_angle degrees past the equator so the mouth retains the ball, and a slot lets it flex during snap-in. Print flat with the mouth facing up. Mate with ball_stud().",
     "params": {
@@ -816,12 +828,20 @@
     ],
     "dof": {
       "type": "revolute",
-      "axis": "Y",
+      "direction": [
+        0,
+        1,
+        0
+      ],
+      "origin": [
+        0,
+        0,
+        0
+      ],
       "mechanical_limit": [
         0,
         180
-      ],
-      "unit": "deg"
+      ]
     },
     "use": "One leaf of a knuckle hinge (one rotational DOF). Call twice with side 'A' and 'B' for the meshing pair; the leaves lie on opposite sides of the pin axis and the knuckles interleave. variant='pin' bores a hole for a separate pin/filament; variant='print_in_place' prints both leaves as one assembly through the clearance gaps. PRINT FLAT with the leaf on the bed and the hinge axis (Y) in the build plane (leaves print great this way). The knuckles then lie as horizontal cylinders: their lower quadrants are convex overhangs that self-support, and the pin bore prints as a short horizontal bridge - keep d_pin small (~3 mm) so it bridges cleanly, or insert a separate pin. For print_in_place the clearance gap must exceed one layer height to avoid fusing.",
     "params": {
@@ -859,12 +879,20 @@
     ],
     "dof": {
       "type": "revolute",
-      "axis": "Y",
+      "direction": [
+        0,
+        1,
+        0
+      ],
+      "origin": [
+        0,
+        0,
+        0
+      ],
       "mechanical_limit": [
         0,
         180
-      ],
-      "unit": "deg"
+      ]
     },
     "use": "A NORMAL revolute knuckle hinge - treat it kinematically like any door hinge (one rotational DOF about +Y, 0-180 deg). Two RIGID leaves rotate freely about a separate pin threaded through interleaved knuckles; the pin is a snipped strand of 1.75 mm filament, but the motion is the free rotation of the pin, NOT material flex. This is NOT a living_hinge (which has no pin and bends a thin web instead) - choose pin_hinge when you need a durable, freely rotating, near-frictionless pivot. Returns BOTH leaves interleaved on a shared axis as one print-in-place body (unlike hinge_leaf, which returns one leaf for two separate parts); push a piece of filament through the coaxial bore as the pivot pin after printing. Knuckle outer diameter is d_filament + 2 mm. PRINT FLAT with the knuckle axis (Y) in the build plane so the bore bridges cleanly and the undersides self-support; clearance between knuckles must exceed one layer height to avoid fusing. d_filament default 1.9 gives a slip fit over 1.75 mm filament (FDM holes print undersized). For whole-model kinematic validation, model the two leaves as TWO unions (two parts) sharing one plate, not a single combined body: the sweep needs each leaf as its own assembled mesh. The shared pin makes no kinematic difference - treat it exactly like any pinned hinge.",
     "params": {

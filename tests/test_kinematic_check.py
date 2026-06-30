@@ -32,7 +32,6 @@ def _revolute_entry(required_range, step=5, moving="arm", **extra):
         "axis_dir": "Z",
         "type": "revolute",
         "required_range": required_range,
-        "unit": "deg",
         "step": step,
     }
     entry.update(extra)
@@ -258,9 +257,10 @@ def test_plan_validate_rejects_block_without_dof(tmp_path):
     assert any("has no 'dof' descriptor" in e for e in errors)
 
 
-def test_plan_validate_rejects_unit_mismatch(tmp_path):
+def test_plan_validate_rejects_unit_field(tmp_path):
+    # `unit` was removed from the kinematics entry (derived from `type`); the schema rejects it.
     entry = _revolute_entry([0, 90])
-    entry["unit"] = "mm"  # hinge_leaf dof.unit is deg
+    entry["unit"] = "deg"
     plan_path = _write_plan(tmp_path, [entry])
     errors = validate_plan(plan_path)
-    assert any("does not match" in e and "dof.unit" in e for e in errors)
+    assert any("unit" in e.lower() for e in errors)
