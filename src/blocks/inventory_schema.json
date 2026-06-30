@@ -98,11 +98,11 @@
           "properties": {
             "type": {
               "type": "string",
-              "description": "Connection kind. Mating docks (face_mount, snap_hook, snap_socket, finger, mortise, tenon, dowel, pin, socket, ...) join this block to a SEPARATELY PRINTED part across an assembly seam; kinematic axes (axis, hinge_axis, ball, ball_socket, ...) define a moving joint; 'union' marks a face/region where the block is rigidly fused (boolean-unioned) into its parent part's body -- one printed rigid body, no seam, no motion.",
+              "description": "Connection kind. Mating docks (face_mount, snap_hook, snap_socket, finger, mortise, tenon, dowel, pin, socket, ...) join this block to a SEPARATELY PRINTED part across an assembly seam; kinematic axes (axis, joint_axis, ball, ball_socket, ...) define a moving joint -- joint_axis is the motion-agnostic kinematic-axis reference (rotation axis, translation axis, or pivot center), with the motion kind read from the block's dof.type; 'union' marks a face/region where the block is rigidly fused (boolean-unioned) into its parent part's body -- one printed rigid body, no seam, no motion.",
               "enum": [
                 "face_mount", "screw_hole", "snap_hook", "snap_socket",
                 "axis", "pin", "socket", "slot", "port_cutout", "sliding_interface",
-                "nut_trap", "hinge_axis", "ball", "ball_socket",
+                "nut_trap", "joint_axis", "ball", "ball_socket",
                 "finger", "mortise", "tenon", "dowel", "seam", "union"
               ]
             },

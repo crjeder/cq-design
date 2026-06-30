@@ -675,3 +675,27 @@ def test_unknown_interface_type_still_rejected():
 def test_shipped_inventory_still_valid():
     """Regression guard: adding `union` to the vocabulary keeps inventory.json valid."""
     assert validate_inventory(load_inventory()) == []
+
+
+def test_joint_axis_interface_type_accepted():
+    """A block declaring the motion-agnostic `joint_axis` kinematic reference validates."""
+    errors = validate_inventory([_block_with_interface("joint_axis")])
+    assert errors == [], errors
+
+
+def test_retired_hinge_axis_interface_type_rejected():
+    """`hinge_axis` was generalized to `joint_axis` and is no longer a known type."""
+    errors = validate_inventory([_block_with_interface("hinge_axis")])
+    assert any("hinge_axis" in e and "allowed vocabulary" in e for e in errors)
+
+
+def test_shipped_inventory_declares_no_hinge_axis():
+    """No shipped block still declares the retired `hinge_axis` interface type."""
+    inv = load_inventory()
+    offenders = [
+        block["name"]
+        for block in inv
+        for iface in block.get("interfaces") or []
+        if iface.get("type") == "hinge_axis"
+    ]
+    assert offenders == [], offenders
