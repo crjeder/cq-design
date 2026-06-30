@@ -1,7 +1,22 @@
 # Design: joint-contract (exploratory capture)
 
 > Captured from an explore session. This is the *thinking*, with open cruxes marked. It is not a
-> committed design; `tasks.md` stays blocked until crux 1 and crux 2 resolve.
+> committed design; `tasks.md` stays blocked until the remaining crux (satisfaction algebra for
+> spherical) resolves.
+>
+> **Status update (2026-06-30 explore session):**
+> - **Crux 2 (sub-body naming) -- SHIPPED.** Option 3 landed on `main` via the `multi-union-parts`
+>   change: `src/units.py` (`iter_unions`/`resolve_unions`) is the "union is a first-class plan
+>   entity" mechanism -- the plan declares `unions`, the script returns a `name -> Workplane` dict,
+>   `model_export` splits per key, `kinematics.moving_union` is a union id, N=1 is byte-identical to
+>   today. The keystone this whole design "rides on" is in.
+> - **Topology -- DECIDED: Topology 1.** Each joint is owned by ONE block that emits both sides as a
+>   multi-union dict (see "Topology decision" below). This deletes the A/B-binding sub-problem of
+>   crux 1.
+> - **dof datum -- DECIDED: authored pose.** Limits are read from the pose the block is drawn in;
+>   revolute needs NO angular reference vector (see "dof vector model" below).
+> - **Crux 1 (satisfaction algebra) -- single-axis (revolute + prismatic) is now tractable; spherical
+>   (ball joint) is the one open fork.**
 
 ## The core reframe: dof is a contract
 
@@ -131,6 +146,56 @@ dict), and **`model_export`** (iterate + split + cross-check). The kinematic and
 change -- they already key off per-union `<id>.stl` and a plate-grouping key; the id just becomes a
 union id, and N=1 is byte-identical to today.
 
+## Topology decision (D3): one block owns both sides of the joint
+
+DECIDED: **Topology 1.** Every joint is owned by a single block that emits *both* members as a
+multi-union result, and carries the `dof` relating them. This is the natural consumer of the shipped
+crux-2 machinery: a joint block `return`s `{sideA: wp, sideB: wp}`, which is exactly
+`resolve_unions`' dict path.
+
+The inventory ships joints as single-body *halves* today; Topology 1 fuses each pair into one block:
+
+```
+ TODAY (halves, one Workplane, unions=None)   TOPOLOGY 1 (one block, multi-union)
+ ──────────────────────────────────────────   ───────────────────────────────────────────
+ dovetail_groove + dovetail_tongue          → one block → {groove, tongue}   prismatic
+ ball_socket     + ball_stud                → one block → {socket, stud}      spherical (parked)
+ hinge_leaf (×2) / pin_hinge                → one block → {leafA, leafB}      revolute
+ living_hinge (dof-less flexure)              unchanged: single body, no dof
+```
+
+Why this and not Topology 2 (two half-blocks paired by the plan): with the joint owned by one block,
+the block knows its own two sides, so the dof references its own (local) union names and the plan
+only maps them to plan union ids. The hardest part of crux 1 under Topology 2 -- "whose dof is
+canonical, and how do two independent half-dofs compose" -- simply does not arise.
+
+## dof vector model (D4): two/three vectors in block coordinates, datum = authored pose
+
+DECIDED. A `dof` carries its geometry as vectors in **block coordinates**; the assembled-frame axis
+is derived by pushing them through the union's `placement`. `unit` is dropped (derived from `type`).
+
+```
+ prismatic: { type, direction, limit, between }            # limit mm
+ revolute:  { type, origin, direction, limit, between }    # limit deg
+   origin    = a point ON the axis (locates the axis line in space; the pivot)
+   direction = slide direction (prismatic) | rotation axis (revolute); RHR about it fixes sign
+   limit     = [lo, hi], measured from the AUTHORED POSE (how the block is drawn); may be
+               negative / straddle zero -- the same convention kinematic_check already uses
+   between   = the two unions this dof relates (the block's own sub-bodies)
+```
+
+**No angular reference (12-o'clock) vector is stored.** The reference's only job is to fix where 0
+is; sign is already fixed by `direction` + right-hand rule, and the zero is supplied for free by the
+pose the block is authored in. The asymmetry between the two motions is *not* an extra angular datum
+for rotation -- it is that a **rotation axis must be located in space (the `origin` pivot) while a
+translation direction need not be**. For translation one point would serve as both "point on the
+line" and "zero of distance"; for rotation those split (the pivot is a point, the angular zero is a
+direction), and the angular zero comes from the authored geometry rather than a stored vector.
+
+Price (accepted): the block author draws the block at the pose they call zero and states limits
+relative to it. A stored `reference` would only be needed to decouple 0 from the authored geometry
+(absolute hard-stops, absolute-angle reporting) or for coupled/spherical joints (parked).
+
 ## Annotation geometry: printed vs pseudo
 
 The model needs a classification it lacks today:
@@ -187,7 +252,25 @@ check consumes. Target: solve on live geometry, export the deliverable only once
 
 ## Cruxes
 
-1. **Satisfaction algebra (crux 1, OPEN -- parked).** Axis-alignment semantics, range subset, and
-   how the plan's `A`/`B` bind to a block's two unions. "Need to explore more."
-2. **Sub-body naming convention (crux 2, RESOLVED -> Option 3).** Union is a first-class plan entity;
-   the plan names the unions, the script returns a `name -> Workplane` map. See "DECISION" above.
+1. **Satisfaction algebra (crux 1).** Now largely resolved for single-axis joints by the Topology-1
+   and dof-vector decisions:
+   - **A/B binding -- RESOLVED.** Topology 1 makes the joint block own both sides; the dof's
+     `between` names the block's own unions and the plan maps them. No cross-block composition.
+   - **Axis match -- direction set.** Push the block-frame `dof` vectors through the union's
+     `placement`, then compare to the plan wish: revolute requires *coaxial* (same line: origin +
+     direction), prismatic requires *parallel* (direction only -- sliding along any parallel line is
+     the same motion). (Exact tolerance/normalization still to spec.)
+   - **Range subset -- datum set.** Both block range (reality) and plan range (wish) are measured
+     from the authored pose; satisfaction is `wish ⊆ reality` directly. (Exact inclusivity rules
+     still to spec.)
+   - **Spherical / ball joint -- PARKED (option a).** The single-axis `{origin, direction, limit}`
+     model cannot express a cone (needs `{center, cone_axis, half_angle}`). Decision: the ball
+     carries no contract dof for now; its mate stays a geometry-only check, and spherical joins the
+     coupled-multi-DOF TODO. The satisfaction algebra ships covering revolute + prismatic only -- one
+     coherent single-axis rule. (Inventory consequence: `ball_socket`/`ball_stud` are still fused
+     into one block under Topology 1, but that block declares no `dof` yet.)
+2. **Sub-body naming convention (crux 2, SHIPPED).** Option 3 landed on `main` via `multi-union-parts`
+   (`src/units.py`). Union is a first-class plan entity; the plan names the unions, the script returns
+   a `name -> Workplane` map. See the status note at the top.
+3. **Topology (D3, RESOLVED -> Topology 1)** and **dof vector model (D4, RESOLVED -> authored-pose
+   datum, no angular reference).** See the two decision sections above.

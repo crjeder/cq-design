@@ -11,13 +11,15 @@ The system SHALL provide a `prompts/planning.md` prompt that, when invoked with 
 
 The `{{FDM_GUIDELINES}}` placeholder SHALL be substituted with sections from `reference/FDM 3D Print Design Guidelines.md` matching the union of all `blocks_needed` across all parts in the plan, plus sections tagged `always`. This substitution is performed by the skill before invoking the LLM, not by `orchestrate.py`.
 
+For multi-part models the planning prompt SHALL express assembly declaratively: each part is positioned with its `placement` and the whole model is treated as one assembly (the kinematic fixed set is every other union). The planning prompt SHALL NOT emit an `assembly` strategy object. Connection method (snap, screw, press, etc.) SHALL be expressed through the part `interfaces` and `blocks_needed` (e.g. `snap_hook_clip`, `screw_boss`) and narrated in `planning_notes`.
+
 #### Scenario: Single-part model
 - **WHEN** user describes a simple enclosure for an Arduino Nano
 - **THEN** planning prompt produces a `BUILD_PLAN.json` with one part entry, printer/material constraints, and at least one interface entry for the USB port
 
 #### Scenario: Multi-part model
 - **WHEN** user describes a hinged box with a snap-fit lid
-- **THEN** planning prompt produces a `BUILD_PLAN.json` with at least two part entries and an assembly strategy entry
+- **THEN** planning prompt produces a `BUILD_PLAN.json` with at least two part entries, each positioned by its `placement`, and snap-fit connection expressed through interfaces/blocks rather than an `assembly` strategy object
 
 #### Scenario: Dimension research required
 - **WHEN** the model involves a known real-world product (phone, PCB, connector)
@@ -51,8 +53,11 @@ The `BUILD_PLAN.json` schema SHALL include the following top-level fields:
 - `material` (string, required)
 - `nozzle_mm` (number, required)
 - `parts` (array of part objects, required, min 1)
-- `assembly` (object, required if `parts` length > 1)
 - `constraints` (object, required)
+
+The schema SHALL NOT define an `assembly` object, and SHALL NOT make any field
+conditionally required on the number of parts. Multi-part assembly is expressed through
+each part's `placement`.
 
 Each part object SHALL include:
 - `id` (string, required, unique)
@@ -70,6 +75,10 @@ Each part object SHALL include:
 - **WHEN** a part is a simple bracket with no connectors or mating surfaces
 - **THEN** its `interfaces` array is empty and validation still passes
 
+#### Scenario: Multi-part plan needs no assembly object
+- **WHEN** a plan contains two or more parts
+- **THEN** validation passes without an `assembly` field, and the schema rejects an `assembly` property if one is supplied
+
 ---
 
 ### Requirement: Plan is shown to user for review before loop starts
@@ -83,8 +92,9 @@ The summary SHALL include the following sections:
 - Printer, material, and nozzle diameter
 - Parts table: ID, description, W x D x H dimensions, print orientation, and blocks_needed
 - Interfaces table: one row per interface entry across all parts, showing part ID, type, connector (if any), wall, and position
-- Assembly strategy: one-line description (omitted for single-part models)
 - Constraints: wall_min_mm, overhang_max_deg, dimension_tolerance_mm
+
+The summary SHALL NOT include an assembly-strategy section.
 
 #### Scenario: User approves plan
 - **WHEN** user confirms the plan without changes
@@ -110,13 +120,9 @@ The summary SHALL include the following sections:
 - **WHEN** the plan is displayed for approval
 - **THEN** the chat message contains no fenced JSON code block -- only the Markdown summary and the file path
 
-#### Scenario: Multi-part plan shows assembly strategy
+#### Scenario: Summary shows no assembly strategy
 - **WHEN** the plan has more than one part
-- **THEN** the summary includes an assembly strategy line from the plan's `assembly` field
-
-#### Scenario: Single-part plan omits assembly strategy
-- **WHEN** the plan has exactly one part
-- **THEN** the summary contains no assembly strategy section
+- **THEN** the summary contains no assembly-strategy section; multi-part relationships are conveyed by the parts table and their placements
 
 ---
 
