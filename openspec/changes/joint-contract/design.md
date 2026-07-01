@@ -10,13 +10,18 @@
 >   entity" mechanism -- the plan declares `unions`, the script returns a `name -> Workplane` dict,
 >   `model_export` splits per key, `kinematics.moving_union` is a union id, N=1 is byte-identical to
 >   today. The keystone this whole design "rides on" is in.
-> - **Topology -- DECIDED: Topology 1.** Each joint is owned by ONE block that emits both sides as a
->   multi-union dict (see "Topology decision" below). This deletes the A/B-binding sub-problem of
->   crux 1.
+> - **Topology -- DECIDED: Topology 1, on the matched-pair rationale.** One block is the single
+>   source of a matched pair (A mates B iff same params); it emits both members as a multi-union dict
+>   (see "Topology decision (D3)"). Applies to all mating pairs (hinge, dovetail, ball), NOT just the
+>   print-in-place ones -- manufacturing is irrelevant. The lone-half `hinge_leaf` is retired.
+> - **Composition + binding -- DECIDED: Option B (D6).** A joint's two members are `union`s fused
+>   into parent parts, possibly DIFFERENT parts; a plan-level `joint` entity binds the pair to its one
+>   parametric source so a mismatched pair is machine-caught. This is where the A/B binding actually
+>   lives -- it is only trivial when both members land in the same part; across parts it needs D6.
 > - **dof datum -- DECIDED: authored pose.** Limits are read from the pose the block is drawn in;
 >   revolute needs NO angular reference vector (see "dof vector model" below).
-> - **Crux 1 (satisfaction algebra) -- single-axis (revolute + prismatic) is now tractable; spherical
->   (ball joint) is the one open fork.**
+> - **Crux 1 (satisfaction algebra) -- single-axis (revolute + prismatic) SHIPPED via
+>   `single-axis-joint-contract`; spherical (ball joint) is the one open fork.**
 
 ## The core reframe: dof is a contract
 
@@ -146,28 +151,74 @@ dict), and **`model_export`** (iterate + split + cross-check). The kinematic and
 change -- they already key off per-union `<id>.stl` and a plate-grouping key; the id just becomes a
 union id, and N=1 is byte-identical to today.
 
-## Topology decision (D3): one block owns both sides of the joint
+## Topology decision (D3): one block is the single source of a MATCHED PAIR
 
-DECIDED: **Topology 1.** Every joint is owned by a single block that emits *both* members as a
-multi-union result, and carries the `dof` relating them. This is the natural consumer of the shipped
-crux-2 machinery: a joint block `return`s `{sideA: wp, sideB: wp}`, which is exactly
-`resolve_unions`' dict path.
+DECIDED: **Topology 1**, but on the correct rationale. The reason a joint's two members belong to
+one block is **not** "they print in place together" -- it is that they are a **matched pair**: side A
+and side B mate *only* with each other, and only when they share the same parameters. One block =
+one parameter set = a guaranteed fit. Two independent half-blocks (today's lone `hinge_leaf`) let the
+planner drift the two halves apart until they no longer mate. That is the anti-pattern this retires.
 
-The inventory ships joints as single-body *halves* today; Topology 1 fuses each pair into one block:
+Manufacturing is irrelevant to the design: the two members may be printed together (print-in-place),
+on separate plates, or on different printers entirely. The block emits the matched pair; the author
+composes each member into whatever parent part it belongs to.
 
 ```
- TODAY (halves, one Workplane, unions=None)   TOPOLOGY 1 (one block, multi-union)
+ TODAY (halves, one Workplane, unions=None)   MATCHED-PAIR BLOCK (multi-union)
  ──────────────────────────────────────────   ───────────────────────────────────────────
  dovetail_groove + dovetail_tongue          → one block → {groove, tongue}   prismatic
  ball_socket     + ball_stud                → one block → {socket, stud}      spherical (parked)
- hinge_leaf (×2) / pin_hinge                → one block → {leafA, leafB}      revolute
- living_hinge (dof-less flexure)              unchanged: single body, no dof
+ hinge_leaf (lone half) / pin_hinge         → one block → {leaf_a, leaf_b}    revolute
+ living_hinge (single flexure web, no pair)   unchanged: single body, no dof
 ```
 
-Why this and not Topology 2 (two half-blocks paired by the plan): with the joint owned by one block,
-the block knows its own two sides, so the dof references its own (local) union names and the plan
-only maps them to plan union ids. The hardest part of crux 1 under Topology 2 -- "whose dof is
-canonical, and how do two independent half-dofs compose" -- simply does not arise.
+The lone-half `hinge_leaf` is **retired**; a hinge block emits both leaves. `groove`/`tongue` and
+`socket`/`stud` likewise fuse into single matched-pair blocks. Earlier framing that only
+`pin_hinge` (the print-in-place case) qualified was wrong: the matched-pair guarantee applies to
+every mating pair regardless of how it is printed.
+
+### Composition: each member is a `union` fused into a parent part
+
+A matched-pair block emits two member-unions; the author fuses each into its parent via the shipped
+`union` interface (fuse-into-body). The two members can land in the **same** part (a standalone
+print-in-place hinge) or in **different** parts (a door leaf and a wall leaf, printed separately):
+
+```
+ hinge block  →  { leaf_a, leaf_b }        (one parametric source, matched)
+                    │        │
+        union-into  │        │  union-into
+                    ▼        ▼
+              part: door   part: wall       (may be separate scripts / printers)
+```
+
+So the members are not "sub-bodies of one part" in general -- they are a matched pair distributed
+across parts. This is why the per-part `resolve_unions` mechanism (crux 2) is necessary but not
+sufficient: it names unions *within* one part; a joint's members may cross parts.
+
+### DECISION (D6): a plan-level `joint` binding enforces the pair's single source (Option B)
+
+Two ways the members reach two parts were on the table:
+
+- **Option A -- call per part, same params.** `door.py` calls `hinge(P)["leaf_a"]`, `wall.py` calls
+  `hinge(P)["leaf_b"]`; the match is only as good as the author using identical `P` on both sides.
+  Nothing machine-checks it.
+- **Option B (CHOSEN) -- a plan-level `joint` entity.** The plan declares a `joint` that names the
+  block, its two member-unions, and which part each member fuses into. The pair's parameters come
+  from ONE declared source (the joint's block + params), and validation can enforce that both member
+  unions trace back to that single source -- so a mismatched pair is caught, not trusted.
+
+Option B makes "these two really are a matched pair from one parametric source" *machine-verifiable*,
+at the cost of a new plan entity and the wiring that fans one block's members out to their parent
+parts. It also gives the joint contract (crux 1) a concrete home: the `joint` binding is where the
+`dof` relates its two named members and where the satisfaction check reads the pair.
+
+Open sub-questions for D6 (to resolve when this becomes its own change):
+- Shape of the `joint` plan entity (block + params + member→part fusion map + the dof/contract wish).
+- How a member-union fuses into a parent part that is authored by a *different* script (the
+  cross-script fan-out), and how `resolve_unions` / `model_export` learn a union's geometry comes
+  from a joint block rather than the part's own `result`.
+- Interaction with the shipped single-axis contract: today the contract reads one block's `dof` via
+  the `kinematics` entry; under D6 it would read the `joint` binding instead (or in addition).
 
 ## dof vector model (D4): two/three vectors in block coordinates, datum = authored pose
 
@@ -252,11 +303,17 @@ check consumes. Target: solve on live geometry, export the deliverable only once
 
 ## Cruxes
 
-1. **Satisfaction algebra (crux 1).** Now largely resolved for single-axis joints by the Topology-1
-   and dof-vector decisions:
-   - **A/B binding -- RESOLVED.** Topology 1 makes the joint block own both sides; the dof's
-     `between` names the block's own unions and the plan maps them. No cross-block composition.
-   - **Axis match -- direction set.** Push the block-frame `dof` vectors through the union's
+1. **Satisfaction algebra (crux 1) -- single-axis SHIPPED** via `single-axis-joint-contract`
+   (type + placement-transformed axis; revolute coaxial, prismatic parallel; range vs
+   `mechanical_limit`; spherical skipped). The remaining crux-1 items below are refinements /
+   future work:
+   - **A/B binding -- CORRECTED (see D6).** Earlier this was called "resolved -- the block owns both
+     sides, so binding is trivial." That only holds when both members land in the SAME part. In
+     general a joint's two members fuse into DIFFERENT parts (door leaf, wall leaf), so the binding
+     lives in a plan-level `joint` entity (Option B / D6), not in the block. The shipped single-axis
+     contract handles the one-block-one-dof case via the `kinematics` entry; the cross-part matched
+     pair is the D6 work.
+   - **Axis match -- SHIPPED.** Push the block-frame `dof` vectors through the union's
      `placement`, then compare to the plan wish: revolute requires *coaxial* (same line: origin +
      direction), prismatic requires *parallel* (direction only -- sliding along any parallel line is
      the same motion). (Exact tolerance/normalization still to spec.)
@@ -272,5 +329,11 @@ check consumes. Target: solve on live geometry, export the deliverable only once
 2. **Sub-body naming convention (crux 2, SHIPPED).** Option 3 landed on `main` via `multi-union-parts`
    (`src/units.py`). Union is a first-class plan entity; the plan names the unions, the script returns
    a `name -> Workplane` map. See the status note at the top.
-3. **Topology (D3, RESOLVED -> Topology 1)** and **dof vector model (D4, RESOLVED -> authored-pose
-   datum, no angular reference).** See the two decision sections above.
+3. **Topology (D3, RESOLVED -> matched-pair block)** and **dof vector model (D4, RESOLVED ->
+   authored-pose datum, no angular reference).** See the two decision sections above. The lone-half
+   `hinge_leaf` is retired; hinge/dovetail/ball each become one matched-pair block.
+4. **Composition + pair binding (D6, RESOLVED -> Option B).** A joint's two members are `union`s
+   fused into parent parts (possibly different parts); a plan-level `joint` entity binds the pair to
+   its single parametric source so a mismatched pair is machine-caught. Open sub-questions (joint
+   entity shape, cross-script member fan-out, contract read path) are listed under D6 above; they are
+   the core of the next change ("matched-pair joint blocks" / Topology-1 block merge).
