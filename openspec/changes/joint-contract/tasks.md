@@ -51,13 +51,16 @@ Slices:
       `kinematics` entry is derived from the `joint`. Assembly structure is a recursive kinematic
       TREE (D7): `placement`+`joint` unify into one parent edge (fixed or DOF); a movable edge re-poses
       the subtree (series chains for free); flat plans = depth-1 trees (free migration); tree-only
-      (closed loops parked); a node does NOT know its parent (edge is parent-owned). **Still open
-      before buildable:** the plan-TREE shape -- nested children vs a flat edge/`joints[]` list keyed
-      by parent; how the root is marked (edge parent = `world`); the matched-pair joint edge (block +
-      params + DOF + which member fuses into parent vs child); and root-anchor validation
-      (unreachable/double-anchored nodes).
+      (closed loops parked). Plan-tree shape DECIDED: **nested children** (Option 1); a node does NOT
+      know its parent -- it publishes a `union` interface the parent reads (the `union` type is both
+      the fuse pad and the upward attachment contract); root = the node whose edge parent is `world` =
+      the world-anchored fixed body (a plan judgment, usually the base part). **Still open before
+      buildable:** the concrete JSON schema for a nested node + its edge (fixed placement vs
+      matched-pair joint: block + params + DOF + member->parent/child fusion), and how print
+      orientation / `model_export` walk the tree instead of the flat `parts[]`.
 - [ ] **Slice C -- annotation geometry (separate change).** printed/pseudo classification +
-      mating-area (backed-by-own-union-material, foreign keep-out) + assembly-envelope keep-clear.
+      mating-area (backed-by-own-union-material, foreign keep-out) + assembly-envelope keep-clear +
+      author-declared `keep_out` zones (open-ended negative constraint, not block-owned).
       Independent of the joint blocks; spin into its own proposal.
 - [ ] **Parked -- spherical/ball contract (D5)** and **coupled/multi-DOF joints** (gimbal, helical
       screw pitch): the multi-DOF TODO. Re-open when a real model needs them.
