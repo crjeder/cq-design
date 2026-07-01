@@ -97,6 +97,20 @@ src/
   preview.py                # headless multi-view PNG renderer (CadQuery tessellation + matplotlib)
   render_preview.py         # subprocess entry point for preview.py
   mesh_io.py                # STL loader with watertightness validation (trimesh + numpy only)
+  placement.py              # assembled-frame placement helper (cq Workplane + trimesh matrix)
+  units.py                  # part -> unions expansion shared by export/validate/checks
+  model_export.py           # model-level export: named multi-object 3MF + per-union/plate STL
+  kinematic_check.py        # whole-model range-of-motion sweep (trimesh + python-fcl)
+  plate_clearance_check.py  # whole-model co-plated union clearance check
+  print_orientation.py      # auto-rotation optimizer for print orientation
+  build_template.py         # build.py template copied into build/ to regenerate plates
+  cq_compat.py              # CadQuery/cq_warehouse compatibility shims
+  init_permissions.py       # seeds .claude/settings.local.json with pipeline permissions
+  skill_permissions.json    # permission patterns seeded by init_permissions.py
+
+  project_template/
+    pyproject.toml          # scaffolded into the working directory as a self-contained uv project
+    .python-version         # pinned Python version for the scaffolded project
 
   blocks/
     __init__.py             # re-exports all blocks
@@ -111,12 +125,11 @@ src/
 
   exporters/
     __init__.py             # run_exporters(script, formats, output_dir)
-    stl.py  step.py  threemf.py  obj.py  iges.py  scad.py
+    stl.py  step.py  threemf.py  threemf_multi.py  obj.py  iges.py  scad.py
 
 prompts/
   planning.md               # planning phase prompt (outputs BUILD_PLAN.json)
   part.md                   # per-part code generation prompt
-  assembly.md               # assembly phase prompt
 
 tests/
   test_run_wrapper.py       # integration tests for the subprocess wrapper
@@ -126,6 +139,17 @@ tests/
   test_thin_interfaces.py   # thin-wall detection tests
   test_plan_validate.py     # schema validation tests -- fast, no CadQuery
   test_mesh_io.py           # mesh loader tests
+  test_placement.py         # placement helper tests
+  test_model_export.py      # model-level export tests
+  test_kinematic_check.py   # kinematic sweep tests
+  test_plate_clearance_check.py
+  test_print_orientation.py
+  test_build_script.py
+  test_gate_plan_validation.py
+  test_quality_gate.py
+  test_init_permissions.py
+  test_cq_compat.py
+  test_hardware_lazy_import.py
   test_cq_warehouse_integration.py
   test_stl_to_3mf.py
 ```
