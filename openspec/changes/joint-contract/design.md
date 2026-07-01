@@ -26,6 +26,12 @@
 >   **D6b:** where/orientation of a mate is a PLAN duty; geometry only realizes the flush-seating
 >   transform. The model-level `kinematics` entry is derived from the `joint`. Remaining open for
 >   Slice B: the `joint`/mate plan entity shape and the root-anchor plan validation.
+> - **Assembly structure -- DECIDED: recursive kinematic tree (D7).** Each node is authored in its
+>   own frame; `placement` and `joint` unify into one parent EDGE (fixed = rigid placement, movable =
+>   joint with a DOF). A movable edge re-poses the whole subtree, so series articulated chains
+>   (hinged lid carrying a snap-lock) fall out by recursion. Flat plans = depth-1 trees (migration is
+>   free; nothing breaks). Tree-only -- closed kinematic loops stay parked. A node does NOT know its
+>   parent (the edge is parent-owned). See "DECISION (D7)".
 > - **dof datum -- DECIDED: authored pose.** Limits are read from the pose the block is drawn in;
 >   revolute needs NO angular reference vector (see "dof vector model" below).
 > - **Crux 1 (satisfaction algebra) -- single-axis (revolute + prismatic) SHIPPED via
@@ -302,6 +308,53 @@ fallback; the derived form is the norm once joints exist.
   *double-anchored* (conflicting mates) -- the plan-level analog of under/over-constraint.
 - **Keep-out geometry** -- still unspecified; a distinct concept from mate pads (Slice C territory).
 
+## DECISION (D7): the assembly is a recursive kinematic tree
+
+The flat model (every part placed directly into the assembled frame; a flat `kinematics[]`) is a
+special case. The real structure is a **kinematic tree** (scene graph / URDF-like):
+
+```
+   world
+     └─ box            root: its edge to world is the ONE anchor placement
+         └─ lid        edge = JOINT: revolute about the hinge, range 0–110°
+             └─ lock   edge = rigid placement (snap-fit) in the LID's frame
+```
+
+- **Each node is authored in its own local frame.** A sub-agent designs the `lid` (and its `lock`
+  child) without knowing anything about the `box`. Nodes are self-contained and reusable.
+- **`placement` and `joint` unify into one parent edge.** Every node has exactly one edge to its
+  parent: a **fixed** edge (rigid placement) or a **movable** edge (a joint with a DOF + range). A
+  fixed edge is just a joint with zero range. The root's "placement into world" is its edge to the
+  `world` node.
+- **A movable edge re-poses the whole subtree.** Sweeping the hinge 0→110° rotates the `lid` frame,
+  so `lock` (a child of `lid`) rides along automatically. This is how series articulated chains work
+  (TODO "a moving union carries other unions") -- by recursion, not special-casing. The
+  hinged-lid-with-snap-lock example falls out for free.
+- **The sweep re-scopes to subtrees.** Today: `moving_union` vs "every other union". Tree: vary a
+  joint edge → recompute its **subtree's** world poses → collide the moving subtree against the rest.
+  The shipped kinematic check is the depth-1 leaf case; the dof/contract math is unchanged -- only the
+  frame composition feeding it becomes recursive.
+
+**Tree-only (scope boundary).** A tree has one path root→node, so this covers series chains but NOT
+closed kinematic loops (a 4-bar linkage; a part hinged to two others). Closed loops need constraint
+solving and stay in the parked multi-DOF/coupled territory.
+
+**Migration (decided): flat plans are depth-1 trees.** Every existing part becomes a child of `world`
+carrying its current `placement` as its (fixed) edge. The shipped pipeline is exactly the depth-1
+instance, so nothing breaks; nesting is the generalization.
+
+### Open: the plan-tree shape (supersedes the earlier "joint entity shape")
+
+- **A node does NOT know its parent.** (Decided in explore.) A sub-part is authored in its own frame
+  and declares only how ITS children attach to it; the *edge* (fixed placement or joint) is owned by
+  the parent side, never a `parent` pointer on the child. This keeps nodes self-contained and
+  reusable, and makes the tree compose recursively. Consequence for the schema: the child part has no
+  `parent` field; the parent→child edge lives on the parent (or in an edge list keyed by parent),
+  and a matched-pair joint edge names the block+params, the DOF, and which member fuses into the
+  parent vs the child.
+- Still to settle: nested children vs a flat edge/`joints[]` list keyed by parent (both keep the
+  child parent-agnostic; the flat list is friendlier to the depth-1 migration); and how the root is
+  marked (its edge's parent is `world`).
 ## dof vector model (D4): two/three vectors in block coordinates, datum = authored pose
 
 DECIDED. A `dof` carries its geometry as vectors in **block coordinates**; the assembled-frame axis
