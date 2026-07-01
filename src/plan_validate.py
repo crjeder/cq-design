@@ -172,7 +172,8 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     block-coordinate dof axis (pushed through the moving union's placement) must match the
     plan's assembled-frame axis (revolute coaxial, prismatic parallel). The range arm of
     the contract is the separate numeric range check in `kinematic_check`. Spherical joints
-    are not contract-checked.
+    are not contract-checked. Entries nest via `children` into a tree; every entry is
+    checked the same way regardless of nesting depth.
     """
     kinematics = plan.get("kinematics", [])
     if not kinematics:
@@ -180,16 +181,16 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
 
     from blocks.validate import get_block
     from placement import transform_direction, transform_point
-    from units import iter_unions
+    from units import iter_kinematics_entries, iter_unions
 
     union_part = {uid: part for part, uid, _plate in iter_unions(plan)}
     errors = []
-    for entry in kinematics:
+    for entry in iter_kinematics_entries(kinematics):
         jid = entry.get("joint_id", "(unknown)")
-        ref = entry.get("moving_union")
+        ref = entry["moving_union"]
         if ref not in union_part:
             errors.append(f"Kinematics '{jid}': moving_union '{ref}' is not a union id")
-        block_name = entry.get("block")
+        block_name = entry["block"]
         block = get_block(block_name, inventory_path)
         if block is None:
             errors.append(f"Kinematics '{jid}': unknown block '{block_name}' (not in inventory)")
