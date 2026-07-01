@@ -48,9 +48,14 @@ Slices:
       params via `parameters.py`; fusion in the assembled frame; pads dock member->part (not
       pad<->pad); coaxiality is a block input that + pad docks DERIVE part poses along a mate chain
       from a root; where/orientation is a PLAN duty (D6b), geometry only realizes the seating; the
-      `kinematics` entry is derived from the `joint`. **Still open before buildable:** (1) the
-      `joint`/mate plan-entity SHAPE (block + params + per-member `{member, part, surface, where,
-      orientation}`); (2) root-anchor plan validation (catch unanchored/double-anchored parts).
+      `kinematics` entry is derived from the `joint`. Assembly structure is a recursive kinematic
+      TREE (D7): `placement`+`joint` unify into one parent edge (fixed or DOF); a movable edge re-poses
+      the subtree (series chains for free); flat plans = depth-1 trees (free migration); tree-only
+      (closed loops parked); a node does NOT know its parent (edge is parent-owned). **Still open
+      before buildable:** the plan-TREE shape -- nested children vs a flat edge/`joints[]` list keyed
+      by parent; how the root is marked (edge parent = `world`); the matched-pair joint edge (block +
+      params + DOF + which member fuses into parent vs child); and root-anchor validation
+      (unreachable/double-anchored nodes).
 - [ ] **Slice C -- annotation geometry (separate change).** printed/pseudo classification +
       mating-area (backed-by-own-union-material, foreign keep-out) + assembly-envelope keep-clear.
       Independent of the joint blocks; spin into its own proposal.
