@@ -27,7 +27,7 @@ def _revolute_entry(required_range, step=5, moving="arm", **extra):
     entry = {
         "joint_id": "j1",
         "moving_union": moving,
-        "block": "hinge_leaf",
+        "block": "pin_hinge",
         "axis_origin_mm": [0, 0, 0],
         "axis_dir": "Z",
         "type": "revolute",
@@ -134,6 +134,27 @@ def test_print_in_place_two_unions_one_plate_is_swept(blocking_stls):
     }
     issues = run_kinematic_check(plan, str(blocking_stls))
     assert any(i["type"] == "motion_collision" for i in issues)
+
+
+def test_pin_hinge_leaf_swept_against_other_leaf(tmp_path):
+    # A print-in-place pin_hinge part declares its two leaf unions (leaf_a, leaf_b) on
+    # one plate; the sweep runs leaf_a against leaf_b -- the hinge's own motion -- rather
+    # than seeing them as one frozen blob.
+    _box_stl(tmp_path / "leaf_a.stl", (10, 10, 10), (20, 0, 0))  # orbits the Z axis
+    _box_stl(tmp_path / "leaf_b.stl", (10, 10, 10), (0, 14, 0))  # sits in leaf_a's arc
+    plan = {
+        "parts": [
+            {
+                "id": "hinge",
+                "unions": [{"id": "leaf_a", "plate": "h"}, {"id": "leaf_b", "plate": "h"}],
+            }
+        ],
+        "kinematics": [_revolute_entry([0, 90], moving="leaf_a")],
+    }
+    issues = run_kinematic_check(plan, str(tmp_path))
+    collisions = [i for i in issues if i["type"] == "motion_collision"]
+    assert len(collisions) == 1
+    assert collisions[0]["colliding_union"] == ["leaf_b"]
 
 
 # ---- sweep bounds and inclusivity --------------------------------------------

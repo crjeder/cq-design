@@ -319,68 +319,6 @@ def ball_socket(
 # ---- hinge (tiled-cylinder core) --------------------------------------------
 
 
-def hinge_leaf(
-    length: float,
-    knuckles: int,
-    d_outer: float,
-    d_pin: float,
-    leaf_w: float,
-    leaf_t: float,
-    clearance: float = 0.3,
-    side: str = "A",
-    variant: str = "pin",
-) -> cq.Workplane:
-    """One leaf of a knuckle hinge. Call twice (side "A"/"B") for the meshing pair.
-
-    Knuckles run along the +Y hinge axis at (X=0, Z=d_outer/2); the leaf extends in
-    -X for side "A" and +X for side "B" (the two leaves lie on opposite sides of the
-    pin axis). Side "A" fills even knuckle positions, "B" fills odd, so the two
-    leaves interleave with `clearance` between adjacent knuckles. variant="pin"
-    bores a d_pin hole for a separate pin/filament; variant="print_in_place" leaves
-    the knuckles solid to print as one assembly through the clearance gaps.
-
-    Print flat on the bed with the hinge axis (Y) in the build plane and the
-    knuckle bores parallel to the bed so they round cleanly; for print_in_place the
-    clearance gap must exceed one layer height to avoid fusing.
-
-    Args:
-        length: total hinge length along the axis in mm (Y)
-        knuckles: number of knuckle segments across the length
-        d_outer: knuckle outer diameter in mm
-        d_pin: pin hole diameter in mm (used when variant="pin")
-        leaf_w: flat leaf width in mm (X)
-        leaf_t: flat leaf thickness in mm (Z)
-        clearance: axial gap between adjacent knuckles in mm (default 0.3)
-        side: "A" fills even positions, "B" fills odd positions
-        variant: "pin" bores a pin hole; "print_in_place" leaves knuckles solid
-    """
-    seg = length / knuckles
-    z_axis = d_outer / 2
-    x_dir = -1 if side == "A" else 1
-    # leaf inner edge meets the knuckle at its tangent (x = +-d_outer/2) so the
-    # plate never crosses the opposing side's coaxial knuckles
-    leaf_center_x = x_dir * (d_outer / 2 + leaf_w / 2)
-
-    leaf = (
-        cq.Workplane("XY")
-        .transformed(offset=(leaf_center_x, 0, z_axis))
-        .box(leaf_w, length, leaf_t, centered=(True, False, True))
-    )
-    result = leaf
-    for i in range(knuckles):
-        is_this = (i % 2 == 0) if side == "A" else (i % 2 == 1)
-        if not is_this:
-            continue
-        y0 = i * seg + clearance / 2
-        klen = seg - clearance
-        result = result.union(_cylinder_along_y(d_outer / 2, klen, y0, z_axis))
-
-    if variant == "pin":
-        bore = _cylinder_along_y(d_pin / 2, length + 2 * _EPS, -_EPS, z_axis)
-        result = result.cut(bore)
-    return result
-
-
 def pin_hinge(
     length: float,
     knuckles: int,
@@ -388,7 +326,7 @@ def pin_hinge(
     leaf_t: float,
     d_filament: float = 1.9,
     clearance: float = 0.25,
-) -> cq.Workplane:
+) -> dict[str, cq.Workplane]:
     """Normal revolute knuckle hinge that pivots on a rigid pin (a 1.75 mm filament strand).
 
     This is an ordinary mechanical hinge: two RIGID leaves rotate freely about a
@@ -398,12 +336,13 @@ def pin_hinge(
     bends a thin web and has no pin); use pin_hinge whenever you need a durable,
     freely rotating, low-friction pivot. Treat it kinematically like any revolute hinge.
 
-    Unlike hinge_leaf (which returns one leaf for two separately printed parts),
-    this returns BOTH leaves interleaved on a shared axis as one print-in-place
-    body: two coplanar flat leaves (opened flat at 180 deg) whose knuckles alternate
-    along +Y. After printing, push a snipped length of 1.75 mm filament through the
-    coaxial bore as the pivot pin. The two leaves are disjoint solids joined only by
-    that pin, so the Workplane holds two interleaved bodies.
+    Returns the two leaves as a `dict` of named member unions
+    `{"leaf_a": Workplane, "leaf_b": Workplane}`: two coplanar flat leaves (opened flat
+    at 180 deg) whose knuckles alternate along +Y and interleave on a shared axis, each
+    bored by the same coaxial hole. They are separate bodies (joined in reality only by
+    the pin), so a print-in-place hinge part declares them as two `unions` and the
+    kinematic check can sweep one leaf against the other. After printing, push a snipped
+    length of 1.75 mm filament through the coaxial bore as the pivot pin.
 
     The knuckle outer diameter is derived as d_filament + 2 mm (a 1 mm wall around the
     pin). Knuckles run at (X=0, Z=d_outer/2); leaf A extends -X, leaf B extends +X.
@@ -425,16 +364,16 @@ def pin_hinge(
     d_outer = d_filament + 2.0
     seg = length / knuckles
     z_axis = d_outer / 2
-    result = None
-    for side in ("A", "B"):
+    bore = _cylinder_along_y(d_filament / 2, length + 2 * _EPS, -_EPS, z_axis)
+    leaves: dict[str, cq.Workplane] = {}
+    for side, key in (("A", "leaf_a"), ("B", "leaf_b")):
         x_dir = -1 if side == "A" else 1
         leaf_center_x = x_dir * (d_outer / 2 + leaf_w / 2)
-        leaf = (
+        part = (
             cq.Workplane("XY")
             .transformed(offset=(leaf_center_x, 0, z_axis))
             .box(leaf_w, length, leaf_t, centered=(True, False, True))
         )
-        part = leaf
         # tab straddling the leaf-knuckle tangent so the two fuse into one solid
         # (a bare tangent line does not merge in OCC); placed only at this side's
         # knuckle Y-bands so it never reaches the opposing side's knuckles
@@ -452,11 +391,9 @@ def pin_hinge(
                 .box(2 * ov, klen, leaf_t, centered=(True, False, True))
             )
             part = part.union(tab)
-        result = part if result is None else result.union(part)
-
-    bore = _cylinder_along_y(d_filament / 2, length + 2 * _EPS, -_EPS, z_axis)
-    assert result is not None  # both sides always produce a leaf
-    return result.cut(bore)
+        # Each leaf is bored by the same coaxial hole so the pin passes through both.
+        leaves[key] = part.cut(bore)
+    return leaves
 
 
 # ---- living hinge (flat panel + thin web core) ------------------------------

@@ -251,7 +251,7 @@ def test_moving_union_may_reference_a_sub_union(plan_file):
         {
             "joint_id": "j1",
             "moving_union": "leaf_a",
-            "block": "hinge_leaf",
+            "block": "pin_hinge",
             "axis_origin_mm": [0, 0, 0],
             "axis_dir": "Y",
             "type": "revolute",
@@ -270,7 +270,7 @@ def _plan_with_joint(**entry_over):
     entry = {
         "joint_id": "j1",
         "moving_union": "mover",
-        "block": "hinge_leaf",  # revolute, dof axis +Y through origin
+        "block": "pin_hinge",  # revolute, dof axis +Y through origin
         "axis_origin_mm": [0, 0, 0],
         "axis_dir": "Y",
         "type": "revolute",
@@ -290,7 +290,7 @@ def test_contract_type_mismatch_rejected(plan_file):
 
 
 def test_contract_revolute_wrong_axis_rejected(plan_file):
-    # hinge_leaf's dof axis is +Y; a Z wish is not parallel.
+    # pin_hinge's dof axis is +Y; a Z wish is not parallel.
     plan = _plan_with_joint(axis_dir="Z")
     errors = validate_plan(plan_file(plan))
     assert any("not parallel" in e for e in errors)
@@ -313,7 +313,7 @@ def test_contract_prismatic_parallel_offset_passes(plan_file):
 
 
 def test_contract_matching_revolute_passes(plan_file):
-    plan = _plan_with_joint()  # hinge_leaf, revolute, +Y axis through origin
+    plan = _plan_with_joint()  # pin_hinge, revolute, +Y axis through origin
     errors = validate_plan(plan_file(plan))
     assert not any("Kinematics 'j1'" in e for e in errors)
 
