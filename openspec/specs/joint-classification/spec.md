@@ -12,9 +12,9 @@ Every joint inventory entry SHALL be classifiable along two orthogonal axes:
 the joint can be separated non-destructively). `motion` SHALL be one of `rigid`,
 `hinge`, or `ball`. `reversible` SHALL be a boolean recording the joint's default fit.
 
-#### Scenario: Hinge is mobile and (pinned) permanent
-- **WHEN** the `hinge_leaf` entry with the pinned variant is read
-- **THEN** its `motion` SHALL be `hinge` and its `reversible` SHALL be `false`
+#### Scenario: Pin hinge is mobile and reversible
+- **WHEN** the `pin_hinge` entry is read
+- **THEN** its `motion` SHALL be `hinge` and its `reversible` SHALL be `true`
 
 #### Scenario: Sliding dovetail is rigid and separable
 - **WHEN** the `dovetail_tongue` entry is read
