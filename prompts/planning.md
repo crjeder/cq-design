@@ -77,7 +77,9 @@ Before committing to any dimension values, populate `planning_notes` with your r
    id to its `Workplane` (e.g. `result = {"leaf_a": ..., "leaf_b": ...}`). Each declared
    union is its own rigid body for export and the kinematic/clearance checks, may sit on
    its own `plate`, and is the id that `kinematics.moving_union` references. Union ids are
-   unique across the model.
+   unique across the model. A `pin_hinge` part is exactly this case: the block returns
+   `{"leaf_a": ..., "leaf_b": ...}`, so the part declares those two unions and a
+   `kinematics` entry can sweep `leaf_a` against `leaf_b`.
 
 7. **Place parts in the shared assembled frame with `placement`.** The whole model
    is treated as one assembly. If a part is authored already in its assembled
@@ -152,15 +154,14 @@ Before committing to any dimension values, populate `planning_notes` with your r
   "kinematics": [
     {
       "joint_id": "lid_hinge",
-      "moving_union": "lid",
-      "block": "hinge_leaf",
+      "moving_union": "leaf_a",
+      "block": "pin_hinge",
       "axis_origin_mm": [0, 35, 20],
       "axis_dir": "Y",
       "type": "revolute",
       "required_range": [0, 110],
       "lo_inclusive": true,
       "hi_inclusive": true,
-      "unit": "deg",
       "step": 5
     }
   ],

@@ -41,7 +41,6 @@ from blocks.joints import (
     dowel_bore,
     dowel_pin,
     finger_joint,
-    hinge_leaf,
     living_hinge,
     mortise,
     pin_hinge,
@@ -538,54 +537,41 @@ def test_ball_socket_retains_and_slotted():
     assert len(so.intersect(slab).solids().vals()) == 2
 
 
-# hinge
+# pin hinge (matched-pair block: returns two named leaf member unions)
 
 
-def test_hinge_leaves_interleave_no_overlap():
-    a = hinge_leaf(40, 5, 8, 3, 15, 3, side="A")
-    b = hinge_leaf(40, 5, 8, 3, 15, 3, side="B")
+def test_pin_hinge_returns_two_named_leaves():
+    h = pin_hinge(length=30, knuckles=5, leaf_w=10, leaf_t=2)
+    assert set(h.keys()) == {"leaf_a", "leaf_b"}
+    a, b = h["leaf_a"], h["leaf_b"]
+    # each leaf is its own watertight body; they do not overlap
     assert _is_solid(a) and _is_solid(b)
     assert _overlap_solids(a, b) == 0
-    # leaves lie on opposite sides of the pin axis
-    assert _bb(a).xmax <= _bb(b).xmax and _bb(a).xmin < _bb(b).xmin
-
-
-def test_hinge_pin_variant_bored():
-    pin = hinge_leaf(40, 5, 8, 3, 15, 3, side="A", variant="pin")
-    pip = hinge_leaf(40, 5, 8, 3, 15, 3, side="A", variant="print_in_place")
-    # bored variant removes material -> smaller volume than the solid-knuckle variant
-    assert pin.val().Volume() < pip.val().Volume()
-
-
-# pin hinge
-
-
-def test_pin_hinge_two_interleaved_leaves():
-    h = pin_hinge(length=30, knuckles=5, leaf_w=10, leaf_t=2)
-    assert _is_solid(h)
-    # the two leaves are disjoint print-in-place bodies joined only by the pin
-    assert len(h.solids().vals()) == 2
     # leaves lie on opposite sides of the pin axis (X=0)
-    assert _bb(h).xmin < 0 < _bb(h).xmax
+    assert _bb(a).xmin < 0 and _bb(b).xmax > 0
 
 
-def test_pin_hinge_coaxial_bore():
+def test_pin_hinge_each_leaf_coaxial_bore():
     h = pin_hinge(length=30, knuckles=5, leaf_w=10, leaf_t=2, d_filament=1.9)
-    # a 1.9 mm rod along the axis sits entirely in the bore void (no intersection)
+    # a 1.9 mm rod along the axis sits in the bore void of BOTH leaves (no intersection)
     d_outer = 1.9 + 2.0
     rod = cq.Workplane("XY").add(
         cq.Solid.makeCylinder(
             1.9 / 2 - 0.05, 30, pnt=cq.Vector(0, 0, d_outer / 2), dir=cq.Vector(0, 1, 0)
         )
     )
-    assert len(h.intersect(rod).solids().vals()) == 0
+    for leaf in h.values():
+        assert len(leaf.intersect(rod).solids().vals()) == 0
 
 
 def test_pin_hinge_clearance_separates_knuckles():
+    def total_volume(hinge):
+        return sum(leaf.val().Volume() for leaf in hinge.values())
+
     snug = pin_hinge(30, 5, 10, 2, clearance=0.1)
     loose = pin_hinge(30, 5, 10, 2, clearance=0.6)
     # wider axial clearance removes more knuckle material
-    assert loose.val().Volume() < snug.val().Volume()
+    assert total_volume(loose) < total_volume(snug)
 
 
 # living hinge

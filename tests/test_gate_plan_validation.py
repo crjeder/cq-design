@@ -40,7 +40,7 @@ def _valid_plan():
             {
                 "joint_id": "j1",
                 "moving_union": "arm",
-                "block": "hinge_leaf",
+                "block": "pin_hinge",
                 "axis_origin_mm": [0, 0, 0],
                 "axis_dir": "Y",
                 "type": "revolute",
