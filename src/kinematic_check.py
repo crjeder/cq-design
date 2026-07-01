@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """Kinematic range-of-motion validation stage.
 
-For each entry in a build plan's `kinematics` array, verify the joint achieves
-its author-declared range of motion:
+`kinematics` entries nest into a tree via `children` (a joint's `children` are the
+joints mounted on it). For each entry in the tree, at every nesting depth, verify the
+joint achieves its author-declared range of motion:
 
   1. Numeric check (no mesh): the declared `required_range` (relative to the union's
      authored pose, so it may be negative or straddle zero) lies within the joint
      block's nominal `dof.mechanical_limit` from the inventory.
-  2. Whole-model collision sweep (trimesh + fcl): step the moving union through the
-     required range against EVERY other union in the assembled model, each added as a
-     separately named collision object so the colliding union is identifiable. Flag
-     the first pose where penetration exceeds `penetration_tol_mm` (designed surface
-     contact at the joint is not interference, so a small tolerance avoids false
-     positives). Bound inclusivity is honoured: a collision exactly at an open bound
-     is not reported. A print-in-place joint (several unions on one plate) is swept
-     the same way -- no special case.
+  2. Whole-model collision sweep (trimesh + fcl): step the entry's swept subtree --
+     its own moving union plus every union nested under its `children`, carried along
+     rigidly by the same per-step transform -- through the required range against
+     every union NOT in that subtree, each added as a separately named collision
+     object so the colliding union is identifiable. Flag the first pose where
+     penetration exceeds `penetration_tol_mm` (designed surface contact at the joint
+     is not interference, so a small tolerance avoids false positives). Bound
+     inclusivity is honoured: a collision exactly at an open bound is not reported. A
+     print-in-place joint (several unions on one plate) is swept the same way -- no
+     special case.
 
 Meshes are the assembled per-union STLs from `model_export.py` (placement already
 applied), so `--stl-dir` points at that export. The inventory limit is a nominal
@@ -133,23 +136,31 @@ def iter_poses(entry: dict) -> Iterator[tuple[float, Any]]:
 
 
 def _sweep_collision(
-    moving_mesh: Any, manager: Any, entry: dict, penetration_tol_mm: float
+    subtree_meshes: list[tuple[str, Any]], manager: Any, entry: dict, penetration_tol_mm: float
 ) -> tuple[float, list[str]] | None:
-    """Sweep moving_mesh against a manager of named fixed unions.
+    """Sweep every mesh in the entry's subtree against a manager of named fixed unions.
 
-    Returns (binding_value, sorted colliding union names) for the first pose whose
-    deepest contact penetration exceeds penetration_tol_mm, or None if clear. The
-    manager holds each fixed union as a separately named object so the colliding
-    union is identifiable.
+    The same per-step transform is applied identically to every subtree mesh (rigid
+    carry-along: a descendant joint's own range is not composed in, it rides at its
+    authored zero). Returns (binding_value, sorted colliding union names) for the first
+    pose where any subtree member's deepest contact penetration exceeds
+    penetration_tol_mm, or None if clear. The manager holds each fixed union as a
+    separately named object so the colliding union is identifiable.
     """
     for value, transform in iter_poses(entry):
-        moved = moving_mesh.copy()
-        moved.apply_transform(transform)
-        hit, names, data = manager.in_collision_single(moved, return_names=True, return_data=True)
-        if hit:
-            max_depth = max((abs(c.depth) for c in data), default=0.0)
-            if max_depth > penetration_tol_mm:
-                return value, sorted(names)
+        colliding: set[str] = set()
+        for _uid, mesh in subtree_meshes:
+            moved = mesh.copy()
+            moved.apply_transform(transform)
+            hit, names, data = manager.in_collision_single(
+                moved, return_names=True, return_data=True
+            )
+            if hit:
+                max_depth = max((abs(c.depth) for c in data), default=0.0)
+                if max_depth > penetration_tol_mm:
+                    colliding.update(names)
+        if colliding:
+            return value, sorted(colliding)
     return None
 
 
@@ -163,7 +174,8 @@ def run_kinematic_check(
     inventory_path: str = _INVENTORY_PATH,
     penetration_tol_mm: float = 0.1,
 ) -> list[dict]:
-    """Validate every `kinematics` entry in the plan. Returns a list of issues."""
+    """Validate every `kinematics` entry in the plan, at every nesting depth. Returns a
+    list of issues."""
     kinematics = plan.get("kinematics", [])
     if not kinematics:
         return []
@@ -189,16 +201,16 @@ def run_kinematic_check(
             )
         )
 
-    from units import iter_unions
+    from units import iter_kinematics_entries, iter_unions
 
     all_union_ids = [uid for _part, uid, _plate in iter_unions(plan)]
 
-    for entry in kinematics:
+    for entry in iter_kinematics_entries(kinematics):
         jid = entry.get("joint_id", "(unknown)")
         unit = _unit_for(entry.get("type"))
         lo, hi = entry["required_range"]
         moving_id = entry["moving_union"]
-        block = get_block(entry.get("block"), inventory_path)
+        block = get_block(entry["block"], inventory_path)
         dof = (block or {}).get("dof")
 
         # ---- numeric check (no mesh, no collision backend) ----
@@ -222,17 +234,18 @@ def run_kinematic_check(
                 # Mechanically impossible: do not load a mesh or sweep this joint.
                 continue
 
-        # ---- collision sweep (whole model: moving union vs all other unions) ----
+        # ---- collision sweep (subtree: moving union + everything nested under its
+        # children, vs every union outside that subtree) ----
         if not collision_ok:
             continue
 
         import trimesh
         from trimesh.collision import CollisionManager
 
-        moving_path = _stl_path(stl_dir, moving_id)
-        fixed_ids = [uid for uid in all_union_ids if uid != moving_id]
+        subtree_ids = [e["moving_union"] for e in iter_kinematics_entries([entry])]
+        fixed_ids = [uid for uid in all_union_ids if uid not in subtree_ids]
         missing = [
-            uid for uid in [moving_id, *fixed_ids] if not os.path.exists(_stl_path(stl_dir, uid))
+            uid for uid in [*subtree_ids, *fixed_ids] if not os.path.exists(_stl_path(stl_dir, uid))
         ]
         if missing:
             issues.append(
@@ -246,12 +259,14 @@ def run_kinematic_check(
             )
             continue
 
-        moving = trimesh.load(moving_path, force="mesh")
+        subtree_meshes = [
+            (uid, trimesh.load(_stl_path(stl_dir, uid), force="mesh")) for uid in subtree_ids
+        ]
         manager = CollisionManager()
         for uid in fixed_ids:
             manager.add_object(uid, trimesh.load(_stl_path(stl_dir, uid), force="mesh"))
 
-        binding = _sweep_collision(moving, manager, entry, penetration_tol_mm)
+        binding = _sweep_collision(subtree_meshes, manager, entry, penetration_tol_mm)
         if binding is not None:
             value, colliding = binding
             issues.append(
