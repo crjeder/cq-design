@@ -47,7 +47,10 @@ def test_multi_union_part_co_plated_unions_flagged(tmp_path):
         [
             {
                 "id": "hinge",
-                "unions": [{"id": "leaf_a", "plate": "shared"}, {"id": "leaf_b", "plate": "shared"}],
+                "unions": [
+                    {"id": "leaf_a", "plate": "shared"},
+                    {"id": "leaf_b", "plate": "shared"},
+                ],
             }
         ]
     )
@@ -139,11 +142,32 @@ def test_missing_stl_degrades_to_warning(tmp_path):
 
 def test_gate_surfaces_plate_clearance(tmp_path, good_script):
     plan = _two_on_one_plate(tmp_path, cx=10.1)
-    plan["constraints"] = {
-        "wall_min_mm": 1.2,
-        "overhang_max_deg": 45,
-        "dimension_tolerance_mm": 0.3,
-    }
+    # The gate validates the plan first and SKIPS the plate-clearance stage if that
+    # fails, so this gate-routed plan must be schema-complete (unlike the minimal `_plan`
+    # the direct run_plate_clearance_check tests use). Fill the required top-level and
+    # per-part fields.
+    plan.update(
+        {
+            "schema_version": 1,
+            "intent": "plate clearance gate fixture",
+            "printer": "Bambu P1S",
+            "material": "PLA",
+            "constraints": {
+                "wall_min_mm": 1.2,
+                "overhang_max_deg": 45,
+                "dimension_tolerance_mm": 0.3,
+            },
+        }
+    )
+    for part in plan["parts"]:
+        part.update(
+            {
+                "description": "co-plated box",
+                "dimensions": {"w_mm": 10, "d_mm": 10, "h_mm": 10},
+                "interfaces": [],
+                "blocks_needed": [],
+            }
+        )
     plan_path = tmp_path / "BUILD_PLAN.json"
     plan_path.write_text(json.dumps(plan))
 
