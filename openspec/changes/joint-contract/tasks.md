@@ -6,41 +6,51 @@ Do **not** `/opsx:apply` this change in its current state.
 
 ## Decisions to resolve before tasks can be written
 
-- [x] D1. **Satisfaction algebra (crux 1) -- largely RESOLVED for single-axis joints.** A/B binding
-      resolved by Topology 1 (the block owns both sides; dof `between` names them). Axis match:
-      push block-frame dof vectors through `placement`, then revolute = coaxial, prismatic = parallel.
-      Range subset: both sides measured from the authored pose, `wish ⊆ reality`. Exact
-      tolerance/inclusivity rules still to spec. **Remaining open fork: spherical/ball** (see D5).
+- [x] D1. **Satisfaction algebra (crux 1) -- single-axis SHIPPED** via `single-axis-joint-contract`
+      (archived). type + placement-transformed axis (revolute coaxial, prismatic parallel) + range vs
+      `mechanical_limit`; spherical skipped. NOTE: the earlier "A/B binding resolved by Topology 1"
+      claim was corrected -- binding is only trivial when both members share a part; across parts it
+      is the D6 work. **Remaining open fork: spherical/ball** (see D5).
 - [x] D2. **Sub-body naming convention (crux 2) -- SHIPPED (Option 3).** Landed on `main` via the
       `multi-union-parts` change: `src/units.py` (`iter_unions`/`resolve_unions`). `union` is a
       first-class plan entity; the plan declares union ids, the script returns a `name -> Workplane`
       map, `model_export` splits per key (N=1 = today's part-id default). See design.md status note.
-- [x] D3. **Topology -- DECIDED: Topology 1.** One block owns both sides of a joint and emits them as
-      a multi-union dict, carrying the dof that relates them. Inventory rewrite: merge the
-      groove/tongue, socket/stud, leaf/leaf half-blocks into joint-owning blocks. See design.md
-      "Topology decision (D3)".
-- [x] D4. **dof datum + vectors -- DECIDED.** dof carries block-coord vectors; prismatic
-      `{direction, limit}`, revolute `{origin (pivot), direction, limit}`; `unit` derived; limits read
-      from the authored pose; NO angular reference vector. See design.md "dof vector model (D4)".
+- [x] D3. **Topology -- DECIDED: matched-pair block (Topology 1, corrected rationale).** One block is
+      the single source of a matched pair (A mates B iff same params), emitting both members as a
+      multi-union dict + the dof relating them. Applies to ALL mating pairs (hinge, dovetail, ball) --
+      manufacturing (print-in-place vs separate) is irrelevant. The lone-half `hinge_leaf` is retired.
+      See design.md "Topology decision (D3)".
+- [x] D4. **dof datum + vectors -- DECIDED (shipped in single-axis-joint-contract).** dof carries
+      block-coord vectors; prismatic `{direction, mechanical_limit}`, revolute
+      `{origin (pivot), direction, mechanical_limit}`; unit derived; limits from the authored pose; NO
+      angular reference vector. See design.md "dof vector model (D4)".
 - [x] D5. **Spherical/ball satisfaction -- PARKED (option a).** The ball carries no contract dof for
-      now; its mate stays a geometry-only check and spherical joins the coupled-multi-DOF TODO. The
-      satisfaction algebra ships covering revolute + prismatic only. `ball_socket`/`ball_stud` still
-      fuse into one Topology-1 block, but that block declares no `dof` yet.
+      now; its mate stays a geometry-only check and spherical joins the coupled-multi-DOF TODO.
+- [x] D6. **Composition + pair binding -- DECIDED: Option B.** A joint's two members are `union`s
+      fused into parent parts (possibly DIFFERENT parts); a plan-level `joint` entity binds the pair to
+      its single parametric source so a mismatched pair is machine-caught. This is where the A/B
+      binding actually lives. Open sub-questions (joint entity shape, cross-script member fan-out,
+      contract read path) are the core of the next change. See design.md "DECISION (D6)".
 
 ## Re-scope (2026-06-30): split into shippable slices
 
 With crux 2 (multi-union) already shipped and the cruxes resolved, this stops being one mega-change.
-Proposed split:
+Slices:
 
-- [ ] **Slice A -- single-axis joint contract (the shippable core).** Replace the `unit==`-only check
-      in `plan_validate._check_kinematics` with the satisfaction algebra: dof vector model
-      (D4), Topology-1 inventory rewrite (merge the half-blocks; ball block carries no dof per D5),
-      axis-match (placement-transformed: revolute coaxial, prismatic parallel) + range-subset
-      (authored-pose datum). Covers revolute + prismatic. This alone closes the
-      revolute-vs-ball_socket validation hole.
-- [ ] **Slice B -- annotation geometry (separate change).** printed/pseudo classification +
+- [x] **Slice A -- single-axis joint contract -- SHIPPED & ARCHIVED** (`single-axis-joint-contract`).
+      dof vector model (D4) + type/axis/range satisfaction in `plan_validate._check_kinematics`,
+      revolute + prismatic. Closed the `unit==`-only hole. NOTE: this slice was scoped
+      contract-check-ONLY -- it did NOT merge the half-blocks (that is Slice B below).
+- [ ] **Slice B -- matched-pair joint blocks + plan-level `joint` binding (D3 + D6) -- NEXT.** Merge
+      hinge/dovetail/ball half-blocks into matched-pair blocks that emit both member-`union`s; retire
+      the lone-half `hinge_leaf`; add the plan-level `joint` entity that binds the pair to one
+      parametric source and fans each member into its parent part (possibly a different part). Resolve
+      the D6 open sub-questions first (joint entity shape; cross-script member fan-out via the `union`
+      interface; how the shipped contract reads the `joint` binding). This is the real remaining
+      Topology-1 work.
+- [ ] **Slice C -- annotation geometry (separate change).** printed/pseudo classification +
       mating-area (backed-by-own-union-material, foreign keep-out) + assembly-envelope keep-clear.
-      Independent of the contract check; spin into its own proposal.
+      Independent of the joint blocks; spin into its own proposal.
 - [ ] **Parked -- spherical/ball contract (D5)** and **coupled/multi-DOF joints** (gimbal, helical
       screw pitch): the multi-DOF TODO. Re-open when a real model needs them.
 - [x] ~~Sub-body split / export-after-validate~~ -- the multi-union half SHIPPED (`multi-union-parts`).
