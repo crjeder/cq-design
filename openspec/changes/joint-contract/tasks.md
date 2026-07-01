@@ -41,15 +41,26 @@ Slices:
       dof vector model (D4) + type/axis/range satisfaction in `plan_validate._check_kinematics`,
       revolute + prismatic. Closed the `unit==`-only hole. NOTE: this slice was scoped
       contract-check-ONLY -- it did NOT merge the half-blocks (that is Slice B below).
-- [ ] **Slice B -- matched-pair joint blocks + plan-level `joint` binding (D3 + D6) -- NEXT.** Merge
-      hinge/dovetail/ball half-blocks into matched-pair blocks that emit both member-`union`s; retire
-      the lone-half `hinge_leaf`; add the plan-level `joint` entity that binds the pair to one
-      parametric source and fans each member into its parent part (possibly a different part). Resolve
-      the D6 open sub-questions first (joint entity shape; cross-script member fan-out via the `union`
-      interface; how the shipped contract reads the `joint` binding). This is the real remaining
-      Topology-1 work.
+- [ ] **Slice B -- matched-pair joint blocks + plan-level `joint`/mate model (D3 + D6) -- NEXT.**
+      Merge hinge/dovetail/ball half-blocks into matched-pair blocks that emit both member-`union`s
+      (each with ONE mate pad); retire the lone-half `hinge_leaf`; add the plan-level `joint` entity +
+      the mate model. Most D6 sub-questions are now resolved (see design.md "D6 refinements"):
+      params via `parameters.py`; fusion in the assembled frame; pads dock member->part (not
+      pad<->pad); coaxiality is a block input that + pad docks DERIVE part poses along a mate chain
+      from a root; where/orientation is a PLAN duty (D6b), geometry only realizes the seating; the
+      `kinematics` entry is derived from the `joint`. Assembly structure is a recursive kinematic
+      TREE (D7): `placement`+`joint` unify into one parent edge (fixed or DOF); a movable edge re-poses
+      the subtree (series chains for free); flat plans = depth-1 trees (free migration); tree-only
+      (closed loops parked). Plan-tree shape DECIDED: **nested children** (Option 1); a node does NOT
+      know its parent -- it publishes a `union` interface the parent reads (the `union` type is both
+      the fuse pad and the upward attachment contract); root = the node whose edge parent is `world` =
+      the world-anchored fixed body (a plan judgment, usually the base part). **Still open before
+      buildable:** the concrete JSON schema for a nested node + its edge (fixed placement vs
+      matched-pair joint: block + params + DOF + member->parent/child fusion), and how print
+      orientation / `model_export` walk the tree instead of the flat `parts[]`.
 - [ ] **Slice C -- annotation geometry (separate change).** printed/pseudo classification +
-      mating-area (backed-by-own-union-material, foreign keep-out) + assembly-envelope keep-clear.
+      mating-area (backed-by-own-union-material, foreign keep-out) + assembly-envelope keep-clear +
+      author-declared `keep_out` zones (open-ended negative constraint, not block-owned).
       Independent of the joint blocks; spin into its own proposal.
 - [ ] **Parked -- spherical/ball contract (D5)** and **coupled/multi-DOF joints** (gimbal, helical
       screw pitch): the multi-DOF TODO. Re-open when a real model needs them.
