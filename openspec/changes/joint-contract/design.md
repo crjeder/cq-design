@@ -18,6 +18,23 @@
 >   into parent parts, possibly DIFFERENT parts; a plan-level `joint` entity binds the pair to its one
 >   parametric source so a mismatched pair is machine-caught. This is where the A/B binding actually
 >   lives -- it is only trivial when both members land in the same part; across parts it needs D6.
+> - **Mate model -- DECIDED (D6 refinements, see below).** Params live in a shared `parameters.py`
+>   (single source, no drift). Fusion is in the ASSEMBLED frame (author assembly-pose-first; print
+>   orientation is downstream). Each member carries ONE mate pad that docks it onto its PARENT part's
+>   surface (pads do NOT pair with each other; keep-out is a separate concept). Coaxiality is a block
+>   input, and it plus the pad docks DERIVE the parts' relative poses along a mate chain from a ROOT.
+>   **D6b:** where/orientation of a mate is a PLAN duty; geometry only realizes the flush-seating
+>   transform. The model-level `kinematics` entry is derived from the `joint`. Remaining open for
+>   Slice B: the `joint`/mate plan entity shape and the root-anchor plan validation.
+> - **Assembly structure -- DECIDED: recursive kinematic tree (D7).** Each node is authored in its
+>   own frame; `placement` and `joint` unify into one parent EDGE (fixed = rigid placement, movable =
+>   joint with a DOF). A movable edge re-poses the whole subtree, so series articulated chains
+>   (hinged lid carrying a snap-lock) fall out by recursion. Flat plans = depth-1 trees (migration is
+>   free; nothing breaks). Tree-only -- closed kinematic loops stay parked. Shape: **nested children**
+>   (Option 1); a node does NOT know its parent -- it PUBLISHES a `union` interface the parent READS
+>   (the `union` type is both the fuse pad and the upward attachment contract). Root = the node whose
+>   edge parent is `world` = the world-anchored, fixed body (a PLAN judgment, usually the base part).
+>   See "DECISION (D7)".
 > - **dof datum -- DECIDED: authored pose.** Limits are read from the pose the block is drawn in;
 >   revolute needs NO angular reference vector (see "dof vector model" below).
 > - **Crux 1 (satisfaction algebra) -- single-axis (revolute + prismatic) SHIPPED via
@@ -212,14 +229,144 @@ at the cost of a new plan entity and the wiring that fans one block's members ou
 parts. It also gives the joint contract (crux 1) a concrete home: the `joint` binding is where the
 `dof` relates its two named members and where the satisfaction check reads the pair.
 
-Open sub-questions for D6 (to resolve when this becomes its own change):
-- Shape of the `joint` plan entity (block + params + member→part fusion map + the dof/contract wish).
-- How a member-union fuses into a parent part that is authored by a *different* script (the
-  cross-script fan-out), and how `resolve_unions` / `model_export` learn a union's geometry comes
-  from a joint block rather than the part's own `result`.
-- Interaction with the shipped single-axis contract: today the contract reads one block's `dof` via
-  the `kinematics` entry; under D6 it would read the `joint` binding instead (or in addition).
+## D6 refinements (explore session): the mate model
 
+Later exploration resolved most of D6's open sub-questions. Recorded here.
+
+### Single source of params -- `parameters.py`
+
+The matched pair's parameters live in a generated `parameters.py` imported by every script that
+uses the block. One definition; the customer edits it, the LLM reads it back. Drift is impossible by
+construction, so the "cross-script fan-out" worry dissolves -- and the part-per-`.py` file boundary
+becomes cosmetic (everything could be one file). This is the concrete mechanism behind Option B's
+"single parametric source."
+
+### The pipeline is assembly-pose-first; fusion is in the ASSEMBLED frame
+
+An earlier draft imagined fusing each member in its part's *local* frame and reconciling later. That
+was wrong. The real flow:
+
+```
+ 1. AUTHOR in assembly pose. A joint block emits {leaf_a, leaf_b} already coaxial in the
+    ASSEMBLED frame (one block ⇒ coaxial by construction -- guarantee A).
+ 2. TRANSPOSE + FUSE, in assembled coords. Each union is placed into assembly coordinates
+    (its mate pad gives the transform), then leaf_a ∪ door, leaf_b ∪ wall -- all in the SHARED
+    frame. No part-local fusion.
+ 3. EXPORT assembly pose → the whole-model KINEMATIC CHECK (guarantee B).
+ 4. print_orientation / placement tears the unions apart and optimizes each one's bed pose
+    (already a downstream, per-union step today).
+```
+
+### Mate pads dock a member onto its PART -- they do not pair with each other
+
+Every union a block emits carries **one mate pad**: a surface/footprint that must touch a *suitable
+surface of the part's union* it fuses into. Pads are one-sided glue interfaces (member → parent
+body); `leaf_a`'s pad does **not** touch `leaf_b`'s pad. Coaxiality of the two members is NOT a pad
+concern -- it is authored by the block (guarantee A) and is an *input*, not something to check.
+(**Keep-out** areas are a separate, still-unspecified concept -- do not conflate them with mate pads.)
+
+### Coaxiality is the input that DERIVES part poses (constraint chain, not a solver)
+
+Because the block fixes `leaf_a ═ leaf_b` rigidly, and each pad docks its member onto a part, the
+two parts' relative pose is *derived through the joint*:
+
+```
+   door ◀─pad─ leaf_a ══rigid (block)══ leaf_b ─pad─▶ wall
+   ⇒ door-relative-to-wall is composed along the chain from a ROOT/datum part.
+```
+
+Assembly poses are **transform composition** along plan-declared mates from one anchored root -- not
+an optimizer. `placement` shrinks to anchoring the root; every other union's pose derives.
+
+### DECISION (D6b): where/orientation of a mate is a PLAN duty; geometry only realizes it
+
+"Derive" is narrow. The **plan** decides which surface a pad mates to, *where* on it, and at what
+orientation -- and how many joints (two hinges on the edges, one centered, three...). That is a
+design decision, not a geometric constraint to solve. The **geometry** then derives only the exact
+flush-seating transform (the offset along the surface normal so the pad sits on the face). Nothing is
+searched or solved; the plan's mate intent is *realized*. This retires the earlier "keyed pad vs
+graph-solvable / residual-DOF" worry -- the plan pins those DOFs by intent.
+
+### Two guarantees, and the kinematics entry is DERIVED
+
+- **Guarantee A (block):** the joint's own motion works in isolation (its two leaves swing 0-180
+  without self-binding). Verified by the block author once; asserted by `dof.mechanical_limit`. No
+  per-model check.
+- **Guarantee B (model):** the joint's required range clears everything else in *this* assembly.
+  This is the shipped whole-model kinematic check (moving union vs all other unions).
+
+Because the `joint` knows its block (⇒ dof/axis), its members, and which parts they fuse into, the
+model-level `kinematics` entry is **derived, not hand-written**: `moving_union` = the part a member
+fused into; the assembled axis = block `dof` ∘ that part's derived placement; `required_range` from
+the joint. The hand-written `kinematics` entry the single-axis contract shipped becomes the explicit
+fallback; the derived form is the norm once joints exist.
+
+### Remaining open for Slice B (the buildable core)
+
+- **The `joint` / mate plan entity shape (sub-Q1).** How the plan expresses: block + params (via
+  `parameters.py`), and per member `{member, part, surface, where, orientation}`. This is now the
+  main design object.
+- **Root/anchor + plan validation.** One part anchors the assembly frame; the rest derive along the
+  mate chain. Validation must catch a part left *unanchored* (dangling from the chain) or
+  *double-anchored* (conflicting mates) -- the plan-level analog of under/over-constraint.
+- **Keep-out geometry** -- still unspecified; a distinct concept from mate pads (Slice C territory).
+
+## DECISION (D7): the assembly is a recursive kinematic tree
+
+The flat model (every part placed directly into the assembled frame; a flat `kinematics[]`) is a
+special case. The real structure is a **kinematic tree** (scene graph / URDF-like):
+
+```
+   world
+     └─ box            root: its edge to world is the ONE anchor placement
+         └─ lid        edge = JOINT: revolute about the hinge, range 0–110°
+             └─ lock   edge = rigid placement (snap-fit) in the LID's frame
+```
+
+- **Each node is authored in its own local frame.** A sub-agent designs the `lid` (and its `lock`
+  child) without knowing anything about the `box`. Nodes are self-contained and reusable.
+- **`placement` and `joint` unify into one parent edge.** Every node has exactly one edge to its
+  parent: a **fixed** edge (rigid placement) or a **movable** edge (a joint with a DOF + range). A
+  fixed edge is just a joint with zero range. The root's "placement into world" is its edge to the
+  `world` node.
+- **A movable edge re-poses the whole subtree.** Sweeping the hinge 0→110° rotates the `lid` frame,
+  so `lock` (a child of `lid`) rides along automatically. This is how series articulated chains work
+  (TODO "a moving union carries other unions") -- by recursion, not special-casing. The
+  hinged-lid-with-snap-lock example falls out for free.
+- **The sweep re-scopes to subtrees.** Today: `moving_union` vs "every other union". Tree: vary a
+  joint edge → recompute its **subtree's** world poses → collide the moving subtree against the rest.
+  The shipped kinematic check is the depth-1 leaf case; the dof/contract math is unchanged -- only the
+  frame composition feeding it becomes recursive.
+
+**Tree-only (scope boundary).** A tree has one path root→node, so this covers series chains but NOT
+closed kinematic loops (a 4-bar linkage; a part hinged to two others). Closed loops need constraint
+solving and stay in the parked multi-DOF/coupled territory.
+
+**Migration (decided): flat plans are depth-1 trees.** Every existing part becomes a child of `world`
+carrying its current `placement` as its (fixed) edge. The shipped pipeline is exactly the depth-1
+instance, so nothing breaks; nesting is the generalization.
+
+### The plan-tree shape (decided)
+
+- **Nested children (Option 1).** The plan tree is expressed by nesting: each node carries its
+  children and the edge to each. This mirrors the recursive structure literally. (The alternative --
+  a flat `parts[]` + an edge list keyed by parent -- was considered and set aside; nesting matches the
+  "author a node, declare its children" mental model.) Existing flat plans map on as depth-1 trees
+  (every part a child of `world` with its current `placement` as a fixed edge).
+- **A node does NOT know its parent; it PUBLISHES a `union` interface the parent READS.** A sub-part
+  is authored in its own frame and *publishes* its `union` interface -- "here is my fuse pad and its
+  pose in my frame" -- without knowing or naming who will read it. The **parent** reads that interface
+  to transpose and fuse the child. So the child stays self-contained (publishes a contract, references
+  no consumer), and the shipped `union` interface type does double duty: the member's fuse-into-parent
+  pad AND the node's upward attachment contract. One concept, both roles -- no new primitive. The
+  parent→child edge (fixed placement or a matched-pair joint) is owned by the parent side and names
+  the block+params, the DOF, and which member fuses into parent vs child.
+- **Root = the world anchor = the fixed body.** The root is the node whose edge parent is `world`; it
+  is anchored to the world frame and is the body held fixed in the kinematic sweep, with every
+  descendant moving relative to it. Choosing the root is a PLAN judgment (usually the base / ground
+  part -- the thing bolted to the world), not a geometric one; re-rooting a tree is always
+  geometrically valid because relative motion is symmetric, but the sensible rooting is the one that
+  matches what is actually fixed in reality.
 ## dof vector model (D4): two/three vectors in block coordinates, datum = authored pose
 
 DECIDED. A `dof` carries its geometry as vectors in **block coordinates**; the assembled-frame axis
@@ -252,10 +399,11 @@ relative to it. A stored `reference` would only be needed to decouple 0 from the
 The model needs a classification it lacks today:
 
 ```
-   BLOCK-DECLARED INTENT                          printed?  swept?  checked?
+   DECLARED INTENT (block or author)               printed?  swept?  checked?
    1. JOINT CONTRACT    what MOVES (A↔B, moves[])    —        ✓        ✓
    2. MATING AREA       WHERE to connect (2D)         ✓        —        ✓   keep-out
    3. ASSEMBLY ENVELOPE keep-CLEAR-to-assemble (3D)   ✗        ✗        ✓   pseudo
+   4. KEEP-OUT ZONE     author no-go volume (any 3D)  ✗        ✗        ✓   pseudo
 ```
 
 - **printed** geometry is exported and swept.
@@ -279,6 +427,30 @@ moving body), but printed geometry must not intrude on it or assembly is blocked
 keep-clear twin of the 2D mate-area keep-out, and is distinct from the model's own running-clearance
 gaps.
 
+### Declared keep-out zones (open-ended, not block-owned)
+
+Mating-area and assembly-envelope keep-out are both BLOCK-declared: their shape and placement are
+fixed by whoever wrote the block. A fourth case belongs to no block at all -- the **LLM (or user)
+may declare a keep-out zone at will**, during planning or part authoring, as a *note to self*: a
+negative constraint for a reason a block can't express (a screwdriver's swing to reach a boss, a
+wire run reserved for a later part, clearance around a heat-set insert, "leave this corner alone,
+it'll foul the enclosure lid"). Shape is unconstrained -- a union of primitives, in practice usually
+one primitive (a box or cylinder).
+
+The world carries every declared zone in one reserved union, `keep_out` (pseudo, per the
+classification above: not printed, not swept, but checked). Any number of zones fuse into it; it
+belongs to the world, not to any one part.
+
+Gate check, run during the design loop like the other pseudo checks: every OTHER union's geometry
+is intersected against `keep_out`. Any overlap rejects the design -- the OFFENDING geometry (not the
+zone) is what gets redesigned. `keep_out` is itself exempt from export, from the kinematic sweep,
+and from being checked against itself.
+
+Mating-area and assembly-envelope keep-out (rows 2-3 above) are the two BLOCK-authored special
+cases of this same underlying mechanism; `keep_out` (row 4) is the general, freeform, author-declared
+case -- open-ended by design, since the author can't enumerate every reason to reserve a volume up
+front.
+
 ## Target pipeline ordering
 
 ```
@@ -300,6 +472,7 @@ check consumes. Target: solve on live geometry, export the deliverable only once
   revolute-vs-ball_socket gap.
 - **Mate-area checks:** backed-by-own-union-material, and foreign keep-out.
 - **Assembly-envelope check:** no printed geometry intrudes on a declared keep-clear volume.
+- **Keep-out-zone check:** no union's geometry intrudes on the world's declared `keep_out` union.
 
 ## Cruxes
 
