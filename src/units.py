@@ -9,6 +9,7 @@ namespace that `kinematics.moving_union`, plate grouping, and per-union export r
 No CadQuery import here, so `plan_validate` (CadQuery-free) can use `iter_unions`.
 """
 
+from collections.abc import Iterator
 from typing import Any
 
 
@@ -64,3 +65,19 @@ def resolve_unions(part: dict, result: Any) -> list[tuple[str, Any]]:
             "dict of union id -> Workplane"
         )
     return [(pid, result)]
+
+
+def iter_kinematics_entries(kinematics: list[dict]) -> Iterator[dict]:
+    """Flatten a kinematics forest: yield every entry at every nesting depth, depth-first.
+
+    Each entry MAY declare `children` -- nested entries mounted on its `moving_union`. A
+    top-level entry (not nested under any other entry's `children`) is mounted on the
+    static frame. A child is nested directly inside its parent's JSON object, so the tree
+    is acyclic by construction -- no cycle handling needed.
+
+    Passing a single entry wrapped in a list (``iter_kinematics_entries([entry])``) yields
+    that entry's own swept subtree: itself plus every descendant.
+    """
+    for entry in kinematics:
+        yield entry
+        yield from iter_kinematics_entries(entry.get("children", []))

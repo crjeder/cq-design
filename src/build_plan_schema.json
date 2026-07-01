@@ -209,36 +209,8 @@
     },
     "kinematics": {
       "type": "array",
-      "description": "Declared range-of-motion checks for articulating joints. Each entry sweeps a moving union through its required range against every other union in the assembled model. Optional; absent or empty skips the kinematic stage.",
-      "items": {
-        "type": "object",
-        "required": ["joint_id", "moving_union", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "step"],
-        "additionalProperties": false,
-        "properties": {
-          "joint_id": {"type": "string", "description": "Unique identifier for this joint"},
-          "moving_union": {"type": "string", "description": "Union (part id) that moves; the fixed set is every other union in the model"},
-          "block": {"type": "string", "description": "Joint block name from inventory.json (must carry a dof)"},
-          "axis_origin_mm": {
-            "type": "array",
-            "items": {"type": "number"},
-            "minItems": 3,
-            "maxItems": 3,
-            "description": "Assembled-frame pivot point [x, y, z] in mm"
-          },
-          "axis_dir": {"type": "string", "enum": ["X", "Y", "Z"], "description": "Assembled-frame joint axis direction"},
-          "type": {"type": "string", "enum": ["revolute", "prismatic", "spherical"], "description": "Joint kinematic type"},
-          "required_range": {
-            "type": "array",
-            "items": {"type": "number"},
-            "minItems": 2,
-            "maxItems": 2,
-            "description": "Range [lo, hi] the design requires, RELATIVE to the union's authored pose (zero), in the field unit. May be negative and may straddle zero (e.g. [-30, 90])."
-          },
-          "lo_inclusive": {"type": "boolean", "default": true, "description": "Whether the lower bound must be cleared (closed). False = open: lo need not be reached and a collision exactly at lo is not reported."},
-          "hi_inclusive": {"type": "boolean", "default": true, "description": "Whether the upper bound must be cleared (closed). False = open."},
-          "step": {"type": "number", "exclusiveMinimum": 0, "description": "Sweep increment in the derived unit (deg for revolute/spherical, mm for prismatic)"}
-        }
-      }
+      "description": "Declared range-of-motion checks for articulating joints, nested into a tree via `children`. Each entry sweeps its moving union (plus everything nested under its `children`) through its required range against every union outside that subtree. Optional; absent or empty skips the kinematic stage.",
+      "items": {"$ref": "#/definitions/kinematics_entry"}
     },
     "constraints": {
       "type": "object",
@@ -260,6 +232,42 @@
           "type": "number",
           "minimum": 0,
           "description": "Tolerance for dimension mismatch check"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "kinematics_entry": {
+      "type": "object",
+      "required": ["joint_id", "moving_union", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "step"],
+      "additionalProperties": false,
+      "properties": {
+        "joint_id": {"type": "string", "description": "Unique identifier for this joint"},
+        "moving_union": {"type": "string", "description": "Union (part id) that moves"},
+        "block": {"type": "string", "description": "Joint block name from inventory.json (must carry a dof)"},
+        "axis_origin_mm": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Assembled-frame pivot point [x, y, z] in mm"
+        },
+        "axis_dir": {"type": "string", "enum": ["X", "Y", "Z"], "description": "Assembled-frame joint axis direction"},
+        "type": {"type": "string", "enum": ["revolute", "prismatic", "spherical"], "description": "Joint kinematic type"},
+        "required_range": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Range [lo, hi] the design requires, RELATIVE to the union's authored pose (zero), in the field unit. May be negative and may straddle zero (e.g. [-30, 90])."
+        },
+        "lo_inclusive": {"type": "boolean", "default": true, "description": "Whether the lower bound must be cleared (closed). False = open: lo need not be reached and a collision exactly at lo is not reported."},
+        "hi_inclusive": {"type": "boolean", "default": true, "description": "Whether the upper bound must be cleared (closed). False = open."},
+        "step": {"type": "number", "exclusiveMinimum": 0, "description": "Sweep increment in the derived unit (deg for revolute/spherical, mm for prismatic)"},
+        "children": {
+          "type": "array",
+          "description": "Nested kinematics entries mounted on this entry's moving_union, recursively forming the joint tree. Omitted/empty means nothing else is mounted on this joint. An entry not listed in any other entry's children is itself mounted on the static frame.",
+          "items": {"$ref": "#/definitions/kinematics_entry"}
         }
       }
     }

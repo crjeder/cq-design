@@ -136,6 +136,58 @@ def test_print_in_place_two_unions_one_plate_is_swept(blocking_stls):
     assert any(i["type"] == "motion_collision" for i in issues)
 
 
+# ---- recursive kinematics tree: children are carried, not treated as fixed --------
+
+
+def test_child_union_carried_along_no_false_collision(tmp_path):
+    # forearm sits exactly where the pre-fix "every other union is fixed" model would
+    # have reported a false collision against the swept shoulder (same geometry as
+    # blocking_stls above). Nested as a child of shoulder, it must be carried along
+    # instead of treated as a fixed obstacle.
+    _box_stl(tmp_path / "shoulder.stl", (10, 10, 10), (20, 0, 0))
+    _box_stl(tmp_path / "forearm.stl", (10, 10, 10), (0, 14, 0))
+    # required_range [0, 0]: only the identity pose is evaluated for the child's own
+    # independent sweep (every entry is still checked on its own), which keeps this
+    # fixture focused on the parent's carry-along behavior.
+    child = _revolute_entry([0, 0], moving="forearm", step=5, joint_id="elbow")
+    shoulder = _revolute_entry(
+        [0, 90], moving="shoulder", joint_id="shoulder_joint", children=[child]
+    )
+    plan = _plan([shoulder], part_ids=("shoulder", "forearm"))
+    issues = run_kinematic_check(plan, str(tmp_path))
+    assert not [i for i in issues if i["type"] == "motion_collision"]
+
+
+def test_unrelated_fixed_union_still_collides_child_excluded(tmp_path):
+    # torso is unrelated and fixed, sitting in shoulder's swept arc: it must still be
+    # reported. forearm is a child (rides along) placed clear of everything, so it must
+    # NOT appear in the fixed set or in any collision report.
+    _box_stl(tmp_path / "shoulder.stl", (10, 10, 10), (20, 0, 0))
+    _box_stl(tmp_path / "forearm.stl", (10, 10, 10), (100, 100, 0))
+    _box_stl(tmp_path / "torso.stl", (10, 10, 10), (0, 14, 0))
+    child = _revolute_entry([0, 0], moving="forearm", step=5, joint_id="elbow")
+    shoulder = _revolute_entry(
+        [0, 90], moving="shoulder", joint_id="shoulder_joint", children=[child]
+    )
+    plan = _plan([shoulder], part_ids=("shoulder", "forearm", "torso"))
+    issues = run_kinematic_check(plan, str(tmp_path))
+    collisions = [
+        i for i in issues if i["type"] == "motion_collision" and i["joint_id"] == "shoulder_joint"
+    ]
+    assert len(collisions) == 1
+    assert collisions[0]["colliding_union"] == ["torso"]
+
+
+def test_no_children_field_is_unaffected(tmp_path):
+    # Regression: a plan with no `children` fields (today's flat kinematics array)
+    # behaves exactly as before -- fixed set is every other union in the model.
+    _box_stl(tmp_path / "base.stl", (10, 10, 10), (0, 0, 0))
+    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
+    plan = _plan([_revolute_entry([0, 90])])
+    issues = run_kinematic_check(plan, str(tmp_path))
+    assert not [i for i in issues if i["type"] == "motion_collision"]
+
+
 def test_pin_hinge_leaf_swept_against_other_leaf(tmp_path):
     # A print-in-place pin_hinge part declares its two leaf unions (leaf_a, leaf_b) on
     # one plate; the sweep runs leaf_a against leaf_b -- the hinge's own motion -- rather

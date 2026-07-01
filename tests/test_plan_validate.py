@@ -323,3 +323,63 @@ def test_contract_spherical_joint_is_skipped(plan_file):
     plan = _plan_with_joint(block="ball_socket", type="spherical", axis_dir="Z")
     errors = validate_plan(plan_file(plan))
     assert not any("Kinematics 'j1'" in e for e in errors)
+
+
+# ---- nested `children` (recursive kinematics tree) ---------------------------
+
+
+def _joint_entry(joint_id, moving_union, **extra):
+    entry = {
+        "joint_id": joint_id,
+        "moving_union": moving_union,
+        "block": "pin_hinge",
+        "axis_origin_mm": [0, 0, 0],
+        "axis_dir": "Y",
+        "type": "revolute",
+        "required_range": [0, 90],
+        "step": 5,
+    }
+    entry.update(extra)
+    return entry
+
+
+def test_nested_child_entry_is_validated(plan_file):
+    # A validation failure in a nested `children` entry is still reported.
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "shoulder"}, {"id": "forearm"}]
+    forearm = _joint_entry("elbow", "forearm", block="no_such_block")
+    shoulder = _joint_entry("shoulder_joint", "shoulder", children=[forearm])
+    plan["kinematics"] = [shoulder]
+    errors = validate_plan(plan_file(plan))
+    assert any("unknown block 'no_such_block'" in e for e in errors)
+
+
+def test_three_level_nested_chain_failure_is_reported(plan_file):
+    # A validation failure three levels deep under `children` is still reported.
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "shoulder"}, {"id": "forearm"}, {"id": "hand"}]
+    hand = _joint_entry("wrist", "hand", block="no_such_block")
+    forearm = _joint_entry("elbow", "forearm", children=[hand])
+    shoulder = _joint_entry("shoulder_joint", "shoulder", children=[forearm])
+    plan["kinematics"] = [shoulder]
+    errors = validate_plan(plan_file(plan))
+    assert any("unknown block 'no_such_block'" in e for e in errors)
+
+
+def test_three_level_nested_chain_passes(plan_file):
+    # A deeply nested valid chain (shoulder -> forearm -> hand) passes.
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "shoulder"}, {"id": "forearm"}, {"id": "hand"}]
+    hand = _joint_entry("wrist", "hand")
+    forearm = _joint_entry("elbow", "forearm", children=[hand])
+    shoulder = _joint_entry("shoulder_joint", "shoulder", children=[forearm])
+    plan["kinematics"] = [shoulder]
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
+
+
+def test_top_level_entry_with_no_children_is_unaffected(plan_file):
+    # Regression: an entry with no `children` behaves exactly as before this field existed.
+    plan = _plan_with_joint()
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
