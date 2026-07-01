@@ -18,6 +18,14 @@
 >   into parent parts, possibly DIFFERENT parts; a plan-level `joint` entity binds the pair to its one
 >   parametric source so a mismatched pair is machine-caught. This is where the A/B binding actually
 >   lives -- it is only trivial when both members land in the same part; across parts it needs D6.
+> - **Mate model -- DECIDED (D6 refinements, see below).** Params live in a shared `parameters.py`
+>   (single source, no drift). Fusion is in the ASSEMBLED frame (author assembly-pose-first; print
+>   orientation is downstream). Each member carries ONE mate pad that docks it onto its PARENT part's
+>   surface (pads do NOT pair with each other; keep-out is a separate concept). Coaxiality is a block
+>   input, and it plus the pad docks DERIVE the parts' relative poses along a mate chain from a ROOT.
+>   **D6b:** where/orientation of a mate is a PLAN duty; geometry only realizes the flush-seating
+>   transform. The model-level `kinematics` entry is derived from the `joint`. Remaining open for
+>   Slice B: the `joint`/mate plan entity shape and the root-anchor plan validation.
 > - **dof datum -- DECIDED: authored pose.** Limits are read from the pose the block is drawn in;
 >   revolute needs NO angular reference vector (see "dof vector model" below).
 > - **Crux 1 (satisfaction algebra) -- single-axis (revolute + prismatic) SHIPPED via
@@ -212,13 +220,87 @@ at the cost of a new plan entity and the wiring that fans one block's members ou
 parts. It also gives the joint contract (crux 1) a concrete home: the `joint` binding is where the
 `dof` relates its two named members and where the satisfaction check reads the pair.
 
-Open sub-questions for D6 (to resolve when this becomes its own change):
-- Shape of the `joint` plan entity (block + params + member→part fusion map + the dof/contract wish).
-- How a member-union fuses into a parent part that is authored by a *different* script (the
-  cross-script fan-out), and how `resolve_unions` / `model_export` learn a union's geometry comes
-  from a joint block rather than the part's own `result`.
-- Interaction with the shipped single-axis contract: today the contract reads one block's `dof` via
-  the `kinematics` entry; under D6 it would read the `joint` binding instead (or in addition).
+## D6 refinements (explore session): the mate model
+
+Later exploration resolved most of D6's open sub-questions. Recorded here.
+
+### Single source of params -- `parameters.py`
+
+The matched pair's parameters live in a generated `parameters.py` imported by every script that
+uses the block. One definition; the customer edits it, the LLM reads it back. Drift is impossible by
+construction, so the "cross-script fan-out" worry dissolves -- and the part-per-`.py` file boundary
+becomes cosmetic (everything could be one file). This is the concrete mechanism behind Option B's
+"single parametric source."
+
+### The pipeline is assembly-pose-first; fusion is in the ASSEMBLED frame
+
+An earlier draft imagined fusing each member in its part's *local* frame and reconciling later. That
+was wrong. The real flow:
+
+```
+ 1. AUTHOR in assembly pose. A joint block emits {leaf_a, leaf_b} already coaxial in the
+    ASSEMBLED frame (one block ⇒ coaxial by construction -- guarantee A).
+ 2. TRANSPOSE + FUSE, in assembled coords. Each union is placed into assembly coordinates
+    (its mate pad gives the transform), then leaf_a ∪ door, leaf_b ∪ wall -- all in the SHARED
+    frame. No part-local fusion.
+ 3. EXPORT assembly pose → the whole-model KINEMATIC CHECK (guarantee B).
+ 4. print_orientation / placement tears the unions apart and optimizes each one's bed pose
+    (already a downstream, per-union step today).
+```
+
+### Mate pads dock a member onto its PART -- they do not pair with each other
+
+Every union a block emits carries **one mate pad**: a surface/footprint that must touch a *suitable
+surface of the part's union* it fuses into. Pads are one-sided glue interfaces (member → parent
+body); `leaf_a`'s pad does **not** touch `leaf_b`'s pad. Coaxiality of the two members is NOT a pad
+concern -- it is authored by the block (guarantee A) and is an *input*, not something to check.
+(**Keep-out** areas are a separate, still-unspecified concept -- do not conflate them with mate pads.)
+
+### Coaxiality is the input that DERIVES part poses (constraint chain, not a solver)
+
+Because the block fixes `leaf_a ═ leaf_b` rigidly, and each pad docks its member onto a part, the
+two parts' relative pose is *derived through the joint*:
+
+```
+   door ◀─pad─ leaf_a ══rigid (block)══ leaf_b ─pad─▶ wall
+   ⇒ door-relative-to-wall is composed along the chain from a ROOT/datum part.
+```
+
+Assembly poses are **transform composition** along plan-declared mates from one anchored root -- not
+an optimizer. `placement` shrinks to anchoring the root; every other union's pose derives.
+
+### DECISION (D6b): where/orientation of a mate is a PLAN duty; geometry only realizes it
+
+"Derive" is narrow. The **plan** decides which surface a pad mates to, *where* on it, and at what
+orientation -- and how many joints (two hinges on the edges, one centered, three...). That is a
+design decision, not a geometric constraint to solve. The **geometry** then derives only the exact
+flush-seating transform (the offset along the surface normal so the pad sits on the face). Nothing is
+searched or solved; the plan's mate intent is *realized*. This retires the earlier "keyed pad vs
+graph-solvable / residual-DOF" worry -- the plan pins those DOFs by intent.
+
+### Two guarantees, and the kinematics entry is DERIVED
+
+- **Guarantee A (block):** the joint's own motion works in isolation (its two leaves swing 0-180
+  without self-binding). Verified by the block author once; asserted by `dof.mechanical_limit`. No
+  per-model check.
+- **Guarantee B (model):** the joint's required range clears everything else in *this* assembly.
+  This is the shipped whole-model kinematic check (moving union vs all other unions).
+
+Because the `joint` knows its block (⇒ dof/axis), its members, and which parts they fuse into, the
+model-level `kinematics` entry is **derived, not hand-written**: `moving_union` = the part a member
+fused into; the assembled axis = block `dof` ∘ that part's derived placement; `required_range` from
+the joint. The hand-written `kinematics` entry the single-axis contract shipped becomes the explicit
+fallback; the derived form is the norm once joints exist.
+
+### Remaining open for Slice B (the buildable core)
+
+- **The `joint` / mate plan entity shape (sub-Q1).** How the plan expresses: block + params (via
+  `parameters.py`), and per member `{member, part, surface, where, orientation}`. This is now the
+  main design object.
+- **Root/anchor + plan validation.** One part anchors the assembly frame; the rest derive along the
+  mate chain. Validation must catch a part left *unanchored* (dangling from the chain) or
+  *double-anchored* (conflicting mates) -- the plan-level analog of under/over-constraint.
+- **Keep-out geometry** -- still unspecified; a distinct concept from mate pads (Slice C territory).
 
 ## dof vector model (D4): two/three vectors in block coordinates, datum = authored pose
 

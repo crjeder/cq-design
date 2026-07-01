@@ -41,13 +41,16 @@ Slices:
       dof vector model (D4) + type/axis/range satisfaction in `plan_validate._check_kinematics`,
       revolute + prismatic. Closed the `unit==`-only hole. NOTE: this slice was scoped
       contract-check-ONLY -- it did NOT merge the half-blocks (that is Slice B below).
-- [ ] **Slice B -- matched-pair joint blocks + plan-level `joint` binding (D3 + D6) -- NEXT.** Merge
-      hinge/dovetail/ball half-blocks into matched-pair blocks that emit both member-`union`s; retire
-      the lone-half `hinge_leaf`; add the plan-level `joint` entity that binds the pair to one
-      parametric source and fans each member into its parent part (possibly a different part). Resolve
-      the D6 open sub-questions first (joint entity shape; cross-script member fan-out via the `union`
-      interface; how the shipped contract reads the `joint` binding). This is the real remaining
-      Topology-1 work.
+- [ ] **Slice B -- matched-pair joint blocks + plan-level `joint`/mate model (D3 + D6) -- NEXT.**
+      Merge hinge/dovetail/ball half-blocks into matched-pair blocks that emit both member-`union`s
+      (each with ONE mate pad); retire the lone-half `hinge_leaf`; add the plan-level `joint` entity +
+      the mate model. Most D6 sub-questions are now resolved (see design.md "D6 refinements"):
+      params via `parameters.py`; fusion in the assembled frame; pads dock member->part (not
+      pad<->pad); coaxiality is a block input that + pad docks DERIVE part poses along a mate chain
+      from a root; where/orientation is a PLAN duty (D6b), geometry only realizes the seating; the
+      `kinematics` entry is derived from the `joint`. **Still open before buildable:** (1) the
+      `joint`/mate plan-entity SHAPE (block + params + per-member `{member, part, surface, where,
+      orientation}`); (2) root-anchor plan validation (catch unanchored/double-anchored parts).
 - [ ] **Slice C -- annotation geometry (separate change).** printed/pseudo classification +
       mating-area (backed-by-own-union-material, foreign keep-out) + assembly-envelope keep-clear.
       Independent of the joint blocks; spin into its own proposal.
