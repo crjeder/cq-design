@@ -818,57 +818,6 @@
     ]
   },
   {
-    "name": "hinge_leaf",
-    "module": "blocks.joints",
-    "function": "hinge_leaf",
-    "motion": "hinge",
-    "reversible": false,
-    "carries": [
-      "shear-xy"
-    ],
-    "dof": {
-      "type": "revolute",
-      "direction": [
-        0,
-        1,
-        0
-      ],
-      "origin": [
-        0,
-        0,
-        0
-      ],
-      "mechanical_limit": [
-        0,
-        180
-      ]
-    },
-    "use": "One leaf of a knuckle hinge (one rotational DOF). Call twice with side 'A' and 'B' for the meshing pair; the leaves lie on opposite sides of the pin axis and the knuckles interleave. variant='pin' bores a hole for a separate pin/filament; variant='print_in_place' prints both leaves as one assembly through the clearance gaps. PRINT FLAT with the leaf on the bed and the hinge axis (Y) in the build plane (leaves print great this way). The knuckles then lie as horizontal cylinders: their lower quadrants are convex overhangs that self-support, and the pin bore prints as a short horizontal bridge - keep d_pin small (~3 mm) so it bridges cleanly, or insert a separate pin. For print_in_place the clearance gap must exceed one layer height to avoid fusing.",
-    "params": {
-      "length": "mm total hinge length along the axis (Y)",
-      "knuckles": "count of knuckle segments across the length",
-      "d_outer": "mm knuckle outer diameter",
-      "d_pin": "mm pin hole diameter (used when variant='pin')",
-      "leaf_w": "mm flat leaf width (X)",
-      "leaf_t": "mm flat leaf thickness (Z)",
-      "clearance": "mm axial gap between adjacent knuckles, default 0.3",
-      "side": "'A' fills even positions, 'B' fills odd positions",
-      "variant": "'pin' bores a pin hole; 'print_in_place' leaves knuckles solid"
-    },
-    "dimensions": null,
-    "interfaces": [
-      {
-        "type": "joint_axis",
-        "orientation": "+Y",
-        "origin": [
-          0,
-          0,
-          0
-        ]
-      }
-    ]
-  },
-  {
     "name": "pin_hinge",
     "module": "blocks.joints",
     "function": "pin_hinge",
@@ -894,7 +843,7 @@
         180
       ]
     },
-    "use": "A NORMAL revolute knuckle hinge - treat it kinematically like any door hinge (one rotational DOF about +Y, 0-180 deg). Two RIGID leaves rotate freely about a separate pin threaded through interleaved knuckles; the pin is a snipped strand of 1.75 mm filament, but the motion is the free rotation of the pin, NOT material flex. This is NOT a living_hinge (which has no pin and bends a thin web instead) - choose pin_hinge when you need a durable, freely rotating, near-frictionless pivot. Returns BOTH leaves interleaved on a shared axis as one print-in-place body (unlike hinge_leaf, which returns one leaf for two separate parts); push a piece of filament through the coaxial bore as the pivot pin after printing. Knuckle outer diameter is d_filament + 2 mm. PRINT FLAT with the knuckle axis (Y) in the build plane so the bore bridges cleanly and the undersides self-support; clearance between knuckles must exceed one layer height to avoid fusing. d_filament default 1.9 gives a slip fit over 1.75 mm filament (FDM holes print undersized). For whole-model kinematic validation, model the two leaves as TWO unions (two parts) sharing one plate, not a single combined body: the sweep needs each leaf as its own assembled mesh. The shared pin makes no kinematic difference - treat it exactly like any pinned hinge.",
+    "use": "A NORMAL revolute knuckle hinge - treat it kinematically like any door hinge (one rotational DOF about +Y, 0-180 deg). Two RIGID leaves rotate freely about a separate pin threaded through interleaved knuckles; the pin is a snipped strand of 1.75 mm filament, but the motion is the free rotation of the pin, NOT material flex. This is NOT a living_hinge (which has no pin and bends a thin web instead) - choose pin_hinge when you need a durable, freely rotating, near-frictionless pivot. Returns the two leaves as named member unions leaf_a and leaf_b (a dict of two Workplanes); declare them as the part unions [{id: leaf_a}, {id: leaf_b}]. Push a piece of filament through the coaxial bore as the pivot pin after printing. Knuckle outer diameter is d_filament + 2 mm. PRINT FLAT with the knuckle axis (Y) in the build plane so the bore bridges cleanly and the undersides self-support; clearance between knuckles must exceed one layer height to avoid fusing. d_filament default 1.9 gives a slip fit over 1.75 mm filament (FDM holes print undersized). For whole-model kinematic validation the two leaves are its two unions leaf_a/leaf_b (sharing one plate for print-in-place): the sweep needs each leaf as its own assembled mesh. The shared pin makes no kinematic difference - treat it exactly like any pinned hinge.",
     "params": {
       "length": "mm total hinge length along the axis (Y)",
       "knuckles": "count of knuckle segments across the length",
