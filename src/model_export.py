@@ -6,8 +6,8 @@ Each part in the build plan is a union (one rigid body). This loads every part's
 part reached via a `joints` mate chain, by its derived pose (`mate_chain.py`) instead --
 and emits:
 
-  1. one 3MF with each union as a separately named object carrying its `plate`
-     metadata (assembled pose baked in; operator re-distributes objects to plates),
+  1. one 3MF with each union as a separately named object, pre-assigned to its
+     `plate` on import in Bambu Studio / OrcaSlicer (assembled pose baked in),
   2. one assembled-pose STL per union (the kinematic check's input),
   3. one fused STL per plate that holds more than one union (STL cannot carry
      multiple objects in fixed relative pose).

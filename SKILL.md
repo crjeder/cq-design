@@ -146,6 +146,30 @@ Collect the following before generating the plan. Ask if any are missing:
 
 **Never guess dimensions for real-world products** (phones, PCBs, connectors, screens). Search for the exact spec first. Cross-reference at least two sources. Use -1 as a placeholder if a dimension cannot be verified, then ask the user before finalizing the plan.
 
+### Topology clarification
+
+Some requests describe a 3D shape in words with more than one plausible reading — a
+"recessed pit" vs. a raised rim, a taper that could be wide-at-top or wide-at-bottom, a
+bare dimension with no stated reference ("the base is 6.5mm high" — of the whole part,
+or of one internal feature?), a feature that could sit on top of vs. inside another. A
+wrong dimension is a parameter edit; a wrong topology is a full rebuild of every part
+built on that assumption — so resolve shape ambiguity before spending any effort on
+size.
+
+If the request contains topology ambiguity, do not guess and proceed. Illustrate your
+reading of the shape and ask the user to confirm or correct it before generating
+`BUILD_PLAN.json`:
+
+- If a diagram/visualization tool is available in this session, render a small labeled
+  2D cross-section.
+- Otherwise, draw an ASCII cross-section directly in the chat message — a few lines
+  showing the profile, labeled with which dimension is which.
+
+Pair the sketch with a direct either/or question naming both readings, e.g. "Is this
+the pit recessed *into* the top face, 6.5mm deep, or a rim standing *proud* of it?" —
+not an open-ended "does this look right?" Wait for the user's confirmation before
+continuing to dimension lookups or the plan.
+
 ### Dimension lookup with Playwright
 
 When a real product is mentioned, use the Playwright MCP to fetch its spec page before writing a single dimension into the plan.
@@ -301,6 +325,20 @@ uses.
 |----------|-------------|---------------|
 | `<wall_min_mm>` mm | `<overhang_max_deg>` deg | `<dimension_tolerance_mm>` mm |
 
+**Design proposals** (omit section if `planning_notes` proposes nothing)
+
+Surface any proposal the planning step made on its own initiative — most commonly the
+`shadow_gap` block (`blocks.joints`) on a visible multi-part seam (see
+`prompts/planning.md` rule 12) — as an explicit line the user can accept or decline,
+e.g.:
+
+> Proposed: `shadow_gap` along the quadrant seams (visible on the finished piece) —
+> a return-lip on the front member with a ~1 mm reveal, so fit tolerance shows as a
+> deliberate line instead of a raw gap. Reply to decline for a flush seam.
+
+Do not let this sit silently inside `planning_notes` where the user won't see it —
+it must appear in the chat-visible summary.
+
 After displaying the summary, wait for the user to approve or request edits. If the user edits `BUILD_PLAN.json` on disk before confirming, re-validate from disk before proceeding to Phase 3.
 
 ---
@@ -393,13 +431,24 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
 
 Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `dimension_mismatch`, `occ_exception`.
 
+**Targeted sections for off-center features.** The default `--cross-sections` cuts
+each of X/Y/Z through the part's bounding-box center only. If this part unions a
+feature (a boss, tab, dovetail, rib) into a body that already has a cavity (pit,
+pocket, shell) elsewhere in the same script, and that feature's XY position is
+**not** at the bounding-box center, the default cuts will not pass through it and
+cannot reveal a feature that pokes into the cavity (see `CadQuery Pattern
+Reference.md` gotcha 12). Add one `--extra-section axis=value_mm` per such feature
+position (repeatable), e.g. `--extra-section x=50 --extra-section x=110` for two
+seam tabs at x=50 and x=110, so the checklist item 8 review in Step 4 actually has
+a section that crosses the feature to look at.
+
 **Step 4 — Decide**
 
 Handle geometry errors first, then the visual self-review. A part is done only
 when geometry validation passes AND the visual self-review confirms intent.
 
 1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the visual review for this attempt.
-2. **`success: true` AND no blocking errors** → run the **visual self-review**: examine the preview PNG against every item in `reference/Visual Review Checklist.md` (shape match, feature completeness, feature placement, proportions, connected geometry, flat bed face, orientation), judged against this part's entry in `BUILD_PLAN.json`.
+2. **`success: true` AND no blocking errors** → run the **visual self-review**: examine the preview PNG against every item in `reference/Visual Review Checklist.md` (shape match, feature completeness, feature placement, proportions, connected geometry, flat bed face, orientation), judged against this part's entry in `BUILD_PLAN.json`. For item 8, confirm every unioned-after-a-cavity feature was actually crossed by a section (the default center cuts or an added `--extra-section`) — an off-center feature with no section through it is not a verified pass, it's an unchecked blind spot.
    - **All checklist items pass** → part done. Record `geometry.bbox`. Display the preview PNG. Advance to next part.
    - **Any item fails** AND attempt < 3 → record a `visual_mismatch` finding naming the failed item(s) and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3).
 3. **Attempt 3 exhausted** with remaining geometry errors or an unresolved `visual_mismatch` → summarize the remaining errors and any visual mismatch to the user. Ask conversationally: provide a hint, accept the part as-is, or skip this part.
@@ -430,6 +479,31 @@ For each stage, in order:
 **Completion bar:** a progressively built part is done only when its final geometry
 satisfies the plan dimensions within tolerance AND passes the **full** visual self-review —
 the same bar as the autonomous path. Progressive build does not lower the criteria.
+
+### Design approval checkpoint
+
+Once every part in `plan["parts"]` has passed its part loop (autonomous or
+progressive), stop before optimizing print orientation or exporting anything. The
+per-part visual self-review in Step 4 is Claude checking a render against the plan's
+own checklist — it is not the user checking the render against what they actually
+pictured. A part can pass that checklist and still be wrong in the user's eyes, and
+nothing upstream of this point has asked them to look.
+
+Display every part's final preview PNG together in one message (re-display ones shown
+earlier in the loop; don't assume the user still has them in view) and ask directly:
+
+> Here's every part as modeled. Does this match what you had in mind? Reply to
+> approve, or describe what to change.
+
+- **Approve** → continue to print-orientation optimization.
+- **Request a change** → identify the affected part(s), re-enter that part's loop
+  (Step 2 onward) with the user's feedback as a targeted edit, re-validate (Step 3),
+  re-review (Step 4), then re-present this checkpoint with the updated renders.
+
+Skip this checkpoint only when the user has explicitly asked for a fully autonomous
+run with no checkpoints (see Build mode override above) — in that case still display
+the previews for the record, but proceed straight to print-orientation optimization
+without waiting.
 
 ### Print-orientation optimization
 

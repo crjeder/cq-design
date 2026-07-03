@@ -36,7 +36,38 @@ def main():
         action="store_true",
         help="Append cross-section views to the multi-view tile (ignored for --views iso)",
     )
+    parser.add_argument(
+        "--extra-section",
+        action="append",
+        default=[],
+        metavar="AXIS=VALUE_MM",
+        help=(
+            "Additional targeted cross-section beyond the default center cuts, e.g. "
+            "--extra-section x=50. AXIS is x/y/z, VALUE_MM is the cut position along "
+            "that axis. Repeatable. Ignored for --views iso."
+        ),
+    )
     args = parser.parse_args()
+
+    extra_sections = []
+    for spec in args.extra_section:
+        axis, _, value = spec.partition("=")
+        axis = axis.strip().lower()
+        if axis not in ("x", "y", "z") or not value:
+            print(
+                f"ERROR: invalid --extra-section '{spec}', expected AXIS=VALUE_MM "
+                "with AXIS one of x/y/z",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            extra_sections.append((axis, float(value)))
+        except ValueError:
+            print(
+                f"ERROR: invalid --extra-section '{spec}', VALUE_MM must be numeric",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     script_path = os.path.abspath(args.script)
     if not os.path.exists(script_path):
@@ -102,6 +133,7 @@ def main():
                 title=title,
                 subtitle=args.subtitle,
                 cross_sections=args.cross_sections,
+                extra_sections=extra_sections or None,
             )
         else:
             preview.render_single(result, args.output, title=title)
