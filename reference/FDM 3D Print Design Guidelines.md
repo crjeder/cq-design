@@ -116,6 +116,15 @@ When you can't hit a dimension, design in adjustment:
   Fine gaps: spring-steel shims.
 - Hide error: route seams into sharp concave corners; use shadow lines (recessed lip gap) to
   mask imperfect mating joints.
+- **Shadow gap, when a seam between two separately printed parts will be visible on the
+  finished piece** (not hidden inside an enclosure): use the `shadow_gap` block
+  (`blocks.joints`) rather than hand-rolling a recess. It unions a return-lip onto the
+  visible (front) member's inner face; the back member is placed shortened by a
+  deliberate ~1 mm reveal and seats against the lip, so the finished seam shows a
+  uniform reveal line instead of a raw fit-tolerance gap or color mismatch. Propose it
+  by default for any visible multi-part seam during planning (dovetail/finger/
+  mortise-tenon docks, abutting panels, quartered or segmented pieces) — don't wait to
+  be asked; the user can decline it for a flush look.
 
 ## Press Fits & Interference
 <!-- applies_to: always -->

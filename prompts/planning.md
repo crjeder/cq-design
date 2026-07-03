@@ -142,6 +142,17 @@ Before committing to any dimension values, populate `planning_notes` with your r
     the part's authored frame (the surface the optimizer orients face-down against the
     bed); omit it to let the optimizer infer the cosmetic surface.
 
+12. **Proactively propose the `shadow_gap` block for any visible multi-part seam.** When
+    two parts mate along a face that will be visible on the finished piece (quartered or
+    segmented panels, a lid meeting a body on an outer surface, abutting decorative
+    parts — not a seam hidden inside an enclosure), add `shadow_gap` to the visible
+    (front) member's `blocks_needed` (params `length`, `wall`, `overlap` — see block
+    inventory) so the seam shows a deliberate reveal line instead of a raw
+    fit-tolerance gap. Do this without being asked. Record the proposal in
+    `planning_notes` even if the user has not yet responded; if the user declines it or
+    asks for a flush seam, note that instead and leave `shadow_gap` out of
+    `blocks_needed`.
+
 ## Block inventory (name and use only)
 
 {{BLOCK_INVENTORY}}

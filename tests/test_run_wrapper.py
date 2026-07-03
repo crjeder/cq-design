@@ -221,6 +221,22 @@ def test_preview_cross_sections(good_script):
     assert os.path.exists(data["previews"][0])
 
 
+def test_preview_extra_section(good_script):
+    """--preview --extra-section x=2 threads a targeted off-center cut through to
+    render_preview.py and produces a preview PNG."""
+    rc, data = run(good_script, "--preview", "--extra-section", "x=2")
+    assert rc == 0
+    assert len(data["previews"]) == 1
+    assert os.path.exists(data["previews"][0])
+
+
+def test_preview_extra_section_repeatable(good_script):
+    """--extra-section can be passed multiple times for several targeted cuts."""
+    rc, data = run(good_script, "--preview", "--extra-section", "x=2", "--extra-section", "y=-3")
+    assert rc == 0
+    assert os.path.exists(data["previews"][0])
+
+
 def test_render_preview_cli_produces_png(tmp_path):
     """render_preview.py CLI creates a PNG from a script with a `result` variable."""
     script = tmp_path / "box_model.py"
@@ -264,3 +280,28 @@ def test_render_preview_cli_missing_result(tmp_path):
     )
     assert proc.returncode == 1
     assert "result" in proc.stderr.lower()
+
+
+def test_render_preview_cli_rejects_invalid_extra_section(tmp_path):
+    """render_preview.py exits 1 on a malformed --extra-section spec (bad axis, no
+    value, non-numeric value) instead of crashing deeper in preview rendering."""
+    script = tmp_path / "box_model.py"
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
+    output = tmp_path / "out.png"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            RENDER_PREVIEW,
+            "--script",
+            str(script),
+            "--output",
+            str(output),
+            "--extra-section",
+            "w=5",  # invalid axis
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 1
+    assert "extra-section" in proc.stderr.lower()
+    assert not output.exists()

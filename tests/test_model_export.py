@@ -50,6 +50,82 @@ def _read_3mf_objects(path):
     return objects
 
 
+def _read_3mf_object_ids_by_name(path):
+    with zipfile.ZipFile(path) as zf:
+        root = ET.fromstring(zf.read("3D/3dmodel.model"))
+    return {obj.get("name"): obj.get("id") for obj in root.iter(_NS + "object")}
+
+
+def _read_model_settings_plates(path):
+    with zipfile.ZipFile(path) as zf:
+        root = ET.fromstring(zf.read("Metadata/model_settings.config"))
+    plates = []
+    for plate in root.findall("plate"):
+        meta = {m.get("key"): m.get("value") for m in plate.findall("metadata")}
+        object_ids = [
+            next(m.get("value") for m in inst.findall("metadata") if m.get("key") == "object_id")
+            for inst in plate.findall("model_instance")
+        ]
+        plates.append(
+            {
+                "plater_id": meta.get("plater_id"),
+                "plater_name": meta.get("plater_name"),
+                "object_ids": object_ids,
+            }
+        )
+    return plates
+
+
+def test_model_settings_config_assigns_distinct_plates(tmp_path):
+    """Bambu/OrcaSlicer plate metadata: each default (own-plate) union gets its
+    own <plate>, so the slicer auto-distributes objects instead of stacking them
+    all on plate 1 -- the quartered-parts scenario this exists for."""
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "quad_a")
+    _write_part(parts_dir, "quad_b")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {"id": "quad_a", "description": "Quadrant A"},
+            {"id": "quad_b", "description": "Quadrant B"},
+        ]
+    )
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    ids_by_name = _read_3mf_object_ids_by_name(result["model_3mf"])
+    plates = _read_model_settings_plates(result["model_3mf"])
+    assert len(plates) == 2
+    assert {p["plater_id"] for p in plates} == {"1", "2"}
+    by_plater_id = {p["plater_id"]: p for p in plates}
+    assert by_plater_id["1"]["object_ids"] == [ids_by_name["Quadrant A"]]
+    assert by_plater_id["2"]["object_ids"] == [ids_by_name["Quadrant B"]]
+
+
+def test_model_settings_config_groups_co_plated_unions(tmp_path):
+    """Unions that share a `plate` id (print-in-place) land in one <plate> block
+    as multiple <model_instance> entries, not split across plates."""
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    _write_part(parts_dir, "lid")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {"id": "base", "description": "Enclosure base", "plate": "shared"},
+            {"id": "lid", "description": "Snap lid", "plate": "shared"},
+        ]
+    )
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    plates = _read_model_settings_plates(result["model_3mf"])
+    assert len(plates) == 1
+    assert plates[0]["plater_id"] == "1"
+    assert len(plates[0]["object_ids"]) == 2
+
+
 def test_named_3mf_with_plate_and_placement(tmp_path):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
