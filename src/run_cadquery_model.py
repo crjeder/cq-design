@@ -417,8 +417,13 @@ def _render_preview(
     views: str,
     env: dict,
     cross_sections: bool = False,
+    extra_sections: list[str] | None = None,
 ) -> tuple[str | None, str | None]:
     """Invoke render_preview.py as a subprocess.
+
+    `extra_sections` is a list of raw "AXIS=VALUE_MM" strings (e.g. "x=50"),
+    forwarded as repeated --extra-section flags; render_preview.py parses and
+    validates them.
 
     Returns (preview_png_path, error_message).
     On success: (path, None). On failure: (None, error_text).
@@ -440,6 +445,8 @@ def _render_preview(
     ]
     if cross_sections:
         cmd.append("--cross-sections")
+    for spec in extra_sections or []:
+        cmd.extend(["--extra-section", spec])
 
     proc = subprocess.run(
         cmd,
@@ -475,6 +482,18 @@ def main():
         "--cross-sections",
         action="store_true",
         help="Append cross-section views to the preview tile (requires --preview)",
+    )
+    parser.add_argument(
+        "--extra-section",
+        action="append",
+        default=[],
+        metavar="AXIS=VALUE_MM",
+        help=(
+            "Additional targeted cross-section beyond the default center cuts, e.g. "
+            "--extra-section x=50 (requires --preview). AXIS is x/y/z. Repeatable. "
+            "Use when a feature's footprint is away from the bounding-box center and "
+            "so would not be crossed by the default cuts."
+        ),
     )
     parser.add_argument(
         "--strict",
@@ -653,7 +672,7 @@ def main():
         # Preview rendering via render_preview.py subprocess (CQ-native, no OpenGL)
         if args.preview and stls_in_temp:
             preview_path, render_err = _render_preview(
-                script_path, skill_root, args.views, env, args.cross_sections
+                script_path, skill_root, args.views, env, args.cross_sections, args.extra_section
             )
             if render_err:
                 _append_stderr(result, render_err)

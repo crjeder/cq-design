@@ -110,3 +110,36 @@ def test_render_multi_view_cross_sections_fallback(box_workplane, tmp_path):
     out6 = tmp_path / "six_view.png"
     preview.render_multi_view(box_workplane, str(out6), view_size=100)
     assert img.height > Image.open(str(out6)).height
+
+
+def test_render_multi_view_extra_sections_adds_tiles(box_workplane, tmp_path):
+    """extra_sections appends targeted section tiles beyond the default center cuts,
+    growing the tile even when the total tile count isn't a multiple of 3 columns
+    (regression: rows used to be computed with floor division, clipping the last
+    partial row off the canvas)."""
+    from PIL import Image
+
+    out_base = tmp_path / "cross.png"
+    out_extra = tmp_path / "extra.png"
+    preview.render_multi_view(box_workplane, str(out_base), view_size=100, cross_sections=True)
+    preview.render_multi_view(
+        box_workplane,
+        str(out_extra),
+        view_size=100,
+        cross_sections=True,
+        extra_sections=[("x", 2.0)],  # 9 + 1 = 10 tiles: not a multiple of 3
+    )
+    assert Image.open(str(out_extra)).height > Image.open(str(out_base)).height
+
+
+def test_render_multi_view_extra_sections_fallback(box_workplane, tmp_path):
+    """A failed targeted-section cut renders a blank tile instead of crashing."""
+    from unittest.mock import patch
+
+    out = tmp_path / "extra_fallback.png"
+    with patch("preview._cut_half", return_value=None):
+        preview.render_multi_view(
+            box_workplane, str(out), view_size=100, extra_sections=[("y", 3.0)]
+        )
+    assert out.exists()
+    assert out.stat().st_size > 0
