@@ -1,5 +1,5 @@
 {
-  "printer": "Generic FDM printer",
+  "printer": "Snapmaker U1",
   "material": "PLA",
   "nozzle_mm": 0.4,
   "constraints": {
