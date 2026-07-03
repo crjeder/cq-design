@@ -843,6 +843,10 @@
         180
       ]
     },
+    "emits": [
+      "leaf_a",
+      "leaf_b"
+    ],
     "use": "A NORMAL revolute knuckle hinge - treat it kinematically like any door hinge (one rotational DOF about +Y, 0-180 deg). Two RIGID leaves rotate freely about a separate pin threaded through interleaved knuckles; the pin is a snipped strand of 1.75 mm filament, but the motion is the free rotation of the pin, NOT material flex. This is NOT a living_hinge (which has no pin and bends a thin web instead) - choose pin_hinge when you need a durable, freely rotating, near-frictionless pivot. Returns the two leaves as named member unions leaf_a and leaf_b (a dict of two Workplanes); declare them as the part unions [{id: leaf_a}, {id: leaf_b}]. Push a piece of filament through the coaxial bore as the pivot pin after printing. Knuckle outer diameter is d_filament + 2 mm. PRINT FLAT with the knuckle axis (Y) in the build plane so the bore bridges cleanly and the undersides self-support; clearance between knuckles must exceed one layer height to avoid fusing. d_filament default 1.9 gives a slip fit over 1.75 mm filament (FDM holes print undersized). For whole-model kinematic validation the two leaves are its two unions leaf_a/leaf_b (sharing one plate for print-in-place): the sweep needs each leaf as its own assembled mesh. The shared pin makes no kinematic difference - treat it exactly like any pinned hinge.",
     "params": {
       "length": "mm total hinge length along the axis (Y)",

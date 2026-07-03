@@ -5,6 +5,11 @@
   "type": "object",
   "required": ["schema_version", "intent", "printer", "material", "nozzle_mm", "parts", "constraints"],
   "additionalProperties": false,
+  "if": {
+    "required": ["joints"],
+    "properties": {"joints": {"minItems": 1}}
+  },
+  "then": {"required": ["root_part"]},
   "properties": {
     "planning_notes": {
       "type": "string",
@@ -178,31 +183,8 @@
             }
           },
           "placement": {
-            "type": "object",
-            "additionalProperties": false,
-            "description": "Pose of this union in the shared assembled frame. Rotations apply in listed order, then the translation. Omit for identity (union authored directly in the assembled frame).",
-            "properties": {
-              "translate_mm": {
-                "type": "array",
-                "items": {"type": "number"},
-                "minItems": 3,
-                "maxItems": 3,
-                "description": "Translation [x, y, z] in mm, applied after rotations"
-              },
-              "rotate": {
-                "type": "array",
-                "description": "Ordered rotation steps about axes through the origin",
-                "items": {
-                  "type": "object",
-                  "required": ["axis", "angle_deg"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "axis": {"type": "string", "enum": ["X", "Y", "Z"]},
-                    "angle_deg": {"type": "number"}
-                  }
-                }
-              }
-            }
+            "allOf": [{"$ref": "#/definitions/placement"}],
+            "description": "Pose of this union in the shared assembled frame. Rotations apply in listed order, then the translation. Omit for identity (union authored directly in the assembled frame). A part reached via a `joints` mate chain (see `joints`) MUST NOT declare its own placement -- its pose is derived."
           }
         }
       }
@@ -211,6 +193,46 @@
       "type": "array",
       "description": "Declared range-of-motion checks for articulating joints, nested into a tree via `children`. Each entry sweeps its moving union (plus everything nested under its `children`) through its required range against every union outside that subtree. Optional; absent or empty skips the kinematic stage.",
       "items": {"$ref": "#/definitions/kinematics_entry"}
+    },
+    "root_part": {
+      "type": "string",
+      "description": "The one part anchored directly into the world: its own `placement` (identity when absent) is its edge into the assembled frame. Required when `joints` is non-empty; every other part named in a `joints` entry gets its pose derived along the mate chain from this part instead of declaring its own `placement`."
+    },
+    "joints": {
+      "type": "array",
+      "description": "Cross-part matched-pair joints. Each entry names a matched-pair block (one whose inventory descriptor carries `emits`) and its two members, each fusing into a named part. A mated part's assembled pose is derived by composing the mate chain from `root_part`, instead of that part declaring its own `placement`. Optional; absent or empty needs no `root_part` and leaves every part's placement mechanism unchanged.",
+      "items": {
+        "type": "object",
+        "required": ["joint_id", "block", "params", "members"],
+        "additionalProperties": false,
+        "properties": {
+          "joint_id": {"type": "string", "description": "Unique identifier for this joint"},
+          "block": {"type": "string", "description": "Matched-pair block name from inventory.json (must carry `emits`)"},
+          "params": {
+            "type": "object",
+            "description": "Kwargs passed to the block's function call -- the single declared source for this pair's parameters"
+          },
+          "members": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "The block's two members, each fusing into a part. The two entries must reference the block's two distinct `emits` ids and two distinct parts.",
+            "items": {
+              "type": "object",
+              "required": ["member", "part"],
+              "additionalProperties": false,
+              "properties": {
+                "member": {"type": "string", "description": "One of the block's declared `emits` ids"},
+                "part": {"type": "string", "description": "Id of the part whose script fuses this member in"},
+                "dock": {
+                  "allOf": [{"$ref": "#/definitions/placement"}],
+                  "description": "This member's pose WITHIN its host part's own authored frame (not the assembled frame). Omit for identity."
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "constraints": {
       "type": "object",
@@ -268,6 +290,32 @@
           "type": "array",
           "description": "Nested kinematics entries mounted on this entry's moving_union, recursively forming the joint tree. Omitted/empty means nothing else is mounted on this joint. An entry not listed in any other entry's children is itself mounted on the static frame.",
           "items": {"$ref": "#/definitions/kinematics_entry"}
+        }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "translate_mm": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Translation [x, y, z] in mm, applied after rotations"
+        },
+        "rotate": {
+          "type": "array",
+          "description": "Ordered rotation steps about axes through the origin",
+          "items": {
+            "type": "object",
+            "required": ["axis", "angle_deg"],
+            "additionalProperties": false,
+            "properties": {
+              "axis": {"type": "string", "enum": ["X", "Y", "Z"]},
+              "angle_deg": {"type": "number"}
+            }
+          }
         }
       }
     }

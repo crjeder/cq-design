@@ -15,6 +15,21 @@ All wall positions, interface locations, and directional language in this plan u
 
 The Down face (Z = 0) is the print bed. Parts are always modeled with their print-bed face at Z = 0.
 
+SPATIAL FRAME:
+- World frame is fixed, not viewer-relative
+- Position = reference point + (direction, distance). E.g. "50mm North of hole-A center."
+- Reference points must be named explicit features (center, face, edge, vertex) — never "it" or "there."
+- Rotation uses yaw/pitch/roll bound to WORLD axes, not object axes:
+  - yaw   = rotation about Up (+Z)
+  - pitch = rotation about East-West axis (+X)
+  - roll  = rotation about North-South axis (+Y)
+- Rotation direction: positive = counterclockwise when viewed from the positive end of
+  the rotation axis looking back toward the origin (standard right-hand rule).
+  "Clockwise" in casual speech must be translated to a signed degree value before use.
+- All units in mm, all angles in degrees, unless stated otherwise.
+- If any position or rotation can't be expressed in this frame, ask for clarification
+  rather than guessing.
+
 ## Your task
 
 Given the user's description, produce a BUILD_PLAN.json that decomposes the model into CadQuery primitives or building blocks, identifies physical interfaces, and sets print parameters.
@@ -81,28 +96,42 @@ Before committing to any dimension values, populate `planning_notes` with your r
    `{"leaf_a": ..., "leaf_b": ...}`, so the part declares those two unions and a
    `kinematics` entry can sweep `leaf_a` against `leaf_b`.
 
-7. **Place parts in the shared assembled frame with `placement`.** The whole model
+7. **A matched-pair block's two members can instead land in two DIFFERENT parts, via
+   a `joints` entry.** Use `unions` (item 6) when both members belong to one part
+   (a standalone print-in-place mechanism). Use `joints` when they fuse into two
+   otherwise-unrelated parts (e.g. a door leaf and a wall leaf): a `joints` entry
+   names the matched-pair `block`, its `params`, and `members`
+   (`[{member, part, dock}, {member, part, dock}]` -- `member` is one of the block's
+   two ids, `part` is which part fuses it in, `dock` is that member's pose within
+   its own part's authored frame, identity when omitted). Exactly one part in the
+   plan is `root_part`, anchored by its own `placement` as usual; every other part
+   reached via a `joints` entry gets its assembled pose DERIVED from the mate chain
+   and MUST NOT declare its own `placement`.
+
+8. **Place parts in the shared assembled frame with `placement`.** The whole model
    is treated as one assembly. If a part is authored already in its assembled
    position, omit `placement` (identity). Otherwise give a `placement` mapping its
    local frame into the assembled frame: an ordered `rotate` list of
    `{axis, angle_deg}` (applied in order, about X/Y/Z through the origin) followed by
    `translate_mm`. The model export and the kinematic check both consume `placement`.
+   A part reached via a `joints` mate chain (item 7) is the one exception: its pose
+   is derived, not authored.
 
-8. **Declare moving joints in `kinematics`.** Each entry names the `moving_union`
+9. **Declare moving joints in `kinematics`.** Each entry names the `moving_union`
    (a part id); the fixed set is every other union in the model, so the sweep catches
    in-context binding (a lid fouling the body). `required_range` is RELATIVE to the
    union's authored pose (zero) and may be negative or straddle zero (e.g.
    `[-30, 90]`); set `lo_inclusive`/`hi_inclusive` to `false` for an open bound that
    need not be reached. `unit` must match the joint block's `dof.unit`.
 
-9. **Hint the principal load with `load`** (optional, per part). FDM is weakest across
+10. **Hint the principal load with `load`** (optional, per part). FDM is weakest across
    layer lines (build Z), so print-orientation optimization favors orientations that
    keep the main load in the layer plane. If a part carries a clear primary load
    (a bracket arm in bending, a hook in tension, a shaft in shear), give `load.dir` as
    the load direction `[x, y, z]` in the part's own authored frame. Omit it to let the
    optimizer infer the load axis from geometry.
 
-10. **Record the print-orientation priority with `optimize_for`.** Set the user's stated
+11. **Record the print-orientation priority with `optimize_for`.** Set the user's stated
     optimization preference, one of `strength` (default), `min_support`, or
     `visual_quality`, as a plan-level `optimize_for`; add a per-part `optimize_for` only
     when one part needs a different objective. Map the user's intent: load-bearing or

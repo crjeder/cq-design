@@ -4,9 +4,9 @@
 This script is a deliverable: the cq-design skill copies it into the `build/`
 directory of your working directory, alongside the per-part scripts and the bundled
 build tooling (`exporters/`, `blocks/`, `model_export.py`, `print_orientation.py`,
-`mesh_io.py`, `placement.py`). The working directory is a self-contained uv project,
-so everything needed to rebuild the model lives here -- the skill does not have to be
-installed.
+`mesh_io.py`, `placement.py`, `mate_chain.py`). The working directory is a
+self-contained uv project, so everything needed to rebuild the model lives here --
+the skill does not have to be installed.
 
 How to re-generate the 3MF / STL files
 ---------------------------------------

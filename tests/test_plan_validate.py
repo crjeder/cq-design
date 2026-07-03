@@ -383,3 +383,152 @@ def test_top_level_entry_with_no_children_is_unaffected(plan_file):
     plan = _plan_with_joint()
     errors = validate_plan(plan_file(plan))
     assert errors == []
+
+
+# ---- joint-mate-entity (cross-part matched-pair joints) -----------------------
+
+
+def _part(pid, **extra):
+    part = {
+        "id": pid,
+        "description": f"part {pid}",
+        "dimensions": {"w_mm": 50, "d_mm": 5, "h_mm": 80},
+        "interfaces": [],
+        "blocks_needed": [],
+    }
+    part.update(extra)
+    return part
+
+
+def _joints_plan(joint_over=None, root_part: str | None = "door", door_over=None, wall_over=None):
+    """Two-part plan (door, wall) wired by one pin_hinge joints entry."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    door = _part("door", **(door_over or {}))
+    wall = _part("wall", **(wall_over or {}))
+    plan["parts"] = [door, wall]
+    joint = {
+        "joint_id": "hinge1",
+        "block": "pin_hinge",
+        "params": {},
+        "members": [
+            {"member": "leaf_a", "part": "door"},
+            {"member": "leaf_b", "part": "wall"},
+        ],
+    }
+    if joint_over:
+        joint.update(joint_over)
+    plan["joints"] = [joint]
+    if root_part is not None:
+        plan["root_part"] = root_part
+    return plan
+
+
+def test_joint_valid_two_part_plan_passes(plan_file):
+    errors = validate_plan(plan_file(_joints_plan()))
+    assert errors == []
+
+
+def test_joint_unknown_block_rejected(plan_file):
+    plan = _joints_plan(joint_over={"block": "no_such_block"})
+    errors = validate_plan(plan_file(plan))
+    assert any("unknown block 'no_such_block'" in e for e in errors)
+
+
+def test_joint_block_without_emits_rejected(plan_file):
+    plan = _joints_plan(joint_over={"block": "hollow_box"})
+    errors = validate_plan(plan_file(plan))
+    assert any("has no 'emits' descriptor" in e for e in errors)
+
+
+def test_joint_unknown_member_id_rejected(plan_file):
+    plan = _joints_plan()
+    plan["joints"][0]["members"][0]["member"] = "leaf_c"
+    errors = validate_plan(plan_file(plan))
+    assert any("'leaf_c' is not one of block" in e for e in errors)
+
+
+def test_joint_duplicate_member_id_rejected(plan_file):
+    plan = _joints_plan()
+    plan["joints"][0]["members"][1]["member"] = "leaf_a"
+    errors = validate_plan(plan_file(plan))
+    assert any("must reference distinct emits ids" in e for e in errors)
+
+
+def test_joint_unknown_part_rejected(plan_file):
+    plan = _joints_plan()
+    plan["joints"][0]["members"][1]["part"] = "ghost"
+    errors = validate_plan(plan_file(plan))
+    assert any("part 'ghost' is not a declared part id" in e for e in errors)
+
+
+def test_joint_same_part_for_both_members_rejected(plan_file):
+    plan = _joints_plan()
+    plan["joints"][0]["members"][1]["part"] = "door"
+    errors = validate_plan(plan_file(plan))
+    assert any("both members reference the same part 'door'" in e for e in errors)
+
+
+def test_joint_missing_root_part_rejected_by_schema(plan_file):
+    plan = _joints_plan(root_part=None)
+    errors = validate_plan(plan_file(plan))
+    assert any("root_part" in e for e in errors)
+
+
+def test_joint_unanchored_part_rejected(plan_file):
+    plan = _joints_plan()
+    plan["parts"].append(_part("orphan_a"))
+    plan["parts"].append(_part("orphan_b"))
+    plan["joints"].append(
+        {
+            "joint_id": "hinge2",
+            "block": "pin_hinge",
+            "params": {},
+            "members": [
+                {"member": "leaf_a", "part": "orphan_a"},
+                {"member": "leaf_b", "part": "orphan_b"},
+            ],
+        }
+    )
+    errors = validate_plan(plan_file(plan))
+    assert any("orphan_a' is unanchored" in e for e in errors)
+    assert any("orphan_b' is unanchored" in e for e in errors)
+
+
+def test_joint_cycle_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"] = [_part("a"), _part("b"), _part("c")]
+    plan["root_part"] = "a"
+
+    def _hinge(jid, part_x, part_y):
+        return {
+            "joint_id": jid,
+            "block": "pin_hinge",
+            "params": {},
+            "members": [
+                {"member": "leaf_a", "part": part_x},
+                {"member": "leaf_b", "part": part_y},
+            ],
+        }
+
+    plan["joints"] = [_hinge("ab", "a", "b"), _hinge("bc", "b", "c"), _hinge("ca", "c", "a")]
+    errors = validate_plan(plan_file(plan))
+    assert any("conflicting mate path" in e for e in errors)
+
+
+def test_joint_double_anchored_part_rejected(plan_file):
+    plan = _joints_plan(wall_over={"placement": {"translate_mm": [0, 0, 10]}})
+    errors = validate_plan(plan_file(plan))
+    assert any("wall' is double-anchored" in e for e in errors)
+
+
+def test_root_part_own_placement_is_not_double_anchored(plan_file):
+    plan = _joints_plan(door_over={"placement": {"translate_mm": [1, 2, 3]}})
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
+
+
+def test_plan_without_joints_needs_no_root_part(plan_file):
+    # Regression: no `joints` array means no `root_part` requirement and every
+    # part keeps using its own placement mechanism unchanged.
+    errors = validate_plan(plan_file(VALID_PLAN))
+    assert errors == []

@@ -464,9 +464,9 @@ regenerate the plates on any machine with uv, without the skill installed. Three
    `$SKILL_DIR/src/build_template.py` verbatim to `build/build.py` (no placeholder
    substitution), then copy the build tooling it imports into `build/` so it sits on
    `build.py`'s own `sys.path`: the modules `mesh_io.py`, `model_export.py`,
-   `print_orientation.py`, `placement.py`, `units.py` and the packages `exporters/` and `blocks/`
-   (copy the whole directories, including their `*.json` data files). Re-running the skill
-   overwrites these with the current `src/` versions.
+   `print_orientation.py`, `placement.py`, `mate_chain.py`, `units.py` and the packages
+   `exporters/` and `blocks/` (copy the whole directories, including their `*.json` data
+   files). Re-running the skill overwrites these with the current `src/` versions.
 
 2. **Scaffold the uv project files** at the working-directory root: copy
    `$SKILL_DIR/src/project_template/pyproject.toml` to `pyproject.toml` and
@@ -479,7 +479,7 @@ regenerate the plates on any machine with uv, without the skill installed. Three
 ```bash
 # POSIX
 cp "$SKILL_DIR/src/build_template.py" build/build.py
-for m in mesh_io.py model_export.py print_orientation.py placement.py units.py; do
+for m in mesh_io.py model_export.py print_orientation.py placement.py mate_chain.py units.py; do
     cp "$SKILL_DIR/src/$m" build/
 done
 cp -r "$SKILL_DIR/src/exporters" "$SKILL_DIR/src/blocks" build/
@@ -492,7 +492,7 @@ uv run python build/build.py
 ```powershell
 # Windows (PowerShell)
 Copy-Item "$SKILL_DIR/src/build_template.py" build/build.py
-'mesh_io.py','model_export.py','print_orientation.py','placement.py','units.py' |
+'mesh_io.py','model_export.py','print_orientation.py','placement.py','mate_chain.py','units.py' |
     ForEach-Object { Copy-Item "$SKILL_DIR/src/$_" build/ }
 Copy-Item "$SKILL_DIR/src/exporters","$SKILL_DIR/src/blocks" build/ -Recurse
 Copy-Item "$SKILL_DIR/src/project_template/pyproject.toml" pyproject.toml
