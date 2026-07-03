@@ -185,12 +185,13 @@ All block functions that return solids intended for `.cut()` operations (subtrac
 
 ### Requirement: cq_warehouse is imported only when a hardware block needs it
 
-The block library SHALL NOT import `cq_warehouse` (and SHALL NOT install the global
-`Shape` monkeypatch that `cq_warehouse.extensions` applies) merely as a side effect of
-importing the block package or the hardware module. Importing `blocks` or
-`blocks.hardware` SHALL succeed without `cq_warehouse` present in `sys.modules`. Each
-hardware block that requires `cq_warehouse` SHALL import it inside the function body:
-`cq_warehouse.extensions` SHALL be imported only inside the function that uses
+The block library SHALL NOT import `cq_warehouse` (and SHALL NOT leave installed the
+global `Shape` monkeypatch that `cq_warehouse.extensions` applies) merely as a side
+effect of importing the block package or the hardware module. Importing `blocks` or
+`blocks.hardware` SHALL succeed without `cq_warehouse` present in `sys.modules` and
+without replacing cadquery's native `Shape._apply_transform`/`Shape.copy`. Each hardware
+block that requires `cq_warehouse` SHALL import it inside the function body:
+`cq_warehouse.extensions` SHALL be loaded only inside the function that uses
 `Workplane.insertHole` (`heat_set_boss`), and the fastener classes only inside the
 functions that build them.
 
@@ -204,7 +205,7 @@ functions that build them.
 #### Scenario: Hardware function still works via lazy import
 
 - **WHEN** `heat_set_boss(...)` is called
-- **THEN** `cq_warehouse.extensions` is imported on demand, `Workplane.insertHole` is
+- **THEN** `cq_warehouse.extensions` is loaded on demand, `Workplane.insertHole` is
   available, and the function returns a valid `cq.Workplane` solid
 
 #### Scenario: Non-insert hardware blocks do not require the extension
