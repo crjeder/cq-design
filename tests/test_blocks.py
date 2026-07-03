@@ -685,3 +685,41 @@ def test_shipped_inventory_declares_no_hinge_axis():
         if iface.get("type") == "hinge_axis"
     ]
     assert offenders == [], offenders
+
+
+# ---- matched-pair block emits ----
+
+
+def _block_with_emits(emits):
+    return {
+        "name": "emits_fixture",
+        "module": "blocks.primitives",
+        "function": "fillet_box",
+        "use": "matched-pair emits fixture",
+        "params": {},
+        "dimensions": [1, 1, 1],
+        "interfaces": [],
+        "emits": emits,
+    }
+
+
+def test_pin_hinge_declares_emits():
+    """pin_hinge's inventory descriptor names its two member ids."""
+    inv = load_inventory()
+    pin_hinge = next(b for b in inv if b["name"] == "pin_hinge")
+    assert pin_hinge["emits"] == ["leaf_a", "leaf_b"]
+
+
+def test_emits_of_two_strings_accepted():
+    errors = validate_inventory([_block_with_emits(["leaf_a", "leaf_b"])])
+    assert errors == [], errors
+
+
+def test_emits_of_wrong_length_rejected():
+    errors = validate_inventory([_block_with_emits(["leaf_a"])])
+    assert any("emits must be a list of exactly two strings" in e for e in errors)
+
+
+def test_emits_of_non_strings_rejected():
+    errors = validate_inventory([_block_with_emits(["leaf_a", 2])])
+    assert any("emits must be a list of exactly two strings" in e for e in errors)

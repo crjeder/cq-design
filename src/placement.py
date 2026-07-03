@@ -8,6 +8,11 @@ empty placement is the identity.
 Two appliers share this one convention:
   - `to_matrix(placement)` -> 4x4 numpy transform for trimesh / 3MF meshes
   - `apply_cq(workplane, placement)` -> CadQuery Workplane positioned in the frame
+
+`apply_matrix(workplane, matrix)` is a third applier for a general 4x4 transform that
+did not come from a `placement` dict -- namely a derived mate-chain pose
+(`mate_chain.compute_mate_poses`), which does not generally decompose back into
+`placement`'s ordered-rotation-then-translation shape.
 """
 
 import math
@@ -107,6 +112,43 @@ def apply_cq(workplane: Any, placement: dict[str, Any] | None) -> Any:
         tr.SetTranslation(gp_Vec(*translate))
         trsf = tr.Multiplied(trsf)  # translate after rotations
 
+    transformed = [
+        Shape.cast(BRepBuilderAPI_Transform(v.wrapped, trsf, True).Shape())
+        for v in workplane.vals()
+    ]
+    return workplane.newObject(transformed)
+
+
+def apply_matrix(workplane: Any, matrix: Any) -> Any:
+    """Position a CadQuery Workplane by a general 4x4 transform (numpy).
+
+    For a derived mate-chain pose (`mate_chain.compute_mate_poses`), which is a
+    composition of rotate/translate steps and does not generally decompose back
+    into a single ordered `placement`-shaped list. Builds the `gp_Trsf` directly
+    from the matrix's top 3 rows (rotation + translation) via `SetValues`, using
+    the same OCCT-transform-on-`.wrapped` approach as `apply_cq` (bypasses the
+    patched `Shape._apply_transform`/`Shape.copy` cq_warehouse installs).
+    """
+    from cadquery.occ_impl.shapes import Shape
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+    from OCP.gp import gp_Trsf
+
+    m = matrix
+    trsf = gp_Trsf()
+    trsf.SetValues(
+        m[0, 0],
+        m[0, 1],
+        m[0, 2],
+        m[0, 3],
+        m[1, 0],
+        m[1, 1],
+        m[1, 2],
+        m[1, 3],
+        m[2, 0],
+        m[2, 1],
+        m[2, 2],
+        m[2, 3],
+    )
     transformed = [
         Shape.cast(BRepBuilderAPI_Transform(v.wrapped, trsf, True).Shape())
         for v in workplane.vals()

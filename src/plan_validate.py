@@ -71,6 +71,7 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
     errors.extend(_check_nonzero_dir(plan, "load"))
     errors.extend(_check_nonzero_dir(plan, "show_face"))
     errors.extend(_check_kinematics(plan, inventory_path))
+    errors.extend(_check_joints(plan, inventory_path))
 
     return errors
 
@@ -231,6 +232,131 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
                     f"Kinematics '{jid}': revolute joint is not coaxial -- axis_origin_mm "
                     f"{entry['axis_origin_mm']} is off block '{block_name}' dof axis line"
                 )
+
+    return errors
+
+
+def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
+    """Cross-check `joints` entries and validate the mate graph is a single tree.
+
+    Each entry's `members` must reference the block's declared `emits` ids (two
+    distinct ones) and two distinct existing part ids. The mate graph (parts as
+    nodes, each `joints` entry an edge) must form a single tree rooted at
+    `root_part`: every part named in some `joints` entry must be reachable via
+    exactly one path (a second path is a conflicting mate path -- closed loops are
+    out of scope, the same tree-only boundary as the `kinematics` tree), and no
+    such part other than `root_part` itself may also declare its own `placement`
+    (double-anchored).
+    """
+    joints = plan.get("joints", [])
+    if not joints:
+        return []
+
+    from blocks.validate import get_block
+
+    errors: list[str] = []
+    part_ids = {p["id"] for p in plan.get("parts", [])}
+    parts_by_id = {p["id"]: p for p in plan.get("parts", [])}
+    root_part = plan.get("root_part")
+
+    adjacency: dict[str, list[str]] = {}
+    graph_parts: set[str] = set()
+
+    for joint in joints:
+        jid = joint.get("joint_id", "(unknown)")
+        block_name = joint["block"]
+        block = get_block(block_name, inventory_path)
+        if block is None:
+            errors.append(f"Joint '{jid}': unknown block '{block_name}' (not in inventory)")
+            continue
+        emits = block.get("emits")
+        if not emits:
+            errors.append(
+                f"Joint '{jid}': block '{block_name}' has no 'emits' descriptor "
+                "and cannot back a joint"
+            )
+            continue
+
+        members = joint["members"]
+        member_ids = [m["member"] for m in members]
+        part_refs = [m["part"] for m in members]
+
+        for mid in member_ids:
+            if mid not in emits:
+                errors.append(
+                    f"Joint '{jid}': member '{mid}' is not one of block '{block_name}' "
+                    f"emits {emits}"
+                )
+        if all(mid in emits for mid in member_ids) and len(set(member_ids)) < len(member_ids):
+            errors.append(
+                f"Joint '{jid}': the two members must reference distinct emits ids, "
+                f"got {member_ids}"
+            )
+
+        for p in part_refs:
+            if p not in part_ids:
+                errors.append(f"Joint '{jid}': part '{p}' is not a declared part id")
+
+        if part_refs[0] == part_refs[1]:
+            errors.append(
+                f"Joint '{jid}': both members reference the same part '{part_refs[0]}'; "
+                "a same-part matched pair uses the part's own 'unions' array, not a "
+                "'joints' entry"
+            )
+            continue
+
+        if part_refs[0] in part_ids and part_refs[1] in part_ids:
+            a, b = part_refs
+            adjacency.setdefault(a, []).append(b)
+            adjacency.setdefault(b, []).append(a)
+            graph_parts.add(a)
+            graph_parts.add(b)
+
+    if not graph_parts:
+        return errors
+
+    if root_part is None:
+        errors.append("root_part is required when 'joints' is non-empty")
+        return errors
+    if root_part not in part_ids:
+        errors.append(f"root_part '{root_part}' is not a declared part id")
+        return errors
+
+    # BFS from root_part over the undirected mate graph, tracking each node's
+    # parent so the edge back to where we came from isn't mistaken for a cycle.
+    parent: dict[str, str | None] = {root_part: None}
+    order = [root_part]
+    conflicting: set[str] = set()
+    i = 0
+    while i < len(order):
+        cur = order[i]
+        i += 1
+        for nxt in adjacency.get(cur, []):
+            if nxt == parent.get(cur):
+                continue
+            if nxt in parent:
+                conflicting.add(nxt)
+                continue
+            parent[nxt] = cur
+            order.append(nxt)
+
+    for p in sorted(conflicting):
+        errors.append(
+            f"Part '{p}' is reachable via more than one mate path (conflicting mate path)"
+        )
+
+    unanchored = sorted(graph_parts - set(parent) - conflicting)
+    for p in unanchored:
+        errors.append(f"Part '{p}' is unanchored: not reachable from root_part '{root_part}'")
+
+    for p in parent:
+        if p == root_part:
+            continue
+        if parts_by_id.get(p, {}).get("placement"):
+            errors.append(
+                f"Part '{p}' is double-anchored: reachable via the mate chain but also "
+                "declares its own placement"
+            )
 
     return errors
 

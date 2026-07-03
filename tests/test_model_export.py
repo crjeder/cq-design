@@ -310,7 +310,10 @@ def test_multi_union_part_co_plated_produces_fused_plate(tmp_path):
             {
                 "id": "hinge",
                 "description": "Hinge",
-                "unions": [{"id": "leaf_a", "plate": "shared"}, {"id": "leaf_b", "plate": "shared"}],
+                "unions": [
+                    {"id": "leaf_a", "plate": "shared"},
+                    {"id": "leaf_b", "plate": "shared"},
+                ],
             }
         ]
     )
@@ -368,3 +371,87 @@ def test_distinct_descriptions_keep_plain_names(tmp_path):
 
     # No collision -> no id suffix appended.
     assert set(_read_3mf_objects(result["model_3mf"])) == {"Enclosure base", "Snap lid"}
+
+
+# ---- joint-mate-entity: derived pose replaces placement ----
+
+
+def test_mate_chain_part_pose_replaces_placement(tmp_path):
+    """A part reached via a `joints` mate chain is positioned by its derived pose,
+    not by (absent) `placement`."""
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "door")  # 20x20x4 box centered at origin (z in [-2, 2])
+    _write_part(parts_dir, "wall")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {"id": "door", "description": "Door leaf"},
+            {"id": "wall", "description": "Wall leaf"},
+        ]
+    )
+    plan["root_part"] = "door"
+    plan["joints"] = [
+        {
+            "joint_id": "hinge1",
+            "block": "pin_hinge",
+            "params": {},
+            "members": [
+                {"member": "leaf_a", "part": "door"},
+                {"member": "leaf_b", "part": "wall", "dock": {"translate_mm": [0, 0, 10]}},
+            ],
+        }
+    ]
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    # wall's dock offsets leaf_b by +10mm in Z within wall's own frame, so wall's
+    # derived world pose is -10mm in Z: its box (authored at z in [-2, 2]) lands
+    # at z in [-12, -8].
+    wall_stl = trimesh.load(result["union_stls"]["wall"], force="mesh")
+    assert abs(wall_stl.bounds[0][2] - (-12)) < 0.01
+    assert abs(wall_stl.bounds[1][2] - (-8)) < 0.01
+
+    # door (root, identity placement) is unaffected.
+    door_stl = trimesh.load(result["union_stls"]["door"], force="mesh")
+    assert abs(door_stl.bounds[0][2] - (-2)) < 0.01
+    assert abs(door_stl.bounds[1][2] - 2) < 0.01
+
+
+def test_part_outside_mate_chain_still_uses_own_placement(tmp_path):
+    """A part not named in any `joints` entry is unaffected by the mate chain."""
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "door")
+    _write_part(parts_dir, "wall")
+    _write_part(parts_dir, "standalone")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {"id": "door", "description": "Door leaf"},
+            {"id": "wall", "description": "Wall leaf"},
+            {
+                "id": "standalone",
+                "description": "Standalone part",
+                "placement": {"translate_mm": [0, 0, 30]},
+            },
+        ]
+    )
+    plan["root_part"] = "door"
+    plan["joints"] = [
+        {
+            "joint_id": "hinge1",
+            "block": "pin_hinge",
+            "params": {},
+            "members": [
+                {"member": "leaf_a", "part": "door"},
+                {"member": "leaf_b", "part": "wall"},
+            ],
+        }
+    ]
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    standalone_stl = trimesh.load(result["union_stls"]["standalone"], force="mesh")
+    assert abs(standalone_stl.bounds[0][2] - 28) < 0.01
+    assert abs(standalone_stl.bounds[1][2] - 32) < 0.01
