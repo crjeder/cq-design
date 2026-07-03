@@ -269,6 +269,10 @@ def render_single(
     return output_path
 
 
+_SECTION_CAMERA = {"x": (5, 0), "y": (5, -90), "z": (90, -90)}
+_SECTION_REMOVE_POSITIVE = {"x": True, "y": False, "z": True}
+
+
 def render_multi_view(
     wp,
     output_path,
@@ -276,11 +280,20 @@ def render_multi_view(
     subtitle=None,
     view_size=DEFAULT_VIEW_SIZE,
     cross_sections=False,
+    extra_sections=None,
 ):
     """Render a technical preview tile.
 
     Without cross_sections: 3x2 grid of 6 exterior views.
-    With cross_sections=True: 3x3 grid; row 3 adds Section Y, Section X, Section Z.
+    With cross_sections=True: adds Section Y, Section X, Section Z through the
+    bounding-box center.
+
+    `extra_sections` is an optional list of `(axis, position_mm)` pairs appended as
+    additional targeted section tiles, one per pair. Use this to check a feature
+    (a seam tab, boss, dovetail) whose footprint sits away from the bounding-box
+    center: the default center cuts above only pass through whatever happens to be
+    at the midpoint of each axis and can miss an off-center feature entirely (see
+    `CadQuery Pattern Reference.md` gotcha 12).
     """
     views = [
         (25, -60, "Isometric"),
@@ -329,8 +342,24 @@ def render_multi_view(
                 img = _blank_tile(view_size)
             images.append((img, label))
 
+    if extra_sections:
+        shape = _get_shape(wp)
+        for axis, pos in extra_sections:
+            sec = _cut_half(shape, axis, pos, remove_positive=_SECTION_REMOVE_POSITIVE[axis])
+            label = f"Section {axis.upper()} @ {pos:g}mm"
+            if sec is not None:
+                elev, azim = _SECTION_CAMERA[axis]
+                img = _render_cq_view(sec, elev, azim, view_size, view_size)
+            else:
+                print(
+                    f"WARNING: cross-section {label} failed, using blank tile",
+                    file=sys.stderr,
+                )
+                img = _blank_tile(view_size)
+            images.append((img, label))
+
     cols = 3
-    rows = len(images) // cols
+    rows = (len(images) + cols - 1) // cols  # ceil: extra_sections need not fill a row
     gap = 4
     header_h = 40 + (20 if subtitle else 0)
     footer_h = 55

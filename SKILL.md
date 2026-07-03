@@ -431,13 +431,24 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
 
 Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `dimension_mismatch`, `occ_exception`.
 
+**Targeted sections for off-center features.** The default `--cross-sections` cuts
+each of X/Y/Z through the part's bounding-box center only. If this part unions a
+feature (a boss, tab, dovetail, rib) into a body that already has a cavity (pit,
+pocket, shell) elsewhere in the same script, and that feature's XY position is
+**not** at the bounding-box center, the default cuts will not pass through it and
+cannot reveal a feature that pokes into the cavity (see `CadQuery Pattern
+Reference.md` gotcha 12). Add one `--extra-section axis=value_mm` per such feature
+position (repeatable), e.g. `--extra-section x=50 --extra-section x=110` for two
+seam tabs at x=50 and x=110, so the checklist item 8 review in Step 4 actually has
+a section that crosses the feature to look at.
+
 **Step 4 — Decide**
 
 Handle geometry errors first, then the visual self-review. A part is done only
 when geometry validation passes AND the visual self-review confirms intent.
 
 1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the visual review for this attempt.
-2. **`success: true` AND no blocking errors** → run the **visual self-review**: examine the preview PNG against every item in `reference/Visual Review Checklist.md` (shape match, feature completeness, feature placement, proportions, connected geometry, flat bed face, orientation), judged against this part's entry in `BUILD_PLAN.json`.
+2. **`success: true` AND no blocking errors** → run the **visual self-review**: examine the preview PNG against every item in `reference/Visual Review Checklist.md` (shape match, feature completeness, feature placement, proportions, connected geometry, flat bed face, orientation), judged against this part's entry in `BUILD_PLAN.json`. For item 8, confirm every unioned-after-a-cavity feature was actually crossed by a section (the default center cuts or an added `--extra-section`) — an off-center feature with no section through it is not a verified pass, it's an unchecked blind spot.
    - **All checklist items pass** → part done. Record `geometry.bbox`. Display the preview PNG. Advance to next part.
    - **Any item fails** AND attempt < 3 → record a `visual_mismatch` finding naming the failed item(s) and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3).
 3. **Attempt 3 exhausted** with remaining geometry errors or an unresolved `visual_mismatch` → summarize the remaining errors and any visual mismatch to the user. Ask conversationally: provide a hint, accept the part as-is, or skip this part.

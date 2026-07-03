@@ -3,8 +3,12 @@
 CadQuery's built-in `ThreeMFWriter` emits one object per sub-shape but bundles them
 into a single unnamed component and drops any per-union identity. This writer keeps
 each union as a separately named, separately built object carrying its plate id as
-object-level metadata, so a slicer operator can re-distribute objects across plates
-and co-plated (print-in-place) unions stay identifiable as a group by shared plate.
+object-level metadata, and also emits `Metadata/model_settings.config` in Bambu
+Studio / OrcaSlicer's proprietary multi-plate schema (`<plate>` / `<model_instance>`
+elements keyed by object id) so those slicers auto-distribute objects across
+separate build plates on import, instead of stacking every union onto plate 1. The
+plain `<metadata name="plate">` on each object (below) is kept as a
+slicer-independent fallback for tools that don't read the Bambu extension.
 
 Geometry is written in the assembled pose (the caller bakes placement into each
 shape before passing it in).
@@ -87,13 +91,48 @@ def _add_object(
         ET.SubElement(triangles, "triangle", v1=str(t[0]), v2=str(t[1]), v3=str(t[2]))
 
 
+def _model_settings_config(plate_assignments: list[tuple[str, str]]) -> bytes:
+    """Build `Metadata/model_settings.config` assigning objects to slicer plates.
+
+    Matches Bambu Studio / OrcaSlicer's proprietary 3MF plate schema (reverse
+    engineered from `bbs_3mf.cpp` in the BambuStudio source): a `<plate>` per
+    distinct plate id, each carrying a `plater_id` (1-based, in first-seen order)
+    and one `<model_instance>` per object assigned to it, referencing the same
+    numeric `object_id` used for that object's `<object id="...">` in
+    `3D/3dmodel.model`. `instance_id` is always `0` (we never emit more than one
+    instance of an object).
+
+    Args:
+        plate_assignments: list of (object_id, plate_id) in object order.
+    """
+    plate_order: list[str] = []
+    for _obj_id, plate in plate_assignments:
+        if plate not in plate_order:
+            plate_order.append(plate)
+
+    config = ET.Element("config")
+    for plate_index, plate in enumerate(plate_order, start=1):
+        plate_el = ET.SubElement(config, "plate")
+        ET.SubElement(plate_el, "metadata", key="plater_id", value=str(plate_index))
+        ET.SubElement(plate_el, "metadata", key="plater_name", value=plate)
+        ET.SubElement(plate_el, "metadata", key="locked", value="false")
+        for obj_id, obj_plate in plate_assignments:
+            if obj_plate != plate:
+                continue
+            instance = ET.SubElement(plate_el, "model_instance")
+            ET.SubElement(instance, "metadata", key="object_id", value=obj_id)
+            ET.SubElement(instance, "metadata", key="instance_id", value="0")
+            ET.SubElement(instance, "metadata", key="identify_id", value=obj_id)
+    return ET.tostring(config, xml_declaration=True, encoding="utf-8")
+
+
 def write_named_3mf(
     objects: list[tuple[str, str, Any]],
     path: str,
     tolerance: float = 0.01,
     angular_tolerance: float = 0.1,
 ) -> None:
-    """Write a 3MF with one named object per union.
+    """Write a 3MF with one named object per union, grouped onto slicer plates.
 
     Args:
         objects: list of (union_name, plate_id, cq_shape) in assembled pose
@@ -103,12 +142,15 @@ def write_named_3mf(
     resources = ET.SubElement(model, "resources")
     build = ET.SubElement(model, "build")
 
+    plate_assignments: list[tuple[str, str]] = []
     for i, (name, plate, shape) in enumerate(objects):
         obj_id = str(i + 1)
         _add_object(resources, obj_id, name, plate, shape, tolerance, angular_tolerance)
         ET.SubElement(build, "item", objectid=obj_id)
+        plate_assignments.append((obj_id, plate))
 
-    _write_zip(model, path)
+    extra_files = {"Metadata/model_settings.config": _model_settings_config(plate_assignments)}
+    _write_zip(model, path, extra_files)
 
 
 def write_single_3mf(
@@ -132,13 +174,21 @@ def write_single_3mf(
     _write_zip(model, path)
 
 
-def _write_zip(model: ET.Element, path: str) -> None:
-    """Pack a model element into a minimal 3MF OPC container."""
+def _write_zip(model: ET.Element, path: str, extra_files: dict[str, bytes] | None = None) -> None:
+    """Pack a model element into a minimal 3MF OPC container.
+
+    `extra_files` are additional zip entries (e.g. `Metadata/model_settings.config`)
+    written verbatim; BambuStudio/OrcaSlicer locate their proprietary metadata files
+    by fixed path during zip iteration, not via OPC relationships, so no `.rels` or
+    `[Content_Types].xml` entry is required for them.
+    """
     xml = ET.tostring(model, xml_declaration=True, encoding="utf-8")
     with ZipFile(path, "w", ZIP_DEFLATED) as zf:
         zf.writestr("_rels/.rels", _RELS)
         zf.writestr("[Content_Types].xml", _CONTENT_TYPES)
         zf.writestr("3D/3dmodel.model", xml)
+        for name, data in (extra_files or {}).items():
+            zf.writestr(name, data)
 
 
 def count_nonmanifold_edges(path: str) -> int:
