@@ -19,6 +19,7 @@ _BUNDLE_MODULES = (
     "model_export.py",
     "print_orientation.py",
     "placement.py",
+    "mate_chain.py",
     "units.py",
 )
 _BUNDLE_PACKAGES = ("exporters", "blocks")
