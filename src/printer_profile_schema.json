@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PRINTER_PROFILE",
+  "description": "Repo-root printer defaults consumed by the planning phase before BUILD_PLAN.json is generated",
+  "type": "object",
+  "required": ["printer", "material", "nozzle_mm", "constraints"],
+  "additionalProperties": false,
+  "properties": {
+    "printer": {
+      "type": "string",
+      "description": "Printer model, e.g. 'Bambu P1S', 'Prusa MK4', 'Ender 3'"
+    },
+    "material": {
+      "type": "string",
+      "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC"],
+      "description": "Default filament material"
+    },
+    "nozzle_mm": {
+      "type": "number",
+      "enum": [0.2, 0.4, 0.6, 0.8],
+      "description": "Default nozzle diameter in mm"
+    },
+    "constraints": {
+      "type": "object",
+      "required": ["wall_min_mm", "overhang_max_deg", "dimension_tolerance_mm"],
+      "additionalProperties": true,
+      "properties": {
+        "wall_min_mm": {
+          "type": "number",
+          "minimum": 0.4,
+          "description": "Minimum wall thickness for DFM check"
+        },
+        "overhang_max_deg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 90,
+          "description": "Maximum overhang angle before support required"
+        },
+        "dimension_tolerance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Tolerance for dimension mismatch check"
+        }
+      }
+    }
+  }
+}
