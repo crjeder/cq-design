@@ -98,6 +98,7 @@ src/
   render_preview.py         # subprocess entry point for preview.py
   mesh_io.py                # STL loader with watertightness validation (trimesh + numpy only)
   placement.py              # assembled-frame placement helper (cq Workplane + trimesh matrix)
+  mate_chain.py             # derived pose along a `joints` mate chain from root_part
   units.py                  # part -> unions expansion shared by export/validate/checks
   model_export.py           # model-level export: named multi-object 3MF + per-union/plate STL
   kinematic_check.py        # whole-model range-of-motion sweep (trimesh + python-fcl)

@@ -85,6 +85,12 @@ def validate_inventory(inventory: list[Any]) -> list[str]:
             isinstance(entry["carries"], list) and all(isinstance(c, str) for c in entry["carries"])
         ):
             errors.append(f"{tag}: carries must be a list of strings")
+        if "emits" in entry and not (
+            isinstance(entry["emits"], list)
+            and len(entry["emits"]) == 2
+            and all(isinstance(m, str) for m in entry["emits"])
+        ):
+            errors.append(f"{tag}: emits must be a list of exactly two strings")
 
         for iface in entry.get("interfaces", []):
             itype = iface.get("type", "")

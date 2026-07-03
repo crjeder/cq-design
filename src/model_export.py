@@ -2,7 +2,9 @@
 """Model-level export: assemble placed unions into a 3MF + STL artifacts.
 
 Each part in the build plan is a union (one rigid body). This loads every part's
-`result`, positions it by its `placement` into the shared assembled frame, and emits:
+`result`, positions it by its `placement` into the shared assembled frame -- or, for a
+part reached via a `joints` mate chain, by its derived pose (`mate_chain.py`) instead --
+and emits:
 
   1. one 3MF with each union as a separately named object carrying its `plate`
      metadata (assembled pose baked in; operator re-distributes objects to plates),
@@ -27,7 +29,8 @@ import cadquery as cq
 
 from exporters import _load_result
 from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
-from placement import apply_cq
+from mate_chain import compute_mate_poses
+from placement import apply_cq, apply_matrix
 from units import plate_of, resolve_unions
 
 _NAME_MAX_LEN = 64
@@ -85,6 +88,7 @@ def export_model(
     os.makedirs(output_dir, exist_ok=True)
     parts = plan.get("parts", [])
     print_orientations = print_orientations or {}
+    mate_poses = compute_mate_poses(plan)  # part id -> derived 4x4 transform
 
     # Expand each part into its unions: a part declaring `unions` returns a dict
     # {union_id: Workplane}; a plain Workplane is the single-union default (id = part id).
@@ -97,9 +101,13 @@ def export_model(
         script = os.path.join(parts_dir, f"{part['id']}.py")
         result = _load_result(script)
         declared = {u["id"]: u for u in part.get("unions", [])}
+        mate_pose = mate_poses.get(part["id"])
         for uid, wp in resolve_unions(part, result):
             authored[uid] = wp
-            placed[uid] = apply_cq(wp, part.get("placement"))
+            if mate_pose is not None:
+                placed[uid] = apply_matrix(wp, mate_pose)
+            else:
+                placed[uid] = apply_cq(wp, part.get("placement"))
             plate = plate_of(part, uid, declared.get(uid))
             plate_by_uid[uid] = plate
             plates.setdefault(plate, []).append(uid)

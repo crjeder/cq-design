@@ -77,6 +77,13 @@
         "if": { "properties": { "type": { "const": "revolute" } } },
         "then": { "required": ["origin"] }
       },
+      "emits": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 2,
+        "maxItems": 2,
+        "description": "For a matched-pair block whose function returns a dict[str, Workplane] of two member unions: their exact ids (e.g. [\"leaf_a\", \"leaf_b\"]). Omit for a block that returns a single Workplane. Backs a BUILD_PLAN.json `joints` entry's member cross-check."
+      },
       "params": {
         "type": "object",
         "description": "Map of parameter name to unit string (e.g. {d_screw: mm})",
