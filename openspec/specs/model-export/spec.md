@@ -99,9 +99,10 @@ The placement helper `placement.apply_cq` SHALL apply rotations and translations
 directly through the OCCT kernel (`BRepBuilderAPI_Transform` on the shape's underlying
 `TopoDS_Shape`, with the kernel copy flag), and SHALL NOT route the transform through any
 operation that pickles or `copy.deepcopy`s the shape. This helper positions a union into
-the assembled frame and applies its recommended print orientation for the model export. This holds regardless of whether `cq_warehouse.extensions`
-has monkeypatched `Shape._apply_transform`/`Shape.copy`, so transforms never trigger a
-`BinTools` serialization round-trip. The composed transform SHALL preserve the existing
+the assembled frame and applies its recommended print orientation for the model export.
+The behavior SHALL hold regardless of whether `cq_warehouse.extensions` has monkeypatched
+`Shape._apply_transform`/`Shape.copy`, so transforms never trigger a `BinTools`
+serialization round-trip. The composed transform SHALL preserve the existing
 `placement` convention: rotations are applied in listed order about axes through the
 origin, then the translation, and an absent or empty placement is the identity.
 
