@@ -1,0 +1,10 @@
+{
+  "printer": "Generic FDM printer",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 45,
+    "dimension_tolerance_mm": 0.5
+  }
+}

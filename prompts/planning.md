@@ -146,6 +146,18 @@ Before committing to any dimension values, populate `planning_notes` with your r
 
 {{BLOCK_INVENTORY}}
 
+## Printer profile
+
+{{PRINTER_PROFILE}}
+
+When a printer profile is present above, use its `printer`, `material`, `nozzle_mm`, and
+`constraints` values for the corresponding fields in the output schema below without asking
+the user. If the user's request states a different value for one of these fields, use the
+user's stated value instead and note in `planning_notes` that it differs from the profile;
+unless the user calls it a one-time exception, the skill will write it back into
+`printer_profile.json` as the new project default after this plan is produced. If no printer
+profile is present above, take these values from what the user stated in Phase 1.
+
 ## Required output schema
 
 ```json

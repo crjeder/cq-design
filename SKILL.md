@@ -98,15 +98,50 @@ server name is environment-dependent) are not in the seeded set and may still pr
 
 ---
 
+### Printer profile bootstrap (first use per directory)
+
+`printer_profile.json` in the working directory records a user's default `printer`,
+`material`, `nozzle_mm`, and `constraints` so Phase 1 doesn't have to ask for them on every
+run. Seed it once per directory, immediately after the permission bootstrap above and before
+Phase 1:
+
+```bash
+if [ ! -f printer_profile.json ]; then
+    cp "$SKILL_DIR/src/printer_profile.default.json" ./printer_profile.json
+    echo "Seeded printer_profile.json with defaults -- edit it to match your printer."
+fi
+python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
+```
+
+```powershell
+# Windows (PowerShell)
+if (-not (Test-Path printer_profile.json)) {
+    Copy-Item "$SKILL_DIR/src/printer_profile.default.json" ./printer_profile.json
+    Write-Host "Seeded printer_profile.json with defaults -- edit it to match your printer."
+}
+python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
+```
+
+An existing `printer_profile.json` is never overwritten or re-seeded -- the copy only happens
+when the file is absent. When the seed step runs, tell the user in the same turn that a
+default profile was created and where to edit it. If validation fails (the file exists but was
+hand-edited into an invalid state), report the errors and fall back to asking the user for the
+affected field(s) in Phase 1, exactly as if no profile existed.
+
+---
+
 ## Phase 1: Requirements gathering
 
 Collect the following before generating the plan. Ask if any are missing:
 
 - What the part is for and its primary function
 - Key dimensions, or a real-world product/PCB to look up
-- Printer model (e.g. Bambu P1S, Prusa MK4, Ender 3)
-- Material: PLA | PETG | ABS | ASA | TPU (default PLA)
-- Nozzle diameter: 0.2 | 0.4 | 0.6 | 0.8 mm (default 0.4)
+- Printer model, material, nozzle diameter, and DFM constraints (wall_min_mm,
+  overhang_max_deg, dimension_tolerance_mm) -- read from `printer_profile.json` when it
+  validates; only ask for a field the profile doesn't supply or that fails validation. If the
+  user states a different value for this model without calling it a one-time exception, write
+  that field back into `printer_profile.json` as the new project default (see Phase 2) and
+  tell the user the default changed.
 - Fit type for any mating surfaces (press, snap, sliding, loose)
 
 **Never guess dimensions for real-world products** (phones, PCBs, connectors, screens). Search for the exact spec first. Cross-reference at least two sources. Use -1 as a placeholder if a dimension cannot be verified, then ask the user before finalizing the plan.
@@ -185,13 +220,14 @@ Skip this checkpoint entirely if no real-world dimension lookups were performed 
 
 **Prerequisite:** The dimension validation checkpoint must be approved before this phase begins. If user-corrected values were provided during the checkpoint, use those values -- not the originally looked-up values -- when populating `BUILD_PLAN.json`.
 
-Build the planning prompt from the template in `prompts/planning.md`. Substitute three placeholders:
+Build the planning prompt from the template in `prompts/planning.md`. Substitute four placeholders:
 
 | Placeholder | Source |
 |-------------|--------|
 | `{{USER_REQUEST}}` | User's full description of the part |
 | `{{BLOCK_INVENTORY}}` | Condensed name + use lines from `src/blocks/inventory.json` |
 | `{{FDM_GUIDELINES}}` | Sections tagged `always` from `reference/FDM 3D Print Design Guidelines.md` |
+| `{{PRINTER_PROFILE}}` | `printer`/`material`/`nozzle_mm`/`constraints` from a validated `printer_profile.json` in the working directory, or a note that none is available |
 
 Follow the planning prompt instructions to produce `BUILD_PLAN.json`. The plan must conform to `src/build_plan_schema.json`.
 
@@ -208,6 +244,20 @@ python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
 ```
 
 If the write fails (e.g. the working directory is not writable), surface the error and ask the user to confirm or change the working directory before continuing.
+
+**Printer profile write-back:** if the plan's `printer`, `material`, `nozzle_mm`, or any
+`constraints` field differs from `printer_profile.json` and the user did not flag the value as
+a one-time exception during Phase 1, write the changed field(s) back so the profile stays the
+project default:
+
+```bash
+python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json --set nozzle_mm=0.6
+```
+
+Repeat `--set` for each changed field (dotted for constraints, e.g.
+`--set constraints.overhang_max_deg=50`). Announce the update to the user in the same turn
+("Updated printer_profile.json: nozzle_mm -> 0.6"). Skip this step entirely when the plan
+matches the profile, or when the user asked for a one-time exception.
 
 Display a human-readable Markdown summary of the validated plan (do not show raw JSON in chat) and confirm the write path using the absolute path:
 
@@ -824,6 +874,8 @@ Add 0.3-0.5 mm to `nut_flat` for a pocket that doesn't require force-fitting in 
 |------|------|
 | `BUILD_PLAN.json` | Generated plan; validate before building |
 | `src/build_plan_schema.json` | JSON Schema draft-7 the plan must conform to |
+| `printer_profile.json` | Repo-root printer/material/nozzle/constraint defaults; seeded from `src/printer_profile.default.json` |
+| `src/printer_profile_validate.py` | Validates `printer_profile.json`; `--set field=value` writes an override back |
 | `src/run_cadquery_model.py` | Geometry validator; emits structured JSON result |
 | `src/quality_gate.py` | DFM + geometry gate; emits print recipe |
 | `src/plan_validate.py` | Validates BUILD_PLAN.json against schema and inventory |
