@@ -418,15 +418,21 @@ def _render_preview(
     env: dict,
     cross_sections: bool = False,
     extra_sections: list[str] | None = None,
-) -> tuple[str | None, str | None]:
+    details: list[str] | None = None,
+) -> tuple[list[str], str | None]:
     """Invoke render_preview.py as a subprocess.
 
     `extra_sections` is a list of raw "AXIS=VALUE_MM" strings (e.g. "x=50"),
-    forwarded as repeated --extra-section flags; render_preview.py parses and
-    validates them.
+    forwarded as repeated --extra-section flags. `details` is a list of raw
+    "name=...;center=x,y,z;size=..." specs, forwarded as repeated --detail flags
+    (see render_preview.py --help for the full format); each produces one or two
+    additional standalone, feature-named preview files. render_preview.py parses
+    and validates all of these.
 
-    Returns (preview_png_path, error_message).
-    On success: (path, None). On failure: (None, error_text).
+    Returns (preview_png_paths, error_message): the first path is the main
+    overview preview, followed by any detail-view/detail-section paths, in the
+    order render_preview.py reported them via its final `extra_previews` JSON
+    line. On success: (paths, None). On failure: ([], error_text).
     """
     script_dir = os.path.dirname(script_path)
     script_stem = os.path.splitext(os.path.basename(script_path))[0]
@@ -447,6 +453,8 @@ def _render_preview(
         cmd.append("--cross-sections")
     for spec in extra_sections or []:
         cmd.extend(["--extra-section", spec])
+    for spec in details or []:
+        cmd.extend(["--detail", spec])
 
     proc = subprocess.run(
         cmd,
@@ -457,9 +465,19 @@ def _render_preview(
 
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "Preview render subprocess failed").strip()
-        return None, err
+        return [], err
 
-    return preview_dest, None
+    extra_previews: list[str] = []
+    for line in reversed(proc.stdout.splitlines()):
+        try:
+            parsed = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(parsed, dict) and "extra_previews" in parsed:
+            extra_previews = parsed["extra_previews"]
+            break
+
+    return [preview_dest, *extra_previews], None
 
 
 def _append_stderr(result: dict, msg: str) -> None:
@@ -493,6 +511,20 @@ def main():
             "--extra-section x=50 (requires --preview). AXIS is x/y/z. Repeatable. "
             "Use when a feature's footprint is away from the bounding-box center and "
             "so would not be crossed by the default cuts."
+        ),
+    )
+    parser.add_argument(
+        "--detail",
+        action="append",
+        default=[],
+        metavar="SPEC",
+        help=(
+            "Standalone high-resolution detail view for a small feature (requires "
+            "--preview): 'name=<feature>;center=x,y,z;size=<mm>', optionally with a "
+            "matching detail cross-section: '...;section=<axis>=<pos>'. Written as "
+            "separate feature-named files. Repeatable. Use for a feature added or "
+            "changed at the user's request that would be imperceptible in the "
+            "default overview tile."
         ),
     )
     parser.add_argument(
@@ -671,16 +703,22 @@ def main():
 
         # Preview rendering via render_preview.py subprocess (CQ-native, no OpenGL)
         if args.preview and stls_in_temp:
-            preview_path, render_err = _render_preview(
-                script_path, skill_root, args.views, env, args.cross_sections, args.extra_section
+            preview_paths, render_err = _render_preview(
+                script_path,
+                skill_root,
+                args.views,
+                env,
+                args.cross_sections,
+                args.extra_section,
+                args.detail,
             )
             if render_err:
                 _append_stderr(result, render_err)
                 result["success"] = False
                 print(json.dumps(result, indent=2))
                 sys.exit(1)
-            result["previews"] = [preview_path]
-            result["preview"] = preview_path
+            result["previews"] = preview_paths
+            result["preview"] = preview_paths[0] if preview_paths else None
 
         # --deliver: run modular exporter and expose output paths
         if args.deliver and stls_in_temp:

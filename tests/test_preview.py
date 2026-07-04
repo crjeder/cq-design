@@ -143,3 +143,63 @@ def test_render_multi_view_extra_sections_fallback(box_workplane, tmp_path):
         )
     assert out.exists()
     assert out.stat().st_size > 0
+
+
+def test_render_detail_view_produces_png(box_workplane, tmp_path):
+    out = tmp_path / "detail.png"
+    result = preview.render_detail_view(
+        box_workplane, str(out), focus_center=(0, 0, 0), focus_size=4.0, view_size=200
+    )
+    assert result == str(out)
+    assert out.exists()
+    assert out.stat().st_size > 0
+
+
+def test_render_detail_view_is_higher_default_resolution_than_tile():
+    assert preview.DETAIL_VIEW_SIZE > preview.DEFAULT_VIEW_SIZE
+
+
+def test_render_detail_view_zoomed_fills_more_of_frame_than_whole_part(box_workplane, tmp_path):
+    """A tight focus window around a small region should show more solid (non-
+    background) pixels than the same view fit to the whole 10mm cube, since the
+    zoomed window magnifies a sub-region to fill the same pixel canvas."""
+    import numpy as np
+    from PIL import Image
+
+    whole_path = tmp_path / "whole.png"
+    zoomed_path = tmp_path / "zoomed.png"
+    preview.render_detail_view(
+        box_workplane, str(whole_path), focus_center=(0, 0, 0), focus_size=10.0, view_size=200
+    )
+    # A 3mm window centered on a cube corner: still inside the solid, but zoomed
+    # in tightly enough that the solid fills virtually the whole frame.
+    preview.render_detail_view(
+        box_workplane, str(zoomed_path), focus_center=(4, 4, 4), focus_size=3.0, view_size=200
+    )
+
+    def _bg_fraction(path):
+        arr = np.asarray(Image.open(path).convert("RGB"))
+        bg = np.array([0xE8, 0xE8, 0xEC])
+        return float(np.all(np.abs(arr.astype(int) - bg) < 3, axis=-1).mean())
+
+    assert _bg_fraction(zoomed_path) < _bg_fraction(whole_path)
+
+
+def test_render_detail_section_produces_png(box_workplane, tmp_path):
+    out = tmp_path / "detail_section.png"
+    result = preview.render_detail_section(
+        box_workplane, str(out), "x", 0.0, focus_center=(0, 0, 0), focus_size=6.0, view_size=200
+    )
+    assert result == str(out)
+    assert out.exists()
+    assert out.stat().st_size > 0
+
+
+def test_render_detail_section_returns_none_on_cut_failure(box_workplane):
+    from unittest.mock import patch
+
+    with patch("preview._cut_half", return_value=None):
+        result = preview.render_detail_section(
+            box_workplane, "unused.png", "x", 0.0, focus_center=(0, 0, 0), focus_size=6.0
+        )
+    assert result is None

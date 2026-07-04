@@ -5,8 +5,14 @@ For a union mesh in its authored frame, enumerate stable bed-down orientations
 (convex-hull resting facets + the six axis-aligned faces) and score each on:
 
   - strength: how well the part's load direction stays in the layer plane
-    (perpendicular to build +Z). FDM is weakest across layers, so a load that runs
-    along Z is the worst case. Score = 1 - |load_after_rotation . Z|.
+    (perpendicular to build +Z). FDM is weakest ACROSS layers under tension,
+    bending, or shear -- those stress the interlayer bond -- so for those load
+    types a load that runs along Z is the worst case: Score = 1 - |load_after_rotation
+    . Z|. A pure COMPRESSION load (e.g. a resting weight pressing straight down
+    through a base/plinth/pedestal) does not stress the interlayer bond the same
+    way, so it does not drive orientation at all: strength score is neutral (1.0)
+    regardless of pose, and the support/bed-contact tiebreakers decide instead.
+    See `load.type` in `build_plan_schema.json` and `--load-type` below.
   - support: downward-facing area above the overhang limit at that pose (a
     slicer-free proxy for support volume; less is better), with bed contact area as
     a tiebreaker (more contact prints more reliably).
@@ -32,6 +38,8 @@ it applies a `placement`. It is distinct from the union's assembled-frame
 Usage:
     python3 print_orientation.py union.stl --overhang-max-deg 45
     python3 print_orientation.py union.stl --overhang-max-deg 45 --load 1,0,0
+    python3 print_orientation.py union.stl --overhang-max-deg 45 \\
+        --load 0,0,1 --load-type compression
     python3 print_orientation.py union.stl --optimize-for visual_quality \\
         --show-face 0,0,1
 """
@@ -73,6 +81,10 @@ GENTLE_INCLINE_MAX_DEG = 45.0
 VISUAL_INCLINE_WEIGHT = 1.0
 # Selectable print-orientation objectives.
 OPTIMIZE_MODES = ("strength", "min_support", "visual_quality", "min_build_height")
+# Load types recognized for strength scoring. tension/bending/shear all stress the
+# interlayer bond and keep the existing layer-plane-alignment scoring; compression
+# does not, so it scores as orientation-neutral (see _strength_score).
+LOAD_TYPES = ("tension", "compression", "bending", "shear")
 _DOWN = np.array([0.0, 0.0, -1.0])
 _UP = np.array([0.0, 0.0, 1.0])
 _AXIS_NORMALS = [
@@ -148,8 +160,17 @@ def _rotation_to_bed(down_normal: np.ndarray) -> np.ndarray:
     return np.asarray(trimesh.geometry.align_vectors(_unit(down_normal), _DOWN))
 
 
-def _strength_score(rotation: np.ndarray, load_dir: np.ndarray) -> float:
-    """1.0 when the rotated load lies in the layer plane, 0.0 when along build Z."""
+def _strength_score(
+    rotation: np.ndarray, load_dir: np.ndarray, load_type: str = "tension"
+) -> float:
+    """1.0 when the rotated load lies in the layer plane, 0.0 when along build Z.
+
+    A `compression` load doesn't stress the interlayer bond regardless of its
+    orientation relative to the layers (unlike tension/bending/shear), so it never
+    penalizes any pose: always 1.0, leaving support/bed-contact to decide.
+    """
+    if load_type == "compression":
+        return 1.0
     load_after = rotation[:3, :3] @ _unit(load_dir)
     return round(1.0 - abs(float(load_after[2])), 6)
 
@@ -305,6 +326,7 @@ def optimize_orientation(
     strength_band: float = STRENGTH_BAND,
     optimize_for: str = "strength",
     show_face: list[float] | None = None,
+    load_type: str = "tension",
 ) -> dict:
     """Choose the print orientation for a union mesh under the requested mode.
 
@@ -312,13 +334,18 @@ def optimize_orientation(
     `visual_quality`, or `min_build_height`. `load_dir` is the principal load in
     the mesh's own frame and
     `show_face` is the cosmetic surface normal; both are inferred from geometry when
-    None. Every candidate is scored on strength, support, and visual quality so the
-    rationale can explain the trade-off regardless of mode. Returns the recommended
-    rotation (placement convention), the score breakdown, the inputs used, and a
-    human-readable rationale.
+    None. `load_type` is one of `LOAD_TYPES`, default `tension`: `tension`/`bending`/
+    `shear` keep the layer-plane-alignment strength scoring; `compression` makes
+    strength orientation-neutral (see `_strength_score`) since a resting/compressive
+    load doesn't stress the interlayer bond. Every candidate is scored on strength,
+    support, and visual quality so the rationale can explain the trade-off
+    regardless of mode. Returns the recommended rotation (placement convention), the
+    score breakdown, the inputs used, and a human-readable rationale.
     """
     if optimize_for not in OPTIMIZE_MODES:
         raise ValueError(f"optimize_for must be one of {OPTIMIZE_MODES}, got {optimize_for!r}")
+    if load_type not in LOAD_TYPES:
+        raise ValueError(f"load_type must be one of {LOAD_TYPES}, got {load_type!r}")
 
     load_inferred = load_dir is None
     load_vec = _infer_load_dir(mesh) if load_inferred else np.asarray(load_dir, dtype=float)
@@ -328,7 +355,7 @@ def optimize_orientation(
     candidates = []
     for idx, normal in enumerate(enumerate_candidate_normals(mesh)):
         rotation = _rotation_to_bed(normal)
-        strength = _strength_score(rotation, load_vec)
+        strength = _strength_score(rotation, load_vec, load_type)
         support, bed_contact = _support_metrics(mesh, rotation, overhang_deg)
         visual, cosmetic_down, incline = _visual_metrics(mesh, rotation, show_vec)
         candidates.append(
@@ -349,7 +376,7 @@ def optimize_orientation(
 
     load_used = [round(float(v), 6) for v in _unit(load_vec)]
     show_used = [round(float(v), 6) for v in _unit(show_vec)]
-    rationale = _rationale(chosen, optimize_for, overhang_deg, len(candidates))
+    rationale = _rationale(chosen, optimize_for, overhang_deg, len(candidates), load_type)
     return {
         "optimize_for": optimize_for,
         "rotate": _rotation_to_placement(chosen["rotation"]),
@@ -362,13 +389,20 @@ def optimize_orientation(
         "build_height_mm": chosen["build_height"],
         "load_dir": load_used,
         "load_inferred": load_inferred,
+        "load_type": load_type,
         "show_face": show_used,
         "show_face_inferred": show_face_inferred,
         "rationale": rationale,
     }
 
 
-def _rationale(chosen: dict, optimize_for: str, overhang_deg: float, n_candidates: int) -> str:
+def _rationale(
+    chosen: dict,
+    optimize_for: str,
+    overhang_deg: float,
+    n_candidates: int,
+    load_type: str = "tension",
+) -> str:
     """Human-readable explanation naming the mode and the winning trade-off."""
     common = (
         f"strength {chosen['strength']:.3f}, weighted support-cost "
@@ -377,6 +411,11 @@ def _rationale(chosen: dict, optimize_for: str, overhang_deg: float, n_candidate
         f"(cosmetic-down {chosen['cosmetic_down']:.2f}, "
         f"{chosen['gentle_incline_fraction'] * 100:.0f}% gentle-incline area)"
     )
+    if load_type == "compression":
+        common += (
+            ". load_type=compression: strength is orientation-neutral "
+            "(interlayer bond isn't stressed by a resting load), so support/bed-contact decided"
+        )
     if optimize_for == "min_support":
         lead = "min_support: least support first, strength as tiebreaker"
     elif optimize_for == "visual_quality":
@@ -401,6 +440,16 @@ def main() -> None:
         "--load",
         default=None,
         help="Principal load direction 'x,y,z' in the authored frame; omit to infer",
+    )
+    parser.add_argument(
+        "--load-type",
+        choices=LOAD_TYPES,
+        default="tension",
+        help=(
+            "Load type (default: tension). tension/bending/shear keep layer-plane "
+            "strength scoring; compression (a resting weight pressing straight "
+            "down, e.g. a base/plinth/pedestal) makes strength orientation-neutral."
+        ),
     )
     parser.add_argument(
         "--optimize-for",
@@ -429,6 +478,7 @@ def main() -> None:
         load_dir,
         optimize_for=args.optimize_for,
         show_face=show_face,
+        load_type=args.load_type,
     )
     print(json.dumps(result, indent=2))
     sys.exit(0)

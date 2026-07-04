@@ -303,8 +303,9 @@ The summary must include:
 |---|-----|-------------|----------------|-------------|------|--------|
 | 1 | ... | ... | ... x ... x ... | ... | ... | ... |
 
-(The `Load` column shows each part's `load.dir` hint, or `inferred` when the part omits
-it — it drives print-orientation strength scoring.)
+(The `Load` column shows each part's `load.dir` hint (plus `load.type` when it differs
+from the `tension` default, e.g. `compression`), or `inferred` when the part omits it —
+it drives print-orientation strength scoring.)
 
 **Print optimization**
 
@@ -442,6 +443,38 @@ position (repeatable), e.g. `--extra-section x=50 --extra-section x=110` for two
 seam tabs at x=50 and x=110, so the checklist item 8 review in Step 4 actually has
 a section that crosses the feature to look at.
 
+**Feature detail previews for small features.** The default overview tile packs
+every view into a compact grid (isometric, front, side, top, plus back-isometric
+and bottom, each a few hundred pixels) — a small feature (a boss, a slot, one
+dovetail tooth, a vent hole) is hard to actually inspect at that scale, especially
+right after adding or changing it at the user's specific request, when they want
+to see that exact change clearly. Generate a standalone, higher-resolution detail
+preview for it via `--detail`, in **addition to** (not instead of) the normal
+`--preview` overview:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
+    build/<part_id>.py --preview \
+    --detail "name=<feature_name>;center=<x>,<y>,<z>;size=<mm>[;section=<axis>=<pos>]"
+```
+
+- `name` becomes part of the output filename (`<part_id>_detail_<name>.png`, and
+  `<part_id>_section_<axis>_<name>.png` when `section` is given) — pick a short,
+  descriptive name (`vent_slot`, `dovetail_west`, `mount_hole`), not a generic one.
+- `center`/`size` frame a window roughly 2-4x the feature's own size, centered on
+  it — not the whole part's extent — so the feature actually fills the frame at
+  the higher `DETAIL_VIEW_SIZE` resolution.
+- Add `section=axis=pos` when the feature's internal depth or fit matters (a
+  blind hole, a boss inside a cavity, a snap-fit lip): it renders a second file, a
+  zoomed cross-section through the same point.
+- The extra files land in `previews[1:]` of the JSON result (the main overview
+  stays `previews[0]`) — repeat `--detail` for more than one feature in the same
+  run.
+
+Display every detail/section file alongside the main overview when reporting the
+change back to the user — don't make them squint at the small overview tile for a
+feature they specifically asked about.
+
 **Step 4 — Decide**
 
 Handle geometry errors first, then the visual self-review. A part is done only
@@ -473,7 +506,7 @@ For each stage, in order:
 3. **Visual self-review** — apply `reference/Visual Review Checklist.md` scoped to the features expected through this stage (e.g. don't fault a missing port at the base-shape stage). Resolve any `visual_mismatch` before the checkpoint.
 4. **Checkpoint** — display the staged preview PNG and a one-line summary of what this stage added, then wait. The user can:
    - **Approve** → advance to the next stage (or complete the part if this was `finishing`).
-   - **Request a change** → re-author this stage with the feedback, re-validate (2), re-review (3), present the checkpoint again.
+   - **Request a change** → re-author this stage with the feedback, re-validate (2), re-review (3), present the checkpoint again. When the request names a specific small feature (add a vent here, move this boss, change this dovetail), also generate a `--detail` preview for that exact feature (see Step 3's "Feature detail previews") alongside the staged overview — the user asked about one small thing, so show them that thing at a size they can actually inspect, not just the whole-part tile again.
    - **Skip remaining** → finish the rest of the part with the autonomous Part loop; show no further checkpoints for this part.
 
 **Completion bar:** a progressively built part is done only when its final geometry
@@ -532,25 +565,42 @@ optimize with the part's effective mode:
 # authored-frame STL for the part (deliver mode writes it out)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
     build/<part_id>.py --deliver --formats stl
-# orientation: pass the part's load.dir / show_face.dir when the plan declares them,
-# else omit to infer; --optimize-for is the part's effective mode (default strength)
+# orientation: pass the part's load.dir / load.type / show_face.dir when the plan
+# declares them, else omit load/show-face to infer; --optimize-for is the part's
+# effective mode (default strength)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
     build/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
-    --optimize-for <strength|min_support|visual_quality> [--load x,y,z] [--show-face x,y,z]
+    --optimize-for <strength|min_support|visual_quality> \
+    [--load x,y,z] [--load-type tension|compression|bending|shear] [--show-face x,y,z]
 ```
 
 Each run prints a JSON result: the active `optimize_for`, a `rotate` transform (placement
 convention), the `strength_score`, `support_score`, `bed_contact_mm2`, `visual_score` (with
 `cosmetic_down` and `gentle_incline_fraction`), the `load_dir` used (with `load_inferred`),
-the `show_face` used (with `show_face_inferred`), and a `rationale`.
+`load_type` used, the `show_face` used (with `show_face_inferred`), and a `rationale`.
 
 **The loop:** read the score breakdown and decide.
+- **Sanity-check the load first, before trusting the score.** `strength` mode always keeps
+  the load direction in the layer plane — correct for tension/bending/shear, but pointless
+  for a **compression** load (a resting weight pressing straight through the part's
+  thickness: a base, plinth, pedestal, foot). A compression part scored under the
+  tension-style default gets tipped onto its edge chasing an irrelevant "strength" goal —
+  check `build_height_mm` and the rotation against physical common sense (would you
+  actually print this thin, wide part standing on its edge?), not just the numeric score.
+  If the load is really compressive and `load_inferred` is true, or the plan's declared
+  `load.dir`/`load.type` doesn't match what you now know about the real load path: **write
+  the correction into `BUILD_PLAN.json`'s `load` field for that part** (same write-back
+  principle as the printer-profile field write-back in Phase 2 — a corrected understanding
+  belongs in the plan, not just in this one CLI invocation), announce the correction to the
+  user, then re-run the optimizer with `--load`/`--load-type` reflecting the now-declared
+  plan field.
 - **Accept** the recommended orientation when its scores are acceptable for the chosen mode,
   or when no better orientation exists at comparable primary score.
-- **Improve** the part when the chosen mode's primary score is poor: make a targeted geometry
-  edit to the part script (chamfer a steep overhang or a gentle incline, add a
-  print-in-place foot, split a feature), re-validate it (Step 3), and re-run the optimizer.
-  Re-scoring on identical input is deterministic, so a changed score reflects the edit.
+- **Improve** the part when the chosen mode's primary score is poor for a load that
+  genuinely is tension/bending/shear: make a targeted geometry edit to the part script
+  (chamfer a steep overhang or a gentle incline, add a print-in-place foot, split a
+  feature), re-validate it (Step 3), and re-run the optimizer. Re-scoring on identical
+  input is deterministic, so a changed score reflects the edit.
 - Respect the user's mode: `visual_quality` and `min_support` may deliberately accept a
   weaker or higher-support pose. The non-primary scores stay in the result and rationale, so
   if the trade-off looks unacceptable, surface it to the user rather than silently overriding

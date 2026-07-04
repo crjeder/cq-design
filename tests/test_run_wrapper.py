@@ -237,6 +237,46 @@ def test_preview_extra_section_repeatable(good_script):
     assert os.path.exists(data["previews"][0])
 
 
+def test_preview_detail_view_adds_named_file_to_previews(good_script):
+    """--detail produces an extra, feature-named file and appends it to `previews`
+    (the main overview stays `previews[0]`)."""
+    rc, data = run(good_script, "--preview", "--detail", "name=corner;center=4,4,4;size=3")
+    assert rc == 0
+    assert len(data["previews"]) == 2
+    assert os.path.exists(data["previews"][0])
+    detail_path = data["previews"][1]
+    assert os.path.exists(detail_path)
+    assert "corner" in os.path.basename(detail_path)
+    assert "detail" in os.path.basename(detail_path)
+
+
+def test_preview_detail_with_section_adds_two_named_files(good_script):
+    """A --detail spec with section= produces both a detail view and a detail
+    cross-section, both named after the feature."""
+    rc, data = run(
+        good_script,
+        "--preview",
+        "--detail",
+        "name=corner;center=4,4,4;size=3;section=x=4",
+    )
+    assert rc == 0
+    assert len(data["previews"]) == 3
+    for path in data["previews"][1:]:
+        assert os.path.exists(path)
+        assert "corner" in os.path.basename(path)
+    basenames = [os.path.basename(p) for p in data["previews"][1:]]
+    assert any("detail" in b for b in basenames)
+    assert any("section" in b for b in basenames)
+
+
+def test_preview_detail_invalid_spec_fails(good_script):
+    """A malformed --detail spec (missing size=) fails the run instead of
+    crashing deeper in preview rendering."""
+    rc, data = run(good_script, "--preview", "--detail", "name=corner;center=4,4,4")
+    assert rc == 1
+    assert "detail" in data.get("stderr", "").lower()
+
+
 def test_render_preview_cli_produces_png(tmp_path):
     """render_preview.py CLI creates a PNG from a script with a `result` variable."""
     script = tmp_path / "box_model.py"
@@ -304,4 +344,59 @@ def test_render_preview_cli_rejects_invalid_extra_section(tmp_path):
     )
     assert proc.returncode == 1
     assert "extra-section" in proc.stderr.lower()
+    assert not output.exists()
+
+
+def test_render_preview_cli_detail_produces_named_files(tmp_path):
+    """render_preview.py --detail produces a feature-named detail file next to
+    the main output, and reports it in the final extra_previews JSON line."""
+    script = tmp_path / "box_model.py"
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
+    output = tmp_path / "box_preview.png"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            RENDER_PREVIEW,
+            "--script",
+            str(script),
+            "--output",
+            str(output),
+            "--detail",
+            "name=mount_hole;center=8,6,3;size=5",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    detail_path = tmp_path / "box_preview_detail_mount_hole.png"
+    assert detail_path.exists()
+    assert detail_path.stat().st_size > 0
+
+    last_line = proc.stdout.strip().splitlines()[-1]
+    reported = json.loads(last_line)
+    assert reported["extra_previews"] == [str(detail_path)]
+
+
+def test_render_preview_cli_rejects_invalid_detail_spec(tmp_path):
+    """render_preview.py exits 1 on a malformed --detail spec (missing a
+    required field) instead of crashing deeper in preview rendering."""
+    script = tmp_path / "box_model.py"
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
+    output = tmp_path / "out.png"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            RENDER_PREVIEW,
+            "--script",
+            str(script),
+            "--output",
+            str(output),
+            "--detail",
+            "name=mount_hole;center=8,6,3",  # missing size=
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 1
+    assert "detail" in proc.stderr.lower()
     assert not output.exists()

@@ -69,11 +69,13 @@ def _orientation_for(
 
     `optimize_orientation` scores a mesh in its authored frame, so the result is
     exported to a throwaway STL and reloaded. Uses the part's declared `load.dir` /
-    `show_face.dir` when present (the optimizer infers them otherwise) and the
-    effective `optimize_for` mode resolved from the plan.
+    `load.type` / `show_face.dir` when present (the optimizer infers direction
+    otherwise and defaults type to `tension`) and the effective `optimize_for` mode
+    resolved from the plan.
     """
     load = part.get("load")
     load_dir = load["dir"] if load else None
+    load_type = load.get("type", "tension") if load else "tension"
     show_face = part.get("show_face")
     show_dir = show_face["dir"] if show_face else None
     with tempfile.TemporaryDirectory() as tmp:
@@ -81,7 +83,12 @@ def _orientation_for(
         cq.exporters.export(result, stl)
         mesh = load_mesh(stl)
     return optimize_orientation(
-        mesh, overhang_deg, load_dir, optimize_for=optimize_for, show_face=show_dir
+        mesh,
+        overhang_deg,
+        load_dir,
+        optimize_for=optimize_for,
+        show_face=show_dir,
+        load_type=load_type,
     )
 
 
