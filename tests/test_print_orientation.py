@@ -39,6 +39,59 @@ def test_long_bar_with_axial_load_is_laid_flat():
     assert result["strength_score"] > 0.9
 
 
+def test_compression_load_is_orientation_neutral_regardless_of_axis():
+    # Compression doesn't stress the interlayer bond, so strength score is always
+    # 1.0 no matter how the load direction sits relative to the layers.
+    in_plane = _strength_score(np.eye(4), np.array([1.0, 0.0, 0.0]), load_type="compression")
+    across = _strength_score(
+        trimesh.geometry.align_vectors([1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        np.array([1.0, 0.0, 0.0]),
+        load_type="compression",
+    )
+    assert in_plane == 1.0
+    assert across == 1.0
+
+
+def test_flat_wide_part_under_compression_keeps_flat_orientation():
+    # Regression for the TV-pedestal bug: a flat, wide part loaded in pure
+    # compression along Z (a resting weight pressing straight down) must NOT be
+    # tipped onto its edge to chase layer-plane "strength". Under tension-style
+    # scoring, the flat-down pose scores worst (load stays along Z) and any
+    # edge-standing pose scores near 1.0 with no support-cost penalty (a plain box
+    # has no overhangs either way) -- so "strength" mode picks an edge-standing
+    # pose, ~10x taller than necessary. With load_type=compression, strength is
+    # neutral for every pose and support/bed-contact keep it flat.
+    slab = trimesh.creation.box([100.0, 100.0, 10.0])
+    tension_result = optimize_orientation(
+        slab, overhang_deg=45.0, load_dir=[0.0, 0.0, 1.0], load_type="tension"
+    )
+    compression_result = optimize_orientation(
+        slab, overhang_deg=45.0, load_dir=[0.0, 0.0, 1.0], load_type="compression"
+    )
+    # Tension-style scoring tips the slab onto its 100 mm edge: confirms the bug
+    # reproduces under the old default.
+    assert tension_result["build_height_mm"] > 50.0
+    # Compression scoring keeps it flat: build height stays at the part's thin
+    # (10 mm) dimension.
+    assert compression_result["strength_score"] == 1.0
+    assert compression_result["build_height_mm"] < 20.0
+    assert compression_result["load_type"] == "compression"
+
+
+def test_load_type_defaults_to_tension():
+    box = trimesh.creation.box([20.0, 20.0, 20.0])
+    result = optimize_orientation(box, overhang_deg=45.0, load_dir=[1.0, 0.0, 0.0])
+    assert result["load_type"] == "tension"
+
+
+def test_unknown_load_type_rejected():
+    import pytest
+
+    box = trimesh.creation.box([20.0, 20.0, 20.0])
+    with pytest.raises(ValueError, match="load_type"):
+        optimize_orientation(box, overhang_deg=45.0, load_type="squash")
+
+
 def test_support_increases_with_exposed_overhang():
     # A cylinder standing on its flat end has no side overhang; lying on its side
     # exposes the whole curved underside as overhang.

@@ -12,8 +12,13 @@ Usage (via render_preview.py subprocess):
 Public API:
     render_single(workplane, output_path, title, width, height)
     render_multi_view(workplane, output_path, title, subtitle, view_size)
+    render_detail_view(workplane, output_path, focus_center, focus_size)
+    render_detail_section(workplane, output_path, axis, position, focus_center, focus_size)
 
-Both functions accept a CadQuery Workplane or Shape as the first argument.
+All functions accept a CadQuery Workplane or Shape as the first argument.
+`render_detail_view`/`render_detail_section` are standalone, high-resolution,
+zoomed-in renders for a single small feature (a boss, hole, tab) that would be
+imperceptible in the default whole-part framing -- see DETAIL_VIEW_SIZE.
 """
 
 import os
@@ -28,6 +33,9 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from PIL import Image, ImageDraw, ImageFont
 
 DEFAULT_VIEW_SIZE = 600
+# Higher resolution for standalone feature-detail renders so a small feature is
+# actually legible when zoomed in, unlike the compact overview-tile thumbnails.
+DETAIL_VIEW_SIZE = 1400
 _SINGLE_WIDTH = 900
 _SINGLE_HEIGHT = 750
 _BG_COLOR = "#E8E8EC"
@@ -178,11 +186,16 @@ def _info_lines(wp, n_triangles):
 # ---------------------------------------------------------------------------
 
 
-def _render_cq_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW_SIZE):
+def _render_cq_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW_SIZE, focus=None):
     """Render one view of a CadQuery object. Returns a PIL Image (RGB).
 
     Uses FigureCanvasAgg directly so no display server or global pyplot
     state is needed.
+
+    `focus` is an optional `(center_xyz, size_mm)` pair overriding the default
+    whole-mesh-fit axis limits with a fixed-size cubic window centered on a point
+    -- used for feature detail views where the feature is small relative to the
+    whole part and would be imperceptible at the default whole-part framing.
     """
     verts, triangles = _tessellate(wp)
 
@@ -208,14 +221,18 @@ def _render_cq_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW
         coll = Poly3DCollection(triangles, facecolors=face_colors, edgecolor="none")
         ax.add_collection3d(coll)
 
-        # Equal-aspect axis limits
-        x_range = verts[:, 0].max() - verts[:, 0].min()
-        y_range = verts[:, 1].max() - verts[:, 1].min()
-        z_range = verts[:, 2].max() - verts[:, 2].min()
-        half = max(x_range, y_range, z_range, 1.0) * 0.6
-        mid_x = (verts[:, 0].max() + verts[:, 0].min()) / 2
-        mid_y = (verts[:, 1].max() + verts[:, 1].min()) / 2
-        mid_z = (verts[:, 2].max() + verts[:, 2].min()) / 2
+        if focus is not None:
+            (mid_x, mid_y, mid_z), size = focus
+            half = max(float(size), 1.0) * 0.6
+        else:
+            # Equal-aspect axis limits fit to the whole mesh
+            x_range = verts[:, 0].max() - verts[:, 0].min()
+            y_range = verts[:, 1].max() - verts[:, 1].min()
+            z_range = verts[:, 2].max() - verts[:, 2].min()
+            half = max(x_range, y_range, z_range, 1.0) * 0.6
+            mid_x = (verts[:, 0].max() + verts[:, 0].min()) / 2
+            mid_y = (verts[:, 1].max() + verts[:, 1].min()) / 2
+            mid_z = (verts[:, 2].max() + verts[:, 2].min()) / 2
         ax.set_xlim(mid_x - half, mid_x + half)
         ax.set_ylim(mid_y - half, mid_y + half)
         ax.set_zlim(mid_z - half, mid_z + half)
@@ -271,6 +288,60 @@ def render_single(
 
 _SECTION_CAMERA = {"x": (5, 0), "y": (5, -90), "z": (90, -90)}
 _SECTION_REMOVE_POSITIVE = {"x": True, "y": False, "z": True}
+
+
+def render_detail_view(
+    wp,
+    output_path,
+    focus_center,
+    focus_size,
+    elev=25,
+    azim=-60,
+    view_size=DETAIL_VIEW_SIZE,
+):
+    """Render a single high-resolution, zoomed-in view of a small feature.
+
+    `focus_center` is `(x, y, z)` in the part's authored frame and `focus_size` is
+    the span (mm) of the cubic window to frame -- use roughly 2-4x the feature's
+    own size so it's centered with some surrounding context, not the whole part's
+    extent. Standalone file, not part of a tile: pair with a descriptive,
+    feature-named `output_path` (see `run_cadquery_model.py --detail`).
+    """
+    img = _render_cq_view(
+        wp, elev, azim, view_size, view_size, focus=(tuple(focus_center), focus_size)
+    )
+    img.save(output_path)
+    return output_path
+
+
+def render_detail_section(
+    wp,
+    output_path,
+    axis,
+    position,
+    focus_center,
+    focus_size,
+    view_size=DETAIL_VIEW_SIZE,
+):
+    """Render a high-resolution, zoomed-in cross-section through a small feature.
+
+    Cuts `wp` at `axis`/`position` (same convention as the targeted
+    `--extra-section` cuts) and frames the result on `focus_center`/`focus_size`
+    (see `render_detail_view`). Returns `output_path` on success, `None` if the
+    cut fails (OCC failure on a degenerate cut plane) -- the caller should skip
+    writing that file and warn rather than save a meaningless blank image under a
+    feature-specific name.
+    """
+    shape = _get_shape(wp)
+    sec = _cut_half(shape, axis, position, remove_positive=_SECTION_REMOVE_POSITIVE[axis])
+    if sec is None:
+        return None
+    elev, azim = _SECTION_CAMERA[axis]
+    img = _render_cq_view(
+        sec, elev, azim, view_size, view_size, focus=(tuple(focus_center), focus_size)
+    )
+    img.save(output_path)
+    return output_path
 
 
 def render_multi_view(

@@ -151,7 +151,7 @@
             "type": "object",
             "additionalProperties": false,
             "required": ["dir"],
-            "description": "Optional principal load direction in the part's own authored frame. Drives print-orientation strength scoring: orientations that keep this direction in the layer plane (perpendicular to build Z) score stronger. Omit to let the optimizer infer a load axis from geometry.",
+            "description": "Optional principal load direction (and type) in the part's own authored frame. Drives print-orientation strength scoring: for tension/bending/shear, orientations that keep this direction in the layer plane (perpendicular to build Z) score stronger; for compression, strength is orientation-neutral since a resting load doesn't stress the interlayer bond. Omit `dir` entirely to let the optimizer infer a load axis from geometry.",
             "properties": {
               "dir": {
                 "type": "array",
@@ -159,6 +159,12 @@
                 "minItems": 3,
                 "maxItems": 3,
                 "description": "Direction vector [x, y, z] in the authored frame; need not be unit length"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["tension", "compression", "bending", "shear"],
+                "default": "tension",
+                "description": "Load type. tension/bending/shear keep layer-plane strength scoring (default, conservative). compression (a resting weight pressing straight through the part's thickness -- a base, plinth, pedestal, foot) makes strength orientation-neutral so support/bed-contact decide instead."
               }
             }
           },

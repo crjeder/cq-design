@@ -104,6 +104,15 @@ Self-supporting horizontal features — pick by function:
 <!-- applies_to: always -->
 
 - Align tensile/primary loads PARALLEL to the bed (in-plane) — ~3x stronger than across layers.
+- **This rule is about tension/bending/shear, not compression.** Those stress the
+  interlayer bond, which is the weak direction; a pure compression load (a resting
+  weight pressing straight through a base/plinth/pedestal/foot) does not stress that
+  bond and doesn't care whether it runs along build Z or in-plane. Don't tip a flat,
+  wide, compression-loaded part onto its edge chasing "load in-plane" — that
+  optimizes for a failure mode the part doesn't have, at the cost of stability and
+  print time. Declare the load as `load.type: "compression"` (see `BUILD_PLAN.json`
+  schema / `print_orientation.py --load-type`) so orientation scoring doesn't
+  penalize keeping it flat.
 - Large cross-sections: thick beats thin; reduce surface area before volume. Square section
   ≥ I-beam in FDM with no time penalty.
 - Round transitions and corners — spreads stress, guides loads on short direct paths.

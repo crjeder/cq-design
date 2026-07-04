@@ -17,11 +17,53 @@ Exit codes:
 """
 
 import argparse
+import json
 import os
 import runpy
 import shutil
 import sys
 import tempfile
+
+
+def _parse_detail_spec(spec: str) -> dict:
+    """Parse one `--detail` spec into `{name, center, size, section}`.
+
+    Format: `name=<feature>;center=x,y,z;size=<mm>[;section=<axis>=<pos>]`.
+    `section` is optional; `axis` is x/y/z. Raises ValueError with a message
+    naming the problem on any malformed spec.
+    """
+    parts = dict(item.split("=", 1) for item in spec.split(";") if item)
+    for required in ("name", "center", "size"):
+        if required not in parts:
+            raise ValueError(f"missing '{required}=' in --detail spec '{spec}'")
+
+    name = parts["name"].strip()
+    if not name:
+        raise ValueError(f"empty name= in --detail spec '{spec}'")
+
+    center_parts = parts["center"].split(",")
+    if len(center_parts) != 3:
+        raise ValueError(f"center= must be 3 comma-separated values in --detail spec '{spec}'")
+    try:
+        center = tuple(float(v) for v in center_parts)
+        size = float(parts["size"])
+    except ValueError as exc:
+        raise ValueError(f"non-numeric center/size in --detail spec '{spec}'") from exc
+
+    section = None
+    if "section" in parts:
+        axis, _, pos = parts["section"].partition("=")
+        axis = axis.strip().lower()
+        if axis not in ("x", "y", "z") or not pos:
+            raise ValueError(
+                f"section= must be AXIS=VALUE with AXIS one of x/y/z in --detail spec '{spec}'"
+            )
+        try:
+            section = (axis, float(pos))
+        except ValueError as exc:
+            raise ValueError(f"non-numeric section position in --detail spec '{spec}'") from exc
+
+    return {"name": name, "center": center, "size": size, "section": section}
 
 
 def main():
@@ -47,6 +89,18 @@ def main():
             "that axis. Repeatable. Ignored for --views iso."
         ),
     )
+    parser.add_argument(
+        "--detail",
+        action="append",
+        default=[],
+        metavar="SPEC",
+        help=(
+            "Standalone high-resolution detail view for a small feature: "
+            "'name=<feature>;center=x,y,z;size=<mm>', optionally with a matching "
+            "detail cross-section: '...;section=<axis>=<pos>'. Written as separate "
+            "files named after <feature>, independent of --views. Repeatable."
+        ),
+    )
     args = parser.parse_args()
 
     extra_sections = []
@@ -67,6 +121,14 @@ def main():
                 f"ERROR: invalid --extra-section '{spec}', VALUE_MM must be numeric",
                 file=sys.stderr,
             )
+            sys.exit(1)
+
+    details = []
+    for spec in args.detail:
+        try:
+            details.append(_parse_detail_spec(spec))
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
             sys.exit(1)
 
     script_path = os.path.abspath(args.script)
@@ -137,11 +199,37 @@ def main():
             )
         else:
             preview.render_single(result, args.output, title=title)
+
+        out_dir = os.path.dirname(args.output) or "."
+        stem = os.path.splitext(os.path.basename(args.output))[0]
+        extra_previews = []
+        for spec in details:
+            detail_path = os.path.join(out_dir, f"{stem}_detail_{spec['name']}.png")
+            preview.render_detail_view(result, detail_path, spec["center"], spec["size"])
+            extra_previews.append(detail_path)
+
+            if spec["section"] is not None:
+                axis, pos = spec["section"]
+                section_path = os.path.join(out_dir, f"{stem}_section_{axis}_{spec['name']}.png")
+                written = preview.render_detail_section(
+                    result, section_path, axis, pos, spec["center"], spec["size"]
+                )
+                if written is None:
+                    print(
+                        f"WARNING: detail section for '{spec['name']}' failed "
+                        "(degenerate cut), skipping",
+                        file=sys.stderr,
+                    )
+                else:
+                    extra_previews.append(section_path)
     except Exception as exc:
         print(f"ERROR: preview render failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Preview saved: {args.output} ({os.path.getsize(args.output)} bytes)")
+    for path in extra_previews:
+        print(f"Detail preview saved: {path}")
+    print(json.dumps({"extra_previews": extra_previews}))
     sys.exit(0)
 
 
