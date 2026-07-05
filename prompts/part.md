@@ -8,7 +8,7 @@ Write a complete CadQuery script for the part specified below.
 1. Focus on translating design intent into elegant, maintainable CadQuery code
 2. Follow the "Design as Code" philosophy
 3. Make all output code parametric so users can easily modify dimensions
-4. Import cadquery as cq (and any blocks listed)
+4. Import `cadquery as cq`, then `from blocks import <function>` for each block listed under Available blocks (flat package import; never `from blocks.<module> import ...`)
 5. Define all dimensions in a PARAMETERS section at the top, never magic numbers in geometry
 6. Build the geometry using the available blocks and raw CadQuery
 7. Assign the final result to a top-level variable named `result` -- a single
@@ -48,7 +48,7 @@ The Down face (Z = 0) is the print bed. Use `centered=(True, True, False)` on `.
 
 {{BLOCK_SPECS}}
 
-Block functions listed above are pre-imported by the runner. Call them directly by name — do not write import statements for them.
+Import each block you use with a flat `from blocks import <function>` at the top of the script (see step 4). Do not import from block submodules.
 
 ## Part specification
 
