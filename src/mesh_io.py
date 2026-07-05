@@ -30,6 +30,40 @@ def load_mesh(path: str) -> trimesh.Trimesh:
     return tm
 
 
+def nonmanifold_edge_count(mesh) -> int:
+    """Count edges shared by other than exactly two faces, vectorized via numpy.
+
+    Shared core used by both the STL topology check (`run_cadquery_model.py`) and
+    the 3MF manifold check (`exporters/threemf_multi.count_nonmanifold_edges`) so
+    non-manifold detection has one implementation instead of parallel copies.
+    """
+    edges = np.sort(mesh.edges, axis=1)
+    _, counts = np.unique(edges, axis=0, return_counts=True)
+    return int((counts != 2).sum())
+
+
+def nonmanifold_edges(mesh, max_report=5):
+    """Find edges shared by other than exactly two faces, vectorized via numpy.
+
+    Returns up to `max_report` non-manifold edges (all of them if `max_report` is
+    None) as `(vertex_index_pair, face_indices)` tuples. Empty for a manifold mesh.
+    Unlike `nonmanifold_edge_count`, this resolves which faces touch each
+    non-manifold edge, needed to report a gap distance and offending faces.
+    """
+    edges = np.sort(mesh.edges, axis=1)
+    face_idx = np.repeat(np.arange(len(mesh.faces)), 3)
+    unique_edges, inverse, counts = np.unique(
+        edges, axis=0, return_inverse=True, return_counts=True
+    )
+    nm_edge_ids = np.nonzero(counts != 2)[0]
+    if max_report is not None:
+        nm_edge_ids = nm_edge_ids[:max_report]
+    return [
+        (tuple(int(v) for v in unique_edges[eid]), face_idx[inverse == eid].tolist())
+        for eid in nm_edge_ids
+    ]
+
+
 def overhang_metrics(mesh, overhang_deg):
     """Overhang area and worst face for a mesh at its current pose.
 
