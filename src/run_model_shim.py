@@ -13,6 +13,8 @@ import os
 import runpy
 import sys
 
+from units import KEEP_OUT_KEY
+
 
 def main() -> None:
     script_path = sys.argv[1]
@@ -34,8 +36,12 @@ def main() -> None:
 
     # A multi-union part sets `result` to a dict {union_id: Workplane}; export one STL per
     # union so the wrapper validates each body. A plain Workplane keeps the script-stem name.
+    # The reserved `keep_out` key (declared keep-out zones) is never a union and is skipped
+    # here -- it is validated by the whole-model keep-out check, not the per-part wrapper.
     if isinstance(result, dict):
         for uid, wp in result.items():
+            if uid == KEEP_OUT_KEY:
+                continue
             cq.exporters.export(wp, f"{uid}.stl")
     else:
         stem = os.path.splitext(os.path.basename(script_path))[0]
