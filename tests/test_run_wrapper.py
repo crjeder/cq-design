@@ -48,6 +48,20 @@ def test_happy_path_deliver(tmp_path):
     assert data["stl"].endswith("deliver_model.stl")
 
 
+def test_happy_path_deliver_output_dir(tmp_path):
+    """--output-dir redirects --deliver's STL away from the script's own
+    directory, so build/ can stay free of generated artifacts."""
+    script = tmp_path / "deliver_model.py"
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(10, 10, 10)\n")
+    out_dir = tmp_path / "stl"
+    rc, data = run(script, "--deliver", "--formats", "stl", "--output-dir", str(out_dir))
+    assert rc == 0
+    assert data["success"] is True
+    assert data["stl"] == str(out_dir / "deliver_model.stl")
+    assert (out_dir / "deliver_model.stl").exists()
+    assert not (tmp_path / "deliver_model.stl").exists()
+
+
 def test_strict_watertight(good_script):
     rc, data = run(good_script, "--strict")
     assert rc == 0
@@ -218,6 +232,17 @@ def test_preview_cross_sections(good_script):
     rc, data = run(good_script, "--preview", "--cross-sections")
     assert rc == 0
     assert len(data["previews"]) == 1
+    assert os.path.exists(data["previews"][0])
+
+
+def test_preview_dir_redirects_output(good_script, tmp_path):
+    """--preview-dir writes the preview PNG to a separate directory instead of
+    alongside the script, so build/ can stay free of generated artifacts."""
+    preview_dir = tmp_path / "preview"
+    rc, data = run(good_script, "--preview", "--preview-dir", str(preview_dir))
+    assert rc == 0
+    assert len(data["previews"]) == 1
+    assert os.path.dirname(data["previews"][0]) == str(preview_dir)
     assert os.path.exists(data["previews"][0])
 
 

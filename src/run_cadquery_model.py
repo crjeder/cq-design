@@ -419,6 +419,7 @@ def _render_preview(
     cross_sections: bool = False,
     extra_sections: list[str] | None = None,
     details: list[str] | None = None,
+    preview_dir: str | None = None,
 ) -> tuple[list[str], str | None]:
     """Invoke render_preview.py as a subprocess.
 
@@ -429,12 +430,18 @@ def _render_preview(
     additional standalone, feature-named preview files. render_preview.py parses
     and validates all of these.
 
+    `preview_dir` is where the preview PNG(s) are written; omit it to write
+    alongside the script (legacy behavior). The project's own preview/ directory
+    is kept separate from build/ (which holds only edited part scripts) -- pass
+    it explicitly to redirect previews there.
+
     Returns (preview_png_paths, error_message): the first path is the main
     overview preview, followed by any detail-view/detail-section paths, in the
     order render_preview.py reported them via its final `extra_previews` JSON
     line. On success: (paths, None). On failure: ([], error_text).
     """
-    script_dir = os.path.dirname(script_path)
+    script_dir = preview_dir or os.path.dirname(script_path)
+    os.makedirs(script_dir, exist_ok=True)
     script_stem = os.path.splitext(os.path.basename(script_path))[0]
     preview_dest = os.path.join(script_dir, f"{script_stem}_preview.png")
     render_script = os.path.join(skill_root, "render_preview.py")
@@ -528,6 +535,11 @@ def main():
         ),
     )
     parser.add_argument(
+        "--preview-dir",
+        default=None,
+        help="Directory for preview PNG(s) (requires --preview; default: alongside the script)",
+    )
+    parser.add_argument(
         "--strict",
         action="store_true",
         help="Fail if any STL is not watertight or no STL produced",
@@ -566,6 +578,11 @@ def main():
         "--formats",
         default="stl",
         help="Comma-separated export formats for --deliver (default: stl)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Output directory for --deliver (default: alongside the script)",
     )
     args = parser.parse_args()
 
@@ -711,6 +728,7 @@ def main():
                 args.cross_sections,
                 args.extra_section,
                 args.detail,
+                args.preview_dir,
             )
             if render_err:
                 _append_stderr(result, render_err)
@@ -725,7 +743,8 @@ def main():
             try:
                 from exporters import run_exporters
 
-                out_dir = os.path.dirname(script_path)
+                out_dir = args.output_dir or os.path.dirname(script_path)
+                os.makedirs(out_dir, exist_ok=True)
                 formats = [f.strip() for f in args.formats.split(",") if f.strip()]
                 delivered = run_exporters(script_path, formats, out_dir)
                 result["stls"] = [p for p in delivered if p.endswith(".stl")]
