@@ -373,7 +373,7 @@ Read into context (once, before the loop):
 - `BUILD_PLAN.json` — the validated plan
 - `$SKILL_DIR/src/blocks/inventory.json` — block metadata (module, function, params)
 - `$SKILL_DIR/prompts/part.md` — part prompt template
-- `$SKILL_DIR/reference/CadQuery Pattern Reference.md` — full contents for `{{CQ_REFERENCE}}`
+- `$SKILL_DIR/reference/CadQuery Pattern Reference.md` and `$SKILL_DIR/reference/emboss_text.md` — concatenated, full contents for `{{CQ_REFERENCE}}`
 - `$SKILL_DIR/reference/FDM 3D Print Design Guidelines.md` — tag-filtered sections for `{{FDM_GUIDELINES}}`
 - `$SKILL_DIR/reference/Visual Review Checklist.md` — the visual self-review checklist applied in Step 4
 
@@ -414,7 +414,7 @@ Read `$SKILL_DIR/prompts/part.md` and substitute every placeholder:
 | `{{OVERHANG_MAX_DEG}}` | `plan["constraints"]["overhang_max_deg"]` |
 | `{{MATERIAL}}` | `plan["material"]` |
 | `{{NOZZLE_MM}}` | `plan["nozzle_mm"]` |
-| `{{CQ_REFERENCE}}` | Full contents of `CadQuery Pattern Reference.md` |
+| `{{CQ_REFERENCE}}` | Full contents of `CadQuery Pattern Reference.md`, concatenated with `emboss_text.md` |
 | `{{FDM_GUIDELINES}}` | Sections from `FDM 3D Print Design Guidelines.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always` |
 
 **Step 2 — Write the part script**
@@ -1051,4 +1051,5 @@ Add 0.3-0.5 mm to `nut_flat` for a pocket that doesn't require force-fitting in 
 | `src/model_export.py` | Assembles placed unions into model.3mf + per-union/plate STL |
 | `src/blocks/inventory.json` | Machine-readable block descriptors |
 | `reference/CadQuery Pattern Reference.md` | CadQuery idioms injected into part prompts |
+| `reference/emboss_text.md` | Text/emboss CadQuery gotchas, injected alongside the pattern reference |
 | `reference/FDM 3D Print Design Guidelines.md` | FDM guidelines injected into planning and part prompts |
