@@ -531,6 +531,97 @@ def test_mate_chain_part_pose_replaces_placement(tmp_path):
     assert abs(door_stl.bounds[1][2] - 2) < 0.01
 
 
+# ---- keep-out-zones: reserved key excluded from export/plate/union-STL --------
+
+
+def _write_part_with_zone(parts_dir, pid, zone_name="clearance"):
+    (parts_dir / f"{pid}.py").write_text(
+        "import cadquery as cq\n"
+        "result = {\n"
+        f"  {pid!r}: cq.Workplane('XY').box(20, 20, 4),\n"
+        "  'keep_out': {\n"
+        f"    {zone_name!r}: cq.Workplane('XY').box(5, 5, 5),\n"
+        "  },\n"
+        "}\n"
+    )
+
+
+def test_keep_out_zone_excluded_from_3mf_plate_and_union_stl(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part_with_zone(parts_dir, "enclosure")
+    out = tmp_path / "dist"
+    plan = _plan([{"id": "enclosure", "description": "Enclosure"}])
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    assert set(result["union_stls"]) == {"enclosure"}
+    assert result["plate_stls"] == {}
+    assert set(_read_3mf_objects(result["model_3mf"])) == {"Enclosure"}
+    assert set(result["keep_out_stls"]) == {"enclosure::clearance"}
+    zone_mesh = trimesh.load(result["keep_out_stls"]["enclosure::clearance"], force="mesh")
+    assert zone_mesh.is_watertight
+
+
+def test_keep_out_zone_inherits_part_placement(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part_with_zone(parts_dir, "enclosure")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {
+                "id": "enclosure",
+                "description": "Enclosure",
+                "placement": {"translate_mm": [0, 0, 50]},
+            }
+        ]
+    )
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    # zone box is 5x5x5 authored at the origin; the part's placement shifts it +50 in Z.
+    zone_mesh = trimesh.load(result["keep_out_stls"]["enclosure::clearance"], force="mesh")
+    assert abs(zone_mesh.bounds[0][2] - 47.5) < 0.01
+    assert abs(zone_mesh.bounds[1][2] - 52.5) < 0.01
+
+
+def test_keep_out_zone_inherits_mate_chain_pose(tmp_path):
+    """A zone declared by a part reached via a `joints` mate chain uses that part's
+    derived pose, exactly like the part's own real union does."""
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "door")
+    _write_part_with_zone(parts_dir, "wall")
+    out = tmp_path / "dist"
+    plan = _plan(
+        [
+            {"id": "door", "description": "Door leaf"},
+            {"id": "wall", "description": "Wall leaf"},
+        ]
+    )
+    plan["root_part"] = "door"
+    plan["joints"] = [
+        {
+            "joint_id": "hinge1",
+            "block": "pin_hinge",
+            "params": {},
+            "members": [
+                {"member": "leaf_a", "part": "door"},
+                {"member": "leaf_b", "part": "wall", "dock": {"translate_mm": [0, 0, 10]}},
+            ],
+        }
+    ]
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    # wall's derived pose is -10mm in Z (see test_mate_chain_part_pose_replaces_placement);
+    # the zone (5x5x5 box authored at the origin in wall's own frame) follows the same pose.
+    zone_mesh = trimesh.load(result["keep_out_stls"]["wall::clearance"], force="mesh")
+    assert abs(zone_mesh.bounds[0][2] - (-12.5)) < 0.01
+    assert abs(zone_mesh.bounds[1][2] - (-7.5)) < 0.01
+
+
 def test_part_outside_mate_chain_still_uses_own_placement(tmp_path):
     """A part not named in any `joints` entry is unaffected by the mate chain."""
     parts_dir = tmp_path / "parts"
