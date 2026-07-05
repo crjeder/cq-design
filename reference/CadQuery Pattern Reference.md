@@ -2,23 +2,38 @@
 
 ## Table of Contents
 
-1. Basic Shapes (Primitives)
-2. Face & Edge Selectors
-3. 2D Construction (Wire Drawing)
-4. Sketch API
-5. Machining Operations (Holes, Shell, Fillet)
-6. Advanced 3D Operations (Loft, Sweep, Revolve)
-7. Array Methods
-8. Transform Operations (Translate, Rotate, Mirror)
-9. Boolean Operations
-10. Center Selection
-11. Accessing Objects & Debugging
-12. Drawing Arcs by Sagitta
-13. Text Deboss: `combine='cut'` Silent Failure
-14. Embossed Text Overflow and Clipping
-15. Measuring Text Bounding Boxes
-16. Common Gotchas
-17. Workplane Context Stacking (Origin Drift)
+1. CadQuery Workplane Naming (XY/XZ/YZ)
+2. Basic Shapes (Primitives)
+3. Face & Edge Selectors
+4. 2D Construction (Wire Drawing)
+5. Sketch API
+6. Machining Operations (Holes, Shell, Fillet)
+7. Advanced 3D Operations (Loft, Sweep, Revolve)
+8. Array Methods
+9. Transform Operations (Translate, Rotate, Mirror)
+10. Boolean Operations
+11. Non-Overlapping Part Assembly (Performance)
+12. Center Selection
+13. Accessing Objects & Debugging
+14. Drawing Arcs by Sagitta
+15. Common Gotchas
+16. Workplane Context Stacking (Origin Drift)
+17. The Fresh Workplane Pattern
+18. Text & Emboss Reference -- see `reference/emboss_text.md`
+
+
+## CadQuery Workplane Naming (XY/XZ/YZ)
+
+`cq.Workplane("XY")`, `"XZ"`, `"YZ"` name the plane a sketch is drawn on, not a
+world-frame convention (that's `prompts/planning.md`'s separate North/East/Up
+vocabulary for assembly placement) -- this is purely about which two local axes a
+2D sketch spans before `.extrude()`/`.revolve()` lifts it into 3D:
+
+- `"XY"` — sketch spans X/Y, extrudes along Z (Z is up)
+- `"XZ"` — sketch spans X/Z, extrudes along Y (Y is depth)
+- `"YZ"` — sketch spans Y/Z, extrudes along X (X is width)
+
+All dimensions are in millimeters.
 
 
 ## Basic Shapes (Primitives)
@@ -318,6 +333,23 @@ assembly.add(bottom, name="bottom", color=cq.Color("gray"))
 assembly.add(top, name="top", loc=cq.Location((0, 0, total_h)), color=cq.Color("blue"))
 ```
 
+## Non-Overlapping Part Assembly (Performance)
+
+For plates/arrays where parts don't touch, skip `.union()` (O(n²) OCCT booleans) and
+combine them into one compound instead:
+
+```python
+from cadquery import Compound
+parts = [gauge1, gauge2, ...]  # list of CQ Workplane objects
+compound = Compound.makeCompound([p.val() for p in parts])
+cq.exporters.export(compound, "plate.stl")
+```
+
+This is 5-10x faster than unioning for 20+ parts. `makeCompound()` works directly on
+CQ Workplane `.val()` objects; for raw OCC solids (e.g. after `.moved()` or a
+`Location` transform with no Workplane wrapper), build a `TopoDS_Compound` via
+`BRep_Builder` instead.
+
 ## Center Selection
 
 ```python
@@ -339,48 +371,6 @@ result.faces(">Z").workplane(centerOption="CenterOfMass")
 - Going left→right: positive sag = arc bows upward (convex)
 - Sagitta formula: `sag = R - sqrt(R² - (chord/2)²)`
 
-## Text Deboss: combine='cut' Silent Failure
-
-`combine='cut'` in `.text()` often silently fails, producing unchanged geometry. This appears related to workplane context contamination and OCCT boolean sensitivity on coplanar surfaces.
-
-**Canonical deboss pattern — always works:**
-```python
-# Create text on a FRESH workplane at absolute coordinates
-text_solid = (
-    cq.Workplane("XY")
-    .transformed(offset=(0, text_y, top_z), rotate=(0, 0, 90))
-    .text(label, font_size, -depth, font="Arial")
-)
-# Explicitly cut from body
-body = body.cut(text_solid)
-```
-
-**Detection:** Compare face count or file size before/after. If unchanged, the cut failed silently.
-
-## Embossed Text Overflow and Clipping
-
-`combine='a'` (additive text) creates geometry outside the body boundary. Characters that extend past the body outline become floating protrusions.
-
-**Clip pattern:**
-```python
-# After adding embossed text
-clip = body_profile(cq.Workplane("XY")).extrude(thickness + emboss_height)
-result = result.intersect(clip)
-```
-
-## Measuring Text Bounding Boxes
-
-CadQuery has no API for font metrics. Measure empirically:
-
-```python
-def measure_text_bbox(text, font_size=10.0, font="Arial"):
-    solid = cq.Workplane("XY").text(text, font_size, 1.0, combine=False)
-    bb = solid.val().BoundingBox()
-    return bb.xlen / font_size, bb.ylen / font_size  # width_ratio, height_ratio
-```
-
-Cache ratios for known labels. Multiply ratio by desired font_size to get actual dimensions.
-
 ## Common Gotchas
 
 1. **Outer edge fillets before shell, small/detail fillets after** — apply large exterior fillets (e.g. `edges("|Z")`) before shelling; defer small or interior fillets until after shelling, as pre-existing small fillets can cause shell to fail
@@ -390,8 +380,8 @@ Cache ratios for known labels. Multiply ratio by desired font_size to get actual
 5. **Use `forConstruction=True`** for reference geometry that shouldn't become solid
 6. **Workplane offset** — `.workplane(offset=10)` creates a new workplane 10mm above current
 7. **Workplane origin stacking** — `.center(x, y)` permanently mutates the plane origin. Subsequent `.faces().workplane()` inherits the shifted origin via `ProjectedOrigin` (the default `centerOption`). This causes features placed later to be offset. See Workplane Context Stacking section below.
-8. **`combine='cut'` text deboss fails silently** — CadQuery's `.text(..., combine='cut')` often produces no change. Use a fresh workplane + explicit `.cut()` instead. See Text Deboss section below.
-9. **Additive text overflows body** — `.text(..., combine='a')` can create geometry outside the body outline. Clip with `.intersect()` or use deboss instead.
+8. **`combine='cut'` text deboss fails silently** — CadQuery's `.text(..., combine='cut')` often produces no change. Use a fresh workplane + explicit `.cut()` instead. See `reference/emboss_text.md`.
+9. **Additive text overflows body** — `.text(..., combine='a')` can create geometry outside the body outline. Clip with `.intersect()` or use deboss instead. See `reference/emboss_text.md`.
 10. **Prefer boolean subtraction over `.shell()` for enclosures** — for parametric shelled boxes, modeling the cavity as a separate solid and `.cut()`-ing it is more robust than `.shell(-t)`, which frequently fails on filleted bodies or picks the wrong face to open. Reserve `.shell()` for simple uniform-wall cases. Order: outer shape → exterior fillets → cut cavity → holes/cutouts.
 11. **Revolved profiles on non-XY workplanes** — `.transformed(offset=(a,b,c))` on XZ or YZ workplanes maps offset to the LOCAL frame, not world coordinates. On an XZ workplane, local-Y is world-Z and the normal is world-Y. A revolve tool placed with `offset=(cx, top_z, cy)` on XZ ends up at world (cx, cy, top_z) — which may be wrong if you assumed world mapping. For revolved chamfer/fillet tools, prefer building on XY and translating the result, or verify with `verify_boolean` that the cut actually changed the geometry.
 12. **A feature unioned in AFTER a cavity cut can poke through the cavity floor/wall into the hollow interior** — `union()`-ing a full-height boss, tab, or dovetail onto a body that already has a pit/pocket/shell cavity is only safe where that XY footprint sits *outside* the cavity's footprint. Where it overlaps the cavity, the feature's full height extends past the remaining solid material and pokes into open space — invisible from every exterior view (the feature is still flush with the outer wall) and visible only in a cross-section that happens to cut through it. Clip the unioned feature's height/extent to the actual solid thickness at that XY position (e.g. a seam tab that reaches under a pit: extrude it only from the print bed up to the cavity floor, not to the part's full height), don't assume "runs the height of the part" is safe once any cavity exists. Visual self-review must check this explicitly (see `reference/Visual Review Checklist.md` item 8) — the exterior renders look identical whether or not the feature is clipped correctly.
@@ -428,4 +418,31 @@ body = body.cut(text)  # or .union(text)
 ```
 
 **Prevention:** Use `.moveTo()` instead of `.center()` when you only need to reposition a single feature. `.moveTo()` does NOT mutate the plane origin.
+
+## The Fresh Workplane Pattern
+
+When placing a feature at a known global coordinate, bypass `.faces().workplane()`
+entirely rather than tracking accumulated origin/orientation state:
+
+```python
+feature = (
+    cq.Workplane("XY")
+    .transformed(offset=(x, y, z), rotate=(rx, ry, rz))
+    .circle(r).extrude(h)
+)
+body = body.union(feature)  # or .cut(feature)
+```
+
+**Use when:** placing text, adding a feature after a hole/cut has already moved the
+implicit context, or any time workplane origin drift (see the section above) is a
+concern.
+
+**Don't use when:** the feature must follow a face's orientation (e.g. a feature on
+an angled face) -- there, `.faces().workplane()` is still the right tool.
+
+## Text & Emboss Reference
+
+Text-specific gotchas (deboss silent failures, additive-text overflow, measuring
+text bounding boxes) live in `reference/emboss_text.md`, injected alongside this
+file wherever `{{CQ_REFERENCE}}` is substituted.
 

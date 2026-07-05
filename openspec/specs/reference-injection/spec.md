@@ -2,16 +2,16 @@
 
 ## Purpose
 
-Defines requirements for how reference files (`CadQuery Pattern Reference.md` and `FDM 3D Print Design Guidelines.md`) are loaded and injected into part and planning prompts.
+Defines requirements for how reference files (`CadQuery Pattern Reference.md`, `emboss_text.md`, and `FDM 3D Print Design Guidelines.md`) are loaded and injected into part and planning prompts.
 
 ## Requirements
 
 ### Requirement: CQ reference is injected in full into part and assembly prompts
-The system SHALL load `reference/CadQuery Pattern Reference.md` once per build and substitute it for `{{CQ_REFERENCE}}` in `prompts/part.md` before each `claude -p` invocation. There SHALL be no `prompts/assembly.md`, so no assembly prompt receives the CQ reference.
+The system SHALL load `reference/CadQuery Pattern Reference.md` and `reference/emboss_text.md` once per build and substitute their concatenation for `{{CQ_REFERENCE}}` in `prompts/part.md` before each `claude -p` invocation, `CadQuery Pattern Reference.md` first. There SHALL be no `prompts/assembly.md`, so no assembly prompt receives the CQ reference.
 
 #### Scenario: Part prompt contains full CQ reference
 - **WHEN** `_render_part_prompt` is called for any part
-- **THEN** the rendered prompt contains the complete contents of `reference/CadQuery Pattern Reference.md` at the `{{CQ_REFERENCE}}` location
+- **THEN** the rendered prompt contains the complete contents of `reference/CadQuery Pattern Reference.md` followed by the complete contents of `reference/emboss_text.md` at the `{{CQ_REFERENCE}}` location
 
 #### Scenario: No assembly prompt to inject into
 - **WHEN** the build pipeline reaches the assembly phase
@@ -50,4 +50,4 @@ The system SHALL load reference file content once at the start of `build()` and 
 
 #### Scenario: Three-part build
 - **WHEN** the build plan contains three parts
-- **THEN** `reference/CadQuery Pattern Reference.md` is read from disk exactly once during the build, not three times
+- **THEN** `reference/CadQuery Pattern Reference.md` and `reference/emboss_text.md` are each read from disk exactly once during the build, not three times
