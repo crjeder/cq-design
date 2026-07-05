@@ -261,6 +261,34 @@ python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
 
 If the write fails (e.g. the working directory is not writable), surface the error and ask the user to confirm or change the working directory before continuing.
 
+**Write `parameters.py`** at the project root alongside `BUILD_PLAN.json`: one module
+documenting every real-world measurement this design is based on -- both what the user
+stated directly and what came from web search (the Dimension validation checkpoint
+table above, when that checkpoint ran). This is durable, human-readable provenance,
+separate from each part script's own internal `PARAMETERS` block (which holds resolved/
+derived geometry values, not necessarily the raw sourced ones) -- and separate from
+`planning_notes`, which explains reasoning rather than listing values for reuse. One
+named constant per measurement, each commented with its source:
+
+```python
+"""Sourced real-world measurements this design is based on.
+
+Not imported by the build -- each part script carries its own resolved PARAMETERS
+block. This file keeps the underlying real-world numbers and their sources visible
+and easy to re-verify or update independent of how a part script used them.
+"""
+
+TV_BASE_WIDTH_MM = 385.0   # user-stated
+IPHONE_15_PRO_WIDTH_MM = 70.6  # apple.com/iphone-15-pro/specs, confirmed vs. gsmarena.com
+USB_C_PORT_MM = (9.0, 3.5)  # USB-IF spec, single-source
+```
+
+Include every dimension from the Dimension validation checkpoint table regardless of
+its status (note `single-source`/`conflict`/`missing` in the comment as-is), plus any
+measurement the user stated directly that never went through a web lookup at all. Skip
+this file only when the design has no sourced real-world measurements whatsoever (e.g.
+every dimension is an arbitrary design choice with no external reference).
+
 **Printer profile write-back:** if the plan's `printer`, `material`, `nozzle_mm`, or any
 `constraints` field differs from `printer_profile.json` and the user did not flag the value as
 a one-time exception during Phase 1, write the changed field(s) back so the profile stays the
@@ -417,9 +445,12 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
     --expected-dims <w_mm>,<d_mm>,<h_mm> \
     --dim-tolerance <dimension_tolerance_mm> \
     --wall-min <wall_min_mm> \
-    --preview \
+    --preview --preview-dir preview \
     --cross-sections
 ```
+
+`--preview-dir preview` writes the preview PNG(s) to the project's `preview/` directory
+instead of alongside the script, keeping `build/` free of generated images.
 
 Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `dimension_mismatch`, `occ_exception`.
 
@@ -445,7 +476,7 @@ preview for it via `--detail`, in **addition to** (not instead of) the normal
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
-    build/<part_id>.py --preview \
+    build/<part_id>.py --preview --preview-dir preview \
     --detail "name=<feature_name>;center=<x>,<y>,<z>;size=<mm>[;section=<axis>=<pos>]"
 ```
 
@@ -549,18 +580,20 @@ already be recorded as `optimize_for` in `BUILD_PLAN.json` during planning; hono
 
 Run the optimizer once per union, on the union's **authored-frame** STL (the part's own
 `result`, before any `placement`), since print orientation is a property of the part, not
-of its assembled pose. Export that authored STL first (hidden during the loop), then
-optimize with the part's effective mode:
+of its assembled pose. Export that authored STL first (hidden during the loop), into
+`stl/` -- the same directory the deliverable STLs land in below, so nothing scratch ends
+up in `build/`; Model export overwrites it there with the real assembled-pose STL once
+every part passes -- then optimize with the part's effective mode:
 
 ```bash
-# authored-frame STL for the part (deliver mode writes it out)
+# authored-frame STL for the part (deliver mode writes it out, into stl/ not build/)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
-    build/<part_id>.py --deliver --formats stl
+    build/<part_id>.py --deliver --formats stl --output-dir stl
 # orientation: pass the part's load.dir / load.type / show_face.dir when the plan
 # declares them, else omit load/show-face to infer; --optimize-for is the part's
 # effective mode (default strength)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
-    build/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
+    stl/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
     --optimize-for <strength|min_support|visual_quality> \
     [--load x,y,z] [--load-type tension|compression|bending|shear] [--show-face x,y,z]
 ```
@@ -611,43 +644,73 @@ kinematic check consumes are still written from `placement`, unaffected:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/model_export.py" \
-    --plan BUILD_PLAN.json --parts-dir build --out build \
+    --plan BUILD_PLAN.json --parts-dir build --out . --stl-out stl \
     --orientations build/orientations.json
 ```
 
-This writes a named-object `model.3mf` (each union a separately named object in its print
-orientation, carrying its `plate` metadata), one **assembled-pose** STL per union
-(`build/<part_id>.stl`, the kinematic check's input, in `placement` pose), and one fused
-STL per plate that holds more than one union (in the plate's print orientation). Run the
-export even for a single-part model to get the print-oriented deliverable; omit
-`--orientations` to fall back to assembled-pose deliverables.
+This writes a named-object `model.3mf` **at the project root** (each union a separately
+named object in its print orientation, carrying its `plate` metadata), one
+**assembled-pose** STL per union into `stl/` (`stl/<part_id>.stl`, the kinematic check's
+input, in `placement` pose), and one fused STL per plate that holds more than one union
+into `stl/` (in the plate's print orientation). Run the export even for a single-part
+model to get the print-oriented deliverable; omit `--orientations` to fall back to
+assembled-pose deliverables.
 
 Then make the working directory a **self-contained uv project** so the user can
-regenerate the plates on any machine with uv, without the skill installed. Three steps:
+regenerate the plates on any machine with uv, without the skill installed. The directory
+layout keeps `build/` to only the part scripts you author -- everything else (bundled
+tooling, STL, 3MF, previews) lives elsewhere:
 
-1. **Drop in the re-runnable build script and bundle the tooling.** Copy
-   `$SKILL_DIR/src/build_template.py` verbatim to `build/build.py` (no placeholder
-   substitution), then copy the build tooling it imports into `build/` so it sits on
-   `build.py`'s own `sys.path`: the modules `mesh_io.py`, `model_export.py`,
-   `print_orientation.py`, `placement.py`, `mate_chain.py`, `units.py` and the packages
-   `exporters/` and `blocks/` (copy the whole directories, including their `*.json` data
-   files). Re-running the skill overwrites these with the current `src/` versions.
+```
+<working directory>/
+  README.md              # project overview + build instructions (Phase 4)
+  parameters.py           # sourced real-world measurements (Phase 2, see below)
+  model.3mf                # deliverable, print-oriented
+  BUILD_PLAN.json
+  printer_profile.json
+  pyproject.toml, .python-version, uv.lock, .venv/
+  build/
+    <part_id>.py           # ONLY the part scripts you (Claude) write and edit
+    build.py               # re-runnable driver, copied verbatim (not edited)
+    orientations.json, *.orientation.json   # build-process bookkeeping
+  lib/                     # bundled tooling, copied so the project is skill-free
+    mesh_io.py, model_export.py, print_orientation.py, placement.py,
+    mate_chain.py, units.py, exporters/, blocks/
+  stl/
+    <part_id>.stl, plate_<n>.stl
+  preview/
+    <part_id>_preview.png, <part_id>_detail_*.png, <part_id>_section_*.png
+```
 
-2. **Scaffold the uv project files** at the working-directory root: copy
+Five steps:
+
+1. **Drop in the re-runnable build script.** Copy `$SKILL_DIR/src/build_template.py`
+   verbatim to `build/build.py` (no placeholder substitution).
+
+2. **Bundle the tooling into `lib/`** (a sibling of `build/`, not inside it -- `build/`
+   holds only edited part scripts): create `lib/` if absent, then copy in the modules
+   `mesh_io.py`, `model_export.py`, `print_orientation.py`, `placement.py`,
+   `mate_chain.py`, `units.py` and the packages `exporters/` and `blocks/` (copy the
+   whole directories, including their `*.json` data files). `build.py` adds `../lib`
+   (relative to its own location) to `sys.path` itself, so no further wiring is needed.
+   Re-running the skill overwrites `lib/` with the current `src/` versions.
+
+3. **Scaffold the uv project files** at the working-directory root: copy
    `$SKILL_DIR/src/project_template/pyproject.toml` to `pyproject.toml` and
    `$SKILL_DIR/src/project_template/.python-version` to `.python-version`.
 
-3. **Sync and verify.** Run `uv sync` in the working directory to create `.venv` and
+4. **Sync and verify.** Run `uv sync` in the working directory to create `.venv` and
    produce a committed `uv.lock`, then verify the build runs in that environment with
    `uv run python build/build.py`.
 
 ```bash
 # POSIX
 cp "$SKILL_DIR/src/build_template.py" build/build.py
+mkdir -p lib
 for m in mesh_io.py model_export.py print_orientation.py placement.py mate_chain.py units.py; do
-    cp "$SKILL_DIR/src/$m" build/
+    cp "$SKILL_DIR/src/$m" lib/
 done
-cp -r "$SKILL_DIR/src/exporters" "$SKILL_DIR/src/blocks" build/
+cp -r "$SKILL_DIR/src/exporters" "$SKILL_DIR/src/blocks" lib/
 cp "$SKILL_DIR/src/project_template/pyproject.toml" pyproject.toml
 cp "$SKILL_DIR/src/project_template/.python-version" .python-version
 uv sync
@@ -657,9 +720,10 @@ uv run python build/build.py
 ```powershell
 # Windows (PowerShell)
 Copy-Item "$SKILL_DIR/src/build_template.py" build/build.py
+New-Item -ItemType Directory -Force lib | Out-Null
 'mesh_io.py','model_export.py','print_orientation.py','placement.py','mate_chain.py','units.py' |
-    ForEach-Object { Copy-Item "$SKILL_DIR/src/$_" build/ }
-Copy-Item "$SKILL_DIR/src/exporters","$SKILL_DIR/src/blocks" build/ -Recurse
+    ForEach-Object { Copy-Item "$SKILL_DIR/src/$_" lib/ }
+Copy-Item "$SKILL_DIR/src/exporters","$SKILL_DIR/src/blocks" lib/ -Recurse
 Copy-Item "$SKILL_DIR/src/project_template/pyproject.toml" pyproject.toml
 Copy-Item "$SKILL_DIR/src/project_template/.python-version" .python-version
 uv sync
@@ -669,28 +733,33 @@ uv run python build/build.py
 This gives the user a self-contained project where `uv run python build/build.py`
 regenerates every plate with its object in print orientation after a manual part edit,
 without re-invoking the skill. It reuses `build/orientations.json` when present (so the
-plates match the ones just delivered) and recomputes orientations otherwise.
+plates match the ones just delivered) and recomputes orientations otherwise. `build.py`'s
+own defaults already point at the project root / `stl/` for its output, matching this
+layout, so no extra flags are needed for a normal re-run.
 
 ### Quality gate
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/quality_gate.py" \
     --script build/<part_id>.py --plan BUILD_PLAN.json \
-    --orientation build/<part_id>.orientation.json
+    --stl-dir stl --orientation build/<part_id>.orientation.json
 ```
 
 DFM, geometry, and overhang are per-rigid-body concerns, so the gate runs on each
-union's own part script: run it once per union for a multi-part model. Pass the union's
-own orientation result (one object split out of `build/orientations.json`) via
-`--orientation` so the emitted print recipe's `orientation` field carries the computed
-rotation and rationale instead of the default `flat_bottom_down`. The whole-model
-kinematic check runs once over the per-union assembled STLs produced by the model export.
+union's own part script: run it once per union for a multi-part model. Pass `--stl-dir
+stl` so the kinematic/plate-clearance sweep finds every union's assembled STL there
+(it defaults to alongside `--script`, i.e. `build/`, which no longer holds any STLs).
+Pass the union's own orientation result (one object split out of
+`build/orientations.json`) via `--orientation` so the emitted print recipe's
+`orientation` field carries the computed rotation and rationale instead of the default
+`flat_bottom_down`. The whole-model kinematic check runs once over the per-union
+assembled STLs produced by the model export.
 
 Parse `build/quality_gate.json` and proceed to Phase 4.
 
 The gate runs entirely in-process (trimesh + numpy geometry and overhang analysis); it needs no slicer or MCP. Real slicer-based printability validation (e.g. the orca-check MCP) is optional and external, not part of the gate.
 
-If the plan has a `kinematics` array, the gate also runs the **kinematic range check** (`src/kinematic_check.py`) once, after the geometry checks. The sweep is whole-model, so it needs **every union's assembled STL** present in the gate's STL directory as `<part_id>.stl`. Produce these with the **model export** (`src/model_export.py`), which applies each part's `placement` and writes one assembled STL per union (plus the named-object `model.3mf` and any fused-per-plate STL). The stage degrades to a `check_skipped` warning when a union STL or the `python-fcl`/`scipy` backend is missing. See **Kinematic validation** below.
+If the plan has a `kinematics` array, the gate also runs the **kinematic range check** (`src/kinematic_check.py`) once, after the geometry checks. The sweep is whole-model, so it needs **every union's assembled STL** present in `--stl-dir` (`stl/`) as `<part_id>.stl`. Produce these with the **model export** (`src/model_export.py`), which applies each part's `placement` and writes one assembled STL per union (plus the named-object `model.3mf` and any fused-per-plate STL). The stage degrades to a `check_skipped` warning when a union STL or the `python-fcl`/`scipy` backend is missing. See **Kinematic validation** below.
 
 Whenever any plate carries more than one union (print-in-place), the gate also runs the **plate-clearance check** (`src/plate_clearance_check.py`) once, over the same assembled per-union STLs. For every co-plated union pair it measures the minimum surface-to-surface gap and flags any pair within one layer height (`nozzle_mm * 0.5`) as a `plate_clearance` **error** -- those unions fuse on the bed. The gate runs this automatically (no separate command); it degrades to a `check_skipped` warning when trimesh or the `python-fcl` backend is missing. Measuring on the assembled STLs is valid because a plate fuses as a rigid cluster, so its print-orientation rotation preserves the pairwise gaps.
 
@@ -701,11 +770,21 @@ The `build/` directory is in your current working directory (the directory you c
 Report to the user:
 
 1. **Status** - which parts passed, which had remaining warnings or errors
-2. **Preview images** - display any `.png` files from `build/`
+2. **Preview images** - display any `.png` files from `preview/`
 3. **Print recipe** - show `print_recipe` from `build/quality_gate.json`
-4. **Output files** - list the STL / 3MF files in `build/`, and note that the working
-   directory is a self-contained uv project (committed `uv.lock`): the user regenerates
-   the plates in print orientation with `uv run python build/build.py`, no skill re-invoke
+4. **Output files** - list `model.3mf` (project root) and the STLs in `stl/`, and note
+   that the working directory is a self-contained uv project (committed `uv.lock`): the
+   user regenerates the plates in print orientation with `uv run python build/build.py`,
+   no skill re-invoke
+5. **Write `README.md`** at the project root (create it fresh each delivery; it's a
+   generated summary, not something the user hand-edits). Include:
+   - What the project is and its intent (from `BUILD_PLAN.json`'s `intent` field)
+   - The parts list (id, description, dimensions) and printer/material/nozzle
+   - Build instructions: `uv sync` then `uv run python build/build.py`, noting `build/`
+     holds the editable part scripts and everything else regenerates from them
+   - A one-line pointer to `parameters.py` for the sourced real-world measurements this
+     design is based on (see Phase 2)
+   - The directory layout (mirror the tree in **Model export** above)
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually or re-run the gate with `--no-fix` to get a clean report.
 

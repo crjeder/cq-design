@@ -1,9 +1,10 @@
 """Tests for the deliverable build.py (src/build_template.py).
 
-The template is copied verbatim into a build/ directory and the build tooling is
-bundled alongside it, the way the skill ships it; build.py resolves its imports from
-its own directory (no SKILL_SRC). Run as a subprocess. CadQuery-backed, so
-integration-speed.
+The template is copied verbatim into a build/ directory; the build tooling is
+bundled into a sibling lib/ directory (not build/ itself, which holds only the
+edited part scripts), the way the skill ships it. build.py resolves its imports
+from ../lib relative to its own directory (no SKILL_SRC). Run as a subprocess.
+CadQuery-backed, so integration-speed.
 """
 
 import json
@@ -13,7 +14,7 @@ import sys
 
 import trimesh
 
-# Tooling build.py imports, bundled into build/ next to it (mirrors the skill).
+# Tooling build.py imports, bundled into lib/ (a sibling of build/, mirrors the skill).
 _BUNDLE_MODULES = (
     "mesh_io.py",
     "model_export.py",
@@ -26,15 +27,17 @@ _BUNDLE_PACKAGES = ("exporters", "blocks")
 
 
 def _render_build_py(build_dir, skill_src):
-    """Copy build.py verbatim into build_dir and bundle the tooling it imports."""
+    """Copy build.py verbatim into build_dir and bundle the tooling into ../lib."""
     build_py = build_dir / "build.py"
     build_py.write_text(
         (skill_src / "build_template.py").read_text(encoding="utf-8"), encoding="utf-8"
     )
+    lib_dir = build_dir.parent / "lib"
+    lib_dir.mkdir()
     for module in _BUNDLE_MODULES:
-        shutil.copy(skill_src / module, build_dir / module)
+        shutil.copy(skill_src / module, lib_dir / module)
     for package in _BUNDLE_PACKAGES:
-        shutil.copytree(skill_src / package, build_dir / package)
+        shutil.copytree(skill_src / package, lib_dir / package)
     return build_py
 
 
@@ -103,14 +106,15 @@ def test_build_py_resolves_tooling_without_src_on_pythonpath(tmp_path, skill_src
         {"base": _FLAT},
     )
     # Strip PYTHONPATH so the only way imports resolve is the bundled tooling in
-    # build/ (sys.path[0]) -- proving build.py does not need the skill installed.
+    # ../lib (added to sys.path by build.py itself) -- proving build.py does not
+    # need the skill installed.
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
 
     proc = _run(build_dir, env=env)
 
     assert proc.returncode == 0, proc.stderr
-    assert (build_dir / "model.3mf").exists()
-    assert (build_dir / "base.stl").exists()
+    assert (build_dir.parent / "model.3mf").exists()
+    assert (build_dir.parent / "stl" / "base.stl").exists()
 
 
 def test_build_py_regenerates_all_plates(tmp_path, skill_src):
@@ -127,11 +131,11 @@ def test_build_py_regenerates_all_plates(tmp_path, skill_src):
     proc = _run(build_dir)
 
     assert proc.returncode == 0, proc.stderr
-    assert (build_dir / "model.3mf").exists()
-    assert (build_dir / "base.stl").exists()
-    assert (build_dir / "lid.stl").exists()
+    assert (build_dir.parent / "model.3mf").exists()
+    assert (build_dir.parent / "stl" / "base.stl").exists()
+    assert (build_dir.parent / "stl" / "lid.stl").exists()
     # Two unions on one plate -> one fused plate STL.
-    assert (build_dir / "plate_shared.stl").exists()
+    assert (build_dir.parent / "stl" / "plate_shared.stl").exists()
 
 
 def test_build_py_missing_part_fails_naming_union(tmp_path, skill_src):
@@ -159,7 +163,7 @@ def test_build_py_applies_print_orientation_and_is_deterministic(tmp_path, skill
 
     proc1 = _run(build_dir)
     assert proc1.returncode == 0, proc1.stderr
-    model = build_dir / "model.3mf"
+    model = build_dir.parent / "model.3mf"
     z1 = float(trimesh.load(model).extents[2])
 
     # The authored post is 20 mm tall; laid down for strength it is ~4 mm in Z.
@@ -189,5 +193,5 @@ def test_build_py_reuses_orientations_json(tmp_path, skill_src):
     proc = _run(build_dir)
 
     assert proc.returncode == 0, proc.stderr
-    z = float(trimesh.load(build_dir / "model.3mf").extents[2])
+    z = float(trimesh.load(build_dir.parent / "model.3mf").extents[2])
     assert z > 18

@@ -163,6 +163,43 @@ def test_named_3mf_with_plate_and_placement(tmp_path):
     assert scene.bounds[1][2] > 25  # lid lifted by the placement
 
 
+def test_stl_dir_splits_stl_output_from_model_dir(tmp_path):
+    """model.3mf lands in model_dir (the project root); STLs land in the separate
+    stl_dir when given, keeping the two artifact kinds apart."""
+    import os
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    model_dir = tmp_path / "root"
+    stl_dir = tmp_path / "root" / "stl"
+    plan = _plan([{"id": "base"}])
+
+    result = export_model(plan, str(parts_dir), str(model_dir), stl_dir=str(stl_dir))
+
+    assert result["model_3mf"] == os.path.join(str(model_dir), "model.3mf")
+    assert os.path.exists(result["model_3mf"])
+    assert result["union_stls"]["base"] == os.path.join(str(stl_dir), "base.stl")
+    assert os.path.exists(result["union_stls"]["base"])
+    # STL did not also land in model_dir.
+    assert not os.path.exists(os.path.join(str(model_dir), "base.stl"))
+
+
+def test_stl_dir_omitted_falls_back_to_model_dir(tmp_path):
+    """Backward compat: omitting stl_dir keeps the old single-directory behavior."""
+    import os
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    out = tmp_path / "dist"
+
+    result = export_model(_plan([{"id": "base"}]), str(parts_dir), str(out))
+
+    assert os.path.dirname(result["model_3mf"]) == str(out)
+    assert os.path.dirname(result["union_stls"]["base"]) == str(out)
+
+
 def test_deliverable_uses_print_orientation_union_stl_unchanged(tmp_path):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
