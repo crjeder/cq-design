@@ -48,6 +48,11 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
+- [ ] add https://github.com/lwidm/cq_gears
+- [ ] check what value https://github.com/partcad/partcad adds
+- [ ] check out https://github.com/WKJBryan/cadquery-library
+- [ ] check out https://github.com/intuitia/CadQuery-Project
+
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
@@ -154,6 +159,12 @@ validator that checks geometry against natural-language criteria. The LLM
 intent-match overlaps the cadgate item above; same optional-external rationale
 (native gate runs without it, augments when present).
 - [ ] (covered by the cadgate-style item under Independent changes)
+
+#### unrated
+- https://github.com/mehsenazizi/mecagent-test-Mehsen-AZIZI
+- https://github.com/yacine-baghli/im2D2code3D
+- https://github.com/WyNo22/IA2CAD
+- https://github.com/r3c0nshade/CADForge
 
 #### Reference-only (no action, recorded for the README survey)
 LLM->CadQuery models/datasets reusable only if fine-tuning is ever contemplated:
