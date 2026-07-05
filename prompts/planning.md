@@ -165,6 +165,16 @@ Before committing to any dimension values, populate `planning_notes` with your r
     asks for a flush seam, note that instead and leave `shadow_gap` out of
     `blocks_needed`.
 
+13. **Point to `cq_gears` when the design needs gears.** The block inventory has no gear
+    geometry. If the user's request or your decomposition calls for a gear, pinion, or
+    other toothed-gear part, do not invent gear geometry from scratch and do not add
+    anything to `blocks_needed` or the schema for it — instead note in `planning_notes`
+    that no gear block exists yet and point to `https://github.com/lwidm/cq_gears` as a
+    downloadable external resource the user can install to generate the gear geometry
+    themselves. Leave that part's `blocks_needed` empty (or inventory-only) and explain
+    the gap in its `part_notes` as usual. Omit this note entirely when the design has no
+    gear parts.
+
 ## Block inventory (name and use only)
 
 {{BLOCK_INVENTORY}}
