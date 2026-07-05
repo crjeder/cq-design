@@ -499,6 +499,13 @@ def main():
         help="3MF deliverable to check for non-manifold edges (optional)",
     )
     parser.add_argument(
+        "--stl-dir",
+        default=None,
+        help="Directory holding every union's assembled STL for the kinematic/plate-"
+        "clearance sweep (default: alongside --script). Pass this when STLs live in a "
+        "separate stl/ directory rather than next to the part scripts.",
+    )
+    parser.add_argument(
         "--orientation",
         default=None,
         help="JSON file with this union's print_orientation.py result; drives the "
@@ -521,6 +528,7 @@ def main():
         args.plan,
         stl_path=args.stl,
         allow_fix=not args.no_fix,
+        stl_dir=args.stl_dir,
         model_3mf_path=args.model_3mf,
         orientation=orientation,
     )

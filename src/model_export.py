@@ -15,7 +15,7 @@ and emits:
 The `placement` convention is shared with the kinematic check via `placement.py`.
 
 Usage:
-    python3 model_export.py --plan BUILD_PLAN.json --parts-dir build --out dist
+    python3 model_export.py --plan BUILD_PLAN.json --parts-dir build --out . --stl-out stl
 """
 
 import argparse
@@ -70,8 +70,10 @@ def _dedupe_object_names(records: list[tuple[str, dict]]) -> list[str]:
 def export_model(
     plan: dict,
     parts_dir: str,
-    output_dir: str,
+    model_dir: str,
     print_orientations: dict[str, dict] | None = None,
+    *,
+    stl_dir: str | None = None,
 ) -> dict:
     """Export all unions to a named 3MF + per-union STL + fused-per-plate STL.
 
@@ -82,10 +84,17 @@ def export_model(
     per-union assembled-pose STLs consumed by the kinematic check are always
     written from `placement`, unaffected by the print orientation.
 
+    `model_dir` is where `model.3mf` is written (the project root, so the
+    deliverable 3MF sits at the top level of the working directory). `stl_dir`
+    is where the STLs are written; omit it to fall back to `model_dir` (single
+    combined output directory, e.g. the gate's own per-union STL directory).
+
     Returns a dict with `model_3mf`, `union_stls` (id -> path), and `plate_stls`
     (plate -> path, only for multi-union plates).
     """
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(model_dir, exist_ok=True)
+    stl_dir = stl_dir or model_dir
+    os.makedirs(stl_dir, exist_ok=True)
     parts = plan.get("parts", [])
     print_orientations = print_orientations or {}
     mate_poses = compute_mate_poses(plan)  # part id -> derived 4x4 transform
@@ -130,7 +139,7 @@ def export_model(
         )
         for name, (uid, _part) in zip(object_names, records, strict=True)
     ]
-    model_3mf = os.path.join(output_dir, "model.3mf")
+    model_3mf = os.path.join(model_dir, "model.3mf")
     write_named_3mf(objects, model_3mf)
 
     # Verify the deliverable's index topology the way a slicer reads it (no
@@ -148,7 +157,7 @@ def export_model(
     # 2. per-union assembled STL
     union_stls = {}
     for pid, wp in placed.items():
-        stl_path = os.path.join(output_dir, f"{pid}.stl")
+        stl_path = os.path.join(stl_dir, f"{pid}.stl")
         cq.exporters.export(wp, stl_path)
         union_stls[pid] = stl_path
 
@@ -165,7 +174,7 @@ def export_model(
         orientation = print_orientations.get(ids[0])
         if orientation:
             fused = apply_cq(fused, {"rotate": orientation.get("rotate", [])})
-        plate_path = os.path.join(output_dir, f"plate_{plate}.stl")
+        plate_path = os.path.join(stl_dir, f"plate_{plate}.stl")
         cq.exporters.export(fused, plate_path)
         plate_stls[plate] = plate_path
 
@@ -176,7 +185,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Model-level union/plate export")
     parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
     parser.add_argument("--parts-dir", required=True, help="Directory of <id>.py scripts")
-    parser.add_argument("--out", required=True, help="Output directory")
+    parser.add_argument("--out", required=True, help="Output directory for model.3mf")
+    parser.add_argument(
+        "--stl-out",
+        default=None,
+        help="Output directory for STLs (default: same as --out)",
+    )
     parser.add_argument(
         "--orientations",
         default=None,
@@ -191,7 +205,7 @@ def main() -> None:
     if args.orientations:
         with open(args.orientations, encoding="utf-8") as f:
             print_orientations = json.load(f)
-    result = export_model(plan, args.parts_dir, args.out, print_orientations)
+    result = export_model(plan, args.parts_dir, args.out, print_orientations, stl_dir=args.stl_out)
     print(json.dumps(result, indent=2))
     sys.exit(0)
 
