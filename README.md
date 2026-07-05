@@ -86,6 +86,8 @@ uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out buil
 SKILL.md                    # skill definition and workflow phases
 CLAUDE.md                   # development guidance for the pipeline scripts
 src/build_plan_schema.json  # JSON Schema draft-7 for BUILD_PLAN.json
+src/printer_profile_schema.json      # JSON Schema draft-7 for printer_profile.json
+src/printer_profile.default.json     # default printer_profile.json seeded into a fresh directory
 pyproject.toml              # dependencies and project metadata (uv)
 
 src/
@@ -93,6 +95,7 @@ src/
   run_model_shim.py         # runpy shim that auto-exports `result` to STL
   quality_gate.py           # DFM + in-process trimesh geometry/overhang analysis (no slicer required), fix rounds, print recipe
   plan_validate.py          # validates BUILD_PLAN.json against schema and block inventory
+  printer_profile_validate.py # validates printer_profile.json and writes back field overrides
   measure_stl.py            # geometry feature extractor for reference STLs (trimesh + numpy)
   preview.py                # headless multi-view PNG renderer (CadQuery tessellation + matplotlib)
   render_preview.py         # subprocess entry point for preview.py
@@ -114,12 +117,12 @@ src/
     .python-version         # pinned Python version for the scaffolded project
 
   blocks/
-    __init__.py             # re-exports all blocks
+    __init__.py             # re-exports all blocks flat (import via `from blocks import <name>`)
     primitives.py           # fillet_box, hollow_box
     fasteners.py            # screw_boss, pcb_standoff, snap hooks, alignment pins
-    connectors.py           # port_cutout, cable_slot, vent_grid
-    hardware.py             # cq_warehouse-backed fastener geometry
-    joints.py               # dovetail groove and tongue for sliding joints
+    connectors.py           # port_cutout, cable_slot, vent_grid, teardrop bore/post
+    hardware.py             # cq_warehouse-backed fastener geometry (heat-set, screws, nuts, traps)
+    joints.py               # dovetail, finger, mortise/tenon, dowel, ball, hinge, living-hinge, shadow-gap
     validate.py             # inventory loader and validator
     inventory.json          # machine-readable block descriptors
     inventory_schema.json   # JSON Schema for inventory.json
@@ -135,6 +138,7 @@ prompts/
 tests/
   test_run_wrapper.py       # integration tests for the subprocess wrapper
   test_blocks.py            # block geometry tests
+  test_block_imports.py     # flat block-import contract (every inventory block flat-importable; no runtime injection)
   test_exporters.py         # exporter tests
   test_preview.py           # preview.py / render_preview.py tests
   test_thin_interfaces.py   # thin-wall detection tests
@@ -142,9 +146,11 @@ tests/
   test_mesh_io.py           # mesh loader tests
   test_placement.py         # placement helper tests
   test_model_export.py      # model-level export tests
+  test_mate_chain.py        # derived mate-chain pose tests
   test_kinematic_check.py   # kinematic sweep tests
   test_plate_clearance_check.py
   test_print_orientation.py
+  test_printer_profile_validate.py
   test_build_script.py
   test_gate_plan_validation.py
   test_quality_gate.py
