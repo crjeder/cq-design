@@ -2,11 +2,12 @@
 """Regenerate all build plates with each object in its print orientation.
 
 This script is a deliverable: the cq-design skill copies it into the `build/`
-directory of your working directory, alongside the per-part scripts and the bundled
+directory of your working directory, alongside the per-part scripts. The bundled
 build tooling (`exporters/`, `blocks/`, `model_export.py`, `print_orientation.py`,
-`mesh_io.py`, `placement.py`, `mate_chain.py`). The working directory is a
-self-contained uv project, so everything needed to rebuild the model lives here --
-the skill does not have to be installed.
+`mesh_io.py`, `placement.py`, `mate_chain.py`) lives in a sibling `lib/` directory,
+not build/ itself -- build/ holds only the part scripts you actually edit. The
+working directory is a self-contained uv project, so everything needed to rebuild
+the model lives here -- the skill does not have to be installed.
 
 How to re-generate the 3MF / STL files
 ---------------------------------------
@@ -22,18 +23,19 @@ dependencies (CadQuery, trimesh, ...). Subsequent runs reuse the synced `.venv`.
 
 Override the defaults when your layout differs:
 
-    uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out build
+    uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out . --stl-out stl
 
 Arguments (all optional):
-    --plan          BUILD_PLAN.json (default: the parent of build/)
+    --plan          BUILD_PLAN.json (default: the parent of build/, i.e. the project root)
     --parts-dir     directory of <part-id>.py scripts (default: this script's dir)
-    --out           where the files are written (default: this script's dir)
+    --out           where model.3mf is written (default: the project root)
+    --stl-out       where the STLs are written (default: <project root>/stl)
     --orientations  accepted orientations JSON (default: orientations.json in --parts-dir)
 
-Outputs written to --out:
-    model.3mf            one named object per union, with plate metadata
-    <union-id>.stl       one assembled-pose STL per union
-    plate_<n>.stl        one fused STL per multi-union plate
+Outputs:
+    model.3mf (in --out)         one named object per union, with plate metadata
+    <union-id>.stl (in --stl-out)  one assembled-pose STL per union
+    plate_<n>.stl (in --stl-out)   one fused STL per multi-union plate
 
 When `orientations.json` (the skill's accepted per-union orientations) sits next to
 the part scripts, build.py reuses it so the plates match what the skill delivered;
@@ -42,9 +44,9 @@ honoring the plan's `optimize_for` mode (per-part override, else plan-level, els
 `strength`). Either way the deliverables are written via `model_export`, exactly as the
 skill writes them.
 
-The bundled tooling sits in this script's own directory, which Python places on
-`sys.path` automatically when you run `python build/build.py`, so the imports below
-resolve without any path manipulation.
+The bundled tooling sits in a `lib/` directory next to this script's own directory
+(i.e. `../lib` relative to build.py), so it is added to `sys.path` explicitly below
+before the imports that depend on it.
 """
 
 import argparse
@@ -52,6 +54,8 @@ import json
 import os
 import sys
 import tempfile
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "lib"))
 
 import cadquery as cq
 
@@ -145,13 +149,14 @@ def _print_summary(summary: dict[str, dict], result: dict) -> None:
 
 def main() -> None:
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.join(script_dir, os.pardir)
     parser = argparse.ArgumentParser(
         description="Regenerate build plates with objects in print orientation"
     )
     parser.add_argument(
         "--plan",
-        default=os.path.join(script_dir, os.pardir, "BUILD_PLAN.json"),
-        help="Path to BUILD_PLAN.json (default: alongside the build dir)",
+        default=os.path.join(project_root, "BUILD_PLAN.json"),
+        help="Path to BUILD_PLAN.json (default: the project root)",
     )
     parser.add_argument(
         "--parts-dir",
@@ -160,8 +165,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--out",
-        default=script_dir,
-        help="Output directory for the plates (default: this script's dir)",
+        default=project_root,
+        help="Output directory for model.3mf (default: the project root)",
+    )
+    parser.add_argument(
+        "--stl-out",
+        default=os.path.join(project_root, "stl"),
+        help="Output directory for the STLs (default: <project root>/stl)",
     )
     parser.add_argument(
         "--orientations",
@@ -177,7 +187,7 @@ def main() -> None:
 
     try:
         orientations, summary = resolve_orientations(plan, args.parts_dir, orientations_path)
-        result = export_model(plan, args.parts_dir, args.out, orientations)
+        result = export_model(plan, args.parts_dir, args.out, orientations, stl_dir=args.stl_out)
     except Exception as exc:
         sys.stderr.write(f"build failed: {exc}\n")
         sys.exit(1)
