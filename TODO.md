@@ -48,7 +48,6 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
-- [ ] add https://github.com/lwidm/cq_gears
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
@@ -63,6 +62,16 @@ how much they preserve upstream updates while staying self-contained and inline
 - **optional external** -- native by default, use the external tool if present,
   degrade with a warning otherwise (same pattern as `kinematic_check.py` without
   `python-fcl`); off the critical path.
+
+### Gear geometry (lwidm/cq_gears) -- strategy: optional external -- DONE
+Parametric involute spur/helical gear generator for CadQuery. Fails the license test
+for pinned dep / vendored snapshot: upstream declares no license (`license: null`),
+and this project is PolyForm Noncommercial, so bundling isn't safe. No gate check
+applies either (nothing is installed or called natively to degrade), so the
+integration point is the planning prompt: rule 13 in `prompts/planning.md` tells the
+LLM to note in `planning_notes` and point to the repo as a downloadable resource
+when a design needs gears, instead of inventing gear geometry from scratch. Also
+added to the README Prior-art table.
 
 ### Print orientation (Tweaker-3) -- one change -- strategy: reimplement
 Clean-room native port of the orientation formulas. Tweaker-3 is GPL-3.0 and this
