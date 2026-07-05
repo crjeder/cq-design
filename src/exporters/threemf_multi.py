@@ -21,6 +21,13 @@ from zipfile import ZIP_DEFLATED, ZipFile
 _CORE = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
 _REL_3DMODEL = "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"
 
+# Bambu/OrcaSlicer's importer (bbs_3mf.cpp) only sets its internal m_is_bbl_3mf flag --
+# and therefore only honors Metadata/model_settings.config's <plate>/<model_instance>
+# plate assignments -- when the model's top-level Application metadata starts with
+# "BambuStudio-" or "OrcaSlicer-". Without it, the file is treated as a "3rd party"
+# 3MF: plate metadata is parsed but never applied, so every object lands on plate 1.
+_GENERATOR_APPLICATION = "OrcaSlicer-2.3.0"
+
 _RELS = (
     '<?xml version="1.0" encoding="UTF-8"?>'
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
@@ -139,6 +146,7 @@ def write_named_3mf(
         path: output .3mf path
     """
     model = ET.Element("model", {"unit": "millimeter", "xml:lang": "en-US", "xmlns": _CORE})
+    ET.SubElement(model, "metadata", name="Application").text = _GENERATOR_APPLICATION
     resources = ET.SubElement(model, "resources")
     build = ET.SubElement(model, "build")
 

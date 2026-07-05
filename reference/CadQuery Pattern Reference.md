@@ -2,14 +2,23 @@
 
 ## Table of Contents
 
-1. [Basic Shapes (Primitives)](#primitives)
-2. [Face & Edge Selectors](#selectors)
-3. [2D Construction (Wire Drawing)](#2d)
-4. [Sketch API](#sketch)
-5. [Machining Operations (Holes, Shell, Fillet)](#machining)
-6. [Advanced 3D Operations (Loft, Sweep, Revolve)](#advanced3d)
-7. [Transform Operations (Translate, Rotate, Mirror)](#transforms)
-8. [Boolean Operations](#boolean)
+1. Basic Shapes (Primitives)
+2. Face & Edge Selectors
+3. 2D Construction (Wire Drawing)
+4. Sketch API
+5. Machining Operations (Holes, Shell, Fillet)
+6. Advanced 3D Operations (Loft, Sweep, Revolve)
+7. Array Methods
+8. Transform Operations (Translate, Rotate, Mirror)
+9. Boolean Operations
+10. Center Selection
+11. Accessing Objects & Debugging
+12. Drawing Arcs by Sagitta
+13. Text Deboss: `combine='cut'` Silent Failure
+14. Embossed Text Overflow and Clipping
+15. Measuring Text Bounding Boxes
+16. Common Gotchas
+17. Workplane Context Stacking (Origin Drift)
 
 
 ## Basic Shapes (Primitives)
@@ -249,6 +258,7 @@ result = (
     .twistExtrude(20, 90)              # height 20mm, 90° twist
 )
 ```
+
 ## Array Methods
 
 | Method | Description |
@@ -308,7 +318,8 @@ assembly.add(bottom, name="bottom", color=cq.Color("gray"))
 assembly.add(top, name="top", loc=cq.Location((0, 0, total_h)), color=cq.Color("blue"))
 ```
 
-## Center selection:
+## Center Selection
+
 ```python
 # Create workplane at face center of mass
 result.faces(">Z").workplane(centerOption="CenterOfMass")

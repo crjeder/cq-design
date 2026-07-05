@@ -21,10 +21,10 @@ Read the first token of the user's message to determine which command was invoke
 
 This skill generates parametric 3D-printable CadQuery models via a four-phase pipeline:
 
-1. **Planning** - gather requirements, produce and validate `BUILD_PLAN.json`
-2. **Part loop** - you write each part script inline, validate geometry, retry on failure
-3. **Model export** - if multiple parts all succeed, assemble them declaratively from each part's `placement` via `model_export.py`
-4. **Quality gate** - DFM checks, in-process trimesh geometry + overhang analysis (no slicer required), print recipe
+1. **Phase 1 -- Requirements gathering** - dimensions, printer/material/DFM constraints, fit types; resolve topology ambiguity before any plan is generated
+2. **Phase 2 -- Planning** - produce and validate `BUILD_PLAN.json`, get user approval
+3. **Phase 3 -- Build** - write each part script inline, validate geometry, retry on failure, then print-orientation optimization and `model_export.py` assembles the parts declaratively from each part's `placement` and runs the DFM/geometry/overhang quality gate
+4. **Phase 4 -- Deliver** - report status, previews, print recipe, and output files
 
 ## Prerequisites
 
@@ -96,8 +96,6 @@ additive, dedup, order-preserving merge — do not drop existing entries or othe
 Known gaps: arbitrary manufacturer `WebFetch` domains and browser MCP tools (whose
 server name is environment-dependent) are not in the seeded set and may still prompt.
 
----
-
 ### Printer profile bootstrap (first use per directory)
 
 `printer_profile.json` in the working directory records a user's default `printer`,
@@ -127,8 +125,6 @@ when the file is absent. When the seed step runs, tell the user in the same turn
 default profile was created and where to edit it. If validation fails (the file exists but was
 hand-edited into an invalid state), report the errors and fall back to asking the user for the
 affected field(s) in Phase 1, exactly as if no profile existed.
-
----
 
 ## Phase 1: Requirements gathering
 
@@ -218,8 +214,6 @@ Use `browser_take_screenshot` only when the spec is in an image or the snapshot 
 
 **Lookup narration:** Before each lookup, output a one-line status naming what is being looked up and which source is being consulted (e.g., "Looking up Bosch MUM9 bowl dimensions on bosch-home.com..."). After each lookup, report the value found and the source URL (e.g., "Found bowl diameter: 220 mm -- bosch-home.com/en/product/...").
 
----
-
 ## Dimension validation checkpoint
 
 After all dimension lookups are complete and **before generating `BUILD_PLAN.json`**, present a summary table of every looked-up dimension:
@@ -237,8 +231,6 @@ After all dimension lookups are complete and **before generating `BUILD_PLAN.jso
 **Do not generate `BUILD_PLAN.json` until the user has explicitly approved or corrected the table.** If the user corrects a value (e.g., "the depth is 8.5, not 8.0"), record the correction and use the corrected value in the plan. If any rows are `missing` or `conflict`, ask the user for the correct value before continuing.
 
 Skip this checkpoint entirely if no real-world dimension lookups were performed (i.e., all dimensions were provided directly by the user).
-
----
 
 ## Phase 2: Planning
 
@@ -342,8 +334,6 @@ it must appear in the chat-visible summary.
 
 After displaying the summary, wait for the user to approve or request edits. If the user edits `BUILD_PLAN.json` on disk before confirming, re-validate from disk before proceeding to Phase 3.
 
----
-
 ## Phase 3: Build
 
 Execute the part loop inline. You are the orchestrator.
@@ -390,6 +380,7 @@ Read `$SKILL_DIR/prompts/part.md` and substitute every placeholder:
 | `{{D_MM}}` | `part["dimensions"]["d_mm"]` |
 | `{{H_MM}}` | `part["dimensions"]["h_mm"]` |
 | `{{INTERFACES}}` | `part["interfaces"]` as JSON, or `(none)` |
+| `{{PART_NOTES}}` | `part["part_notes"]`, or `(none)` -- for a part with no matching blocks, this is the ONLY place the design intent for its scratch geometry is recorded (see `prompts/planning.md` rule 3); never omit this substitution when the field is present |
 | `{{BLOCK_SPECS}}` | For each block in `part["blocks_needed"]`: look up in inventory, format as `- **name** — use\n  params: k (v), ...`; `(none — use raw CadQuery primitives)` if list is empty |
 | `{{WALL_MIN_MM}}` | `plan["constraints"]["wall_min_mm"]` |
 | `{{OVERHANG_MAX_DEG}}` | `plan["constraints"]["overhang_max_deg"]` |
@@ -705,8 +696,6 @@ Whenever any plate carries more than one union (print-in-place), the gate also r
 
 The `build/` directory is in your current working directory (the directory you called the skill from), not inside `$SKILL_DIR`.
 
----
-
 ## Phase 4: Deliver
 
 Report to the user:
@@ -720,17 +709,11 @@ Report to the user:
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually or re-run the gate with `--no-fix` to get a clean report.
 
----
-
----
-
 ## /plan command
 
 Run phases 1 and 2 only (requirements gathering + BUILD_PLAN.json generation). Stop after the user approves the plan. Do not start the build.
 
 This is useful when the user wants to review and tweak the plan before committing to a full build run.
-
----
 
 ## /deliver command
 
@@ -749,8 +732,6 @@ Parse the JSON result and report:
 
 If `result["success"]` is false, show the errors and stop.
 
----
-
 ## /render command
 
 Render a multi-view preview PNG for an existing CadQuery script.
@@ -761,8 +742,6 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
 ```
 
 Parse the JSON result and display the preview image at `result["preview"]`. Report any errors.
-
----
 
 ## Block library
 
@@ -800,8 +779,6 @@ Select blocks in `blocks_needed` during planning. When generating part scripts, 
 |-------|-----|
 | `dovetail_groove` | Dovetail slot cut into a body top edge for a sliding lid. Subtract from the body. |
 | `dovetail_tongue` | Sliding lid panel that mates with `dovetail_groove`. The tongue IS the lid. |
-
----
 
 ## Kinematic validation
 
@@ -865,8 +842,6 @@ surface contact at the joint is tolerated (small penetration tolerance); only re
 interference binds. The check reads the assembled per-union STLs from the model export
 (see **Model export** / `model_export.py`).
 
----
-
 ## DFM constraints
 
 Enforce in planning and during code review:
@@ -888,8 +863,6 @@ Enforce in planning and during code review:
 | sliding | 0.25 mm |
 | loose / cover | 0.5 mm |
 
----
-
 ## Coordinate system
 
 All directional references in prompts, plans, and interfaces use:
@@ -903,8 +876,6 @@ All directional references in prompts, plans, and interfaces use:
 | Up | +Z | |
 | Down | -Z | Print bed face, always Z = 0 |
 
----
-
 ## Generated script rules
 
 Every CadQuery script the pipeline produces must:
@@ -913,8 +884,6 @@ Every CadQuery script the pipeline produces must:
 - Define all dimensions in a `PARAMETERS` block at the top (no magic numbers)
 - Assign the final geometry to a top-level variable named `result`
 - Not call `cq.exporters.export()` (the wrapper handles export)
-
----
 
 ## Error handling reference
 
@@ -931,8 +900,6 @@ Every CadQuery script the pipeline produces must:
 The `visual_mismatch` finding is recorded by Claude during the Phase 3 part loop, not emitted by `run_cadquery_model.py` — the wrapper JSON contract is unchanged and contains no `visual_mismatch` entry. It participates in the same 3-attempt retry budget as the geometry errors above.
 
 After retries are exhausted, summarize the remaining errors to the user and ask conversationally how to proceed (try a different approach, provide a hint, or skip the part).
-
----
 
 ## Hardware dimension reference
 
@@ -989,8 +956,6 @@ For `hex_nut_trap(nut_flat, nut_h, depth, d_screw=0)`:
 | M6   | 10.0         | 5.2        | 6.6                    |
 
 Add 0.3-0.5 mm to `nut_flat` for a pocket that doesn't require force-fitting in PLA.
-
----
 
 ## Quick reference: key files
 

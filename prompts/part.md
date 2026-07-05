@@ -11,8 +11,12 @@ Write a complete CadQuery script for the part specified below.
 4. Import cadquery as cq (and any blocks listed)
 5. Define all dimensions in a PARAMETERS section at the top, never magic numbers in geometry
 6. Build the geometry using the available blocks and raw CadQuery
-7. Assign the final result to a top-level variable named `result`
-8. Use the core CadQuery API (Workplane, Sketch, Selector, Assembly)
+7. Assign the final result to a top-level variable named `result` -- a single
+   `Workplane`, or, if this part declares a `unions` array (see Part specification
+   below), a dict mapping each declared union id to its own `Workplane`, e.g.
+   `result = {"leaf_a": <wp>, "leaf_b": <wp>}` for one script building several
+   rigid bodies in one coordinate frame
+8. Use the core CadQuery API (Workplane, Sketch, Selector)
 9. Generate clear, commented, parametric code
 10. Follow CadQuery best practices
 11. Use selectors and relative positioning for more robust models
@@ -52,6 +56,7 @@ Block functions listed above are pre-imported by the runner. Call them directly 
 **Description:** {{PART_DESCRIPTION}}
 **Target dimensions:** W={{W_MM}} mm, D={{D_MM}} mm, H={{H_MM}} mm
 **Physical interfaces:** {{INTERFACES}}
+**Design notes:** {{PART_NOTES}}
 
 ## Print constraints
 

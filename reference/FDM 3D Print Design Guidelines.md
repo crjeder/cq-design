@@ -1,7 +1,8 @@
 # FDM 3D Print Design Guidelines
 
 Each `##` section is tagged `<!-- applies_to: ... -->`. Inject a section only if its tag
-is `always` or lists a block in the part's `blocks_needed`. Grammar: `Rule: value — why`.
+is `always` or lists a block in the part's `blocks_needed`. Most bullets follow
+`Rule: value — why`; some are freeform where a single value doesn't capture the guidance.
 Numbers are portable FDM-safe defaults; `planning.md` clearances override where they differ.
 Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for-3d-printing).
 
