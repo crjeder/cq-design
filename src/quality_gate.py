@@ -9,6 +9,8 @@ Runs these checks against the final model script:
      fix loop) via kinematic_check.py
   4. Plate clearance: co-plated unions must keep a gap above one layer height or they
      fuse in the print (once, outside the fix loop) via plate_clearance_check.py
+  5. Keep-out zones: no union may intrude on a declared keep-out zone, excluding the
+     zone's own declaring part (once, outside the fix loop) via keep_out_check.py
 
 Aggregates issues with severity (error/warning), generates a targeted fix prompt
 if any errors are found, invokes `claude -p` for up to MAX_FIX_ROUNDS, then
@@ -345,6 +347,15 @@ def _run_plate_clearance_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     return run_plate_clearance_check(plan, stl_dir or ".")
 
 
+def _run_keep_out_stage(plan: dict, stl_dir: str | None) -> list[dict]:
+    """Check every declared keep-out zone against every foreign union (once, outside the
+    fix loop). No-op unless the model export produced at least one zone STL.
+    """
+    from keep_out_check import run_keep_out_check
+
+    return run_keep_out_check(plan, stl_dir or ".")
+
+
 def _analyze_3mf(model_3mf_path: str) -> list[dict]:
     """Check a 3MF deliverable for non-manifold edges as a slicer reads it.
 
@@ -472,6 +483,8 @@ def run_gate(
         all_issues += _run_kinematic_stage(plan, stl_dir)
         # ---- plate clearance check (once, outside the fix loop) ----
         all_issues += _run_plate_clearance_stage(plan, stl_dir)
+        # ---- keep-out zone check (once, outside the fix loop) ----
+        all_issues += _run_keep_out_stage(plan, stl_dir)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
 
