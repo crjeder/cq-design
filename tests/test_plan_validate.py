@@ -244,6 +244,20 @@ def test_union_id_colliding_with_part_id_rejected(plan_file):
     assert any("declared more than once" in e for e in errors)
 
 
+def test_keep_out_reserved_as_sub_union_id_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = [{"id": "keep_out"}]
+    errors = validate_plan(plan_file(plan))
+    assert any("reserved" in e and "keep_out" in e for e in errors)
+
+
+def test_keep_out_reserved_as_part_id_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["id"] = "keep_out"
+    errors = validate_plan(plan_file(plan))
+    assert any("reserved" in e and "keep_out" in e for e in errors)
+
+
 def test_moving_union_may_reference_a_sub_union(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["unions"] = [{"id": "leaf_a"}, {"id": "leaf_b"}]

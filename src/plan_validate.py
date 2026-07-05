@@ -77,13 +77,19 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
 
 
 def _check_unions(plan: dict[str, Any]) -> list[str]:
-    """Union ids (a part's declared `unions`, else the part id) must be unique across the model."""
-    from units import iter_unions
+    """Union ids (a part's declared `unions`, else the part id) must be unique across the
+    model, and none may use the reserved `keep_out` name (see `units.KEEP_OUT_KEY`)."""
+    from units import KEEP_OUT_KEY, iter_unions
 
     errors = []
     seen: dict[str, str] = {}
     for part, uid, _plate in iter_unions(plan):
         pid = part.get("id", "(unknown)")
+        if uid == KEEP_OUT_KEY:
+            errors.append(
+                f"Part '{pid}': union id '{KEEP_OUT_KEY}' is reserved for declared "
+                "keep-out zones and cannot be used as a union id"
+            )
         if uid in seen:
             errors.append(
                 f"Union id '{uid}' is declared more than once (parts '{seen[uid]}' and '{pid}')"

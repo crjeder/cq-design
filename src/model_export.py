@@ -31,7 +31,7 @@ from exporters import _load_result
 from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
 from mate_chain import compute_mate_poses
 from placement import apply_cq, apply_matrix
-from units import plate_of, resolve_unions
+from units import keep_out_stl_name, plate_of, resolve_keep_out, resolve_unions
 
 _NAME_MAX_LEN = 64
 
@@ -67,6 +67,15 @@ def _dedupe_object_names(records: list[tuple[str, dict]]) -> list[str]:
     ]
 
 
+def _pose_union(wp: cq.Workplane, part: dict, mate_pose: object) -> cq.Workplane:
+    """Assembled-frame pose for one of a part's unions (or keep-out zones): the part's
+    derived mate-chain pose when reached via a `joints` mate chain, else its `placement`.
+    """
+    if mate_pose is not None:
+        return apply_matrix(wp, mate_pose)
+    return apply_cq(wp, part.get("placement"))
+
+
 def export_model(
     plan: dict,
     parts_dir: str,
@@ -89,8 +98,16 @@ def export_model(
     is where the STLs are written; omit it to fall back to `model_dir` (single
     combined output directory, e.g. the gate's own per-union STL directory).
 
-    Returns a dict with `model_3mf`, `union_stls` (id -> path), and `plate_stls`
-    (plate -> path, only for multi-union plates).
+    A part's script `result` may also carry the reserved `keep_out` key (a `name ->
+    Workplane` mapping of declared keep-out zones, see `units.resolve_keep_out`). Each
+    zone is posed the same way as its declaring part's real unions and written to its own
+    assembled-pose STL (named by `units.keep_out_stl_name`) for the keep-out validation
+    check to consume, but -- unlike a real union -- a zone is never written to the 3MF,
+    never assigned a plate, and never included in a fused plate STL.
+
+    Returns a dict with `model_3mf`, `union_stls` (id -> path), `plate_stls`
+    (plate -> path, only for multi-union plates), and `keep_out_stls`
+    (`"<part_id>::<zone_name>"` -> path, only for parts that declare zones).
     """
     os.makedirs(model_dir, exist_ok=True)
     stl_dir = stl_dir or model_dir
@@ -106,21 +123,28 @@ def export_model(
     plate_by_uid: dict[str, str] = {}
     records: list[tuple[str, dict]] = []  # (union_id, part) in order
     plates: dict[str, list[str]] = {}
+    keep_out_stls: dict[str, str] = {}
     for part in parts:
         script = os.path.join(parts_dir, f"{part['id']}.py")
         result = _load_result(script)
         declared = {u["id"]: u for u in part.get("unions", [])}
         mate_pose = mate_poses.get(part["id"])
+
         for uid, wp in resolve_unions(part, result):
             authored[uid] = wp
-            if mate_pose is not None:
-                placed[uid] = apply_matrix(wp, mate_pose)
-            else:
-                placed[uid] = apply_cq(wp, part.get("placement"))
+            placed[uid] = _pose_union(wp, part, mate_pose)
             plate = plate_of(part, uid, declared.get(uid))
             plate_by_uid[uid] = plate
             plates.setdefault(plate, []).append(uid)
             records.append((uid, part))
+
+        # Keep-out zones ride along with their declaring part's pose, but are never a
+        # union: no 3MF object, no plate, no per-union/plate STL -- only their own
+        # assembled-pose STL for the keep-out validation check.
+        for zone_name, zone_wp in resolve_keep_out(part, result):
+            zone_stl = os.path.join(stl_dir, keep_out_stl_name(part["id"], zone_name))
+            cq.exporters.export(_pose_union(zone_wp, part, mate_pose), zone_stl)
+            keep_out_stls[f"{part['id']}::{zone_name}"] = zone_stl
 
     # 1. named 3MF: each object in its print orientation when one is supplied,
     # else its assembled pose.
@@ -178,7 +202,12 @@ def export_model(
         cq.exporters.export(fused, plate_path)
         plate_stls[plate] = plate_path
 
-    return {"model_3mf": model_3mf, "union_stls": union_stls, "plate_stls": plate_stls}
+    return {
+        "model_3mf": model_3mf,
+        "union_stls": union_stls,
+        "plate_stls": plate_stls,
+        "keep_out_stls": keep_out_stls,
+    }
 
 
 def main() -> None:
