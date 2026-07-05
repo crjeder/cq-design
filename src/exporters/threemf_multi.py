@@ -206,11 +206,10 @@ def count_nonmanifold_edges(path: str) -> int:
     topology a slicer sees is checked, not trimesh's auto-repaired copy. Returns
     0 for a closed manifold mesh. Requires trimesh + numpy.
     """
-    import numpy as np
     import trimesh
+
+    import mesh_io
 
     mesh = trimesh.load(path, force="mesh", process=False)
     assert isinstance(mesh, trimesh.Trimesh)  # force="mesh" guarantees a single mesh
-    edges = np.sort(mesh.edges, axis=1)
-    _, counts = np.unique(edges, axis=0, return_counts=True)
-    return int((counts != 2).sum())
+    return mesh_io.nonmanifold_edge_count(mesh)

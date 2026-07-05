@@ -192,20 +192,7 @@ def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict]]:
     # Non-manifold edge detection
     if not tm.is_watertight:
         try:
-            # Simpler: use trimesh's built-in non-manifold reporting
-            nm_edges: list = []
-            if hasattr(tm, "face_adjacency"):
-                # Check for edges shared by != 2 faces
-                edge_faces: dict = {}
-                for fi, face in enumerate(tm.faces):
-                    for i in range(3):
-                        edge_key = tuple(sorted([face[i], face[(i + 1) % 3]]))
-                        edge_faces.setdefault(edge_key, []).append(fi)
-                for edge_key, fis in edge_faces.items():
-                    if len(fis) != 2:
-                        nm_edges.append((edge_key, fis))
-                        if len(nm_edges) >= 5:  # cap reported edges
-                            break
+            nm_edges = mesh_io.nonmanifold_edges(tm, max_report=5)
 
             if nm_edges:
                 for edge_verts, face_ids in nm_edges[:3]:

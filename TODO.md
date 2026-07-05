@@ -208,12 +208,15 @@ cleanup. Confirmed unless marked SPECULATIVE.
       thin regions fragment into singletons dropped by `len(comp) < 2`. Grow
       `is_thin` to unsampled faces adjacent to thin sampled faces, or raise the
       sample cap for the thin pass.
-- [ ] **O(faces) pure-Python non-manifold loop + triplicated logic** (medium).
-      `run_cadquery_model.py:191-201` builds the full `edge_faces` dict over every
-      face in Python (the `>= 5` cap only limits reporting, not the build). A
-      vectorized numpy version already exists at
-      `exporters/threemf_multi.py:151` (`count_nonmanifold_edges`); a third copy is
-      in `quality_gate._analyze_3mf`. Consolidate on the numpy one.
+- [x] **O(faces) pure-Python non-manifold loop + triplicated logic** (medium). DONE.
+      `run_cadquery_model.py`'s `edge_faces` dict built over every face in pure
+      Python is replaced by `mesh_io.nonmanifold_edges` (vectorized `np.unique`
+      over `mesh.edges`, with face-index lookup bounded to only the reported
+      edges). `exporters/threemf_multi.count_nonmanifold_edges` now delegates its
+      count to the same core (`mesh_io.nonmanifold_edge_count`) instead of its own
+      `np.unique` call. `quality_gate._analyze_3mf` already called
+      `count_nonmanifold_edges` rather than duplicating the loop, so it needed no
+      change.
 
 ### Other confirmed
 - [ ] **`_check_thin_interfaces` swallows all exceptions** (low).
