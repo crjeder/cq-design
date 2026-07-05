@@ -419,11 +419,10 @@ Read `$SKILL_DIR/prompts/part.md` and substitute every placeholder:
 
 **Step 2 — Write the part script**
 
-Write `build/<part_id>.py`. The script must open with import lines for every block in `blocks_needed` — look up `module` and `function` from the inventory:
+Write `build/<part_id>.py`. The script must open with a flat import line for every block in `blocks_needed` — the `blocks` package re-exports every block, so no submodule path is needed:
 
 ```python
-from blocks.primitives import fillet_box    # example
-from blocks.fasteners import screw_boss     # example
+from blocks import fillet_box, screw_boss    # example
 ```
 
 Then a `PARAMETERS` block, then the geometry, then `result = ...`. See generated-script rules below.
@@ -824,7 +823,7 @@ Parse the JSON result and display the preview image at `result["preview"]`. Repo
 
 ## Block library
 
-Select blocks in `blocks_needed` during planning. When generating part scripts, write `from blocks.<module> import <function>` at the top based on the inventory (see generated-script rules).
+Select blocks in `blocks_needed` during planning. When generating part scripts, write a flat `from blocks import <function>` at the top for each block (see generated-script rules).
 
 ### Primitives (`src/blocks/primitives.py`)
 
@@ -959,7 +958,7 @@ All directional references in prompts, plans, and interfaces use:
 
 Every CadQuery script the pipeline produces must:
 
-- Begin with `from blocks.<module> import <function>` for each block in `blocks_needed` (look up `module` and `function` from `src/blocks/inventory.json`)
+- Begin with a flat `from blocks import <function>` for each block in `blocks_needed` (the `blocks` package re-exports every block; never import from submodules)
 - Define all dimensions in a `PARAMETERS` block at the top (no magic numbers)
 - Assign the final geometry to a top-level variable named `result`
 - Not call `cq.exporters.export()` (the wrapper handles export)
