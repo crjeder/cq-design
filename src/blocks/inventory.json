@@ -586,6 +586,53 @@
     ]
   },
   {
+    "name": "dovetail_corner_joint",
+    "module": "blocks.joints",
+    "function": "dovetail_corner_joint",
+    "motion": "rigid",
+    "reversible": true,
+    "carries": [
+      "shear-xy",
+      "lock-y"
+    ],
+    "emits": [
+      "pins",
+      "tails"
+    ],
+    "use": "Classic multi-pin dovetail CORNER (box) joint that joins two SEPARATE boards at a corner by pressing them straight together (NOT the sliding-rail dovetail_groove/dovetail_tongue pair, which slides a lid lengthwise into a slot). Returns two named member unions as a dict of Workplanes: 'pins' (union onto the pin board's end face) and 'tails' (a socket-shaped cutting tool to .cut() from the tail board's end face). The two boards are ordinarily separate parts wired via a top-level joints entry (block: dovetail_corner_joint, members [{member: pins, part: <pin board>}, {member: tails, part: <tail board>}]); for one monolithic part carrying both halves, declare them as the part's two unions [{id: pins}, {id: tails}] instead. TOLERANCE: clearance is a real per-side mating gap grown onto the tail sockets only (default 0.1 separable; negative for a press fit) — the reference this ports had none. ANGLES, two DISTINCT params: flare_deg is the per-tooth taper from the tooth's straight side (0 = rectangular finger tooth, larger = more undercut) and is NOT dovetail_groove/dovetail_tongue's angle (measured from vertical, opposite sense); corner_angle_deg is the dihedral angle between the two boards (default 90 = perpendicular corner), generalizing a fixed right-angle assumption and shaping ONLY the tooth/socket feature, not mitering the board bodies. PRINT FLAT with the tooth-tiling (X) edge in the build plane so the trapezoid undercuts self-support.",
+    "params": {
+      "pin_count": "count of pins (teeth) tiled across the corner edge (X)",
+      "pin_width": "mm pin width at the base, widest, at the board face (X)",
+      "tail_width": "mm gap between adjacent pins, the tail/socket width (X)",
+      "board_thickness": "mm board thickness; the trapezoid narrows over this (Z)",
+      "tooth_length": "mm tooth protrusion/insertion length (Y), typically the mating board thickness",
+      "flare_deg": "degrees per-tooth dovetail taper from the straight side, default 15 (0 = rectangular tooth); NOT the same as dovetail_groove angle",
+      "corner_angle_deg": "degrees dihedral angle between the two boards, default 90 (perpendicular corner)",
+      "clearance": "mm per-side mating gap grown onto the tail sockets, default 0.1 (negative for an interference/press fit)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {
+        "type": "dovetail_corner",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "type": "dovetail_corner",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
     "name": "finger_joint",
     "module": "blocks.joints",
     "function": "finger_joint",

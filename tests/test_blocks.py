@@ -36,6 +36,7 @@ from blocks.hardware import (
 from blocks.joints import (
     ball_socket,
     ball_stud,
+    dovetail_corner_joint,
     dovetail_groove,
     dovetail_tongue,
     dowel_bore,
@@ -467,6 +468,87 @@ def test_finger_joint_clearance_shrinks_finger():
     assert _bb(tight).xlen - _bb(loose).xlen > 0.15
 
 
+# dovetail corner (box) joint
+
+
+def test_dovetail_corner_returns_pins_and_tails():
+    j = dovetail_corner_joint(
+        pin_count=4, pin_width=1, tail_width=1, board_thickness=0.75, tooth_length=0.75
+    )
+    assert set(j.keys()) == {"pins", "tails"}
+    assert _is_solid(j["pins"]) and _is_solid(j["tails"])
+
+
+def test_dovetail_corner_pins_span_and_centering():
+    j = dovetail_corner_joint(
+        pin_count=4, pin_width=1, tail_width=1, board_thickness=0.75, tooth_length=0.75
+    )
+    # span = pin_count*pin_width + (pin_count-1)*tail_width = 4 + 3 = 7
+    assert abs(_bb(j["pins"]).xlen - 7.0) < 1e-3
+    # both members centered about X=0 (rotation about X does not shift X)
+    assert abs(_bb(j["pins"]).xmin + _bb(j["pins"]).xmax) < 1e-6
+    assert abs(_bb(j["tails"]).xmin + _bb(j["tails"]).xmax) < 1e-6
+
+
+def test_dovetail_corner_flare_zero_is_rectangular():
+    pw, bt, tl = 4.0, 2.0, 2.0
+    j = dovetail_corner_joint(
+        pin_count=1, pin_width=pw, tail_width=1, board_thickness=bt, tooth_length=tl, flare_deg=0
+    )
+    # zero flare -> straight-sided rectangular tooth: volume = length * width * thickness
+    assert abs(j["pins"].val().Volume() - tl * pw * bt) < 1e-3
+
+
+def test_dovetail_corner_flare_narrows_top_by_formula():
+    import math
+
+    pw, bt, tl = 4.0, 2.0, 2.0
+    j = dovetail_corner_joint(
+        pin_count=1, pin_width=pw, tail_width=1, board_thickness=bt, tooth_length=tl, flare_deg=15
+    )
+    width_top = pw - 2 * math.tan(math.radians(15)) * bt
+    # trapezoidal prism volume = length * (avg width) * thickness
+    expected_vol = tl * 0.5 * (pw + width_top) * bt
+    assert abs(j["pins"].val().Volume() - expected_vol) < 1e-3
+
+
+def test_dovetail_corner_default_angle_swaps_tail_axes():
+    # board_thickness != tooth_length so the 90-deg swap is detectable
+    j = dovetail_corner_joint(
+        pin_count=3,
+        pin_width=2,
+        tail_width=1,
+        board_thickness=2,
+        tooth_length=5,
+        corner_angle_deg=90,
+    )
+    pins, tails = j["pins"], j["tails"]
+    # pins: protrusion along +Y (tooth_length), thickness along Z (board_thickness)
+    assert abs(_bb(pins).ylen - 5) < 1e-3 and abs(_bb(pins).zlen - 2) < 1e-3
+    # 90-deg corner rotates tails about X: protrusion now along Z, thickness along Y
+    assert abs(_bb(tails).ylen - 2) < 1e-3 and abs(_bb(tails).zlen - 5) < 1e-3
+
+
+def test_dovetail_corner_non_default_angle_differs():
+    j90 = dovetail_corner_joint(3, 2, 1, 2, 5, corner_angle_deg=90)
+    j60 = dovetail_corner_joint(3, 2, 1, 2, 5, corner_angle_deg=60)
+    # a 60-deg corner produces a different tails pose than the perpendicular default
+    assert abs(_bb(j60["tails"]).ylen - _bb(j90["tails"]).ylen) > 0.1
+
+
+def test_dovetail_corner_clearance_sign_on_tails_only():
+    nominal = dovetail_corner_joint(3, 2, 1, 2, 2, clearance=0.0)
+    loose = dovetail_corner_joint(3, 2, 1, 2, 2, clearance=0.1)
+    press = dovetail_corner_joint(3, 2, 1, 2, 2, clearance=-0.1)
+    # zero clearance: the tail cutter is exactly the pin comb (reference's exact fit)
+    assert abs(nominal["tails"].val().Volume() - nominal["pins"].val().Volume()) < 1e-3
+    # positive clearance grows the socket cutter; negative shrinks it
+    assert loose["tails"].val().Volume() > nominal["tails"].val().Volume()
+    assert press["tails"].val().Volume() < nominal["tails"].val().Volume()
+    # pins stay nominal regardless of clearance
+    assert abs(loose["pins"].val().Volume() - nominal["pins"].val().Volume()) < 1e-3
+
+
 # mortise & tenon
 
 
@@ -667,6 +749,18 @@ def test_joint_axis_interface_type_accepted():
     """A block declaring the motion-agnostic `joint_axis` kinematic reference validates."""
     errors = validate_inventory([_block_with_interface("joint_axis")])
     assert errors == [], errors
+
+
+def test_dovetail_corner_interface_type_accepted():
+    """A block declaring the new `dovetail_corner` interface type validates."""
+    errors = validate_inventory([_block_with_interface("dovetail_corner")])
+    assert errors == [], errors
+
+
+def test_dovetail_corner_joint_declares_emits():
+    """The dovetail_corner_joint inventory entry names its two matched members."""
+    entry = next(b for b in load_inventory() if b["name"] == "dovetail_corner_joint")
+    assert entry["emits"] == ["pins", "tails"]
 
 
 def test_retired_hinge_axis_interface_type_rejected():

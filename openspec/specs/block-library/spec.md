@@ -38,7 +38,7 @@ following closed set:
 
 `face_mount`, `screw_hole`, `snap_hook`, `snap_socket`, `axis`, `pin`, `socket`, `slot`,
 `port_cutout`, `sliding_interface`, `nut_trap`, `joint_axis`, `ball`, `ball_socket`,
-`finger`, `mortise`, `tenon`, `dowel`, `seam`, `union`
+`finger`, `mortise`, `tenon`, `dowel`, `seam`, `union`, `dovetail_corner`
 
 The vocabulary SHALL be enforced identically by the inventory JSON Schema `type` enum and the
 inventory validator, so the two agree on the accepted set. The set SHALL NOT include the retired
@@ -66,6 +66,10 @@ inventory validator, so the two agree on the accepted set. The set SHALL NOT inc
 
 #### Scenario: joint_axis interface type accepted
 - **WHEN** an inventory entry declares `"type": "joint_axis"`
+- **THEN** inventory loads without error
+
+#### Scenario: dovetail_corner interface type accepted
+- **WHEN** an inventory entry declares `"type": "dovetail_corner"`
 - **THEN** inventory loads without error
 
 #### Scenario: Retired hinge_axis token is rejected
