@@ -24,26 +24,9 @@ import os
 import sys
 from typing import Any, cast
 
-from units import KEEP_OUT_KEY
+from units import KEEP_OUT_KEY, make_issue, stl_path
 
 _ZONE_PREFIX = f"{KEEP_OUT_KEY}__"
-
-
-def _issue(severity: str, type_: str, message: str, hint: str, **extra: Any) -> dict:
-    """Build a finding in the shared quality-gate issue contract."""
-    issue = {
-        "source": "geometry",
-        "severity": severity,
-        "type": type_,
-        "message": message,
-        "hint": hint,
-    }
-    issue.update(extra)
-    return issue
-
-
-def _stl_path(stl_dir: str, union_id: str) -> str:
-    return os.path.join(stl_dir, f"{union_id}.stl")
 
 
 def _discover_zones(plan: dict, stl_dir: str) -> list[tuple[str, str, str]]:
@@ -82,7 +65,8 @@ def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
         from trimesh.collision import CollisionManager
     except ImportError as exc:
         return [
-            _issue(
+            make_issue(
+                "geometry",
                 "warning",
                 "check_skipped",
                 f"Geometry backend unavailable for keep-out check: {exc}",
@@ -97,10 +81,11 @@ def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
     issues: list[dict] = []
     for declaring_part, zone_name, zone_path in zones:
         fixed = [(pid, uid) for pid, uid in all_unions if pid != declaring_part]
-        missing = [uid for _pid, uid in fixed if not os.path.exists(_stl_path(stl_dir, uid))]
+        missing = [uid for _pid, uid in fixed if not os.path.exists(stl_path(stl_dir, uid))]
         if missing:
             issues.append(
-                _issue(
+                make_issue(
+                    "geometry",
                     "warning",
                     "check_skipped",
                     f"Keep-out zone '{zone_name}' (part '{declaring_part}'): assembled union "
@@ -115,7 +100,7 @@ def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
         zone_mesh = trimesh.load(zone_path, force="mesh")
         manager = CollisionManager()
         for _pid, uid in fixed:
-            manager.add_object(uid, trimesh.load(_stl_path(stl_dir, uid), force="mesh"))
+            manager.add_object(uid, trimesh.load(stl_path(stl_dir, uid), force="mesh"))
 
         hit, names, _data = cast(
             "tuple[bool, set[str], list[Any]]",
@@ -124,7 +109,8 @@ def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
         if hit:
             for uid in sorted(names):
                 issues.append(
-                    _issue(
+                    make_issue(
+                        "geometry",
                         "error",
                         "keep_out_violation",
                         f"Union '{uid}' intrudes on keep-out zone '{zone_name}' declared by "
