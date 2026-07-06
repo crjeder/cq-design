@@ -442,6 +442,29 @@ def test_joint_valid_two_part_plan_passes(plan_file):
     assert errors == []
 
 
+def test_joint_dovetail_corner_block_validates_and_derives_pose(plan_file):
+    """dovetail_corner_joint backs a cross-part joints entry (pins/tails on two boards)."""
+    plan = _joints_plan(
+        joint_over={
+            "block": "dovetail_corner_joint",
+            "members": [
+                {"member": "pins", "part": "door"},
+                {"member": "tails", "part": "wall", "dock": {"translate_mm": [0, 0, 10]}},
+            ],
+        }
+    )
+    assert validate_plan(plan_file(plan)) == []
+
+    from mate_chain import compute_mate_poses
+    from placement import to_matrix
+
+    poses = compute_mate_poses(plan)
+    assert set(poses) == {"wall"}
+    import numpy as np
+
+    np.testing.assert_allclose(poses["wall"], to_matrix({"translate_mm": [0, 0, -10]}), atol=1e-9)
+
+
 def test_joint_unknown_block_rejected(plan_file):
     plan = _joints_plan(joint_over={"block": "no_such_block"})
     errors = validate_plan(plan_file(plan))

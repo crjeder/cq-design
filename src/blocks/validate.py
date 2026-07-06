@@ -34,6 +34,7 @@ _VALID_INTERFACE_TYPES = frozenset(
         "dowel",
         "seam",
         "union",
+        "dovetail_corner",
     }
 )
 
