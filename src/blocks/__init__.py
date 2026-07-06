@@ -35,6 +35,7 @@ from blocks.hardware import (
 from blocks.joints import (
     ball_socket,
     ball_stud,
+    dovetail_corner_joint,
     dovetail_groove,
     dovetail_tongue,
     dowel_bore,
@@ -71,6 +72,7 @@ __all__ = [
     "hex_nut",
     "dovetail_groove",
     "dovetail_tongue",
+    "dovetail_corner_joint",
     "finger_joint",
     "tenon",
     "mortise",

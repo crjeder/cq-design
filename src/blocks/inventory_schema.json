@@ -116,7 +116,7 @@
                 "face_mount", "screw_hole", "snap_hook", "snap_socket",
                 "axis", "pin", "socket", "slot", "port_cutout", "sliding_interface",
                 "nut_trap", "joint_axis", "ball", "ball_socket",
-                "finger", "mortise", "tenon", "dowel", "seam", "union"
+                "finger", "mortise", "tenon", "dowel", "seam", "union", "dovetail_corner"
               ]
             },
             "orientation": {

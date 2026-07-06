@@ -124,6 +124,127 @@ def dovetail_tongue(
     return _extrude_profile(_trapezoid_profile(half_top, half_base, depth), length)
 
 
+# ---- dovetail corner / box joint (extrude core) -----------------------------
+
+
+def _dovetail_comb(
+    pin_count: int,
+    pin_width: float,
+    tail_width: float,
+    board_thickness: float,
+    tooth_length: float,
+    flare_deg: float,
+    grow: float = 0.0,
+) -> cq.Workplane:
+    """Tile `pin_count` dovetail-trapezoid teeth across X, centered about X=0.
+
+    Each tooth's XZ cross-section is widest (`pin_width`) at the board face (Z=0)
+    and narrows to `pin_width - 2*tan(flare_deg)*board_thickness` at the outer
+    thickness face (Z=board_thickness), then extrudes `tooth_length` along +Y (the
+    protrusion / insertion direction). `grow` offsets every trapezoid side outward
+    by `grow` (the tail socket's per-side clearance; 0 for the pins); it leaves the
+    flare slope and the tooth centres unchanged, so pins and tails stay aligned.
+    """
+    pitch = pin_width + tail_width
+    total_width = pin_count * pin_width + (pin_count - 1) * tail_width
+    half_base = pin_width / 2 + grow
+    half_top = pin_width / 2 - math.tan(math.radians(flare_deg)) * board_thickness + grow
+    profile = _trapezoid_profile(half_top, half_base, board_thickness)
+    result: cq.Workplane | None = None
+    for i in range(pin_count):
+        x_center = -total_width / 2 + pin_width / 2 + i * pitch
+        tooth = _extrude_profile(profile, tooth_length).translate((x_center, 0, 0))
+        result = tooth if result is None else result.union(tooth)
+    assert result is not None, "dovetail comb needs at least one pin (pin_count >= 1)"
+    return result
+
+
+def dovetail_corner_joint(
+    pin_count: int,
+    pin_width: float,
+    tail_width: float,
+    board_thickness: float,
+    tooth_length: float,
+    flare_deg: float = 15.0,
+    corner_angle_deg: float = 90.0,
+    clearance: float = 0.1,
+) -> dict[str, cq.Workplane]:
+    """Multi-pin dovetail CORNER (box) joint that joins two boards at a corner.
+
+    This is the classic woodworking box-joint dovetail: alternating trapezoidal
+    pins and matching tail sockets tiled across the shared corner edge, pressed
+    straight together to lock the corner. This is NOT the sliding-rail
+    ``dovetail_groove``/``dovetail_tongue`` pair (a lid sliding lengthwise into a
+    slot); choose ``dovetail_corner_joint`` to join two separate boards end-to-end
+    at a corner with mechanical pull-out resistance in the tooth plane.
+
+    Returns the matched pair as a ``dict`` of two member unions
+    ``{"pins": Workplane, "tails": Workplane}`` in one shared local frame:
+
+    - ``"pins"`` is the positive comb. UNION it onto the end face of the pin board
+      (the board whose face the teeth stick out of).
+    - ``"tails"`` is the socket-shaped cutting tool. ``.cut()`` it from the end
+      face of the tail board to open the matching sockets.
+
+    The two boards are ordinarily SEPARATE parts: declare a ``joints`` entry with
+    ``block: "dovetail_corner_joint"`` and
+    ``members: [{member: "pins", part: <pin board>}, {member: "tails", part: <tail
+    board>}]`` (each member's ``dock`` giving its pose in its own board's frame) so
+    the mate chain derives the assembled corner. For a single monolithic printed
+    part that carries both halves instead, declare them as the part's two ``unions``.
+
+    Tolerance: ``clearance`` is a real per-side mating gap grown onto the ``"tails"``
+    sockets only (``"pins"`` stays nominal). Positive (default 0.1) gives a
+    separable gap fit; negative gives an interference (press) fit -- the same fit
+    sign convention as ``dovetail_tongue``/``mortise``/``finger_joint``. The
+    reference OpenSCAD had no clearance at all (a theoretical exact fit, i.e.
+    ``clearance=0`` here).
+
+    Angles -- two DISTINCT parameters, do not confuse them:
+
+    - ``flare_deg`` is the per-tooth dovetail taper measured from the tooth's
+      straight side (0 = a rectangular finger-joint tooth, larger = more undercut).
+      This is NOT ``dovetail_groove``/``dovetail_tongue``'s ``angle`` (measured from
+      vertical, opposite sense: larger there means shallower / more printable).
+    - ``corner_angle_deg`` is the dihedral angle between the two boards, generalising
+      the reference's hardcoded perpendicular corner (its ``rotate([-90, 0, 0])``).
+      At the default 90 the ``"tails"`` member is the pin comb rotated -90 deg about
+      the shared corner (X) edge, identical to the reference; other values rotate by
+      ``-corner_angle_deg`` instead. It shapes ONLY the tooth/socket feature -- it
+      does NOT miter the surrounding board bodies to meet flush at that angle; the
+      caller's part scripts author each board face at the matching angle.
+
+    PRINT FLAT with the tooth-tiling (X) edge in the build plane so the trapezoid
+    undercuts self-support; a board printed teeth-up needs the flare shallow enough
+    (small ``flare_deg``, or a chamfered lead-in) to stay under the overhang limit.
+
+    Args:
+        pin_count: number of pins (teeth) tiled across the corner edge (X)
+        pin_width: pin width at the base (widest, at the board face) in mm (X)
+        tail_width: gap between adjacent pins in mm -- the tail (socket) width (X)
+        board_thickness: board thickness in mm; the trapezoid narrows over this (Z)
+        tooth_length: protrusion / insertion length of each tooth in mm (Y),
+            typically the mating board's thickness
+        flare_deg: per-tooth dovetail taper from the straight side in degrees
+            (default 15; 0 = rectangular tooth)
+        corner_angle_deg: dihedral angle between the two boards in degrees
+            (default 90 = perpendicular corner, matching the reference)
+        clearance: per-side mating gap grown onto the tail sockets in mm
+            (default 0.1; negative for an interference/press fit)
+    """
+    pins = _dovetail_comb(
+        pin_count, pin_width, tail_width, board_thickness, tooth_length, flare_deg, grow=0.0
+    )
+    tails = _dovetail_comb(
+        pin_count, pin_width, tail_width, board_thickness, tooth_length, flare_deg, grow=clearance
+    )
+    # Rotate the tail comb about the shared corner (X) edge so its insertion axis
+    # meets the pin board at corner_angle_deg. -90 at the default reproduces the
+    # reference's hardcoded rotate([-90, 0, 0]).
+    tails = tails.rotate((0, 0, 0), (1, 0, 0), -corner_angle_deg)
+    return {"pins": pins, "tails": tails}
+
+
 # ---- finger / box joint (extrude core) --------------------------------------
 
 
