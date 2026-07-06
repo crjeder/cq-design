@@ -36,6 +36,8 @@ import sys
 from collections.abc import Iterator
 from typing import Any
 
+from units import make_issue, stl_path
+
 _INVENTORY_PATH = os.path.join(os.path.dirname(__file__), "blocks", "inventory.json")
 
 _AXIS_VEC = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
@@ -49,19 +51,6 @@ def _unit_for(joint_type: str | None) -> str:
 # Azimuth samples around the cone for a spherical joint (v1: cone-boundary sampling,
 # coarse -- a narrow interference between samples can be missed).
 _SPHERICAL_AZIMUTHS_DEG = range(0, 360, 45)
-
-
-def _issue(severity: str, type_: str, message: str, hint: str, **extra: Any) -> dict:
-    """Build a finding in the shared quality-gate issue contract."""
-    issue = {
-        "source": "kinematics",
-        "severity": severity,
-        "type": type_,
-        "message": message,
-        "hint": hint,
-    }
-    issue.update(extra)
-    return issue
 
 
 def _sweep_values(
@@ -164,10 +153,6 @@ def _sweep_collision(
     return None
 
 
-def _stl_path(stl_dir: str, part_id: str) -> str:
-    return os.path.join(stl_dir, f"{part_id}.stl")
-
-
 def run_kinematic_check(
     plan: dict,
     stl_dir: str,
@@ -193,7 +178,8 @@ def run_kinematic_check(
     except ImportError as exc:
         collision_ok = False
         issues.append(
-            _issue(
+            make_issue(
+                "kinematics",
                 "warning",
                 "check_skipped",
                 f"Collision backend unavailable: {exc}",
@@ -218,7 +204,8 @@ def run_kinematic_check(
             mlo, mhi = dof["mechanical_limit"]
             if lo < mlo - 1e-9 or hi > mhi + 1e-9:
                 issues.append(
-                    _issue(
+                    make_issue(
+                        "kinematics",
                         "error",
                         "range_exceeds_limit",
                         f"Joint '{jid}' required range [{lo}, {hi}] {unit} exceeds "
@@ -245,11 +232,12 @@ def run_kinematic_check(
         subtree_ids = [e["moving_union"] for e in iter_kinematics_entries([entry])]
         fixed_ids = [uid for uid in all_union_ids if uid not in subtree_ids]
         missing = [
-            uid for uid in [*subtree_ids, *fixed_ids] if not os.path.exists(_stl_path(stl_dir, uid))
+            uid for uid in [*subtree_ids, *fixed_ids] if not os.path.exists(stl_path(stl_dir, uid))
         ]
         if missing:
             issues.append(
-                _issue(
+                make_issue(
+                    "kinematics",
                     "warning",
                     "check_skipped",
                     f"Joint '{jid}': assembled union STL not found ({', '.join(missing)})",
@@ -260,17 +248,18 @@ def run_kinematic_check(
             continue
 
         subtree_meshes = [
-            (uid, trimesh.load(_stl_path(stl_dir, uid), force="mesh")) for uid in subtree_ids
+            (uid, trimesh.load(stl_path(stl_dir, uid), force="mesh")) for uid in subtree_ids
         ]
         manager = CollisionManager()
         for uid in fixed_ids:
-            manager.add_object(uid, trimesh.load(_stl_path(stl_dir, uid), force="mesh"))
+            manager.add_object(uid, trimesh.load(stl_path(stl_dir, uid), force="mesh"))
 
         binding = _sweep_collision(subtree_meshes, manager, entry, penetration_tol_mm)
         if binding is not None:
             value, colliding = binding
             issues.append(
-                _issue(
+                make_issue(
+                    "kinematics",
                     "error",
                     "motion_collision",
                     f"Joint '{jid}' (moving union '{moving_id}') binds at {value} "

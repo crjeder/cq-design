@@ -37,24 +37,14 @@ def script_without_result(tmp_path):
 # ---- format tests ----
 
 
-def test_stl_export(simple_box_script, tmp_path):
-    paths = run_exporters(str(simple_box_script), ["stl"], str(tmp_path))
+@pytest.mark.parametrize(
+    "fmt,ext",
+    [("stl", ".stl"), ("step", ".step"), ("3mf", ".3mf"), ("obj", ".obj"), ("iges", ".iges")],
+)
+def test_single_format_export(simple_box_script, tmp_path, fmt, ext):
+    paths = run_exporters(str(simple_box_script), [fmt], str(tmp_path))
     assert len(paths) == 1
-    assert paths[0].endswith(".stl")
-    assert os.path.getsize(paths[0]) > 0
-
-
-def test_step_export(simple_box_script, tmp_path):
-    paths = run_exporters(str(simple_box_script), ["step"], str(tmp_path))
-    assert len(paths) == 1
-    assert paths[0].endswith(".step")
-    assert os.path.getsize(paths[0]) > 0
-
-
-def test_threemf_export(simple_box_script, tmp_path):
-    paths = run_exporters(str(simple_box_script), ["3mf"], str(tmp_path))
-    assert len(paths) == 1
-    assert paths[0].endswith(".3mf")
+    assert paths[0].endswith(ext)
     assert os.path.getsize(paths[0]) > 0
 
 
@@ -70,20 +60,6 @@ def test_threemf_export_is_manifold(tmp_path):
     )
     paths = run_exporters(str(script), ["3mf"], str(tmp_path))
     assert count_nonmanifold_edges(paths[0]) == 0
-
-
-def test_obj_export(simple_box_script, tmp_path):
-    paths = run_exporters(str(simple_box_script), ["obj"], str(tmp_path))
-    assert len(paths) == 1
-    assert paths[0].endswith(".obj")
-    assert os.path.getsize(paths[0]) > 0
-
-
-def test_iges_export(simple_box_script, tmp_path):
-    paths = run_exporters(str(simple_box_script), ["iges"], str(tmp_path))
-    assert len(paths) == 1
-    assert paths[0].endswith(".iges")
-    assert os.path.getsize(paths[0]) > 0
 
 
 def test_scad_export(simple_box_script, tmp_path):

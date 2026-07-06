@@ -29,20 +29,9 @@ import json
 import os
 import sys
 from itertools import combinations
-from typing import Any, cast
+from typing import cast
 
-
-def _issue(severity: str, type_: str, message: str, hint: str, **extra: Any) -> dict:
-    """Build a finding in the shared quality-gate issue contract."""
-    issue = {
-        "source": "geometry",
-        "severity": severity,
-        "type": type_,
-        "message": message,
-        "hint": hint,
-    }
-    issue.update(extra)
-    return issue
+from units import make_issue, stl_path
 
 
 def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
@@ -57,10 +46,6 @@ def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
     for _part, uid, plate in iter_unions(plan):
         plates.setdefault(plate, []).append(uid)
     return {plate: ids for plate, ids in plates.items() if len(ids) > 1}
-
-
-def _stl_path(stl_dir: str, part_id: str) -> str:
-    return os.path.join(stl_dir, f"{part_id}.stl")
 
 
 def run_plate_clearance_check(plan: dict, stl_dir: str) -> list[dict]:
@@ -79,7 +64,8 @@ def run_plate_clearance_check(plan: dict, stl_dir: str) -> list[dict]:
         from trimesh.collision import CollisionManager
     except ImportError as exc:
         return [
-            _issue(
+            make_issue(
+                "geometry",
                 "warning",
                 "check_skipped",
                 f"Geometry backend unavailable for plate-clearance check: {exc}",
@@ -92,10 +78,11 @@ def run_plate_clearance_check(plan: dict, stl_dir: str) -> list[dict]:
 
     issues: list[dict] = []
     for plate, ids in plates.items():
-        missing = [uid for uid in ids if not os.path.exists(_stl_path(stl_dir, uid))]
+        missing = [uid for uid in ids if not os.path.exists(stl_path(stl_dir, uid))]
         if missing:
             issues.append(
-                _issue(
+                make_issue(
+                    "geometry",
                     "warning",
                     "check_skipped",
                     f"Plate '{plate}': assembled union STL not found ({', '.join(missing)})",
@@ -105,7 +92,7 @@ def run_plate_clearance_check(plan: dict, stl_dir: str) -> list[dict]:
             )
             continue
 
-        meshes = {uid: trimesh.load(_stl_path(stl_dir, uid), force="mesh") for uid in ids}
+        meshes = {uid: trimesh.load(stl_path(stl_dir, uid), force="mesh") for uid in ids}
         for a, b in combinations(ids, 2):
             manager = CollisionManager()
             manager.add_object(a, meshes[a])
@@ -113,7 +100,8 @@ def run_plate_clearance_check(plan: dict, stl_dir: str) -> list[dict]:
             gap = round(cast(float, manager.min_distance_single(meshes[b])), 3)
             if gap <= threshold:
                 issues.append(
-                    _issue(
+                    make_issue(
+                        "geometry",
                         "error",
                         "plate_clearance",
                         f"Unions '{a}' and '{b}' on plate '{plate}' are {gap} mm apart "

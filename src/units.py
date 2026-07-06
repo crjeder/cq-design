@@ -13,11 +13,35 @@ never itself a union: it is excluded from every union-shaped check, export, and 
 No CadQuery import here, so `plan_validate` (CadQuery-free) can use `iter_unions`.
 """
 
+import os
 from collections.abc import Iterator
 from typing import Any
 
 KEEP_OUT_KEY = "keep_out"
 """Reserved `result` key for a part's declared keep-out zones. Never itself a union id."""
+
+
+def make_issue(
+    source: str, severity: str, type_: str, message: str, hint: str, **extra: Any
+) -> dict:
+    """Build a finding in the shared quality-gate issue contract `{source, severity, type,
+    message, hint, ...}`, used by every whole-model check stage (`kinematic_check`,
+    `plate_clearance_check`, `keep_out_check`)."""
+    issue = {
+        "source": source,
+        "severity": severity,
+        "type": type_,
+        "message": message,
+        "hint": hint,
+    }
+    issue.update(extra)
+    return issue
+
+
+def stl_path(stl_dir: str, union_id: str) -> str:
+    """Assembled-pose STL path for a union/part id: the naming convention `model_export.py`
+    writes and every whole-model check stage reads."""
+    return os.path.join(stl_dir, f"{union_id}.stl")
 
 
 def plate_of(part: dict, union_id: str, union: dict | None = None) -> str:

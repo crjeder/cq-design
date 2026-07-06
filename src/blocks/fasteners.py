@@ -26,13 +26,15 @@ def pcb_standoff(d_screw: float, d_outer: float, h: float) -> cq.Workplane:
     """Hollow cylindrical standoff for M2/M2.5/M3 PCB mounting screws.
 
     PCB sits on top face. Screw passes through PCB and into the standoff.
+    Same geometry as `screw_boss`; kept as its own named block since the
+    two represent distinct mounting intents in the block inventory.
 
     Args:
         d_screw: screw clearance diameter in mm
         d_outer: outer diameter in mm (recommend >= 2 * d_screw)
         h: standoff height in mm
     """
-    return cq.Workplane("XY").circle(d_outer / 2).extrude(h).faces(">Z").hole(d_screw)
+    return screw_boss(d_screw, d_outer, h)
 
 
 def snap_hook_clip(w: float, length: float, h: float, hook_h: float) -> cq.Workplane:

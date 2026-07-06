@@ -48,7 +48,8 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
-- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. (-> Differential geometry comparison)
+- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
+      (-> Differential geometry comparison)
 - [ ] gate: no enforcement for `reference/FDM 3D Print Design Guidelines.md`'s
       "Chamfer / Fillet" rule (horizontal edges -> chamfer, vertical edges ->
       fillet; `applies_to: always`, so it's injected into every part prompt).
@@ -67,6 +68,11 @@ change lives in that change's `tasks.md`, not here.
       quick addition. Discovered while investigating why this specific guideline
       "didn't get applied" in a live run; no other defect found (only a harmless
       trailing-space typo in the heading, already fixed).
+- [ ] explore as quality gate and / or guide: small slopes look bad. 
+      layer height mainly buys you smoothness in the 20–45° zone
+      prio 1: avoid 0 ° - 45 ° 2: replace with chamfer steps 3: suggest to lower layer height for slopes between 20 ° and 45 °
+      `_chamfer = cos(printableOverhang) * _fillet * tan(( 90 deg - printableOverhang ) / 2)`
+- [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
