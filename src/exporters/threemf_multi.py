@@ -136,15 +136,26 @@ def _model_settings_config(plate_assignments: list[tuple[str, str]]) -> bytes:
 def write_named_3mf(
     objects: list[tuple[str, str, Any]],
     path: str,
-    tolerance: float = 0.01,
-    angular_tolerance: float = 0.1,
+    tolerance: float | None = None,
+    angular_tolerance: float | None = None,
 ) -> None:
     """Write a 3MF with one named object per union, grouped onto slicer plates.
 
     Args:
         objects: list of (union_name, plate_id, cq_shape) in assembled pose
         path: output .3mf path
+        tolerance: linear tessellation tolerance in mm; defaults to
+            `mesh_io.EXPORT_TESSELLATION_TOLERANCE_MM`
+        angular_tolerance: angular tessellation tolerance in degrees; defaults to
+            `mesh_io.EXPORT_TESSELLATION_ANGULAR_TOLERANCE_DEG`
     """
+    import mesh_io
+
+    if tolerance is None:
+        tolerance = mesh_io.EXPORT_TESSELLATION_TOLERANCE_MM
+    if angular_tolerance is None:
+        angular_tolerance = mesh_io.EXPORT_TESSELLATION_ANGULAR_TOLERANCE_DEG
+
     model = ET.Element("model", {"unit": "millimeter", "xml:lang": "en-US", "xmlns": _CORE})
     ET.SubElement(model, "metadata", name="Application").text = _GENERATOR_APPLICATION
     resources = ET.SubElement(model, "resources")
@@ -165,8 +176,8 @@ def write_single_3mf(
     shape: Any,
     path: str,
     name: str = "model",
-    tolerance: float = 0.01,
-    angular_tolerance: float = 0.1,
+    tolerance: float | None = None,
+    angular_tolerance: float | None = None,
 ) -> None:
     """Write a single-object 3MF (no plate metadata) with welded vertices.
 
@@ -174,6 +185,13 @@ def write_single_3mf(
     raw per-face tessellation without welding, which slicers flag as non-manifold;
     this path welds first (see `_weld`).
     """
+    import mesh_io
+
+    if tolerance is None:
+        tolerance = mesh_io.EXPORT_TESSELLATION_TOLERANCE_MM
+    if angular_tolerance is None:
+        angular_tolerance = mesh_io.EXPORT_TESSELLATION_ANGULAR_TOLERANCE_DEG
+
     model = ET.Element("model", {"unit": "millimeter", "xml:lang": "en-US", "xmlns": _CORE})
     resources = ET.SubElement(model, "resources")
     build = ET.SubElement(model, "build")

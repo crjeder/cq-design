@@ -136,12 +136,39 @@ def get_blocks_for_part(
     return found, missing
 
 
+def search_inventory(keyword: str, path: str = _INVENTORY_PATH) -> list[dict[str, Any]]:
+    """Return inventory entries whose name/use/params/interfaces mention `keyword`.
+
+    Case-insensitive substring match over each entry's full JSON serialization, so
+    a search for e.g. "hinge" or "dof" also matches entries where the term only
+    appears in a nested field (interfaces, dof, params) rather than the name.
+    """
+    keyword = keyword.lower()
+    return [e for e in load_inventory(path) if keyword in json.dumps(e).lower()]
+
+
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--search", metavar="KEYWORD", help="find blocks mentioning KEYWORD")
+    args = parser.parse_args()
+
+    if args.search:
+        matches = search_inventory(args.search)
+        if not matches:
+            print(f"No blocks match {args.search!r}")
+            sys.exit(1)
+        for e in matches:
+            print(f"{e['name']} - {e.get('use', '')}")
+            print(f"  {json.dumps(e)}")
+        sys.exit(0)
+
     inv = load_inventory()
     errs = validate_inventory(inv)
     if errs:
         print(f"Inventory validation FAILED ({len(errs)} errors):")
-        for e in errs:
-            print(f"  - {e}")
+        for err in errs:
+            print(f"  - {err}")
         sys.exit(1)
     print(f"Inventory OK — {len(inv)} blocks validated")
