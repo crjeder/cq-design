@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Seed a working directory's .claude/settings.local.json with the cq-design skill's
 permission allow-patterns, so the user is not prompted for each skill-issued tool call.
+Also scaffolds the documented top-level working-directory tree (build/, stl/, preview/)
+so it exists up front instead of appearing piecemeal as different pipeline scripts run.
 
 The canonical pattern list lives in skill_permissions.json beside this file. The merge
 is additive and order-preserving: existing entries and other settings keys are never
-removed, reordered, or duplicated.
+removed, reordered, or duplicated. Directory scaffolding is likewise idempotent.
 
 Usage:
-    python init_permissions.py [DIR]          # merge patterns into DIR (default: cwd)
+    python init_permissions.py [DIR]          # merge patterns + scaffold dirs (default: cwd)
     python init_permissions.py [DIR] --check  # report whether init already ran
 
 Exit codes (merge mode): 0 always on success.
@@ -47,6 +49,27 @@ def is_initialized(working_dir: str, sentinel: str) -> bool:
     settings = _load_settings(settings_path(working_dir))
     allow = settings.get("permissions", {}).get("allow", [])
     return sentinel in allow
+
+
+_SCAFFOLD_DIRS = ("build", "stl", "preview")
+
+
+def scaffold_directories(working_dir: str) -> list[str]:
+    """Create the documented top-level working-directory tree (build/, stl/, preview/).
+
+    Idempotent: only creates directories that don't already exist. These would
+    otherwise appear one at a time, lazily, as different pipeline scripts first
+    need them (run_cadquery_model.py for build/, model_export.py for stl/,
+    the preview renderer for preview/), so the layout is unpredictable mid-run.
+    Returns the list of directories actually created.
+    """
+    created = []
+    for name in _SCAFFOLD_DIRS:
+        path = os.path.join(working_dir, name)
+        if not os.path.isdir(path):
+            os.makedirs(path)
+            created.append(name)
+    return created
 
 
 def merge_permissions(working_dir: str) -> list[str]:
@@ -103,6 +126,12 @@ def main() -> int:
             print(f"  {pattern}")
     else:
         print(f"No changes; all patterns already present in {settings_path(args.dir)}")
+
+    created = scaffold_directories(args.dir)
+    if created:
+        noun = "directory" if len(created) == 1 else "directories"
+        print(f"Created {len(created)} {noun}: {', '.join(created)}")
+
     return 0
 
 

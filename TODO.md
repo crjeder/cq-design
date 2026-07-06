@@ -48,7 +48,25 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
-- [ ] feature: reverse engineer 3D mesh / point cloud into primitives.
+- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. (-> Differential geometry comparison)
+- [ ] gate: no enforcement for `reference/FDM 3D Print Design Guidelines.md`'s
+      "Chamfer / Fillet" rule (horizontal edges -> chamfer, vertical edges ->
+      fillet; `applies_to: always`, so it's injected into every part prompt).
+      Confirmed by grepping `chamfer`/`fillet` across `src/*.py`: only hits are an
+      unrelated overhang hint string and a fillet-radius error message -- neither
+      `quality_gate.py` nor `run_cadquery_model.py` inspects which edge treatment
+      was actually applied to which edge orientation. Unlike `wall_min_mm` or
+      `overhang_max_deg` (which the gate measures against the STL), this rule is
+      pure prose the generating LLM may or may not prioritize; nothing downstream
+      flags a part that filleted a horizontal edge or chamfered a vertical one.
+      Adding a real check means classifying "was this edge chamfered or filleted"
+      from a triangulated mesh alone -- both treatments produce new faces at the
+      edge (planar for chamfer, curved for fillet); the check would need to
+      distinguish the two face types and correlate each back to its original
+      edge's bed-relative orientation. Nontrivial geometric classification, not a
+      quick addition. Discovered while investigating why this specific guideline
+      "didn't get applied" in a live run; no other defect found (only a harmless
+      trailing-space typo in the heading, already fixed).
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
@@ -237,9 +255,12 @@ cleanup. Confirmed unless marked SPECULATIVE.
 - [ ] gimbal lock in `print_orientation._rotation_to_bed` (`:146-148`) when the best
       face is +Z-up: matrix is correct but the re-applied euler `rotate` steps may
       not reproduce the exact pose. Path exists; real impact unconfirmed.
-- [ ] `plan_validate.py:43` sorts jsonschema errors by `e.path` (deque) -- latent
+- [x] `plan_validate.py:43` sorts jsonschema errors by `e.path` (deque) -- latent
       `TypeError` if str/int collide at one position; no trigger found against the
-      real schema. Safer key: `lambda e: list(map(str, e.absolute_path))`.
+      real schema. Safer key: `lambda e: list(map(str, e.absolute_path))`. -- DONE.
+      Also added a targeted hint for a stray legacy `assembly` field (the concrete
+      case that surfaced this during a real run), extensible via
+      `_LEGACY_FIELD_HINTS` for future removed fields.
 - [x] `_translate_stderr` (`run_cadquery_model.py:96-113`) may misclassify a model's
       `print("Foo: bar")` on stderr as a fake `occ_exception`, which is
       error-severity downstream in the gate. Tighten to require an `Error`/`Exception`

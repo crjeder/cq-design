@@ -3,7 +3,9 @@
 ## Purpose
 
 Seed the working directory's project-local Claude settings with the permission patterns the
-cq-design pipeline needs, so the user is not prompted for each skill-issued tool call.
+cq-design pipeline needs, so the user is not prompted for each skill-issued tool call. Also
+scaffolds the documented top-level working-directory tree so it exists from the start of a
+run instead of appearing piecemeal as different pipeline scripts run.
 
 ## Requirements
 
@@ -88,3 +90,27 @@ skill's own directory).
 - **WHEN** the canonical set is inspected
 - **THEN** it contains only read, scaffold, and build command shapes — no delete/overwrite
   verbs beyond the skill's own build-bundle copies into the working directory
+
+### Requirement: Working-directory tree is scaffolded on bootstrap
+
+Whenever the permission merge runs (fresh directory, or explicit re-init), the skill SHALL
+also create the working directory's top-level `build/`, `stl/`, and `preview/` directories if
+absent, so the layout documented for the pipeline exists from the first invocation rather than
+being created one at a time by whichever script needs it first. The scaffold SHALL be
+idempotent and SHALL NOT touch a directory's existing contents.
+
+#### Scenario: Fresh working directory
+
+- **WHEN** the permission merge runs in a directory with none of `build/`, `stl/`, `preview/`
+- **THEN** all three are created
+
+#### Scenario: Directories already exist
+
+- **WHEN** the permission merge runs in a directory where `build/` already contains part
+  scripts
+- **THEN** `build/`'s existing contents are left untouched and no error occurs
+
+#### Scenario: Re-running the scaffold is a no-op
+
+- **WHEN** the permission merge runs again in an already-scaffolded directory
+- **THEN** no directories are reported as newly created

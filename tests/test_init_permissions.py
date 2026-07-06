@@ -77,3 +77,32 @@ def test_check_reports_uninitialized_then_initialized(tmp_path):
     init_permissions.merge_permissions(str(tmp_path))
 
     assert init_permissions.is_initialized(str(tmp_path), sentinel) is True
+
+
+def test_scaffold_directories_creates_expected_tree(tmp_path):
+    created = init_permissions.scaffold_directories(str(tmp_path))
+
+    assert set(created) == {"build", "stl", "preview"}
+    for name in ("build", "stl", "preview"):
+        assert (tmp_path / name).is_dir()
+
+
+def test_scaffold_directories_is_idempotent(tmp_path):
+    init_permissions.scaffold_directories(str(tmp_path))
+
+    created_again = init_permissions.scaffold_directories(str(tmp_path))
+
+    assert created_again == []
+    for name in ("build", "stl", "preview"):
+        assert (tmp_path / name).is_dir()
+
+
+def test_scaffold_directories_preserves_existing_contents(tmp_path):
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / "body.py").write_text("# existing part script", encoding="utf-8")
+
+    created = init_permissions.scaffold_directories(str(tmp_path))
+
+    assert "build" not in created
+    assert (build_dir / "body.py").exists()

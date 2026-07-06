@@ -36,7 +36,7 @@ Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for
 - Bottom face: ≥ outer wall thickness.
 - Strength comes from walls, not infill — add perimeter/wall count before raising infill %.
 
-## Chamfer / Fillet 
+## Chamfer / Fillet
 <!-- applies_to: always -->
 
 | Edge | Use | Why |

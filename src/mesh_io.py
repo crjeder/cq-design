@@ -8,6 +8,12 @@ pay the pyrender + PyOpenGL import cost. Only depends on trimesh + numpy.
 import numpy as np
 import trimesh
 
+# Shared tessellation settings for deliverable STL/3MF export (stl.py, threemf_multi.py).
+# Kept as one source of truth so the two exporters can't silently drift apart.
+# preview.py intentionally uses its own coarser tolerance (speed over fidelity).
+EXPORT_TESSELLATION_TOLERANCE_MM = 0.01
+EXPORT_TESSELLATION_ANGULAR_TOLERANCE_DEG = 0.1
+
 
 def load_mesh(path: str) -> trimesh.Trimesh:
     """Load an STL file via trimesh.

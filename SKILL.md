@@ -61,7 +61,10 @@ the directory you called the skill from (your current working directory) — not
 The pipeline issues many `uv run`, `python`, `uv sync`, file-copy, `WebSearch`, and
 `WebFetch` commands. To avoid a permission prompt for each one, seed the working
 directory's `.claude/settings.local.json` with the patterns these commands need, once
-per directory. Do this immediately after establishing `SKILL_DIR` and before Phase 1.
+per directory. This same step also scaffolds the working directory's top-level
+`build/`, `stl/`, and `preview/` directories up front, so the layout documented below
+exists from the start instead of appearing piecemeal as later phases run. Do this
+immediately after establishing `SKILL_DIR` and before Phase 1.
 
 First check whether this directory was already seeded, then merge if not:
 
@@ -80,9 +83,11 @@ if ($LASTEXITCODE -ne 0) { python "$SKILL_DIR/src/init_permissions.py" . }
 
 The merge is additive and idempotent: it creates `.claude/settings.local.json` if
 absent, appends only missing patterns to `permissions.allow`, and never removes,
-reorders, or duplicates existing entries or other settings keys. On a truly fresh
-directory the very first invocation of `init_permissions.py` itself may prompt once;
-that single approval seeds everything else.
+reorders, or duplicates existing entries or other settings keys. The directory
+scaffold is likewise idempotent -- it only creates `build/`/`stl/`/`preview/` if
+missing and never touches existing contents. On a truly fresh directory the very
+first invocation of `init_permissions.py` itself may prompt once; that single
+approval seeds everything else.
 
 **Explicit init:** if the user asks to "init permissions" (or to re-seed after updating
 the skill), run `python "$SKILL_DIR/src/init_permissions.py" .` unconditionally (skip the
@@ -91,7 +96,8 @@ the skill), run `python "$SKILL_DIR/src/init_permissions.py" .` unconditionally 
 **Fallback when the helper cannot run:** if `init_permissions.py` is unavailable or its
 first run is declined, read `$SKILL_DIR/src/skill_permissions.json` and merge its `allow`
 array into `.claude/settings.local.json` yourself with the Read/Write tools (same
-additive, dedup, order-preserving merge — do not drop existing entries or other keys).
+additive, dedup, order-preserving merge — do not drop existing entries or other keys),
+and create `build/`, `stl/`, `preview/` yourself if they don't already exist.
 
 Known gaps: arbitrary manufacturer `WebFetch` domains and browser MCP tools (whose
 server name is environment-dependent) are not in the seeded set and may still prompt.
@@ -214,7 +220,7 @@ Use `browser_take_screenshot` only when the spec is in an image or the snapshot 
 
 **Lookup narration:** Before each lookup, output a one-line status naming what is being looked up and which source is being consulted (e.g., "Looking up Bosch MUM9 bowl dimensions on bosch-home.com..."). After each lookup, report the value found and the source URL (e.g., "Found bowl diameter: 220 mm -- bosch-home.com/en/product/...").
 
-## Dimension validation checkpoint
+### Dimension validation checkpoint
 
 After all dimension lookups are complete and **before generating `BUILD_PLAN.json`**, present a summary table of every looked-up dimension:
 
@@ -1049,7 +1055,8 @@ Add 0.3-0.5 mm to `nut_flat` for a pocket that doesn't require force-fitting in 
 | `prompts/planning.md` | Planning phase prompt template |
 | `prompts/part.md` | Per-part code generation prompt template |
 | `src/model_export.py` | Assembles placed unions into model.3mf + per-union/plate STL |
-| `src/blocks/inventory.json` | Machine-readable block descriptors |
+| `src/blocks/inventory.json` | Machine-readable block descriptors (a JSON array, not keyed by name) |
+| `src/blocks/validate.py --search <keyword>` | Find blocks by keyword (name, use, params, `dof`, interfaces) instead of hand-parsing `inventory.json` |
 | `reference/CadQuery Pattern Reference.md` | CadQuery idioms injected into part prompts |
 | `reference/emboss_text.md` | Text/emboss CadQuery gotchas, injected alongside the pattern reference |
 | `reference/FDM 3D Print Design Guidelines.md` | FDM guidelines injected into planning and part prompts |

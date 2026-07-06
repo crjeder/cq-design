@@ -11,6 +11,7 @@ Exit codes: 0 valid, 1 invalid.
 import argparse
 import json
 import os
+import re
 import sys
 from typing import Any
 
@@ -18,6 +19,27 @@ import jsonschema
 
 _SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "build_plan_schema.json")
 _INVENTORY_PATH = os.path.join(os.path.dirname(__file__), "blocks", "inventory.json")
+
+# Fields the planning prompt explicitly forbids but an LLM may still emit out of habit
+# (e.g. from an older convention). Surfaced as a hint on the matching schema error
+# instead of leaving the user to guess why an "additional property" is rejected.
+_LEGACY_FIELD_HINTS = {
+    "assembly": (
+        "'assembly' is not part of the schema -- multi-part connections are expressed "
+        "through each part's own `placement`, or via `joints` for a mate chain "
+        "(see prompts/planning.md rules 5, 7-8)"
+    ),
+}
+_ADDITIONAL_PROPS_RE = re.compile(r"'([^']+)'")
+
+
+def _hint_for_error(err: jsonschema.exceptions.ValidationError) -> str:
+    """Extra guidance for a known-legacy additional-property error, else ''."""
+    if err.validator != "additionalProperties":
+        return ""
+    names = _ADDITIONAL_PROPS_RE.findall(err.message)
+    hints = [_LEGACY_FIELD_HINTS[n] for n in names if n in _LEGACY_FIELD_HINTS]
+    return " (" + "; ".join(hints) + ")" if hints else ""
 
 
 def _load_json(path: str) -> Any:
@@ -40,9 +62,9 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
 
     schema = _load_json(_SCHEMA_PATH)
     validator = jsonschema.Draft7Validator(schema)
-    for err in sorted(validator.iter_errors(plan), key=lambda e: e.path):
+    for err in sorted(validator.iter_errors(plan), key=lambda e: list(map(str, e.absolute_path))):
         path = " -> ".join(str(p) for p in err.absolute_path) or "(root)"
-        errors.append(f"Schema error at {path}: {err.message}")
+        errors.append(f"Schema error at {path}: {err.message}{_hint_for_error(err)}")
 
     if errors:
         return errors
