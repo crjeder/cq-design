@@ -8,11 +8,12 @@ For a union mesh in its authored frame, enumerate stable bed-down orientations
     (perpendicular to build +Z). FDM is weakest ACROSS layers under tension,
     bending, or shear -- those stress the interlayer bond -- so for those load
     types a load that runs along Z is the worst case: Score = 1 - |load_after_rotation
-    . Z|. A pure COMPRESSION load (e.g. a resting weight pressing straight down
-    through a base/plinth/pedestal) does not stress the interlayer bond the same
-    way, so it does not drive orientation at all: strength score is neutral (1.0)
-    regardless of pose, and the support/bed-contact tiebreakers decide instead.
-    See `load.type` in `build_plan_schema.json` and `--load-type` below.
+    . Z|. Strength is orientation-neutral (1.0 for every pose, so support/bed-contact
+    decide) when either no load is declared -- the optimizer does NOT guess a load
+    axis from geometry; the planner declares `load.dir` (asking the user when the
+    load path is unclear) -- or the declared `load.type` is COMPRESSION (a resting
+    weight pressing straight down through a base/plinth/pedestal doesn't stress the
+    interlayer bond). See `load` in `build_plan_schema.json` and `--load*` below.
   - support: downward-facing area above the overhang limit at that pose (a
     slicer-free proxy for support volume; less is better), with bed contact area as
     a tiebreaker (more contact prints more reliably).
@@ -161,15 +162,21 @@ def _rotation_to_bed(down_normal: np.ndarray) -> np.ndarray:
 
 
 def _strength_score(
-    rotation: np.ndarray, load_dir: np.ndarray, load_type: str = "tension"
+    rotation: np.ndarray, load_dir: np.ndarray | None, load_type: str = "tension"
 ) -> float:
     """1.0 when the rotated load lies in the layer plane, 0.0 when along build Z.
 
-    A `compression` load doesn't stress the interlayer bond regardless of its
-    orientation relative to the layers (unlike tension/bending/shear), so it never
-    penalizes any pose: always 1.0, leaving support/bed-contact to decide.
+    Strength is orientation-neutral (always 1.0, leaving support/bed-contact to
+    decide) in two cases:
+    - `load_dir is None`: no load was declared. The optimizer does NOT guess a load
+      axis from geometry -- an undeclared load must not fabricate a bending
+      direction and tip a flat part onto its edge. The planner is responsible for
+      declaring `load.dir`/`load.type` (asking the user when the load path is
+      unclear); an absent load is treated as "no strength preference", not a guess.
+    - `load_type == "compression"`: a resting weight doesn't stress the interlayer
+      bond regardless of orientation, so no pose is penalized.
     """
-    if load_type == "compression":
+    if load_dir is None or load_type == "compression":
         return 1.0
     load_after = rotation[:3, :3] @ _unit(load_dir)
     return round(1.0 - abs(float(load_after[2])), 6)
@@ -195,15 +202,6 @@ def _support_metrics(
     bed_contact = float(posed.area_faces[contact_mask].sum())
     cost = support_cost(posed, overhang_deg, SUPPORT_EXPONENT, exclude_mask=contact_mask)
     return round(cost, 3), round(bed_contact, 3)
-
-
-def _infer_load_dir(mesh: trimesh.Trimesh) -> np.ndarray:
-    """Conservative load axis: the longest bounding-box axis (most bend-prone)."""
-    extents = mesh.bounding_box.extents
-    axis = int(np.argmax(extents))
-    vec = np.zeros(3)
-    vec[axis] = 1.0
-    return vec
 
 
 def _infer_show_face(mesh: trimesh.Trimesh) -> np.ndarray:
@@ -347,8 +345,8 @@ def optimize_orientation(
     if load_type not in LOAD_TYPES:
         raise ValueError(f"load_type must be one of {LOAD_TYPES}, got {load_type!r}")
 
-    load_inferred = load_dir is None
-    load_vec = _infer_load_dir(mesh) if load_inferred else np.asarray(load_dir, dtype=float)
+    load_declared = load_dir is not None
+    load_vec = np.asarray(load_dir, dtype=float) if load_declared else None
     show_face_inferred = show_face is None
     show_vec = _infer_show_face(mesh) if show_face_inferred else np.asarray(show_face, dtype=float)
 
@@ -374,9 +372,11 @@ def optimize_orientation(
 
     chosen = _select(candidates, optimize_for, strength_band)
 
-    load_used = [round(float(v), 6) for v in _unit(load_vec)]
+    load_used = [round(float(v), 6) for v in _unit(load_vec)] if load_vec is not None else None
     show_used = [round(float(v), 6) for v in _unit(show_vec)]
-    rationale = _rationale(chosen, optimize_for, overhang_deg, len(candidates), load_type)
+    rationale = _rationale(
+        chosen, optimize_for, overhang_deg, len(candidates), load_type, load_declared
+    )
     return {
         "optimize_for": optimize_for,
         "rotate": _rotation_to_placement(chosen["rotation"]),
@@ -388,7 +388,7 @@ def optimize_orientation(
         "gentle_incline_fraction": chosen["gentle_incline_fraction"],
         "build_height_mm": chosen["build_height"],
         "load_dir": load_used,
-        "load_inferred": load_inferred,
+        "load_declared": load_declared,
         "load_type": load_type,
         "show_face": show_used,
         "show_face_inferred": show_face_inferred,
@@ -402,6 +402,7 @@ def _rationale(
     overhang_deg: float,
     n_candidates: int,
     load_type: str = "tension",
+    load_declared: bool = True,
 ) -> str:
     """Human-readable explanation naming the mode and the winning trade-off."""
     common = (
@@ -411,7 +412,13 @@ def _rationale(
         f"(cosmetic-down {chosen['cosmetic_down']:.2f}, "
         f"{chosen['gentle_incline_fraction'] * 100:.0f}% gentle-incline area)"
     )
-    if load_type == "compression":
+    if not load_declared:
+        common += (
+            ". no load declared: strength is orientation-neutral (the optimizer does not "
+            "guess a load axis), so support/bed-contact decided -- declare load.dir in the "
+            "plan if this part carries a real tension/bending/shear load"
+        )
+    elif load_type == "compression":
         common += (
             ". load_type=compression: strength is orientation-neutral "
             "(interlayer bond isn't stressed by a resting load), so support/bed-contact decided"
@@ -439,7 +446,8 @@ def main() -> None:
     parser.add_argument(
         "--load",
         default=None,
-        help="Principal load direction 'x,y,z' in the authored frame; omit to infer",
+        help="Principal load direction 'x,y,z' in the authored frame; omit for a "
+        "strength-neutral part (no load axis is guessed)",
     )
     parser.add_argument(
         "--load-type",

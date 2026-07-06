@@ -166,23 +166,29 @@ The script structure section of `prompts/part.md` SHALL NOT contain a placeholde
 
 ---
 
-### Requirement: Build plan carries an optional per-part load hint
-The build plan SHALL allow a part to optionally declare a `load` hint: the principal load
-direction in the part's own authored frame, used to drive print-orientation strength
-scoring. Plan validation SHALL accept the field when present (a direction in the authored
-frame) and SHALL accept parts that omit it. When a part declares `load`, the planning
-summary SHALL surface it; when absent, downstream strength scoring infers a load axis from
-geometry.
+### Requirement: Build plan carries a per-part load determined by the planner
+The build plan SHALL allow a part to declare a `load`: the principal load direction (and
+optional `type`) in the part's own authored frame, used to drive print-orientation strength
+scoring. The planning phase SHALL determine and declare the principal load for every part
+whose print orientation depends on strength -- naming the real load path rather than leaving
+it to be guessed downstream -- and SHALL ask the user when the load path is genuinely unclear
+rather than omitting the field. A flat cover, lid, or panel that carries no structural
+tension/bending/shear load SHALL be declared with `load.type: "compression"` (orientation-
+neutral) so it is not tipped onto its edge. Plan validation SHALL accept the field when
+present (a direction in the authored frame) and SHALL still accept parts that omit it. When a
+part declares `load`, the planning summary SHALL surface it. When a part omits `load`, the
+downstream strength scoring SHALL be orientation-neutral (no load axis is inferred from
+geometry); an omitted load is a neutral default, never a fabricated bending direction.
 
 #### Scenario: Plan with a declared load validates
 - **WHEN** a build plan declares a `load` direction on a part
 - **THEN** plan validation accepts it and the value is available to the orientation
   optimizer
 
-#### Scenario: Plan without a load hint is still valid
-- **WHEN** a part omits the `load` hint
-- **THEN** plan validation accepts the part and strength scoring falls back to a
-  geometry-inferred load axis
+#### Scenario: Plan without a load is still valid and scores neutral
+- **WHEN** a part omits the `load` field
+- **THEN** plan validation accepts the part and downstream strength scoring is
+  orientation-neutral for it (no geometry-inferred load axis is fabricated)
 
 ---
 

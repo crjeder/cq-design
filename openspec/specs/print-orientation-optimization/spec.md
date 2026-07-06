@@ -39,14 +39,16 @@ For each candidate orientation the system SHALL compute a **strength score** and
 **support score**. The strength score SHALL measure how well the part's load direction
 stays in the layer plane (perpendicular to build Z): higher when the load is in-plane,
 lower when the load runs across layers (along build Z). The load direction SHALL be the
-part's declared `load` when present and an inferred principal axis otherwise. The support
-score SHALL be a severity-weighted cost of the downward-facing mesh area whose overhang
-angle exceeds the plan's `overhang_max_deg` at that orientation, where each flagged face
-contributes by its area scaled by how far it leans past the limit raised to an exponent
-(steeper overhangs cost disproportionately more); less cost is better. The support score
-SHALL be slicer-free (a mesh proxy, not a slice). Bed contact SHALL be detected within a
-first-layer-height band of the lowest point so a near-coplanar resting face counts as
-contact.
+part's declared `load` direction. When no `load` is declared the system SHALL NOT infer a
+load axis from geometry; instead the strength score SHALL be orientation-neutral (the same
+value for every candidate) so that support and bed contact decide the orientation, and the
+result SHALL report that no load was declared. The support score SHALL be a severity-weighted
+cost of the downward-facing mesh area whose overhang angle exceeds the plan's
+`overhang_max_deg` at that orientation, where each flagged face contributes by its area scaled
+by how far it leans past the limit raised to an exponent (steeper overhangs cost
+disproportionately more); less cost is better. The support score SHALL be slicer-free (a mesh
+proxy, not a slice). Bed contact SHALL be detected within a first-layer-height band of the
+lowest point so a near-coplanar resting face counts as contact.
 
 #### Scenario: Load across layers scores weaker than load in plane
 - **WHEN** two candidate orientations are scored for a part with a declared load direction,
@@ -58,10 +60,11 @@ contact.
   `overhang_max_deg`, one near-horizontal and one just past the limit
 - **THEN** the near-horizontal orientation receives the worse (higher) support score
 
-#### Scenario: Load direction is inferred when undeclared
+#### Scenario: Undeclared load is strength-neutral, not guessed
 - **WHEN** a part has no declared `load`
-- **THEN** the strength score is computed against a geometry-inferred principal load axis
-  and the inferred direction is reported in the result
+- **THEN** the strength score is orientation-neutral (identical for every candidate, so
+  support and bed contact decide the orientation), no load axis is inferred from geometry,
+  and the result reports that no load was declared
 
 #### Scenario: Near-coplanar resting face counts as bed contact
 - **WHEN** a resting face sits within the first-layer-height band of the lowest point but

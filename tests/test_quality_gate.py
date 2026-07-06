@@ -14,8 +14,10 @@ def _issues_of(issues, type_):
 
 
 @pytest.fixture
-def steep_overhang_stl(tmp_path):
-    """Watertight cube; its flat bottom face is a 90 degree overhang."""
+def flat_bottom_cube_stl(tmp_path):
+    """Watertight cube: its flat bottom face rests on the bed (Z=min), so it is
+    bed contact -- NOT an unsupported overhang, despite the -Z normal being 90 deg
+    from horizontal. The cube has no other downward faces, so no overhang at all."""
     stl = tmp_path / "cube.stl"
     trimesh.creation.box(extents=(10, 10, 10)).export(str(stl))
     return str(stl)
@@ -92,16 +94,11 @@ def empty_stl(tmp_path):
     return str(stl)
 
 
-def test_steep_overhang_emits_warning(steep_overhang_stl):
-    issues = quality_gate._analyze_stl(steep_overhang_stl, OVERHANG_DEG)
-    overhangs = _issues_of(issues, "overhang_exceeded")
-    assert len(overhangs) == 1
-    o = overhangs[0]
-    assert o["source"] == "geometry"
-    assert o["severity"] == "warning"
-    assert o["overhang_area_mm2"] > 0
-    assert o["worst_angle_deg"] == pytest.approx(90.0, abs=1e-3)
-    assert len(o["location_xyz_mm"]) == 3
+def test_flat_bottom_on_bed_not_flagged_as_overhang(flat_bottom_cube_stl):
+    # Regression: a flat bottom face resting on the bed (Z=min) is supported by the
+    # bed, not by support material, so it must NOT be reported as a 90 deg overhang.
+    issues = quality_gate._analyze_stl(flat_bottom_cube_stl, OVERHANG_DEG)
+    assert _issues_of(issues, "overhang_exceeded") == []
 
 
 def test_self_supporting_emits_no_overhang(self_supporting_stl):

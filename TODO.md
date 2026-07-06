@@ -50,6 +50,16 @@ change lives in that change's `tasks.md`, not here.
       avoid by design.
 - [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
       (-> Differential geometry comparison)
+- [ ] preview: render feature detail previews more proactively. The `--detail`
+      capability exists (`render_preview.py`/`preview.py` render a high-res zoomed
+      view + optional cross-section per named feature; wired in SKILL.md Step 3
+      "Feature detail previews"), but in a live run detail previews were not
+      generated for small/critical features by default -- only on explicit request
+      or the complexity-gate path. Decide when the skill should auto-render a detail
+      preview (e.g. every interface/joint feature, or any feature below a size
+      threshold vs. the whole-part bbox) so small features are actually inspectable
+      without the user asking, and make SKILL.md prescribe it rather than leave it
+      to judgement. (Deferred from the orientation/overhang fix session.)
 - [ ] gate: no enforcement for `reference/FDM 3D Print Design Guidelines.md`'s
       "Chamfer / Fillet" rule (horizontal edges -> chamfer, vertical edges ->
       fillet; `applies_to: always`, so it's injected into every part prompt).
@@ -70,9 +80,16 @@ change lives in that change's `tasks.md`, not here.
       trailing-space typo in the heading, already fixed).
 - [ ] explore as quality gate and / or guide: small slopes look bad. 
       layer height mainly buys you smoothness in the 20–45° zone
-      prio 1: avoid 0 ° - 45 ° 2: replace with chamfer steps 3: suggest to lower layer height for slopes between 20 ° and 45 °
+      prio 1: avoid 0 ° - 45 ° 2: rotate (especially when optimizing for visual quality) 3: replace with chamfer steps 4: suggest to lower layer height for slopes between 20 ° and 45 °
       `_chamfer = cos(printableOverhang) * _fillet * tan(( 90 deg - printableOverhang ) / 2)`
+      idea:
+      ```
+      Greedy Look-Ahead Filter:
+      1. Start a segment at your first data point.Project a line to the next point, forcing its angle to the closest allowed direction (0, 45, 90?). Keep extending that same $0^\circ$ or $45^\circ$ line to subsequent points ($3^{\text{rd}}, 4^{\text{th}}, 5^{\text{th}}\dots$).Calculate the perpendicular deviation of the original points from your extended constrained line.Cut the segment the moment the error exceeds your tolerance. This point becomes the start of your next longest-possible segment.
+      ```
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
+- [ ] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
+
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by

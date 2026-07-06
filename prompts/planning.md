@@ -124,24 +124,28 @@ Before committing to any dimension values, populate `planning_notes` with your r
    `[-30, 90]`); set `lo_inclusive`/`hi_inclusive` to `false` for an open bound that
    need not be reached. `unit` must match the joint block's `dof.unit`.
 
-10. **Hint the principal load with `load`** (optional, per part). FDM is weakest across
-   layer lines (build Z) under tension, bending, or shear, so print-orientation
-   optimization favors orientations that keep those load types in the layer plane.
-   If a part carries a clear primary load (a bracket arm in bending, a hook in
-   tension, a shaft in shear), give `load.dir` as the load direction `[x, y, z]` in
-   the part's own authored frame. Omit it to let the optimizer infer the load axis
-   from geometry -- the inference is a bend-prone heuristic (longest bounding-box
-   axis) and is wrong for a part whose load is actually compressive, so declare
-   `load.dir` explicitly whenever you can name the real load path, don't rely on
-   inference as a default.
+10. **Determine the principal load for every part with `load` -- do not leave it to be
+   guessed.** FDM is weakest across layer lines (build Z) under tension, bending, or
+   shear, so print-orientation optimization keeps those load types in the layer plane.
+   You (the planner) are responsible for the load path; the optimizer does NOT guess a
+   load axis from geometry, so an omitted `load` scores as orientation-neutral (support
+   and bed-contact decide) -- which is only correct when the part truly carries no
+   structural load. Reason about how each part is actually loaded in use and declare it:
 
-   **Also set `load.type: "compression"`** when the load is a resting weight
-   pressing straight through the part's thickness rather than bending/tensioning it
-   -- a base, plinth, pedestal, foot, gasket, or shim under something's weight.
-   Compression doesn't stress the interlayer bond, so tipping the part onto its
-   edge to get the load "in-plane" (what the default tension-style scoring would
-   otherwise do) is pointless and often produces an absurd orientation for a flat,
-   wide part. Omit `type` (default `tension`) for bending/tension/shear loads.
+   - **Structural load** (a bracket arm in bending, a hook in tension, a shaft in shear):
+     give `load.dir` as the load direction `[x, y, z]` in the part's own authored frame.
+   - **Resting/compressive load** (a base, plinth, pedestal, foot, gasket, shim, or any
+     flat part under a weight pressing straight through its thickness): set
+     `load.type: "compression"`. Compression doesn't stress the interlayer bond, so
+     forcing the load "in-plane" would pointlessly tip a flat, wide part onto its edge.
+   - **A flat cover, lid, or panel** that is not itself load-bearing: treat it as
+     `load.type: "compression"` (orientation-neutral) so it prints flat / cover-face-down,
+     not stood on edge.
+
+   **If you genuinely cannot tell how a part is loaded, ASK the user -- do not guess and
+   do not silently omit `load`.** A wrong or absent load is what produces an absurd
+   orientation (e.g. a wide plate stood diagonally on edge). Omit `load.type` (default
+   `tension`) only for real bending/tension/shear loads where `load.dir` is declared.
 
 11. **Record the print-orientation priority with `optimize_for`.** Set the user's stated
     optimization preference, one of `strength` (default), `min_support`, or
@@ -247,9 +251,12 @@ profile is present above, take these values from what the user stated in Phase 1
 }
 ```
 
-Note: `plate`, `placement`, and `load` are optional (default: own plate, identity
-placement, inferred load axis, `load.type` defaults to `tension`). Omit `kinematics`
-unless the model has a declared range of motion to verify.
+Note: `plate` and `placement` are optional (default: own plate, identity placement).
+`load` is schema-optional but you SHOULD determine and declare it per rule 10 (omitting
+it makes strength scoring orientation-neutral -- no load axis is guessed -- which is only
+correct when the part truly carries no structural load); `load.type` defaults to
+`tension` when `load.dir` is given. Omit `kinematics` unless the model has a declared
+range of motion to verify.
 
 ## FDM Design Guidelines
 
