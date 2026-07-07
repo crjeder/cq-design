@@ -169,7 +169,11 @@ def main():
         sys.exit(1)
     if isinstance(result, dict):
         # Multi-union part: preview all unions together (added as separate solids, not fused).
-        union_wps = list(result.values())
+        # The reserved keep-out key holds declared zones, not real geometry -- skip it (as
+        # run_model_shim does) so zones don't render as phantom solids.
+        from units import KEEP_OUT_KEY
+
+        union_wps = [wp for uid, wp in result.items() if uid != KEEP_OUT_KEY]
         combined = union_wps[0]
         for wp in union_wps[1:]:
             combined = combined.add(wp)

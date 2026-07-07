@@ -96,13 +96,24 @@ def run_exporters(script_path: str, formats: list[str], output_dir: str) -> list
     os.makedirs(output_dir, exist_ok=True)
     cq_result = _load_result(script_path)
 
+    from units import KEEP_OUT_KEY
+
     stem = os.path.splitext(os.path.basename(script_path))[0]
     produced = []
 
-    for fmt in formats:
-        exporter_mod, ext = _REGISTRY[fmt]
-        out_path = os.path.join(output_dir, stem + ext)
-        exporter_mod.export(cq_result, out_path)
-        produced.append(out_path)
+    # A multi-union part sets `result` to a dict {union_id: Workplane}; export one file
+    # per union so each body is delivered separately (matching run_model_shim). A plain
+    # Workplane keeps the script-stem name. The reserved keep-out key is never a union.
+    if isinstance(cq_result, dict):
+        targets = [(uid, wp) for uid, wp in cq_result.items() if uid != KEEP_OUT_KEY]
+    else:
+        targets = [(stem, cq_result)]
+
+    for name, wp in targets:
+        for fmt in formats:
+            exporter_mod, ext = _REGISTRY[fmt]
+            out_path = os.path.join(output_dir, name + ext)
+            exporter_mod.export(wp, out_path)
+            produced.append(out_path)
 
     return produced
