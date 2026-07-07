@@ -278,10 +278,9 @@ cleanup. Confirmed unless marked SPECULATIVE.
       them in the same `finally` that restores cwd. (The "promote to a shared
       `script_loader` module" cleanup was left out as out-of-scope; the leak itself
       is fixed.)
-- [ ] **repeated per-candidate mesh copies in print_orientation** (low, perf).
-      `_support_metrics` (`:168`), `_gentle_incline_fraction` (`:213`), and
-      `_build_height` (`:265`) each `mesh.copy(); apply_transform` separately ->
-      ~3 full-mesh copies per candidate. Pose once per candidate, share.
+- [x] repeated per-candidate mesh copies in print_orientation -- fixed: `_support_metrics`,
+      `_gentle_incline_fraction`/`_visual_metrics`, and `_build_height` now take the
+      already-posed mesh; `optimize_orientation` poses each candidate once and shares it.
 
 ### Speculative (confirm before acting)
 - [x] gimbal lock in `print_orientation._rotation_to_bed` when the best face is
