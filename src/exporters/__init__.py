@@ -50,30 +50,32 @@ def _load_result(script_path: str) -> "cq.Workplane | dict[str, cq.Workplane]":
     script_dir = os.path.dirname(script_path)
     skill_root = os.path.dirname(os.path.abspath(__file__))
 
-    for path in (script_dir, skill_root):
-        if path not in sys.path:
-            sys.path.insert(0, path)
+    inserted = [p for p in (script_dir, skill_root) if p not in sys.path]
+    for path in inserted:
+        sys.path.insert(0, path)
 
-    module_name = os.path.splitext(os.path.basename(script_path))[0]
-    spec = importlib.util.spec_from_file_location(module_name, script_path)
-    if spec is None or spec.loader is None:
-        raise ExportError(f"Cannot load script: {script_path}")
-
-    module = importlib.util.module_from_spec(spec)
     # Run from the script's directory so relative exports resolve correctly
     old_cwd = os.getcwd()
     try:
+        module_name = os.path.splitext(os.path.basename(script_path))[0]
+        spec = importlib.util.spec_from_file_location(module_name, script_path)
+        if spec is None or spec.loader is None:
+            raise ExportError(f"Cannot load script: {script_path}")
+
+        module = importlib.util.module_from_spec(spec)
         os.chdir(script_dir)
         spec.loader.exec_module(module)
+
+        if not hasattr(module, "result"):
+            raise ExportError(
+                f"Script '{script_path}' does not define a top-level 'result' variable. "
+                "Add: result = <your_cq_workplane> before the export call."
+            )
+        return module.result
     finally:
         os.chdir(old_cwd)
-
-    if not hasattr(module, "result"):
-        raise ExportError(
-            f"Script '{script_path}' does not define a top-level 'result' variable. "
-            "Add: result = <your_cq_workplane> before the export call."
-        )
-    return module.result
+        for path in inserted:
+            sys.path.remove(path)
 
 
 def run_exporters(script_path: str, formats: list[str], output_dir: str) -> list[str]:
