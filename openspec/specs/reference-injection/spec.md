@@ -6,12 +6,16 @@ Defines requirements for how reference files (`CadQuery Pattern Reference.md`, `
 
 ## Requirements
 
-### Requirement: CQ reference is injected in full into part and assembly prompts
-The system SHALL load `reference/CadQuery Pattern Reference.md` and `reference/emboss_text.md` once per build and substitute their concatenation for `{{CQ_REFERENCE}}` in `prompts/part.md` before each `claude -p` invocation, `CadQuery Pattern Reference.md` first. There SHALL be no `prompts/assembly.md`, so no assembly prompt receives the CQ reference.
+### Requirement: CQ reference is injected into part prompts, text gotchas only for text parts
+The system SHALL substitute `{{CQ_REFERENCE}}` in `prompts/part.md` with the full contents of `reference/CadQuery Pattern Reference.md` before each `claude -p` invocation, and SHALL append `reference/emboss_text.md` (after the pattern reference) ONLY when the part involves text/emboss — i.e. its `description`, `part_notes`, or any `interfaces` entry mentions text/engrave/emboss/label. A part with no text SHALL NOT receive `emboss_text.md` (the pattern reference already carries the basic `.text()` idiom). There SHALL be no `prompts/assembly.md`, so no assembly prompt receives the CQ reference.
 
-#### Scenario: Part prompt contains full CQ reference
-- **WHEN** `_render_part_prompt` is called for any part
-- **THEN** the rendered prompt contains the complete contents of `reference/CadQuery Pattern Reference.md` followed by the complete contents of `reference/emboss_text.md` at the `{{CQ_REFERENCE}}` location
+#### Scenario: Part with no text gets the pattern reference only
+- **WHEN** the part prompt is rendered for a part whose description, part_notes, and interfaces do not mention text/engrave/emboss/label
+- **THEN** the rendered prompt contains the complete contents of `reference/CadQuery Pattern Reference.md` at the `{{CQ_REFERENCE}}` location and does NOT contain `reference/emboss_text.md`
+
+#### Scenario: Text part gets the emboss gotchas appended
+- **WHEN** the part prompt is rendered for a part that involves text/emboss
+- **THEN** the rendered prompt contains `reference/CadQuery Pattern Reference.md` followed by the complete contents of `reference/emboss_text.md` at the `{{CQ_REFERENCE}}` location
 
 #### Scenario: No assembly prompt to inject into
 - **WHEN** the build pipeline reaches the assembly phase
