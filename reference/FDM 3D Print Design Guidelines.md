@@ -47,6 +47,24 @@ Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for
 - Modeling mechanics (fillet sizing limits, fillet-before-shell, cut depth) → CadQuery Pattern Reference "Common Gotchas".
 - Combine fillets and chamfers to mitigate overhang issues -> replace a downward face steeper than 45° from horizontal (un-printable) with a chamfer.
 
+## Cosmetic Slopes / Stair-Stepping
+<!-- applies_to: always -->
+
+Shallow UP-facing surfaces print as visible layer steps and look bad. This is a cosmetic
+concern (up-facing) -- distinct from overhangs (down-facing, a printability failure) and
+from edge treatment.
+
+- Avoid up-facing surfaces inclined 5-45° from horizontal on visible faces. Prefer a face
+  that is either near-flat (≤ 5°), steep (≥ 45°), or vertical.
+- Priority of remedies: (1) don't author the shallow slope -- reshape it to ≥ 45° or
+  vertical; (2) let print-orientation rotate it out (automatic in `visual_quality` mode);
+  (3) replace it with stacked chamfer steps; (4) lower layer height.
+- Layer height only buys smoothness in roughly the 20-45° part of the band; below ~20° the
+  steps are wide regardless of layer height, so rotate or reshape instead.
+- The gate reports residual up-facing slope area only for `visual_quality` parts (advisory);
+  a shallow slope on a hidden structural face is fine. For the down-facing side, see the
+  overhang rule and "Chamfer / Fillet" above.
+
 ## Screw Mount Structure
 <!-- applies_to: screw_boss, pcb_standoff, heat_set_boss -->
 

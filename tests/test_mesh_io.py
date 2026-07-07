@@ -57,6 +57,43 @@ def test_overhang_metrics_flags_elevated_downface():
     assert m["overhang_area_mm2"] > 0.0
 
 
+def _tilted_plane(width, depth, tilt_deg, down=False):
+    """A flat width x depth plane tilted `tilt_deg` about X. Up-facing unless `down`.
+
+    Wound so the outward normal is +Z before the tilt (so nz = cos(tilt) after, an
+    up-facing slope inclined `tilt_deg` from horizontal); `down` reverses the winding.
+    """
+    from trimesh.transformations import rotation_matrix
+
+    v = np.array([[0, 0, 0], [width, 0, 0], [width, depth, 0], [0, depth, 0]], dtype=float)
+    faces = np.array([[0, 2, 1], [0, 3, 2]]) if down else np.array([[0, 1, 2], [0, 2, 3]])
+    m = trimesh.Trimesh(vertices=v, faces=faces, process=False)
+    m.apply_transform(rotation_matrix(np.radians(tilt_deg), [1, 0, 0]))
+    return m
+
+
+def test_up_facing_incline_area_counts_shallow_up_ramp():
+    # A 100 mm^2 up-facing plane inclined 30 deg is in the (5, 45) band; area is preserved.
+    assert mesh_io.up_facing_incline_area(_tilted_plane(10, 10, 30), 5, 45) == 100.0
+
+
+def test_up_facing_incline_area_excludes_down_facing():
+    # Same 30 deg slope facing DOWN is an overhang concern, not a cosmetic up-slope.
+    assert mesh_io.up_facing_incline_area(_tilted_plane(10, 10, 30, down=True), 5, 45) == 0.0
+
+
+def test_up_facing_incline_area_excludes_flat_and_vertical():
+    assert mesh_io.up_facing_incline_area(_tilted_plane(10, 10, 0), 5, 45) == 0.0  # flat top
+    assert mesh_io.up_facing_incline_area(_tilted_plane(10, 10, 90), 5, 45) == 0.0  # wall
+
+
+def test_up_facing_incline_area_band_is_open_interval():
+    assert mesh_io.up_facing_incline_area(_tilted_plane(10, 10, 3), 5, 45) == 0.0  # below 5
+    assert mesh_io.up_facing_incline_area(_tilted_plane(10, 10, 60), 5, 45) == 0.0  # above 45
+    assert mesh_io.up_facing_incline_area(_tilted_plane(10, 10, 45), 5, 45) == 0.0  # 45 excluded
+    assert mesh_io.up_facing_incline_area(_tilted_plane(10, 10, 44), 5, 45) == 100.0  # just inside
+
+
 def test_load_mesh_valid(tmp_stl):
     tm = mesh_io.load_mesh(str(tmp_stl))
     assert len(tm.vertices) > 0

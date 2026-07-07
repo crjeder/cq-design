@@ -155,3 +155,24 @@ def support_cost(mesh, overhang_deg, exponent, exclude_mask=None):
     lean = (angles[support_mask] - overhang_deg) / (90.0 - overhang_deg)
     weighted = mesh.area_faces[support_mask] * np.power(lean, exponent)
     return round(float(weighted.sum()), 3)
+
+
+def up_facing_incline_area(mesh, min_deg, max_deg):
+    """Total area (mm^2) of UP-facing faces inclined within (min_deg, max_deg) of horizontal.
+
+    A face is counted when its outward normal points up (nz > 0) and its inclination from
+    horizontal -- arccos(nz) for a unit normal (0 = flat top, 90 = vertical wall) -- lies
+    strictly inside the open band (min_deg, max_deg). This is the cosmetic stair-step band:
+    a shallow up-facing slope prints as visible layer steps. Down-facing faces (nz < 0) are
+    excluded -- a shallow one is an overhang, a separate concern owned by `overhang_metrics`
+    -- so no separate bed-contact exclusion is needed (bed faces are down-facing). Build
+    direction is +Z, so this is pose-dependent: pass a mesh already rotated into the print
+    (build) frame.
+    """
+    nz = mesh.face_normals[:, 2]
+    up_mask = nz > 0
+    if not np.any(up_mask):
+        return 0.0
+    incline = np.degrees(np.arccos(np.clip(nz, 0.0, 1.0)))
+    band_mask = up_mask & (incline > min_deg) & (incline < max_deg)
+    return round(float(mesh.area_faces[band_mask].sum()), 3)

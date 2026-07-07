@@ -30,6 +30,9 @@ import sys
 
 SKILL_ROOT = os.path.dirname(os.path.abspath(__file__))
 MAX_FIX_ROUNDS = 2
+# Up-facing gentle-incline area (mm^2) below which the cosmetic-slope finding is suppressed
+# as trivial. Advisory only, so this is tunable without affecting pass/fail.
+COSMETIC_SLOPE_MIN_AREA_MM2 = 20.0
 
 # ---------------------------------------------------------------------------
 # DFM check via wrapper
@@ -381,6 +384,57 @@ def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | 
     return run_edge_treatment_check(plan, script_path, orientations)
 
 
+def _run_cosmetic_slope_stage(plan: dict, script_path: str, orientation: dict | None) -> list[dict]:
+    """Report up-facing cosmetic stair-step area for a visual_quality part (advisory).
+
+    Surfaces the up-facing gentle-incline area the print-orientation step measured at the
+    chosen pose (`cosmetic_slope_area_mm2` in the `--orientation` result). No-op unless the
+    part's effective `optimize_for` is `visual_quality`; degrades to `check_skipped` when
+    the orientation result (or that field) is unavailable, since the metric is only
+    meaningful in the chosen print frame -- never measured in the authored frame.
+    """
+    from units import make_issue
+
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
+    if part is None:
+        return []
+    effective = part.get("optimize_for") or plan.get("optimize_for", "strength")
+    if effective != "visual_quality":
+        return []
+
+    if not orientation or "cosmetic_slope_area_mm2" not in orientation:
+        return [
+            make_issue(
+                "cosmetic_slope",
+                "warning",
+                "check_skipped",
+                "No print orientation available; cannot measure cosmetic slope area in the "
+                "print frame.",
+                "Pass --orientation (the part's print_orientation result) so the "
+                "cosmetic-slope check can run.",
+            )
+        ]
+
+    area = orientation["cosmetic_slope_area_mm2"]
+    if area <= COSMETIC_SLOPE_MIN_AREA_MM2:
+        return []
+    return [
+        make_issue(
+            "cosmetic_slope",
+            "warning",
+            "cosmetic_slope",
+            f"{area:.1f} mm2 of up-facing surface sits in the 5-45 deg stair-step band at the "
+            "chosen print orientation -- visible layer stepping on a visual_quality part.",
+            "Reshape the shallow slope to >= 45 deg or vertical, chamfer-step it, or lower "
+            "layer height for the 20-45 deg range (see the FDM 'Cosmetic Slopes' guideline). "
+            "The optimizer already picked the least-stepping orientation, so rotation alone "
+            "will not remove it.",
+            area_mm2=area,
+        )
+    ]
+
+
 def _analyze_3mf(model_3mf_path: str) -> list[dict]:
     """Check a 3MF deliverable for non-manifold edges as a slicer reads it.
 
@@ -512,6 +566,8 @@ def run_gate(
         all_issues += _run_keep_out_stage(plan, stl_dir)
         # ---- edge-treatment (chamfer/fillet) check (once, outside the fix loop) ----
         all_issues += _run_edge_treatment_stage(plan, script_path, orientation)
+        # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
+        all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
 
