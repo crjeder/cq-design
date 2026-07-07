@@ -1,9 +1,9 @@
 # Emboss & Deboss Text Reference
 
 Text-specific CadQuery gotchas: split out of `CadQuery Pattern Reference.md` so the
-main reference stays general-purpose. Injected alongside it wherever `{{CQ_REFERENCE}}`
-is substituted (see `SKILL.md` Phase 3 setup) -- treat this as a continuation of that
-file, not a separate optional doc.
+main reference stays general-purpose. Appended to `{{CQ_REFERENCE}}` **only for a part
+that involves text/emboss** (see `SKILL.md` Phase 3 setup) -- treat this as a
+continuation of that file when present, not a separate optional doc.
 
 ## Table of Contents
 

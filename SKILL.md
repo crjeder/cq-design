@@ -386,7 +386,7 @@ Read into context (once, before the loop):
 - `BUILD_PLAN.json` — the validated plan
 - `$SKILL_DIR/src/blocks/inventory.json` — block metadata (module, function, params)
 - `$SKILL_DIR/prompts/part.md` — part prompt template
-- `$SKILL_DIR/reference/CadQuery Pattern Reference.md` and `$SKILL_DIR/reference/emboss_text.md` — concatenated, full contents for `{{CQ_REFERENCE}}`
+- `$SKILL_DIR/reference/CadQuery Pattern Reference.md` — full contents for `{{CQ_REFERENCE}}`; append `$SKILL_DIR/reference/emboss_text.md` only for a part that involves text/emboss (see the `{{CQ_REFERENCE}}` row below)
 - `$SKILL_DIR/reference/FDM 3D Print Design Guidelines.md` — tag-filtered sections for `{{FDM_GUIDELINES}}`
 - `$SKILL_DIR/reference/Visual Review Checklist.md` — the visual self-review checklist applied in Step 4
 
@@ -427,7 +427,7 @@ Read `$SKILL_DIR/prompts/part.md` and substitute every placeholder:
 | `{{OVERHANG_MAX_DEG}}` | `plan["constraints"]["overhang_max_deg"]` |
 | `{{MATERIAL}}` | `plan["material"]` |
 | `{{NOZZLE_MM}}` | `plan["nozzle_mm"]` |
-| `{{CQ_REFERENCE}}` | Full contents of `CadQuery Pattern Reference.md`, concatenated with `emboss_text.md` |
+| `{{CQ_REFERENCE}}` | Full contents of `CadQuery Pattern Reference.md`. Append `emboss_text.md` **only when this part involves text/emboss** — i.e. its `description`, `part_notes`, or any `interfaces` entry mentions text/engrave/emboss/label. Otherwise omit it (the pattern reference already carries the basic `.text()` idiom); its deboss/overflow/bbox gotchas are dead weight for a part with no text. |
 | `{{FDM_GUIDELINES}}` | Sections from `FDM 3D Print Design Guidelines.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always` |
 
 **Step 2 — Write the part script**
@@ -1071,5 +1071,5 @@ Add 0.3-0.5 mm to `nut_flat` for a pocket that doesn't require force-fitting in 
 | `src/blocks/inventory.json` | Machine-readable block descriptors (a JSON array, not keyed by name) |
 | `src/blocks/validate.py --search <keyword>` | Find blocks by keyword (name, use, params, `dof`, interfaces) instead of hand-parsing `inventory.json` |
 | `reference/CadQuery Pattern Reference.md` | CadQuery idioms injected into part prompts |
-| `reference/emboss_text.md` | Text/emboss CadQuery gotchas, injected alongside the pattern reference |
+| `reference/emboss_text.md` | Text/emboss CadQuery gotchas, appended to the pattern reference only for a part that involves text/emboss |
 | `reference/FDM 3D Print Design Guidelines.md` | FDM guidelines injected into planning and part prompts |
