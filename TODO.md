@@ -57,15 +57,6 @@ change lives in that change's `tasks.md`, not here.
       avoid by design.
 - [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
       (-> Differential geometry comparison)
-      Includes the "Greedy Look-Ahead Filter" (moved here from the small-slopes item, which
-      scoped it out): walk a sampled profile's points, force each segment to the nearest
-      printable-clean direction (0/45/90 deg), extend that constrained segment while the
-      perpendicular deviation of the original points stays under tolerance, cut a new segment
-      when the error exceeds tolerance. A point-snapping tool that only applies when there IS
-      a sampled profile (imported mesh / point cloud), not in parametric authoring. The
-      chamfer sizing formula `cos(printableOverhang) * fillet * tan((90 - printableOverhang)
-      / 2)` is fillet->chamfer sizing for overhang mitigation (an edge-treatment concern),
-      filed with the slopes item only by proximity.
 - [x] preview: cross-section previews wired into workflow. The `--cross-sections`
       flag now renders a 3x3 grid (6 exterior + 3 interior section views) as the
       default for whole-part validation. Visual Review Checklist extended with
@@ -104,7 +95,7 @@ change lives in that change's `tasks.md`, not here.
       Deferred: slope-aware layer-height recipe hint (optional). The Greedy Look-Ahead Filter
       / chamfer-step transform was split out to the reverse-engineer-mesh item above.
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
-- [ ] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
+- [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
 
 
 ## Prior-art ideas
@@ -282,19 +273,25 @@ cleanup. Confirmed unless marked SPECULATIVE.
       `run_cadquery_model.py:315` `except Exception: return [], []` makes a real
       `measure_stl` bug look identical to "no thin regions". Narrow the except or
       log to stderr.
-- [ ] **`exporters._load_result` leaks `sys.path` inserts** (low).
-      `exporters/__init__.py:49-65` restores cwd but never removes inserted
-      `sys.path` entries, and `model_export` imports this private helper. Promote to
-      a shared `script_loader` module.
+- [x] **`exporters._load_result` leaks `sys.path` inserts** (low).
+      `exporters/__init__.py` now tracks the paths it actually inserts and removes
+      them in the same `finally` that restores cwd. (The "promote to a shared
+      `script_loader` module" cleanup was left out as out-of-scope; the leak itself
+      is fixed.)
 - [ ] **repeated per-candidate mesh copies in print_orientation** (low, perf).
       `_support_metrics` (`:168`), `_gentle_incline_fraction` (`:213`), and
       `_build_height` (`:265`) each `mesh.copy(); apply_transform` separately ->
       ~3 full-mesh copies per candidate. Pose once per candidate, share.
 
 ### Speculative (confirm before acting)
-- [ ] gimbal lock in `print_orientation._rotation_to_bed` (`:146-148`) when the best
-      face is +Z-up: matrix is correct but the re-applied euler `rotate` steps may
-      not reproduce the exact pose. Path exists; real impact unconfirmed.
+- [x] gimbal lock in `print_orientation._rotation_to_bed` when the best face is
+      +Z-up -- REFUTED, no bug. Gimbal lock loses angle *uniqueness*, not
+      reconstruction fidelity: `_rotation_to_placement` uses `euler_from_matrix(axes="sxyz")`
+      and `placement.to_matrix` recomposes `Rz @ Ry @ Rx` from those angles, which
+      reproduces the original matrix by definition of the convention, singular or not.
+      Verified numerically: worst recon error ~5e-16 over 2000 random normals plus
+      all six axis faces. The +Z-up case decomposes to a clean X=180/Y=0/Z=180 (not
+      even near the ay=+-90 singularity), recon err ~1e-16.
 - [x] `plan_validate.py:43` sorts jsonschema errors by `e.path` (deque) -- latent
       `TypeError` if str/int collide at one position; no trigger found against the
       real schema. Safer key: `lambda e: list(map(str, e.absolute_path))`. -- DONE.
