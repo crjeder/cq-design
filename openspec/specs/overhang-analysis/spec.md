@@ -52,13 +52,13 @@ angle from horizontal SHALL be computed as `arcsin(min(1, -nz))` in degrees.
 
 ### Requirement: Faces resting on the print bed are not overhangs
 
-A steeply down-facing face whose centroid sits within a first-layer-height band of the
-mesh's lowest point is resting on the print bed; the bed supports it, not support
-material, so the analysis SHALL exclude it from overhang classification. In particular a
-part's flat bottom face (a 90-degree downward face at the lowest level) SHALL NOT be
-reported as an overhang. A downward face that sits above that band (for example the
-underside of an elevated ledge or internal ceiling) SHALL remain subject to overhang
-classification.
+The analysis SHALL exclude faces resting on the print bed from overhang classification:
+a steeply down-facing face whose centroid sits within a first-layer-height band of the
+mesh's lowest point is resting on the bed, which supports it in place of support
+material. In particular a part's flat bottom face (a 90-degree downward face at the
+lowest level) SHALL NOT be reported as an overhang. A downward face that sits above that
+band (for example the underside of an elevated ledge or internal ceiling) SHALL remain
+subject to overhang classification.
 
 #### Scenario: Flat bottom on the bed is not flagged
 - **WHEN** a part has a flat bottom face resting on the bed (its centroid at the mesh's
