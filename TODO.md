@@ -7,6 +7,7 @@ change lives in that change's `tasks.md`, not here.
 - [x] add install script for skill
 - [x] publish on github
 - [x] check filament hinge understanding
+- [ ] optimize prompts, they are growing to long
 - [ ] kinematic: explore adding one simple ground/seating plane (lid-hits-floor
       checks); surrounding-geometry questions stay out of scope (external simulation)
 - [ ] kinematic: articulated chains (a moving union carries other unions through
@@ -65,24 +66,18 @@ change lives in that change's `tasks.md`, not here.
       threshold vs. the whole-part bbox) so small features are actually inspectable
       without the user asking, and make SKILL.md prescribe it rather than leave it
       to judgement. (Deferred from the orientation/overhang fix session.)
-- [ ] gate: no enforcement for `reference/FDM 3D Print Design Guidelines.md`'s
-      "Chamfer / Fillet" rule (horizontal edges -> chamfer, vertical edges ->
-      fillet; `applies_to: always`, so it's injected into every part prompt).
-      Confirmed by grepping `chamfer`/`fillet` across `src/*.py`: only hits are an
-      unrelated overhang hint string and a fillet-radius error message -- neither
-      `quality_gate.py` nor `run_cadquery_model.py` inspects which edge treatment
-      was actually applied to which edge orientation. Unlike `wall_min_mm` or
-      `overhang_max_deg` (which the gate measures against the STL), this rule is
-      pure prose the generating LLM may or may not prioritize; nothing downstream
-      flags a part that filleted a horizontal edge or chamfered a vertical one.
-      Adding a real check means classifying "was this edge chamfered or filleted"
-      from a triangulated mesh alone -- both treatments produce new faces at the
-      edge (planar for chamfer, curved for fillet); the check would need to
-      distinguish the two face types and correlate each back to its original
-      edge's bed-relative orientation. Nontrivial geometric classification, not a
-      quick addition. Discovered while investigating why this specific guideline
-      "didn't get applied" in a live run; no other defect found (only a harmless
-      trailing-space typo in the heading, already fixed).
+- [x] gate: enforce `reference/FDM 3D Print Design Guidelines.md`'s "Chamfer /
+      Fillet" rule (horizontal edges -> chamfer, vertical edges -> fillet). Done via
+      `src/edge_treatment_check.py`: instead of classifying edge treatment from a
+      triangulated mesh (a filleted edge and a round bore share the same triangle
+      signature), it inspects the treatment at apply-time -- wraps `cq.Workplane.fillet`/
+      `.chamfer`, re-runs the part script to record the exact BRep direction of every
+      treated edge (round features never pass through a fillet/chamfer call, so no false
+      positives), then classifies each in the build frame (authored-frame tangents rotated
+      through the union's print orientation via `placement.transform_direction`). A fillet
+      on a horizontal edge and a chamfer on a vertical edge are advisory (`warning`)
+      findings; diagonal edges and tilted rims are passed silently. Wired into
+      `quality_gate.py` as a once-outside-the-fix-loop stage.
 - [ ] explore as quality gate and / or guide: small slopes look bad. 
       layer height mainly buys you smoothness in the 20–45° zone
       prio 1: avoid 0 ° - 45 ° 2: rotate (especially when optimizing for visual quality) 3: replace with chamfer steps 4: suggest to lower layer height for slopes between 20 ° and 45 °

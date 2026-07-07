@@ -356,6 +356,31 @@ def _run_keep_out_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     return run_keep_out_check(plan, stl_dir or ".")
 
 
+def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | None) -> list[dict]:
+    """Enforce the Chamfer / Fillet rule on this part's fillet/chamfer calls (once, outside
+    the fix loop; advisory warnings only).
+
+    Classifies each treated edge in the build frame, so it needs the per-union print
+    orientation: reads `orientations.json` next to the script (the pipeline's
+    `build/orientations.json`, keyed by union id) and falls back to the single
+    `--orientation` result for this part's own union when that file is absent.
+    """
+    from edge_treatment_check import run_edge_treatment_check
+
+    orientations: dict = {}
+    orientations_path = os.path.join(
+        os.path.dirname(os.path.abspath(script_path)), "orientations.json"
+    )
+    if os.path.isfile(orientations_path):
+        with open(orientations_path, encoding="utf-8") as f:
+            orientations = json.load(f)
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    if orientation and stem not in orientations:
+        orientations[stem] = orientation
+
+    return run_edge_treatment_check(plan, script_path, orientations)
+
+
 def _analyze_3mf(model_3mf_path: str) -> list[dict]:
     """Check a 3MF deliverable for non-manifold edges as a slicer reads it.
 
@@ -485,6 +510,8 @@ def run_gate(
         all_issues += _run_plate_clearance_stage(plan, stl_dir)
         # ---- keep-out zone check (once, outside the fix loop) ----
         all_issues += _run_keep_out_stage(plan, stl_dir)
+        # ---- edge-treatment (chamfer/fillet) check (once, outside the fix loop) ----
+        all_issues += _run_edge_treatment_stage(plan, script_path, orientation)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
 
