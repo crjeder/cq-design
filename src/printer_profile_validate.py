@@ -35,7 +35,9 @@ def validate_profile(profile_path: str, schema_path: str = _SCHEMA_PATH) -> list
     schema = _load_json(schema_path)
     validator = jsonschema.Draft7Validator(schema)
     errors = []
-    for err in sorted(validator.iter_errors(profile), key=lambda e: e.path):
+    for err in sorted(
+        validator.iter_errors(profile), key=lambda e: list(map(str, e.absolute_path))
+    ):
         path = " -> ".join(str(p) for p in err.absolute_path) or "(root)"
         errors.append(f"Schema error at {path}: {err.message}")
     return errors
