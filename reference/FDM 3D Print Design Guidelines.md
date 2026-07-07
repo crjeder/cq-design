@@ -22,7 +22,6 @@ Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for
 | Fillet radius | ≥ 0.5 mm, default 3 mm | smaller is dropped by slicer |
 | Chamfer | ≥ 0.5 mm, default 3 mm | smaller is dropped by slicer |
 | Screw hole clearance | +0.4 mm | M3 → ⌀3.4 mm (matches counterbore_hole) |
-| Interface clearance | press 0.0 / snap 0.15 / sliding 0.25 / loose 0.5 mm | planning.md overrides |
 | Bridge span | ≤ 20 mm | reliable no-support; ~50 mm only with good cooling |
 | Overhang angle | ≤ 45° | printable without supports |
 | Min hole diameter | ≥ 2.0 mm | smaller holes close up |

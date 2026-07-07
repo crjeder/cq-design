@@ -442,7 +442,8 @@ an angled face) -- there, `.faces().workplane()` is still the right tool.
 
 ## Text & Emboss Reference
 
-Text-specific gotchas (deboss silent failures, additive-text overflow, measuring
-text bounding boxes) live in `reference/emboss_text.md`, injected alongside this
-file wherever `{{CQ_REFERENCE}}` is substituted.
+The basic `.text()` idiom is under Machining Operations above. The deeper
+text-specific gotchas (deboss silent failures, additive-text overflow, measuring
+text bounding boxes) live in `reference/emboss_text.md`, appended to
+`{{CQ_REFERENCE}}` only for a part that involves text/emboss.
 
