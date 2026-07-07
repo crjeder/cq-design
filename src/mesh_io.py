@@ -70,19 +70,35 @@ def nonmanifold_edges(mesh, max_report=5):
     ]
 
 
+# A steeply down-facing face whose centroid sits within this height of the mesh's
+# lowest point is resting on the print bed: the bed supports it, so it is never an
+# unsupported overhang. Matches print_orientation.py's FIRST_LAYER_BAND_MM.
+BED_CONTACT_BAND_MM = 0.3
+
+
 def overhang_metrics(mesh, overhang_deg):
     """Overhang area and worst face for a mesh at its current pose.
 
     A face is an unsupported overhang when its normal points downward (nz < 0)
     and its angle from horizontal -- arcsin(-nz) for a unit normal -- exceeds
-    `overhang_deg`. Returns a dict with the total such area, and the steepest
-    face's angle and centroid (both None when nothing exceeds the threshold).
-    The build direction is +Z, so this is pose-dependent: rotate the mesh to
-    score a different print orientation. Shared by the quality gate and the
-    print-orientation optimizer so both use one definition of "needs support".
+    `overhang_deg`. Faces resting on the print bed are NOT overhangs (the bed
+    supports them, not support material): a steeply down-facing face whose centroid
+    sits within `BED_CONTACT_BAND_MM` of the mesh's lowest point is excluded. This
+    is what keeps a part's flat bottom (a 90-degree downward face at Z=0) from being
+    reported as a 90-degree overhang. Returns a dict with the total overhang area,
+    and the steepest remaining face's angle and centroid (both None when nothing
+    exceeds the threshold). The build direction is +Z, so this is pose-dependent:
+    rotate the mesh to score a different print orientation.
     """
     normals = mesh.face_normals
     downward_mask = normals[:, 2] < 0
+
+    # Exclude bed-contact faces: steeply down-facing and at the mesh's lowest level.
+    min_z = float(mesh.vertices[:, 2].min())
+    centroids_z = mesh.triangles.mean(axis=1)[:, 2]
+    bed_mask = (normals[:, 2] < -0.5) & (centroids_z <= min_z + BED_CONTACT_BAND_MM)
+    downward_mask = downward_mask & ~bed_mask
+
     if not np.any(downward_mask):
         return {
             "overhang_area_mm2": 0.0,

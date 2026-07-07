@@ -237,12 +237,16 @@ def test_visual_mode_deterministic():
     assert a == b
 
 
-def test_inferred_load_is_reported_when_undeclared():
+def test_undeclared_load_is_neutral_not_guessed():
+    # No load declared: the optimizer must NOT guess a load axis from geometry.
+    # Strength is neutral (1.0 for every candidate), load_dir is null, and the
+    # result flags that no load was declared.
     bar = trimesh.creation.box([40.0, 8.0, 8.0])
     result = optimize_orientation(bar, overhang_deg=45.0)
-    assert result["load_inferred"] is True
-    # Longest axis is X -> inferred load points along X.
-    assert abs(result["load_dir"][0]) == 1.0
+    assert result["load_declared"] is False
+    assert result["load_dir"] is None
+    assert result["strength_score"] == 1.0
+    assert "no load declared" in result["rationale"]
 
 
 def test_deterministic_on_identical_input():
