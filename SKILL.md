@@ -41,6 +41,13 @@ Before running any skill commands, establish `SKILL_DIR` — the absolute path t
 directory containing this SKILL.md file. All `src/` scripts must be invoked via
 `$SKILL_DIR/src/...` so they resolve correctly regardless of where you call them from.
 
+**Every `src/` script's exact invocation (flags and arguments) is documented in this
+SKILL.md at the step that uses it. Call scripts with those documented flags directly —
+do NOT run a script with `--help` (or read its source) just to discover its parameters.
+That wastes a turn and a permission prompt; this file is the authoritative reference. If
+a flag you need genuinely is not documented here, that is a gap to report, not a reason
+to introspect the script.**
+
 ```bash
 # macOS / Linux
 SKILL_DIR="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
@@ -594,9 +601,11 @@ every part passes -- then optimize with the part's effective mode:
 # authored-frame STL for the part (deliver mode writes it out, into stl/ not build/)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
     build/<part_id>.py --deliver --formats stl --output-dir stl
-# orientation: pass the part's load.dir / load.type / show_face.dir when the plan
-# declares them, else omit load/show-face to infer; --optimize-for is the part's
-# effective mode (default strength)
+# orientation: pass the part's load.dir / load.type from the plan (the planner sets
+# load on every part per planning rule 10; if a part legitimately has no structural
+# load, the plan carries load.type=compression). Omitting --load makes strength
+# orientation-neutral (no load axis is guessed). Pass --show-face when declared, else
+# it is inferred. --optimize-for is the part's effective mode (default strength)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
     stl/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
     --optimize-for <strength|min_support|visual_quality> \
@@ -605,24 +614,26 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
 
 Each run prints a JSON result: the active `optimize_for`, a `rotate` transform (placement
 convention), the `strength_score`, `support_score`, `bed_contact_mm2`, `visual_score` (with
-`cosmetic_down` and `gentle_incline_fraction`), the `load_dir` used (with `load_inferred`),
+`cosmetic_down` and `gentle_incline_fraction`), the `load_dir` used (with `load_declared`),
 `load_type` used, the `show_face` used (with `show_face_inferred`), and a `rationale`.
 
 **The loop:** read the score breakdown and decide.
-- **Sanity-check the load first, before trusting the score.** `strength` mode always keeps
-  the load direction in the layer plane — correct for tension/bending/shear, but pointless
-  for a **compression** load (a resting weight pressing straight through the part's
-  thickness: a base, plinth, pedestal, foot). A compression part scored under the
-  tension-style default gets tipped onto its edge chasing an irrelevant "strength" goal —
-  check `build_height_mm` and the rotation against physical common sense (would you
-  actually print this thin, wide part standing on its edge?), not just the numeric score.
-  If the load is really compressive and `load_inferred` is true, or the plan's declared
-  `load.dir`/`load.type` doesn't match what you now know about the real load path: **write
-  the correction into `BUILD_PLAN.json`'s `load` field for that part** (same write-back
-  principle as the printer-profile field write-back in Phase 2 — a corrected understanding
-  belongs in the plan, not just in this one CLI invocation), announce the correction to the
-  user, then re-run the optimizer with `--load`/`--load-type` reflecting the now-declared
-  plan field.
+- **Sanity-check the load first, before trusting the score.** `strength` mode keeps the
+  declared load direction in the layer plane — correct for tension/bending/shear, but
+  pointless for a **compression** load (a resting weight pressing straight through the part's
+  thickness: a base, plinth, pedestal, foot) and for a non-load-bearing **cover/lid/panel**.
+  A compression/cover part scored as tension gets tipped onto its edge chasing an irrelevant
+  "strength" goal — check `build_height_mm` and the rotation against physical common sense
+  (would you actually print this thin, wide part standing on its edge?), not just the numeric
+  score. The optimizer no longer guesses a load: if `load_declared` is false the strength
+  score is neutral (support/bed-contact decided) — which is right only if the part truly has
+  no load. If the load is really compressive, or the plan's declared `load.dir`/`load.type`
+  doesn't match what you now know about the real load path, or the part carries a real load
+  that was left undeclared: **write the correction into `BUILD_PLAN.json`'s `load` field for
+  that part** (same write-back principle as the printer-profile field write-back in Phase 2 —
+  a corrected understanding belongs in the plan, not just in this one CLI invocation),
+  announce the correction to the user, then re-run the optimizer with `--load`/`--load-type`
+  reflecting the now-declared plan field.
 - **Accept** the recommended orientation when its scores are acceptable for the chosen mode,
   or when no better orientation exists at comparable primary score.
 - **Improve** the part when the chosen mode's primary score is poor for a load that
