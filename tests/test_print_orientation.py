@@ -96,10 +96,10 @@ def test_support_increases_with_exposed_overhang():
     # A cylinder standing on its flat end has no side overhang; lying on its side
     # exposes the whole curved underside as overhang.
     cyl = trimesh.creation.cylinder(radius=10.0, height=40.0)  # axis along Z
-    standing, _ = _support_metrics(cyl, np.eye(4), 45.0)
-    on_side, _ = _support_metrics(
-        cyl, trimesh.geometry.align_vectors([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]), 45.0
-    )
+    standing, _ = _support_metrics(cyl, 45.0)
+    cyl_on_side = cyl.copy()
+    cyl_on_side.apply_transform(trimesh.geometry.align_vectors([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]))
+    on_side, _ = _support_metrics(cyl_on_side, 45.0)
     assert on_side > standing
 
 
@@ -205,8 +205,10 @@ def test_cosmetic_face_down_scores_higher_than_up():
     plate = trimesh.creation.box([40.0, 40.0, 4.0])
     show = np.array([0.0, 0.0, 1.0])
     down_rot = trimesh.geometry.align_vectors([0.0, 0.0, 1.0], [0.0, 0.0, -1.0])
+    plate_down = plate.copy()
+    plate_down.apply_transform(down_rot)
     visual_up, cos_up, _ = _visual_metrics(plate, np.eye(4), show)
-    visual_down, cos_down, _ = _visual_metrics(plate, down_rot, show)
+    visual_down, cos_down, _ = _visual_metrics(plate_down, down_rot, show)
     assert cos_down > cos_up
     assert visual_down > visual_up
 
@@ -215,8 +217,8 @@ def test_more_gentle_incline_area_lowers_visual_score():
     # A flat box has no gentle inclines; a cone's slanted wall does.
     box = trimesh.creation.box([20.0, 20.0, 20.0])
     cone = trimesh.creation.cone(radius=20.0, height=10.0)  # ~27 deg wall: gentle
-    box_frac = _gentle_incline_fraction(box, np.eye(4))
-    cone_frac = _gentle_incline_fraction(cone, np.eye(4))
+    box_frac = _gentle_incline_fraction(box)
+    cone_frac = _gentle_incline_fraction(cone)
     assert cone_frac > box_frac
 
 
@@ -289,7 +291,7 @@ def test_near_coplanar_resting_face_counts_as_bed_contact():
     verts = np.array([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [0.0, 10.0, -0.3]])
     mesh = trimesh.Trimesh(vertices=verts, faces=[[0, 2, 1]], process=False)
     assert mesh.face_normals[0][2] < -0.5  # downward-facing
-    _, bed_contact = _support_metrics(mesh, np.eye(4), 45.0)
+    _, bed_contact = _support_metrics(mesh, 45.0)
     assert bed_contact > 0.0
 
 

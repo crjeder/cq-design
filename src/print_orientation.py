@@ -182,10 +182,8 @@ def _strength_score(
     return round(1.0 - abs(float(load_after[2])), 6)
 
 
-def _support_metrics(
-    mesh: trimesh.Trimesh, rotation: np.ndarray, overhang_deg: float
-) -> tuple[float, float]:
-    """Return (support_cost, bed_contact_area) for the mesh at the given pose.
+def _support_metrics(posed: trimesh.Trimesh, overhang_deg: float) -> tuple[float, float]:
+    """Return (support_cost, bed_contact_area) for the mesh already posed.
 
     The support cost is severity-weighted (steeper overhangs cost more; see
     `mesh_io.support_cost`); lower is better. The flat face resting on the bed is
@@ -193,9 +191,6 @@ def _support_metrics(
     cost. Bed contact is counted within one first-layer height of the floor, so a
     marginally non-coplanar resting face still counts as contact.
     """
-    posed = mesh.copy()
-    posed.apply_transform(rotation)
-
     min_z = float(posed.vertices[:, 2].min())
     centroids_z = posed.triangles.mean(axis=1)[:, 2]
     contact_mask = (posed.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
@@ -220,7 +215,7 @@ def _infer_show_face(mesh: trimesh.Trimesh) -> np.ndarray:
     return _unit(np.asarray(mesh.face_normals[largest_tri], dtype=float))
 
 
-def _gentle_incline_fraction(mesh: trimesh.Trimesh, rotation: np.ndarray) -> float:
+def _gentle_incline_fraction(posed: trimesh.Trimesh) -> float:
     """Fraction of visible face area that is a gentle (stair-stepping) incline.
 
     At the candidate pose, a face's slope from horizontal is the angle between its
@@ -229,8 +224,6 @@ def _gentle_incline_fraction(mesh: trimesh.Trimesh, rotation: np.ndarray) -> flo
     near-flat and near-vertical faces do not. Faces resting on the bed are excluded
     (not visible). Returns the bad-zone area over the total area (lower is better).
     """
-    posed = mesh.copy()
-    posed.apply_transform(rotation)
     total = float(posed.area)
     if total <= 0.0:
         return 0.0
@@ -248,7 +241,7 @@ def _gentle_incline_fraction(mesh: trimesh.Trimesh, rotation: np.ndarray) -> flo
 
 
 def _visual_metrics(
-    mesh: trimesh.Trimesh, rotation: np.ndarray, show_face_dir: np.ndarray
+    posed: trimesh.Trimesh, rotation: np.ndarray, show_face_dir: np.ndarray
 ) -> tuple[float, float, float]:
     """Return (visual, cosmetic_down, gentle_incline_fraction) for the pose.
 
@@ -259,7 +252,7 @@ def _visual_metrics(
     """
     cosmetic_after = rotation[:3, :3] @ _unit(show_face_dir)
     cosmetic_down = max(0.0, float(np.dot(cosmetic_after, _DOWN)))
-    incline = _gentle_incline_fraction(mesh, rotation)
+    incline = _gentle_incline_fraction(posed)
     visual = cosmetic_down - VISUAL_INCLINE_WEIGHT * incline
     return round(visual, 6), round(cosmetic_down, 6), incline
 
@@ -279,10 +272,8 @@ def _rotation_to_placement(rotation: np.ndarray) -> list[dict]:
     ]
 
 
-def _build_height(mesh: trimesh.Trimesh, rotation: np.ndarray) -> float:
+def _build_height(posed: trimesh.Trimesh) -> float:
     """Posed bounding-box extent along build Z (the print height at this pose)."""
-    posed = mesh.copy()
-    posed.apply_transform(rotation)
     return round(float(posed.extents[2]), 3)
 
 
@@ -353,9 +344,11 @@ def optimize_orientation(
     candidates = []
     for idx, normal in enumerate(enumerate_candidate_normals(mesh)):
         rotation = _rotation_to_bed(normal)
+        posed = mesh.copy()
+        posed.apply_transform(rotation)
         strength = _strength_score(rotation, load_vec, load_type)
-        support, bed_contact = _support_metrics(mesh, rotation, overhang_deg)
-        visual, cosmetic_down, incline = _visual_metrics(mesh, rotation, show_vec)
+        support, bed_contact = _support_metrics(posed, overhang_deg)
+        visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec)
         candidates.append(
             {
                 "idx": idx,
@@ -366,7 +359,7 @@ def optimize_orientation(
                 "visual": visual,
                 "cosmetic_down": cosmetic_down,
                 "gentle_incline_fraction": incline,
-                "build_height": _build_height(mesh, rotation),
+                "build_height": _build_height(posed),
             }
         )
 
