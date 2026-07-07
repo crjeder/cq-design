@@ -269,10 +269,10 @@ cleanup. Confirmed unless marked SPECULATIVE.
       change.
 
 ### Other confirmed
-- [ ] **`_check_thin_interfaces` swallows all exceptions** (low).
-      `run_cadquery_model.py:315` `except Exception: return [], []` makes a real
-      `measure_stl` bug look identical to "no thin regions". Narrow the except or
-      log to stderr.
+- [x] **`_check_thin_interfaces` swallows all exceptions** (low).
+      `run_cadquery_model.py:341` `except Exception: return [], []` made a real
+      `measure_stl` bug look identical to "no thin regions". Now logs the
+      exception to stderr before returning the empty result.
 - [x] **`exporters._load_result` leaks `sys.path` inserts** (low).
       `exporters/__init__.py` now tracks the paths it actually inserts and removes
       them in the same `finally` that restores cwd. (The "promote to a shared
