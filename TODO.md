@@ -50,6 +50,11 @@ change lives in that change's `tasks.md`, not here.
       avoid by design.
 - [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
       (-> Differential geometry comparison)
+- [x] preview: cross-section previews wired into workflow. The `--cross-sections`
+      flag now renders a 3x3 grid (6 exterior + 3 interior section views) as the
+      default for whole-part validation. Visual Review Checklist extended with
+      items 8-10 (hollow/wall integrity, internal features, unintended voids) to
+      exploit the interior views. (DONE: PR #39).
 - [ ] preview: render feature detail previews more proactively. The `--detail`
       capability exists (`render_preview.py`/`preview.py` render a high-res zoomed
       view + optional cross-section per named feature; wired in SKILL.md Step 3
@@ -135,8 +140,9 @@ and `prompts/part.md`.
       local doc snapshot
 
 ### Independent changes
-- [ ] `render_cross_sections.py` from thereprocase/cad-skill -- strategy:
-      reimplement (dimensioned slices; relates to the preview z-buffer item above)
+- [x] cross-section preview rendering -- strategy: reimplement (basic centerline
+      cuts Y/X/Z now in `preview.py`, wired into SKILL.md whole-part validation).
+      Future enhancement: dimensioned slices, feature-specific detail sections.
 - [ ] `cq_debug_helpers.py` from thereprocase/cad-skill -- strategy: reimplement
       (catch silent boolean failures / workplane drift in `run_cadquery_model.py`)
 - [ ] cadgate-style gate checks -- strategy: optional external (off the critical
