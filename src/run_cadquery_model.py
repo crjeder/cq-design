@@ -343,7 +343,8 @@ def _check_thin_interfaces(
 
         data = measure_stl.measure(stl_path, thin_max_mm=wall_min_mm, line_width_mm=line_width_mm)
         thin_regions = data.get("thin_regions", [])
-    except Exception:
+    except Exception as exc:
+        print(f"thin-interface check failed for {stl_path}: {exc}", file=sys.stderr)
         return [], []
 
     errors = []
