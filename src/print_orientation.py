@@ -53,7 +53,7 @@ import numpy as np
 import trimesh
 from trimesh.transformations import euler_from_matrix
 
-from mesh_io import load_mesh, support_cost
+from mesh_io import load_mesh, support_cost, up_facing_incline_area
 
 # A candidate primary score within this band of the best is treated as tied, so the
 # decision falls to the next key. Prevents jitter between near-identical poses.
@@ -372,6 +372,13 @@ def optimize_orientation(
 
     chosen = _select(candidates, optimize_for, strength_band)
 
+    # Cosmetic stair-step area at the chosen pose: up-facing faces in the gentle-incline
+    # band. Reported by the quality gate (visual_quality only); distinct from the scoring
+    # `gentle_incline_fraction` above (a both-faces fraction), which is left untouched.
+    posed_chosen = mesh.copy()
+    posed_chosen.apply_transform(chosen["rotation"])
+    cosmetic_slope_area = up_facing_incline_area(posed_chosen, FLAT_EPS_DEG, GENTLE_INCLINE_MAX_DEG)
+
     load_used = [round(float(v), 6) for v in _unit(load_vec)] if load_vec is not None else None
     show_used = [round(float(v), 6) for v in _unit(show_vec)]
     rationale = _rationale(
@@ -386,6 +393,7 @@ def optimize_orientation(
         "visual_score": chosen["visual"],
         "cosmetic_down": chosen["cosmetic_down"],
         "gentle_incline_fraction": chosen["gentle_incline_fraction"],
+        "cosmetic_slope_area_mm2": cosmetic_slope_area,
         "build_height_mm": chosen["build_height"],
         "load_dir": load_used,
         "load_declared": load_declared,

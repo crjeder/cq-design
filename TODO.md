@@ -57,6 +57,15 @@ change lives in that change's `tasks.md`, not here.
       avoid by design.
 - [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
       (-> Differential geometry comparison)
+      Includes the "Greedy Look-Ahead Filter" (moved here from the small-slopes item, which
+      scoped it out): walk a sampled profile's points, force each segment to the nearest
+      printable-clean direction (0/45/90 deg), extend that constrained segment while the
+      perpendicular deviation of the original points stays under tolerance, cut a new segment
+      when the error exceeds tolerance. A point-snapping tool that only applies when there IS
+      a sampled profile (imported mesh / point cloud), not in parametric authoring. The
+      chamfer sizing formula `cos(printableOverhang) * fillet * tan((90 - printableOverhang)
+      / 2)` is fillet->chamfer sizing for overhang mitigation (an edge-treatment concern),
+      filed with the slopes item only by proximity.
 - [x] preview: cross-section previews wired into workflow. The `--cross-sections`
       flag now renders a 3x3 grid (6 exterior + 3 interior section views) as the
       default for whole-part validation. Visual Review Checklist extended with
@@ -84,15 +93,16 @@ change lives in that change's `tasks.md`, not here.
       on a horizontal edge and a chamfer on a vertical edge are advisory (`warning`)
       findings; diagonal edges and tilted rims are passed silently. Wired into
       `quality_gate.py` as a once-outside-the-fix-loop stage.
-- [ ] explore as quality gate and / or guide: small slopes look bad. 
-      layer height mainly buys you smoothness in the 20–45° zone
-      prio 1: avoid 0 ° - 45 ° 2: rotate (especially when optimizing for visual quality) 3: replace with chamfer steps 4: suggest to lower layer height for slopes between 20 ° and 45 °
-      `_chamfer = cos(printableOverhang) * _fillet * tan(( 90 deg - printableOverhang ) / 2)`
-      idea:
-      ```
-      Greedy Look-Ahead Filter:
-      1. Start a segment at your first data point.Project a line to the next point, forcing its angle to the closest allowed direction (0, 45, 90?). Keep extending that same $0^\circ$ or $45^\circ$ line to subsequent points ($3^{\text{rd}}, 4^{\text{th}}, 5^{\text{th}}\dots$).Calculate the perpendicular deviation of the original points from your extended constrained line.Cut the segment the moment the error exceeds your tolerance. This point becomes the start of your next longest-possible segment.
-      ```
+- [x] gate + guide: small up-facing slopes stair-step and look bad (COSMETIC only).
+      DONE via openspec change `cosmetic-slope-gate`: scoped in an explore session to the
+      cosmetic stair-stepping of UP-facing surfaces inclined ~5-45 deg from horizontal (NOT
+      overhang, NOT edge treatment). Shipped `mesh_io.up_facing_incline_area` +
+      a `cosmetic_slope_area_mm2` field on the print-orientation result, surfaced by a
+      visual_quality-only advisory (`warning`) gate stage in `quality_gate.py`, plus a
+      "Cosmetic Slopes" FDM guideline section. The "rotate" remedy already existed
+      (`print_orientation.py` visual_quality mode); the gate just surfaces the residual.
+      Deferred: slope-aware layer-height recipe hint (optional). The Greedy Look-Ahead Filter
+      / chamfer-step transform was split out to the reverse-engineer-mesh item above.
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 - [ ] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
 
