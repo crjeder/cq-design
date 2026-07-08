@@ -136,18 +136,14 @@ def _sweep_collision(
     penetration_tol_mm, or None if clear. The manager holds each fixed union as a
     separately named object so the colliding union is identifiable.
     """
+    from interference import colliding_names
+
     for value, transform in iter_poses(entry):
         colliding: set[str] = set()
         for _uid, mesh in subtree_meshes:
             moved = mesh.copy()
             moved.apply_transform(transform)
-            hit, names, data = manager.in_collision_single(
-                moved, return_names=True, return_data=True
-            )
-            if hit:
-                max_depth = max((abs(c.depth) for c in data), default=0.0)
-                if max_depth > penetration_tol_mm:
-                    colliding.update(names)
+            colliding |= colliding_names(moved, manager, penetration_tol_mm)
         if colliding:
             return value, sorted(colliding)
     return None
@@ -170,11 +166,11 @@ def run_kinematic_check(
     issues: list[dict] = []
 
     # Collision backend is optional: the numeric check still runs without it.
+    from interference import load_backend
+
     collision_ok = True
     try:
-        import fcl  # noqa: F401
-        import trimesh  # noqa: F401
-        from trimesh.collision import CollisionManager  # noqa: F401
+        load_backend()
     except ImportError as exc:
         collision_ok = False
         issues.append(
