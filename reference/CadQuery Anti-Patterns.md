@@ -119,7 +119,10 @@ inherits that shifted origin via the default `centerOption="ProjectedOrigin"` --
 center -- placing subsequent features off-center. Full treatment, with three fixes, lives in
 the pattern reference's **"Workplane Context Stacking (Origin Drift)"** and **"The Fresh
 Workplane Pattern"** sections. Prefer `.moveTo()` (does not mutate the origin) when
-repositioning a single feature.
+repositioning a single feature. To catch drift at build time, assert the origin before
+placing the next feature: `wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))`
+(from `cq_verify`); a drifted origin then fails as a typed `workplane_drift` error instead
+of silently misplacing geometry.
 
 ### Losing the solid context after a selector
 

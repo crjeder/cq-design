@@ -962,6 +962,19 @@ Enforce in planning and during code review:
 | sliding | 0.25 mm |
 | loose / cover | 0.5 mm |
 
+**Material adjustments** (applied on top of the fit-type clearance above; the material
+is read from `printer_profile.json` / the plan's `material` field):
+
+| Material | Clearance delta | Wall / other |
+|----------|-----------------|--------------|
+| PLA | +0.0 mm (baseline) | fit-type defaults as-is |
+| PETG | +0.1 mm | slight stringing widens holes/slots |
+| TPU | +0.2 mm | 3.0 mm+ walls; favor flexible snap-fits over press-fits |
+| ABS | +0.0 mm | account for warping on large flat faces (raft/brim, avoid thin wide unsupported spans) |
+
+Add the delta to every mating clearance for the chosen material. The wall/other notes
+adjust `wall_min_mm` and geometry choices during planning, not just clearances.
+
 ## Coordinate system
 
 All directional references in prompts, plans, and interfaces use:
@@ -984,6 +997,30 @@ Every CadQuery script the pipeline produces must:
 - Assign the final geometry to a top-level variable named `result`
 - Not call `cq.exporters.export()` (the wrapper handles export)
 
+**Construction-time verification (`cq_verify`).** A `.cut()`/`.union()`/`.intersect()`
+whose tool does not overlap produces no change and no exception, and a `.center()` or
+`.hole()` permanently shifts the workplane origin so a later feature lands off-target --
+both fail silently. Import from `cq_verify` (visible on the wrapper's `PYTHONPATH`, same
+as `blocks`) and assert at the point of risk. Each call returns its post-operation
+argument so it chains inline:
+
+```python
+from cq_verify import verify_boolean, check_workplane
+
+result = verify_boolean(body, body.cut(slot), "cut", "vent_slot")   # off-center cut
+wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))     # after a .center()
+```
+
+Wrap a boolean when a silent no-op is plausible: a tool positioned by a **computed
+offset**, a feature **not at the bounding-box center**, or an **emboss/deboss text
+merge**. Assert a workplane origin **after a `.center()`/`.hole()`** before placing a new
+feature on that reused workplane. Do NOT wrap a boolean where the tool trivially and
+obviously overlaps (a boss centered on the body) -- keep those uncluttered. Also
+available: `verify_feature_bounds(before, after, label, tolerance)` to catch a feature
+poking past the base body. A failed assertion crashes the script and the wrapper reports
+it as a typed `silent_boolean` / `feature_overflow` / `workplane_drift` error naming the
+`label`, so a Step 4 fix can target the exact feature.
+
 ## Error handling reference
 
 | Error type | Meaning | Action |
@@ -992,6 +1029,9 @@ Every CadQuery script the pipeline produces must:
 | `non_watertight` | Mesh has open holes | Check for unclosed boolean bodies |
 | `dimension_mismatch` | Bounding box deviates from plan beyond tolerance | Correct the parameter driving that axis |
 | `occ_exception` | OpenCASCADE kernel error | See hint for the specific exception class |
+| `silent_boolean` | A `cq_verify.verify_boolean` assertion fired: the boolean produced no change (tool did not overlap) | Reposition the tool so it intersects the body; check the offset placing it. Names the feature `label`. |
+| `feature_overflow` | A `cq_verify.verify_feature_bounds` assertion fired: added geometry pokes past the base body | Constrain the feature, or intersect it with the body profile to clip it. Names the feature `label`. |
+| `workplane_drift` | A `cq_verify.check_workplane` assertion fired: the workplane origin drifted (often after `.center()`/`.hole()`) | Re-anchor with `.workplane(origin=...)` or a fresh `cq.Workplane` before placing the feature. Names the workplane `label`. |
 | `thin_wall` | Wall below `wall_min_mm` | Increase wall parameter or reduce cutout size |
 | `overhang_exceeded` | Face angle exceeds `overhang_max_deg` | Add chamfers, redesign, or warn user if unavoidable |
 | `visual_mismatch` | Render fails a `reference/Visual Review Checklist.md` item (wrong shape, missing/misplaced/mirrored feature, wrong proportions) | Re-examine intent against the plan; fix the responsible parameter or geometry. See Phase 3 Step 4. |
