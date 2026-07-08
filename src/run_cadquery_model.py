@@ -21,6 +21,8 @@ JSON output keys:
     errors        [{type, message, hint, ...}]   always present, [] on clean run
                   thin_interface errors carry thickness_mm, equiv_diameter_mm,
                   orientation, location_xyz_mm, thin_direction, nearest_feature
+                  disconnected_body errors carry union, component_count (a union
+                  body that split into more than one connected component)
     stls          []  (always empty during iteration; populated by --deliver)
     stl           null (populated by --deliver)
     previews      [path, ...]  (populated by --preview)
@@ -185,11 +187,13 @@ def _translate_stderr(stderr: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict]]:
+def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict], object | None]:
     """Load STL, compute geometry metrics and detect topology errors.
 
-    Returns (geometry_dict, errors_list).
-    geometry_dict is None if the mesh cannot be loaded.
+    Returns (geometry_dict, errors_list, mesh).
+    geometry_dict and mesh are None if the mesh cannot be loaded. The loaded
+    trimesh is returned so the caller can run the per-union connected-component
+    check without re-loading the file.
     """
     import numpy as np
 
@@ -208,7 +212,7 @@ def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict]]:
                 "check that cq.exporters.export() was called on a valid solid",
             }
         )
-        return None, errors
+        return None, errors, None
 
     extents = tm.bounding_box.extents
     vol = None
@@ -277,7 +281,51 @@ def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict]]:
                 }
             )
 
-    return geo, errors
+    return geo, errors, tm
+
+
+def _disconnected_body_error(tm, uid: str, multi: bool) -> dict | None:
+    """Return a disconnected_body error if a union body splits into >1 component.
+
+    Each declared union maps to one rigid printed body, so its mesh is expected to
+    be a single connected component. When trimesh splits the body into more than one,
+    the part that should be one solid rendered as separate pieces (each may itself be
+    watertight, so the watertight check does not catch it). The error carries the
+    union id and component count; the message is prefixed with the union id for a
+    multi-union part, matching the per-union reporting convention.
+    """
+    try:
+        components = tm.split(only_watertight=False)
+    except Exception:
+        return None
+    if len(components) <= 1:
+        return None
+
+    summaries = []
+    for i, c in enumerate(components, 1):
+        ext = c.bounding_box.extents
+        try:
+            vol = abs(c.volume) / 1000.0 if c.is_volume else None
+        except Exception:
+            vol = None
+        s = f"body {i}: bbox {ext[0]:.1f}x{ext[1]:.1f}x{ext[2]:.1f} mm"
+        if vol is not None:
+            s += f", {vol:.2f} cm3"
+        summaries.append(s)
+
+    msg = f"union tessellated into {len(components)} disconnected bodies ({'; '.join(summaries)})"
+    if multi:
+        msg = f"[{uid}] {msg}"
+    return {
+        "type": "disconnected_body",
+        "union": uid,
+        "component_count": len(components),
+        "message": msg,
+        "hint": (
+            "a part expected to be one body split into separate solids — union or "
+            "bridge the pieces so they overlap and fuse into a single component"
+        ),
+    }
 
 
 def _aggregate_geometry(per_union: list[tuple[str, dict | None]]) -> dict | None:
@@ -537,7 +585,10 @@ def main():
     parser.add_argument(
         "--cross-sections",
         action="store_true",
-        help="Append cross-section views to the preview tile (requires --preview)",
+        help=(
+            "Render cross-sections as separate files (requires --preview): through the "
+            "--extra-section positions when given, else the bounding-box-center cuts"
+        ),
     )
     parser.add_argument(
         "--extra-section",
@@ -709,9 +760,16 @@ def main():
             for stl in union_stls:
                 uid = os.path.splitext(os.path.basename(stl))[0]
 
-                geo_i, geo_errors_i = _compute_geometry(stl)
+                geo_i, geo_errors_i, tm_i = _compute_geometry(stl)
                 per_union_geo.append((uid, geo_i))
                 result["errors"].extend(_attribute_to_union(geo_errors_i, uid, multi))
+                # Per-union connectedness: a union expected to be one body that splits
+                # into multiple components is a disconnected_body error (always carries
+                # its own union id, so it is not routed through _attribute_to_union).
+                if tm_i is not None:
+                    disc = _disconnected_body_error(tm_i, uid, multi)
+                    if disc is not None:
+                        result["errors"].append(disc)
                 watertight_all = watertight_all and (
                     geo_i is not None
                     and not any(
@@ -792,6 +850,7 @@ def main():
             "mesh_load_error",
             "non_manifold_edge",
             "non_watertight",
+            "disconnected_body",
             "dimension_mismatch",
             "occ_exception",
         }:
