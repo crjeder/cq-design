@@ -22,7 +22,6 @@ import glob
 import json
 import os
 import sys
-from typing import Any, cast
 
 from units import KEEP_OUT_KEY, make_issue, stl_path
 
@@ -60,9 +59,10 @@ def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
         return []
 
     # Geometry backend is optional, matching the kinematic/plate-clearance checks' degrade path.
+    from interference import check_interference, load_backend
+
     try:
-        import trimesh
-        from trimesh.collision import CollisionManager
+        trimesh, _ = load_backend()
     except ImportError as exc:
         return [
             make_issue(
@@ -98,15 +98,10 @@ def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
             continue
 
         zone_mesh = trimesh.load(zone_path, force="mesh")
-        manager = CollisionManager()
-        for _pid, uid in fixed:
-            manager.add_object(uid, trimesh.load(stl_path(stl_dir, uid), force="mesh"))
+        others = [(uid, trimesh.load(stl_path(stl_dir, uid), force="mesh")) for _pid, uid in fixed]
 
-        hit, names, _data = cast(
-            "tuple[bool, set[str], list[Any]]",
-            manager.in_collision_single(zone_mesh, return_names=True, return_data=True),
-        )
-        if hit:
+        names = check_interference(zone_mesh, others, penetration_tol_mm=None)
+        if names:
             for uid in sorted(names):
                 issues.append(
                     make_issue(
