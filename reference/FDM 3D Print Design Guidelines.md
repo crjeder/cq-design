@@ -92,6 +92,16 @@ Priority order:
 
 - No orientation satisfies both → split the part. This is a planning decision: revise
   BUILD_PLAN, don't force supports. (Conflicting load directions are also a split reason.)
+- Splitting into printed sub-parts and assembling is often better than one print-in-place
+  piece even when a single orientation *would* technically work — each sub-part gets its
+  own optimal layer orientation (own strength axis, own stable base), and geometry that
+  needs supports as one piece may need none once split. Prefer this over a compromise
+  orientation.
+- A split line loses strength unless you design alignment into it: add a locating
+  dowel/tenon at the joint (positive alignment, resists shear) plus a shallow glue groove
+  around it (holds adhesive, resists peel), and drive a pin through perpendicular to the
+  joint face for mechanical interlock. Bonded/pinned this way, a split part can match or
+  exceed a single print's strength; a plain butt-glued seam won't.
 - Mating parts (lid + base): print each show-face-down, opening up — the bed face is
   cleanest. The mating interface is the accuracy-critical surface.
 
@@ -104,6 +114,8 @@ Priority order:
 - Vertical hole (axis ∥ Z): best accuracy, but the perimeter seam can shift the wall ~0.4 mm
   and move the centerline; a teardrop keeps the seam off the round wall.
 - Large opening: respect bridge span (≤ 20 mm reliable, ~50 mm with good cooling).
+- Bottom edge of a hole: chamfer 0.4–1 mm to counteract first-layer squish, which otherwise
+  undersizes the hole opening slightly.
 - thin, sacrificial bridging can reduce the need for support material.
 - stacked triangles in the edges can be used for large sacrificial bridges
 
@@ -117,6 +129,11 @@ Self-supporting horizontal features — pick by function:
 - Peg that must SEAT in a hole → 45°-rotated cube (diamond peg in diamond hole): all faces
   ≤ 45°, both halves print supportless, flats locate positively. (A teardrop_post won't seat
   cleanly in a round socket.)
+- Thin vertical pin/rod minimum diameter: ≥ 1.0 mm non-load-bearing, ≥ 2.0 mm if it must carry
+  even a light load (a vertical pin's strength is hundreds of weak interlayer bonds stacked up,
+  not a single fiber, so it snaps at a layer seam under sideways force). Below that diameter,
+  either add a 0.5–1 mm fillet at its base to spread the stress, or tilt it ~30° off vertical so
+  it self-supports and prints along a stronger direction instead of stacking straight up.
 
 ## Strength & Load Orientation
 <!-- applies_to: always -->
@@ -134,6 +151,10 @@ Self-supporting horizontal features — pick by function:
 - Large cross-sections: thick beats thin; reduce surface area before volume. Square section
   ≥ I-beam in FDM with no time penalty.
 - Round transitions and corners — spreads stress, guides loads on short direct paths.
+- Complexity is free in FDM — added fillets, ribs, gussets, or an organic transition cost
+  no extra print time versus a plain block (time scales with volume/height/perimeter count,
+  not shape intricacy). Don't simplify a shape to "save print time"; that's a
+  machining-era instinct that doesn't apply here.
 
 ## Make It Adjustable (Tolerance Compensation)
 <!-- applies_to: always -->
@@ -160,6 +181,10 @@ When you can't hit a dimension, design in adjustment:
   so corners deform elastically.
 - Crush ribs (single-assembly): rib −0.2 mm, bore +0.4 mm, tapered entry.
 - Grip fins: use instead when the joint is reassembled repeatedly (elastic, not crushing).
+- If a round press-fit is unavoidable, cap the interference at 0.15 mm and keep the press-in
+  depth shallow — round holes have no corners to deform elastically, so more than that cracks
+  the interlayer bond instead of gripping. For a fit that needs real holding strength, prefer a
+  looser round hole fixed with epoxy over pushing the interference further.
 
 ## Avoiding Support Material
 <!-- applies_to: always -->
@@ -176,7 +201,11 @@ When you can't hit a dimension, design in adjustment:
 ## Print-in-Place & Flexures
 <!-- applies_to: always -->
 
-- Min 0.3 mm clearance between surfaces that must stay separate after printing.
+- Clearance is direction-dependent, not one flat number:
+  - Vertical (one part overhangs another): ~0.5 mm for a small overhang (~10 mm); larger or
+    more complex overhangs need more — test.
+  - Horizontal/XY (sliding fit, e.g. a moving union in a channel): as little as 0.2 mm
+    works; stringing is the main risk there, not fusion.
 - Flexures: elastic-only deformation; add hard stops so they can't be over-flexed; add a tool
   slot (e.g. screwdriver) to release form-locking clips.
 - Living hinges: lie FLAT on the bed (thin sheet flexes across layers); diagonal/bridged hinges fail.
@@ -202,14 +231,24 @@ When you can't hit a dimension, design in adjustment:
 <!-- applies_to: always -->
 
 - Prefer engraving over embossing (depth/stroke in Basic Dimension Rules).
+- If embossing (raised) text is used anyway, size it more generously than engraved text —
+  height and stroke ≥ 1.0 mm — since raised strokes blur into layer lines more easily than
+  a recessed cut does.
 - Orient text on a VERTICAL face → glyphs print as perimeter lines (max detail).
 - Fuzzy skin hides layer lines on vertical faces; improves grip feel on handles.
+- Flat top surface with an embedded feature (buried nut, sensor, wire) that must look
+  unbroken: add a thin cosmetic top layer ~2x layer height (e.g. 0.4 mm over 0.2 mm layers)
+  over the feature to bury it and stop nozzle-travel ooze from scratching visible plastic.
 
 ## Warping Resistance
 <!-- applies_to: always -->
 
 - Mostly material-driven; geometry helps: voluminous + smooth rounded surfaces (ideal = sphere).
   Sharp edges and thin sprawling flats warp worst.
+- Large flat panel: prefer a grid of reinforcing ribs on the underside over a thicker solid
+  slab — keeps stiffness while cutting the shrinkage-driven warp risk a thick uniform slab has.
+  Shallow bed-adhesion grooves (~1 mm wide, ~0.5 mm deep) in a bottom-face grid also increase
+  platform grip and resist corner lift on large first layers.
 
 ## Vase Mode
 <!-- applies_to: always -->
