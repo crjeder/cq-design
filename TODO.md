@@ -135,8 +135,13 @@ tested via `test_print_orientation.py`.
 Doc-only; vendoring a doc snapshot is the upstream-recommended usage, so no design
 conflict. Record the upstream SHA and refresh periodically. Upgrades `reference/`
 and `prompts/part.md`.
-- [ ] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly
+- [x] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly
       local doc snapshot
+      Done (change `add-cadquery-anti-patterns`): anti-patterns integrated as
+      `reference/CadQuery Anti-Patterns.md` (kernel / stateful-context / API-mechanic
+      tiers, always-injected) plus fluent recipes folded into the pattern reference and
+      three contradictions reconciled. Free Function API (`cadquery.func`) content
+      deliberately excluded -- this pipeline is fluent-only.
 
 ### Independent changes
 - [x] cross-section preview rendering -- strategy: reimplement (basic centerline
