@@ -98,6 +98,65 @@ def alignment_socket(d: float, h: float, clearance: float = 0.2) -> cq.Workplane
     return cq.Workplane("XY").circle((d + clearance) / 2).extrude(h + _EPS)
 
 
+def servo_spline(
+    spline_external_diameter: float,
+    shoe_height: float,
+    tooth_count: int,
+    tooth_depth: float,
+    tooth_base_width: float,
+    tooth_tip_width: float,
+    clearance: float = 0.1,
+) -> cq.Workplane:
+    """Splined servo-shaft plug — subtract from a horn/arm to press-fit onto a servo.
+
+    Reproduces the servo output spline (a toothed cylinder about +Z) as a solid
+    cutter. `.cut()` it from the horn/arm body so the arm presses onto the servo's
+    splined shaft. `clearance` radially enlarges the whole profile (core cylinder
+    and every tooth) to set the fit: FDM prints holes undersized, so a small
+    positive clearance (default 0.1 mm) lands a firm press fit at nominal; raise it
+    for a looser slip, lower (toward 0 or negative) for a tighter interference.
+
+    The teeth are radial trapezoids, wide (`tooth_base_width`) at the inner base and
+    narrow (`tooth_tip_width`) at the outer tip, tiled `tooth_count` times around the
+    axis. A central cylinder overlaps the tooth bases by a small fudge so the straight
+    tooth flanks meet the round core without slivers. The plug axis is +Z, base at
+    Z=0, top at Z=shoe_height.
+
+    Common (SG90-class 25T) servo values:
+    spline_external_diameter=5.92, shoe_height=4, tooth_count=25, tooth_depth=0.3,
+    tooth_base_width=0.7, tooth_tip_width=0.1.
+
+    Args:
+        spline_external_diameter: outer tip-circle diameter of the spline in mm
+        shoe_height: engagement depth (plug height along the axis) in mm
+        tooth_count: number of spline teeth
+        tooth_depth: radial tooth height (base to tip) in mm
+        tooth_base_width: tangential tooth width at the base in mm
+        tooth_tip_width: tangential tooth width at the tip in mm
+        clearance: mm added to every radius for fit (default 0.1; lower = tighter press)
+    """
+    fudge = 0.055  # closes the gap where straight tooth flanks meet the round core
+    r_base = spline_external_diameter / 2 - tooth_depth + clearance
+    core_r = (spline_external_diameter - 2 * tooth_depth + 2 * clearance + fudge) / 2
+    result = cq.Workplane("XY").circle(core_r).extrude(shoe_height)
+    tooth_pts = [
+        (tooth_tip_width / 2, r_base + tooth_depth),
+        (tooth_base_width / 2, r_base),
+        (-tooth_base_width / 2, r_base),
+        (-tooth_tip_width / 2, r_base + tooth_depth),
+    ]
+    for i in range(tooth_count):
+        tooth = (
+            cq.Workplane("XY")
+            .polyline(tooth_pts)
+            .close()
+            .extrude(shoe_height)
+            .rotate((0, 0, 0), (0, 0, 1), i * 360.0 / tooth_count)
+        )
+        result = result.union(tooth)
+    return result
+
+
 def counterbore_hole(d_screw: float, d_head: float, h_head: float, depth: float) -> cq.Workplane:
     """Counterbore pocket + shaft clearance hole for socket head cap screws (ISO 4762).
 

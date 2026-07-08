@@ -1129,4 +1129,5 @@ Add 0.3-0.5 mm to `nut_flat` for a pocket that doesn't require force-fitting in 
 | `reference/CadQuery Pattern Reference.md` | CadQuery idioms injected into part prompts |
 | `reference/CadQuery Anti-Patterns.md` | Negative-space CadQuery mistake catalog (kernel / stateful-context / API-mechanic tiers), appended to the pattern reference for every part |
 | `reference/emboss_text.md` | Text/emboss CadQuery gotchas, appended to the pattern reference only for a part that involves text/emboss |
+| `reference/servo_splines.md` | Servo tooth-count/outer-diameter lookup table; read only when using `servo_spline` with a servo named but no numeric spline specs |
 | `reference/FDM 3D Print Design Guidelines.md` | FDM guidelines injected into planning and part prompts |
