@@ -20,6 +20,7 @@
 16. Workplane Context Stacking (Origin Drift)
 17. The Fresh Workplane Pattern
 18. Text & Emboss Reference -- see `reference/emboss_text.md`
+19. Anti-Patterns -- see `reference/CadQuery Anti-Patterns.md`
 
 
 ## CadQuery Workplane Naming (XY/XZ/YZ)
@@ -196,6 +197,19 @@ result = (
     .finalize()                   # required before returning to Workplane ops
     .extrude(10)
 )
+
+# Reusable profile with .placeSketch() -- define once, place at many locations
+slot = cq.Sketch().slot(8, 3)          # length, width
+result = (
+    cq.Workplane("XY")
+    .box(40, 20, 8)
+    .faces(">Z").workplane()
+    .placeSketch(
+        slot.moved(cq.Location((-10, 0, 0))),
+        slot.moved(cq.Location((10, 0, 0))),
+    )
+    .cutBlind(-4)
+)
 ```
 
 ## Machining Operations (Holes, Shell, Fillet)
@@ -220,6 +234,13 @@ result = (
 .cutBlind(depth, taper=angle)          # tapered blind cut
 .cutThruAll()                          # cut through all using current wire
 .cutThruAll(taper=angle)               # tapered through cut
+# cutBlind cuts along the workplane normal, which points OUTWARD from a selected
+# face -- use invert=True to cut INTO the solid (see Anti-Patterns, Tier 3):
+.faces(">Z").workplane(invert=True).rect(5, 5).cutBlind(3)
+
+# --- Extrude combine flag ---
+.circle(3).extrude(5)                  # combine=True (default): unioned into the solid
+.circle(3).extrude(5, combine=False)   # separate solid (combine/export independently)
 
 # --- Shell (hollow out) ---
 .faces(">Z").shell(-wall_thickness)    # hollow with top face open
@@ -285,6 +306,10 @@ result = (
 
 ```python
 # --- Translate ---
+# Applies to a built Shape / finished result, moving it in the GLOBAL frame.
+# It is not a mid-chain positioning primitive: calling .translate() inside a
+# fluent chain bypasses the workplane system (see reference/CadQuery Anti-Patterns.md,
+# Tier 2). To position while building, use .center()/.moveTo() or a fresh workplane.
 result = part.translate((dx, dy, dz))
 
 # --- Rotate (axis-specified) ---
@@ -382,7 +407,7 @@ result.faces(">Z").workplane(centerOption="CenterOfMass")
 7. **Workplane origin stacking** — `.center(x, y)` permanently mutates the plane origin. Subsequent `.faces().workplane()` inherits the shifted origin via `ProjectedOrigin` (the default `centerOption`). This causes features placed later to be offset. See Workplane Context Stacking section below.
 8. **`combine='cut'` text deboss fails silently** — CadQuery's `.text(..., combine='cut')` often produces no change. Use a fresh workplane + explicit `.cut()` instead. See `reference/emboss_text.md`.
 9. **Additive text overflows body** — `.text(..., combine='a')` can create geometry outside the body outline. Clip with `.intersect()` or use deboss instead. See `reference/emboss_text.md`.
-10. **Prefer boolean subtraction over `.shell()` for enclosures** — for parametric shelled boxes, modeling the cavity as a separate solid and `.cut()`-ing it is more robust than `.shell(-t)`, which frequently fails on filleted bodies or picks the wrong face to open. Reserve `.shell()` for simple uniform-wall cases. Order: outer shape → exterior fillets → cut cavity → holes/cutouts.
+10. **Prefer boolean subtraction over `.shell()` for enclosures** — for parametric shelled boxes, modeling the cavity as a separate solid and `.cut()`-ing it is more robust than `.shell(-t)`, which frequently fails on filleted bodies or picks the wrong face to open. Reserve `.shell()` for simple uniform-wall cases. Order: outer shape → exterior fillets → cut cavity → holes/cutouts. This is *not* in tension with "prefer feature ops over booleans" (see `reference/CadQuery Anti-Patterns.md`, Tier 1): the skill rule is feature ops for bosses/holes/edges, booleans for combining separate solids AND for cavities/enclosures where `.shell()` is fragile.
 11. **Revolved profiles on non-XY workplanes** — `.transformed(offset=(a,b,c))` on XZ or YZ workplanes maps offset to the LOCAL frame, not world coordinates. On an XZ workplane, local-Y is world-Z and the normal is world-Y. A revolve tool placed with `offset=(cx, top_z, cy)` on XZ ends up at world (cx, cy, top_z) — which may be wrong if you assumed world mapping. For revolved chamfer/fillet tools, prefer building on XY and translating the result, or verify with `verify_boolean` that the cut actually changed the geometry.
 12. **A feature unioned in AFTER a cavity cut can poke through the cavity floor/wall into the hollow interior** — `union()`-ing a full-height boss, tab, or dovetail onto a body that already has a pit/pocket/shell cavity is only safe where that XY footprint sits *outside* the cavity's footprint. Where it overlaps the cavity, the feature's full height extends past the remaining solid material and pokes into open space — invisible from every exterior view (the feature is still flush with the outer wall) and visible only in a cross-section that happens to cut through it. Clip the unioned feature's height/extent to the actual solid thickness at that XY position (e.g. a seam tab that reaches under a pit: extrude it only from the print bed up to the cavity floor, not to the part's full height), don't assume "runs the height of the part" is safe once any cavity exists. Visual self-review must check this explicitly (see `reference/Visual Review Checklist.md` item 8) — the exterior renders look identical whether or not the feature is clipped correctly.
 
@@ -440,10 +465,22 @@ concern.
 **Don't use when:** the feature must follow a face's orientation (e.g. a feature on
 an angled face) -- there, `.faces().workplane()` is still the right tool.
 
+This still builds through a workplane frame (`.transformed()`), so it is *not* the
+"hardcoded global coordinates" anti-pattern (`reference/CadQuery Anti-Patterns.md`,
+Tier 2) -- that one is about positioning with a mid-chain `.translate()`.
+
 ## Text & Emboss Reference
 
 The basic `.text()` idiom is under Machining Operations above. The deeper
 text-specific gotchas (deboss silent failures, additive-text overflow, measuring
 text bounding boxes) live in `reference/emboss_text.md`, appended to
 `{{CQ_REFERENCE}}` only for a part that involves text/emboss.
+
+## Anti-Patterns
+
+The negative-space catalog -- the mistakes LLMs make generating CadQuery and how to fix
+them -- lives in `reference/CadQuery Anti-Patterns.md`, a separate injected file (like
+`emboss_text.md`) appended to `{{CQ_REFERENCE}}` for **every** part. It is organized by
+durability tier: kernel-level OCCT truths, stateful-context footguns, and CadQuery API
+mechanics.
 
