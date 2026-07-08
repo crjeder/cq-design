@@ -24,6 +24,7 @@ from blocks.fasteners import (
     hex_nut_trap,
     pcb_standoff,
     screw_boss,
+    servo_spline,
     snap_hook_clip,
     snap_socket_receiver,
 )
@@ -95,6 +96,42 @@ def test_snap_hook_clip():
 def test_snap_socket_receiver():
     r = snap_socket_receiver(w=6.2, h=1.8, depth=2)
     assert _is_solid(r)
+
+
+def _servo_25t():
+    return servo_spline(
+        spline_external_diameter=5.92,
+        shoe_height=4,
+        tooth_count=25,
+        tooth_depth=0.3,
+        tooth_base_width=0.7,
+        tooth_tip_width=0.1,
+    )
+
+
+def test_servo_spline_solid():
+    assert _is_solid(_servo_25t())
+
+
+def test_servo_spline_tip_diameter_and_height():
+    bb = _servo_25t().val().BoundingBox()
+    # tip circle = external diameter + 2*clearance (default 0.1)
+    assert bb.xmax == pytest.approx(5.92 / 2 + 0.1, abs=0.02)
+    assert bb.zlen == pytest.approx(4, abs=1e-3)
+
+
+def test_servo_spline_clearance_enlarges_cutter():
+    tight = servo_spline(5.92, 4, 25, 0.3, 0.7, 0.1, clearance=0.0)
+    loose = servo_spline(5.92, 4, 25, 0.3, 0.7, 0.1, clearance=0.2)
+    assert loose.val().Volume() > tight.val().Volume()
+
+
+def test_servo_spline_as_cut_watertight():
+    plug = _servo_25t()
+    block = cq.Workplane("XY").box(12, 12, 4, centered=(True, True, False))
+    result = block.cut(plug)
+    assert _is_solid(result)
+    assert result.val().isValid()
 
 
 def test_alignment_pin():
@@ -359,6 +396,7 @@ def test_inventory_has_all_required_blocks():
         "snap_socket_receiver",
         "alignment_pin",
         "alignment_socket",
+        "servo_spline",
         "port_cutout",
         "cable_slot",
         "vent_grid",

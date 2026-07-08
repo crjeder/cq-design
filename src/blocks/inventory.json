@@ -112,6 +112,37 @@
     ]
   },
   {
+    "name": "servo_spline",
+    "module": "blocks.fasteners",
+    "function": "servo_spline",
+    "use": "A splined servo-shaft plug (toothed cylinder about +Z) returned as a solid cutter. Subtract from a servo horn/arm body so the arm press-fits onto the servo's splined output shaft. clearance radially enlarges the whole profile to set the fit: FDM prints holes undersized, so a small positive clearance (default 0.1) lands a firm press fit at nominal; raise for slip, lower/negative for a tighter interference. Use when the user needs a servo horn, arm, or attachment. Common SG90-class 25T values: spline_external_diameter=5.92, shoe_height=4, tooth_count=25, tooth_depth=0.3, tooth_base_width=0.7, tooth_tip_width=0.1. If the user names a servo (model/brand/spline code) but gives no numeric spline specs, read reference/servo_splines.md for the tooth_count and outer-diameter lookup table before calling.",
+    "params": {
+      "spline_external_diameter": "mm outer tip-circle diameter of the spline",
+      "shoe_height": "mm engagement depth (plug height along the axis)",
+      "tooth_count": "count of spline teeth",
+      "tooth_depth": "mm radial tooth height (base to tip)",
+      "tooth_base_width": "mm tangential tooth width at the base",
+      "tooth_tip_width": "mm tangential tooth width at the tip",
+      "clearance": "mm added to every radius for fit (default 0.1; lower = tighter press)"
+    },
+    "dimensions": [
+      6,
+      6,
+      4
+    ],
+    "interfaces": [
+      {
+        "type": "socket",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
     "name": "snap_hook_clip",
     "module": "blocks.fasteners",
     "function": "snap_hook_clip",

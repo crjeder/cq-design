@@ -23,6 +23,7 @@ from blocks.fasteners import (
     hex_nut_trap,
     pcb_standoff,
     screw_boss,
+    servo_spline,
     snap_hook_clip,
     snap_socket_receiver,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "hollow_box",
     "screw_boss",
     "pcb_standoff",
+    "servo_spline",
     "snap_hook_clip",
     "snap_socket_receiver",
     "alignment_pin",
