@@ -107,6 +107,7 @@ change lives in that change's `tasks.md`, not here.
       / chamfer-step transform was split out to the reverse-engineer-mesh item above.
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 - [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
+- [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
 
 
 ## Prior-art ideas
