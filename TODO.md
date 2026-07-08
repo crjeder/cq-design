@@ -40,7 +40,9 @@ change lives in that change's `tasks.md`, not here.
       a utilization report + overflow warning leaving assignment to the operator/slicer.
       Interacts with print-orientation (footprint depends on chosen orientation) and the
       plate-clearance check (spacing == the one-layer-height fuse rule). Reimplement
-      (PolyForm-safe; algorithm only).
+      (PolyForm-safe; algorithm only). Additional prior art: thereprocase/snuggle-demo
+      (https://github.com/thereprocase/snuggle-demo) -- a standalone "stuffing"/nesting
+      algorithm demo, worth checking against the bottom-left-fill approach above.
 - [ ] blocks: assembly placeholder geometry. A block may declare PSEUDO geometry
       marking the volume that must stay clear to ASSEMBLE it (e.g. a hinge's pin-
       insertion path / leaf-swing-during-assembly envelope). It is exempt from
