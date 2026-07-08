@@ -137,6 +137,30 @@ solid.faces(">Z").workplane().rect(5, 5).extrude(3)
 solid.faces(">Z").tag("top").end().faces("<Z").workplane().hole(3)
 ```
 
+Which ops need a `.workplane()` after a face selection: `.hole()`, `.shell()`, and
+`.fillet()` act on the selected face directly, but sketch-then-lift ops
+(`.circle().extrude()`, `.rect().cutBlind()`) need one -- skipping it silently uses whatever
+plane was active *before* the selection, producing geometry in the wrong place. When in
+doubt, call `.workplane()`.
+
+```python
+solid.faces(">Z").hole(3)                       # fine -- .hole() works on the face directly
+solid.faces(">Z").circle(3).extrude(5)          # wrong -- uses the previous plane context
+solid.faces(">Z").workplane().circle(3).extrude(5)   # correct
+```
+
+### Coordinates are local after `.workplane()`
+
+Once a workplane is attached, all sketch coordinates are in that plane's **local** frame,
+not global. A `.circle(3)` lands at the face center (local (0,0)), not global (0,0). Shift
+within the local frame with `.center()` or `.transformed()` -- not by reaching for global
+coordinates.
+
+```python
+solid.faces(">Z").workplane().circle(3).extrude(5)              # circle at face center
+solid.faces(">Z").workplane().center(10, 10).circle(3).extrude(5)  # shifted in local frame
+```
+
 ### `.val()` silently returns only the first stack item
 
 `.val()` returns the first item and discards the rest without error. Use `.vals()` for all.
@@ -245,6 +269,20 @@ solid.faces(">Z").workplane().rect(5, 5).cutBlind(3)
 
 # Right: invert the normal to cut into the solid
 solid.faces(">Z").workplane(invert=True).rect(5, 5).cutBlind(3)
+```
+
+### `|Z` when you mean `>Z` (and other selector-string confusions)
+
+The most common wrong-face bug: `|Z` selects every face whose normal is *parallel* to Z --
+on a box that is the top AND the bottom face. For "the top face only" use `>Z` (highest
+centroid). Related traps: `>Z` picks the max-*centroid* entity, not the one with the topmost
+vertex; and `.edges("%Circle and >Z")` (combined string) is less predictable than
+`.faces(">Z").edges("%Circle")` (chained). See the "Selector Semantics" subsection in the
+pattern reference.
+
+```python
+solid.faces("|Z")   # top AND bottom -- probably not what you want
+solid.faces(">Z")   # top face only
 ```
 
 ### Fluent and Free Function APIs do not mix

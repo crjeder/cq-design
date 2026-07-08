@@ -4,23 +4,24 @@
 
 1. CadQuery Workplane Naming (XY/XZ/YZ)
 2. Basic Shapes (Primitives)
-3. Face & Edge Selectors
-4. 2D Construction (Wire Drawing)
-5. Sketch API
-6. Machining Operations (Holes, Shell, Fillet)
-7. Advanced 3D Operations (Loft, Sweep, Revolve)
-8. Array Methods
-9. Transform Operations (Translate, Rotate, Mirror)
-10. Boolean Operations
-11. Non-Overlapping Part Assembly (Performance)
-12. Center Selection
-13. Accessing Objects & Debugging
-14. Drawing Arcs by Sagitta
-15. Common Gotchas
-16. Workplane Context Stacking (Origin Drift)
-17. The Fresh Workplane Pattern
-18. Text & Emboss Reference -- see `reference/emboss_text.md`
-19. Anti-Patterns -- see `reference/CadQuery Anti-Patterns.md`
+3. BRep Vocabulary (Topology Types)
+4. Face & Edge Selectors
+5. 2D Construction (Wire Drawing)
+6. Sketch API
+7. Machining Operations (Holes, Shell, Fillet)
+8. Advanced 3D Operations (Loft, Sweep, Revolve)
+9. Array Methods
+10. Transform Operations (Translate, Rotate, Mirror)
+11. Boolean Operations
+12. Non-Overlapping Part Assembly (Performance)
+13. Center Selection
+14. Accessing Objects & Debugging
+15. Drawing Arcs by Sagitta
+16. Common Gotchas
+17. Workplane Context Stacking (Origin Drift)
+18. The Fresh Workplane Pattern
+19. Text & Emboss Reference -- see `reference/emboss_text.md`
+20. Anti-Patterns -- see `reference/CadQuery Anti-Patterns.md`
 
 
 ## CadQuery Workplane Naming (XY/XZ/YZ)
@@ -30,11 +31,32 @@ world-frame convention (that's `prompts/planning.md`'s separate North/East/Up
 vocabulary for assembly placement) -- this is purely about which two local axes a
 2D sketch spans before `.extrude()`/`.revolve()` lifts it into 3D:
 
-- `"XY"` — sketch spans X/Y, extrudes along Z (Z is up)
-- `"XZ"` — sketch spans X/Z, extrudes along Y (Y is depth)
-- `"YZ"` — sketch spans Y/Z, extrudes along X (X is width)
+- `"XY"` — sketch spans X/Y, extrudes along Z (Z is up); normal = +Z
+- `"XZ"` — sketch spans X/Z, extrudes along Y (Y is depth); normal = +Y
+- `"YZ"` — sketch spans Y/Z, extrudes along X (X is width); normal = +X
 
 All dimensions are in millimeters.
+
+A workplane is a local 2D coordinate system: an **origin** (local (0,0) in 3D), an
+**x-direction**, and a **normal** (the local Z, pointing "out" of the plane). Sketch
+operations are defined in that local frame, then lifted into 3D. Ways to create one:
+
+```python
+# Named plane, origin at (0,0,0)
+cq.Workplane("XY")
+
+# Explicit origin + normal via cq.Plane
+cq.Workplane(cq.Plane(origin=(0, 0, 10), normal=(0, 0, 1)))
+
+# On an existing solid's face (origin per centerOption; see Center Selection)
+solid.faces(">Z").workplane()
+
+# Offset along the face normal
+solid.faces(">Z").workplane(offset=5)
+
+# .transformed() moves the CURRENT plane; cumulative, rotation in local X,Y,Z order
+solid.faces(">Z").workplane().transformed(offset=(5, 5, 0), rotate=(0, 0, 45))
+```
 
 
 ## Basic Shapes (Primitives)
@@ -59,6 +81,21 @@ cq.Workplane("XY").ellipse(x_radius, y_radius).extrude(height)
 cq.Workplane("XY").wedge(dx, dy, dz, xmin, zmin, xmax, zmax)
 ```
 
+## BRep Vocabulary (Topology Types)
+
+CadQuery/OpenCASCADE geometry is a boundary representation (BRep): a hierarchy of
+topological entities. The selectors below act on these types.
+
+| Term | Meaning | CadQuery access |
+|---|---|---|
+| Solid | A closed volume | `.solids()` |
+| Shell | A set of connected faces (may be open) | `.shells()` |
+| Face | A bounded surface region | `.faces()` |
+| Wire | A closed or open loop of edges | `.wires()` |
+| Edge | A bounded curve | `.edges()` |
+| Vertex | A point | `.vertices()` |
+| Compound | A collection of any shapes | `.compounds()` |
+
 ## Face & Edge Selectors
 
 ### Basic Selectors
@@ -75,7 +112,8 @@ cq.Workplane("XY").wedge(dx, dy, dz, xmin, zmin, xmax, zmax)
 .faces("-Z")   # face whose normal points in -Z direction
 .faces("|Z")   # face whose normal is parallel to Z axis
 .faces("#Z")   # all faces whose normal is perpendicular to Z axis
-.faces("%Plane")  # planar faces only (excludes curved surfaces)
+.faces("%Plane")     # planar faces only (excludes curved surfaces)
+.faces("%Cylinder")  # cylindrical faces (also %Cone, %Sphere, %Torus)
 
 # --- Edge selectors (based on edge direction) ---
 .edges("|Z")   # edges parallel to Z axis (vertical edges)
@@ -102,15 +140,17 @@ cq.Workplane("XY").wedge(dx, dy, dz, xmin, zmin, xmax, zmax)
 | `-` | Negative direction | Face with normal in negative direction | Edge aligned in negative direction |
 | `|` | Parallel | Normal parallel to axis | Edge parallel to axis |
 | `#` | Perpendicular | Normal perpendicular to axis | Edge perpendicular to axis |
-| `%` | Type | `%Plane`=planar | `%Circle`=circle, `%Line`=straight |
+| `%` | Type | `%Plane`, `%Cylinder`, `%Cone`, `%Sphere`, `%Torus` | `%Circle`=circle, `%Line`=straight |
 
 ### Nth Selector & Compound Selectors
 
 ```python
-# --- Nth selector ---
+# --- Nth selector (sort by centroid along an axis, pick by 0-based index) ---
 .edges(">Z[0]")    # edge with max Z (same as ">Z")
 .edges(">Z[1]")    # edge with 2nd highest Z
 .faces("<Y[-1]")   # last face from the min-Y end
+.faces(">>Z[1]")   # explicit sorted-index form: >> sorts high->low, << low->high
+.edges("<<X[0]")   # edge with the lowest X centroid
 
 # --- Custom direction vector ---
 .edges(">(-1, 1, 0)")      # edge max in (-1,1,0) direction
@@ -140,6 +180,37 @@ result.edges().sort(lambda e: e.Length())[:3]   # 3 shortest edges
 result.faces(">Z").ancestors("SOLID")    # solid containing the top face
 result.edges(">Z").siblings("%Circle")   # sibling circular edges of top-face edges
 ```
+
+### Selector Semantics (read before trusting a selection)
+
+- **`>Z` tests the centroid, not the highest point.** It returns the face/edge whose
+  area-centroid has the max Z, which on a slanted or irregular solid is not necessarily
+  the one containing the topmost vertex.
+- **`|axis` (parallel) vs `+/-axis` (direction).** `|Z` selects every face whose normal is
+  parallel to Z -- on a box that is BOTH the top and bottom face. `+Z` / `-Z` narrow to the
+  single face pointing that way. Use `>Z` for "the top face" specifically.
+- **`#axis` (orthogonal).** `#Z` selects faces whose normal is orthogonal to Z (the 4 sides
+  of a box) and edges whose direction is orthogonal to Z (the horizontal edges).
+- **Prefer chaining over a combined string.** `.faces(">Z").edges("%Circle")` (top face,
+  then its circular edges) is clearer and more predictable than `.edges("%Circle and >Z")`.
+
+### Tags (stable selection)
+
+Tags are the most stable selection mechanism -- they survive feature additions that shift
+index-based selectors. Tag a face/edge as soon as it is created, then re-select it later:
+
+```python
+result = (
+    cq.Workplane("XY").box(20, 20, 10)
+    .faces(">Z").tag("top").end()
+    .faces("<Z").tag("bottom").end()
+    .faces(tag="top").workplane().hole(4)      # survives fillets/features added in between
+    .faces(tag="bottom").workplane().hole(2)
+)
+```
+
+Tags are stored on the Workplane, not on the shape. `.end()` returns to the solid context
+after tagging (see `reference/CadQuery Anti-Patterns.md`, Tier 2).
 
 ## 2D Construction (Wire Drawing)
 
@@ -377,10 +448,25 @@ CQ Workplane `.val()` objects; for raw OCC solids (e.g. after `.moved()` or a
 
 ## Center Selection
 
+`centerOption` controls where `.workplane()` puts the origin on a selected face:
+
+| Value | Origin location |
+|---|---|
+| `"CenterOfMass"` | Center of mass of the face |
+| `"CenterOfBoundBox"` | Center of the face's bounding box |
+| `"ProjectedOrigin"` | Parent workplane's origin projected onto the new plane (**default**) |
+
 ```python
 # Create workplane at face center of mass
 result.faces(">Z").workplane(centerOption="CenterOfMass")
+
+# Explicit is always safer than the ProjectedOrigin default on irregular faces
+result.faces(">Z").workplane(centerOption="CenterOfBoundBox")
 ```
+
+Never assume the default matches your intent -- for a symmetric face it rarely matters,
+but on an irregular face `ProjectedOrigin` can land far from where you expect (see
+`reference/CadQuery Anti-Patterns.md`, Tier 2, origin drift).
 
 ## Accessing Objects & Debugging
 
