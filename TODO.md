@@ -27,6 +27,20 @@ change lives in that change's `tasks.md`, not here.
       concept (objects + `<build><item>` only); true multi-plate assignment is a
       slicer-specific extension (Bambu/Prusa project-3MF). Decide: emit the
       slicer plate structure, or leave plate split to the operator.
+- [ ] export: automated 2D plate packing / bed nesting. Distinct from the print-plate
+      item above (that is about 3MF plate *structure*); this is about *deciding which
+      part goes on which plate and where*, which today is declared manually in the plan.
+      Prior art: thereprocase/cad-skill Phase 4 -- rasterize each union's XY footprint at
+      0.5mm/px (PIL), precompute 0/90/180/270 rotations, bottom-left-fill largest-area-
+      first, keep uniform spacing via `scipy.ndimage.binary_dilation` on the blocked
+      bitmap, build compound plates with OCC (`BRep_Builder` + `TopoDS_Compound`), export
+      STL+STEP per plate, report bed utilization %. Inputs we already have: per-union
+      assembled/print-oriented STLs, `plate` metadata, bed size (would need to come from
+      `printer_profile.json` -- not currently a field). Decide scope: full nester, or just
+      a utilization report + overflow warning leaving assignment to the operator/slicer.
+      Interacts with print-orientation (footprint depends on chosen orientation) and the
+      plate-clearance check (spacing == the one-layer-height fuse rule). Reimplement
+      (PolyForm-safe; algorithm only).
 - [ ] blocks: assembly placeholder geometry. A block may declare PSEUDO geometry
       marking the volume that must stay clear to ASSEMBLE it (e.g. a hinge's pin-
       insertion path / leaf-swing-during-assembly envelope). It is exempt from
@@ -147,8 +161,13 @@ and `prompts/part.md`.
 - [x] cross-section preview rendering -- strategy: reimplement (basic centerline
       cuts Y/X/Z now in `preview.py`, wired into SKILL.md whole-part validation).
       Future enhancement: dimensioned slices, feature-specific detail sections.
-- [ ] `cq_debug_helpers.py` from thereprocase/cad-skill -- strategy: reimplement
-      (catch silent boolean failures / workplane drift in `run_cadquery_model.py`)
+- [x] `cq_debug_helpers.py` from thereprocase/cad-skill -- strategy: reimplement
+      (catch silent boolean failures / workplane drift in `run_cadquery_model.py`).
+      DONE via openspec change `runtime-boolean-verify`: reimplemented as `src/cq_verify.py`
+      (`verify_boolean` / `verify_feature_bounds` / `check_workplane`), each raising a marked
+      `RuntimeError` that `run_cadquery_model.py` maps to typed `silent_boolean` /
+      `feature_overflow` / `workplane_drift` errors; prompt + reference guidance on when to
+      wrap. `StepExporter` deliberately left out of scope.
 - [ ] cadgate-style gate checks -- strategy: optional external (off the critical
       path; gate runs natively, cadgate augments when present). Differential
       geometry (volume/bbox/wall delta vs base) reimplemented in `quality_gate.py`;
