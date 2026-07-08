@@ -3,9 +3,7 @@
 ## Purpose
 
 Defines requirements for a visual self-review step in the Phase 3 part loop, where Claude inspects each rendered preview against design intent (via a structured checklist) before a part is marked done, records `visual_mismatch` findings, and surfaces review outcomes to the user.
-
 ## Requirements
-
 ### Requirement: Part loop performs a visual self-review before a part is marked done
 
 During the Phase 3 part loop, after a part passes geometry validation and a preview PNG is produced, Claude SHALL visually inspect the rendered preview against the design intent before marking the part done. A part SHALL only be considered done when geometry validation passes AND the visual self-review confirms the render matches intent.
@@ -21,18 +19,6 @@ During the Phase 3 part loop, after a part passes geometry validation and a prev
 #### Scenario: Geometry fails
 - **WHEN** geometry validation returns a blocking error
 - **THEN** the geometry error is handled first and the visual self-review is skipped for that attempt
-
-### Requirement: Visual review uses a structured checklist injected as a reference
-
-The skill SHALL provide a reusable visual-review checklist as an injected reference, and the part loop SHALL evaluate each rendered part against every checklist item. The checklist SHALL cover at minimum: overall shape matches the request, all planned features and interfaces are present, proportions are reasonable, no floating or disconnected bodies, a flat bed face exists at Z = 0, and the print orientation matches the plan.
-
-#### Scenario: Checklist is available to the part loop
-- **WHEN** the Phase 3 part loop runs
-- **THEN** the visual-review checklist reference is loaded into context and each rendered part is evaluated against every checklist item
-
-#### Scenario: A single failed checklist item is a mismatch
-- **WHEN** the render fails one or more checklist items
-- **THEN** the review result is a `visual_mismatch` naming the failed item(s), not a pass
 
 ### Requirement: visual_mismatch is a documented loop finding
 
@@ -57,3 +43,61 @@ When a part is marked done, Claude SHALL display the reviewed preview PNG. When 
 #### Scenario: Unresolved mismatch after retries
 - **WHEN** the attempt budget is exhausted and a `visual_mismatch` remains
 - **THEN** Claude summarizes the mismatch and asks the user how to proceed
+
+### Requirement: Every verification answer cites the view it was judged from
+
+Each verification question SHALL be answered against a specific rendered view (an
+orthographic panel, the isometric, or a named section file), and the answer SHALL cite
+that view. When no already-rendered view shows the geometry a question is about (for
+example an internal feature or a body junction with no section through it), Claude
+SHALL render the needed section or detail view before answering. An answer that cannot
+cite a view actually showing the relevant geometry SHALL NOT count as a pass.
+
+#### Scenario: Answer cites a view
+
+- **WHEN** a question about a top-face boss is answered
+- **THEN** the answer cites the Top panel (or a section/detail through the boss) as the
+  view it was judged from
+
+#### Scenario: Missing view is rendered before answering
+
+- **WHEN** a question concerns an internal feature and no rendered section crosses it
+- **THEN** the required section is rendered first and the answer cites that section;
+  the question is not passed on an uncitable answer
+
+### Requirement: Connectedness is a mandatory invariant answered against sections
+
+The single-connected-body invariant SHALL always be evaluated, and SHALL be answered
+against section views that cross the part's body junctions -- not exterior or isometric
+panels alone, which can overlap in projection and read as connected when they are not.
+This visual invariant is complementary to the deterministic `disconnected_body`
+wrapper error: the wrapper error is the blocking gate, and the invariant is the
+human-legible cross-check that also covers bodies which touch without fusing.
+
+#### Scenario: Disconnection visible only in section
+
+- **WHEN** a part that must be one body renders as separate solids that overlap in the
+  exterior projection
+- **THEN** the connectedness invariant is answered against a section crossing the
+  junction, the answer is "no", and a `visual_mismatch` is recorded
+
+#### Scenario: Connectedness invariant runs for every part
+
+- **WHEN** any part is reviewed
+- **THEN** the single-connected-body invariant is among the evaluated questions,
+  regardless of the part's declared features
+
+### Requirement: Review-input artifacts are not overwritten before the review reads them
+
+The review SHALL read the rendered files it depends on -- the default tile and its
+section/detail files for the attempt under review -- before any subsequent render can
+overwrite them. The renderer SHALL write to stable per-part names and the loop SHALL
+consume those files within the same attempt, so a review is never conducted against a
+stale or absent image.
+
+#### Scenario: Review reads the current attempt's render
+
+- **WHEN** a part is re-rendered on a new attempt
+- **THEN** the review for that attempt reads the files produced by that attempt, and
+  no earlier or later render leaves the reviewed image missing or overwritten
+
