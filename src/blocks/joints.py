@@ -445,7 +445,7 @@ def pin_hinge(
     knuckles: int,
     leaf_w: float,
     leaf_t: float,
-    d_filament: float = 1.9,
+    d_filament: float = 2.05,
     clearance: float = 0.25,
 ) -> dict[str, cq.Workplane]:
     """Normal revolute knuckle hinge that pivots on a rigid pin (a 1.75 mm filament strand).
@@ -478,8 +478,7 @@ def pin_hinge(
         knuckles: number of knuckle segments across the length
         leaf_w: flat leaf width in mm (X)
         leaf_t: flat leaf thickness in mm (Z)
-        d_filament: pin bore diameter in mm (default 1.9, a slip fit over 1.75 mm
-            filament since FDM holes print undersized)
+        d_filament: pin bore diameter in mm (default 2.05 slip fit)
         clearance: axial gap between adjacent knuckles in mm (default 0.25)
     """
     d_outer = d_filament + 2.0
