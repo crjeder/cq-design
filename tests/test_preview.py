@@ -39,14 +39,13 @@ def test_render_single_produces_png(box_workplane, tmp_path):
 
 
 def test_render_multi_view_png_dimensions(box_workplane, tmp_path):
-    """Output image should have the expected 3x2 grid dimensions."""
+    """Default tile is a 2x2 first-angle grid: 2 cols x 100px + 1 gap x 4px = 204."""
     from PIL import Image
 
     output = tmp_path / "multi.png"
     preview.render_multi_view(box_workplane, str(output), view_size=100)
     img = Image.open(str(output))
-    # 3 cols x 100px + 2 gaps x 4px = 308; rows add header/footer
-    assert img.width == 308
+    assert img.width == 204
 
 
 def test_pyrender_not_imported(box_workplane, tmp_path):
@@ -81,68 +80,46 @@ def test_tessellate_empty_safe():
     assert len(triangles) > 0
 
 
-def test_render_multi_view_cross_sections_taller(box_workplane, tmp_path):
-    """cross_sections=True should produce a taller tile than the default 6-view."""
+def test_render_multi_view_is_two_by_two(box_workplane, tmp_path):
+    """Default tile is 2 columns x 2 rows (four panels): its height minus caption/
+    header chrome is two panels tall, not three."""
     from PIL import Image
 
-    out6 = tmp_path / "six_view.png"
-    out9 = tmp_path / "nine_view.png"
-    preview.render_multi_view(box_workplane, str(out6), view_size=100)
-    preview.render_multi_view(box_workplane, str(out9), view_size=100, cross_sections=True)
-    h6 = Image.open(str(out6)).height
-    h9 = Image.open(str(out9)).height
-    assert h9 > h6
-
-
-def test_render_multi_view_cross_sections_fallback(box_workplane, tmp_path):
-    """When _cut_half returns None for all axes, render completes with blank tiles."""
-    from unittest.mock import patch
-
-    from PIL import Image
-
-    out = tmp_path / "fallback.png"
-    with patch("preview._cut_half", return_value=None):
-        preview.render_multi_view(box_workplane, str(out), view_size=100, cross_sections=True)
-
-    assert out.exists()
+    out = tmp_path / "tile.png"
+    preview.render_multi_view(box_workplane, str(out), view_size=100)
     img = Image.open(str(out))
-    # 3 rows taller than 2-row default despite blank section tiles
-    out6 = tmp_path / "six_view.png"
-    preview.render_multi_view(box_workplane, str(out6), view_size=100)
-    assert img.height > Image.open(str(out6)).height
+    # Two 100px rows + one 4px gap + per-row labels + header/footer; well under a
+    # three-row tile would be. Assert width is exactly the 2-column width and height
+    # is less than three panel rows would require (3*100 = 300 of panels alone).
+    assert img.width == 204
+    assert img.height < 300 + 200  # generous chrome allowance, still < a 3-row tile
 
 
-def test_render_multi_view_extra_sections_adds_tiles(box_workplane, tmp_path):
-    """extra_sections appends targeted section tiles beyond the default center cuts,
-    growing the tile even when the total tile count isn't a multiple of 3 columns
-    (regression: rows used to be computed with floor division, clipping the last
-    partial row off the canvas)."""
-    from PIL import Image
-
-    out_base = tmp_path / "cross.png"
-    out_extra = tmp_path / "extra.png"
-    preview.render_multi_view(box_workplane, str(out_base), view_size=100, cross_sections=True)
-    preview.render_multi_view(
-        box_workplane,
-        str(out_extra),
-        view_size=100,
-        cross_sections=True,
-        extra_sections=[("x", 2.0)],  # 9 + 1 = 10 tiles: not a multiple of 3
-    )
-    assert Image.open(str(out_extra)).height > Image.open(str(out_base)).height
-
-
-def test_render_multi_view_extra_sections_fallback(box_workplane, tmp_path):
-    """A failed targeted-section cut renders a blank tile instead of crashing."""
-    from unittest.mock import patch
-
-    out = tmp_path / "extra_fallback.png"
-    with patch("preview._cut_half", return_value=None):
-        preview.render_multi_view(
-            box_workplane, str(out), view_size=100, extra_sections=[("y", 3.0)]
-        )
+def test_render_section_produces_png(box_workplane, tmp_path):
+    """render_section writes a standalone cross-section file."""
+    out = tmp_path / "section_x.png"
+    result = preview.render_section(box_workplane, str(out), "x", 0.0, view_size=200)
+    assert result == str(out)
     assert out.exists()
     assert out.stat().st_size > 0
+
+
+def test_render_section_returns_none_on_cut_failure(box_workplane):
+    """A degenerate cut yields None so the caller can skip writing a blank file."""
+    from unittest.mock import patch
+
+    with patch("preview._cut_half", return_value=None):
+        result = preview.render_section(box_workplane, "unused.png", "x", 0.0)
+    assert result is None
+
+
+def test_render_cq_view_ortho_option(box_workplane):
+    """The ortho path renders without error and returns an image of the requested size."""
+    from PIL import Image
+
+    img = preview._render_cq_view(box_workplane, 0, -90, 200, 200, ortho=True)
+    assert isinstance(img, Image.Image)
+    assert img.size == (200, 200)
 
 
 def test_render_detail_view_produces_png(box_workplane, tmp_path):

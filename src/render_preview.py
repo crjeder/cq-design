@@ -66,6 +66,29 @@ def _parse_detail_spec(spec: str) -> dict:
     return {"name": name, "center": center, "size": size, "section": section}
 
 
+def _section_cuts(result, extra_sections, cross_sections):
+    """Resolve which cross-sections to render, as (axis, position_mm, is_center) tuples.
+
+    Caller-supplied declared positions (`--extra-section`, threaded from the plan's
+    feature/union positions) take precedence -- when any are given, they ARE the
+    sections. Otherwise `--cross-sections` falls back to the three bounding-box-center
+    cuts so a section still crosses the part. Returns [] when neither is requested.
+    """
+    if extra_sections:
+        return [(axis, pos, False) for axis, pos in extra_sections]
+    if not cross_sections:
+        return []
+    import preview
+
+    shape = preview._get_shape(result)
+    bb = shape.BoundingBox()
+    return [
+        ("x", (bb.xmax + bb.xmin) / 2, True),
+        ("y", (bb.ymax + bb.ymin) / 2, True),
+        ("z", (bb.zmax + bb.zmin) / 2, True),
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Render a CadQuery model script as a preview PNG")
     parser.add_argument("--script", required=True, help="Path to the CadQuery .py model script")
@@ -76,7 +99,11 @@ def main():
     parser.add_argument(
         "--cross-sections",
         action="store_true",
-        help="Append cross-section views to the multi-view tile (ignored for --views iso)",
+        help=(
+            "Render cross-sections as separate files (multi view only): through the "
+            "--extra-section positions when given, else the bounding-box-center cuts. "
+            "Ignored for --views iso."
+        ),
     )
     parser.add_argument(
         "--extra-section",
@@ -198,8 +225,6 @@ def main():
                 args.output,
                 title=title,
                 subtitle=args.subtitle,
-                cross_sections=args.cross_sections,
-                extra_sections=extra_sections or None,
             )
         else:
             preview.render_single(result, args.output, title=title)
@@ -207,6 +232,28 @@ def main():
         out_dir = os.path.dirname(args.output) or "."
         stem = os.path.splitext(os.path.basename(args.output))[0]
         extra_previews = []
+
+        # Cross-sections as SEPARATE files (multi view only): through the
+        # caller-supplied declared positions (--extra-section) when provided, else the
+        # bounding-box-center X/Y/Z cuts. Each is its own file so the review can open
+        # and scrutinize it against a specific verification question, one at a time.
+        if args.views == "multi" and (args.cross_sections or extra_sections):
+            for axis, pos, is_center in _section_cuts(result, extra_sections, args.cross_sections):
+                name = (
+                    f"{stem}_section_{axis}.png"
+                    if is_center
+                    else f"{stem}_section_{axis}_{pos:g}mm.png"
+                )
+                section_path = os.path.join(out_dir, name)
+                written = preview.render_section(result, section_path, axis, pos)
+                if written is None:
+                    print(
+                        f"WARNING: cross-section {axis}={pos:g} failed (degenerate cut), skipping",
+                        file=sys.stderr,
+                    )
+                else:
+                    extra_previews.append(section_path)
+
         for spec in details:
             detail_path = os.path.join(out_dir, f"{stem}_detail_{spec['name']}.png")
             preview.render_detail_view(result, detail_path, spec["center"], spec["size"])
