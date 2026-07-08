@@ -42,6 +42,7 @@ Exit codes:
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -80,12 +81,54 @@ _OCC_HINT_DEFAULT = (
     "coincident faces, zero-thickness geometry, invalid boolean order"
 )
 
+# Runtime cq_verify helper failures surface as a RuntimeError whose message carries a
+# "[cq-verify:<kind>:<label>] <detail>" marker. Classify those into typed errors instead
+# of the generic occ_exception fallback so the fix loop knows the exact feature.
+_VERIFY_MARKER_RE = re.compile(r"\[cq-verify:(?P<kind>\w+):(?P<label>[^\]]*)\]\s*(?P<detail>.*)")
+
+_VERIFY_HINTS = {
+    "silent_boolean": (
+        "the boolean tool did not overlap the body — reposition the tool so it "
+        "intersects, or check the offset that places it"
+    ),
+    "feature_overflow": (
+        "constrain the feature within the base body, or intersect it with the body "
+        "profile to clip the overflow"
+    ),
+    "workplane_drift": (
+        "the workplane origin moved (often from a prior .center()/.hole()) — re-anchor "
+        "with .workplane(origin=...) or a fresh cq.Workplane before placing the feature"
+    ),
+}
+
+
+def _translate_verify_marker(stderr: str) -> dict | None:
+    """Return a typed error for a cq_verify RuntimeError marker in stderr, else None."""
+    m = _VERIFY_MARKER_RE.search(stderr)
+    if not m or m.group("kind") not in _VERIFY_HINTS:
+        return None
+    kind = m.group("kind")
+    label = m.group("label").strip()
+    return {
+        "type": kind,
+        "label": label,
+        "message": m.group("detail").strip(),
+        "hint": _VERIFY_HINTS[kind],
+    }
+
 
 def _translate_stderr(stderr: str) -> list[dict]:
     """Parse raw stderr and return structured error objects where possible."""
     errors: list[dict] = []
     if not stderr:
         return errors
+
+    # A cq_verify helper failure takes precedence over the generic OCC/traceback path:
+    # its exception line ("RuntimeError: [cq-verify:...]") would otherwise be classified
+    # as an occ_exception.
+    verify_err = _translate_verify_marker(stderr)
+    if verify_err is not None:
+        return [verify_err]
 
     lines = stderr.splitlines()
     exc_class = None
