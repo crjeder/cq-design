@@ -200,6 +200,55 @@ def test_translate_stderr_detects_real_exceptions():
     assert len(occ) == 1 and occ[0]["occ_class"] == "StdFail_NotDone"
 
 
+def test_translate_stderr_classifies_verify_markers():
+    """A cq_verify RuntimeError marker becomes a typed error, not occ_exception."""
+    from run_cadquery_model import _translate_stderr
+
+    for kind, label in (
+        ("silent_boolean", "vent_slot"),
+        ("feature_overflow", "tab"),
+        ("workplane_drift", "lid_top"),
+    ):
+        stderr = (
+            "Traceback (most recent call last):\n"
+            '  File "model.py", line 9, in <module>\n'
+            f"RuntimeError: [cq-verify:{kind}:{label}] some detail here\n"
+        )
+        errs = _translate_stderr(stderr)
+        assert len(errs) == 1
+        assert errs[0]["type"] == kind
+        assert errs[0]["label"] == label
+        assert errs[0]["message"] == "some detail here"
+        assert errs[0]["hint"]
+
+
+def test_translate_stderr_unrelated_runtimeerror_not_misclassified():
+    """A RuntimeError without the cq-verify marker falls through to occ_exception."""
+    from run_cadquery_model import _translate_stderr
+
+    errs = _translate_stderr("RuntimeError: something else entirely")
+    assert len(errs) == 1
+    assert errs[0]["type"] == "occ_exception"
+
+
+def test_silent_boolean_end_to_end(tmp_path):
+    """A script whose verify_boolean fires yields a typed silent_boolean error."""
+    script = tmp_path / "silent.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        "from cq_verify import verify_boolean\n"
+        "body = cq.Workplane('XY').box(20, 20, 20)\n"
+        "tool = cq.Workplane('XY').transformed(offset=(100, 0, 0)).box(5, 5, 5)\n"
+        "result = verify_boolean(body, body.cut(tool), 'cut', 'vent_slot')\n"
+    )
+    rc, data = run(script)
+    assert rc == 1
+    assert data["success"] is False
+    sb = [e for e in data["errors"] if e["type"] == "silent_boolean"]
+    assert len(sb) == 1
+    assert sb[0]["label"] == "vent_slot"
+
+
 def test_expected_dims_mismatch(good_script):
     """--expected-dims with a large mismatch should produce dimension_mismatch errors."""
     # good_script produces a 10x10x10 cube; expect 50x50x50 → big mismatch

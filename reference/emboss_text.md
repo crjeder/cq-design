@@ -27,7 +27,9 @@ text_solid = (
 body = body.cut(text_solid)
 ```
 
-**Detection:** Compare face count or file size before/after. If unchanged, the cut failed silently.
+**Detection:** Compare face count or file size before/after. If unchanged, the cut failed silently. Assert it at build time with `cq_verify.verify_boolean`: `body = verify_boolean(body, body.cut(text_solid), "cut", "label_text")` -- a no-op then fails as a typed `silent_boolean` error naming the feature, instead of vanishing.
+
+**Overflow guard:** the clip pattern below removes protrusions; `cq_verify.verify_feature_bounds(before, after, "label_text")` additionally flags text that pokes past the body so you know clipping was needed.
 
 ## Embossed Text Overflow and Clipping
 

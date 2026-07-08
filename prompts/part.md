@@ -21,6 +21,7 @@ Write a complete CadQuery script for the part specified below.
 10. Follow CadQuery best practices
 11. Use selectors and relative positioning for more robust models
 12. Build the primary shape first, then add holes, fillets, and other details
+13. Guard silent-failure points with `cq_verify` assertions (see below)
 
 ### You should NOT:
 1. call cq.exporters.export() — the runner handles export
@@ -85,6 +86,32 @@ result = (
     # ... geometry here
 )
 ```
+
+## Construction-time verification
+
+Some CadQuery operations fail silently -- no change, no exception -- so a defect only
+surfaces far downstream. Guard the risky ones with `cq_verify` (importable exactly like
+`blocks`); each call returns its post-operation argument, so it sits inline:
+
+```python
+from cq_verify import verify_boolean, check_workplane
+
+result = verify_boolean(body, body.cut(slot), "cut", "vent_slot")   # off-center cut
+wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))     # after a .center()
+```
+
+- **Wrap a boolean** in `verify_boolean(before, after, op, label)` when a silent no-op is
+  plausible: a tool positioned by a **computed offset**, a feature **not at the
+  bounding-box center**, or an **emboss/deboss text merge**. Do NOT wrap a boolean whose
+  tool trivially overlaps the body (a centered boss) -- keep those uncluttered.
+- **Assert a workplane origin** with `check_workplane(wp, label, expected_origin=...)`
+  after a `.center()` / `.hole()` before placing a new feature on that reused workplane
+  (those calls permanently shift the origin).
+- `verify_feature_bounds(before, after, label, tolerance)` catches a feature that pokes
+  past the base body.
+
+A failed assertion crashes the script and is reported as a typed `silent_boolean` /
+`feature_overflow` / `workplane_drift` error naming the `label`.
 
 ## FDM Design Guidelines
 
