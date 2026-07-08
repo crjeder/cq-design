@@ -464,23 +464,30 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
 `--preview-dir preview` writes the preview PNG(s) to the project's `preview/` directory
 instead of alongside the script, keeping `build/` free of generated images.
 
-Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `dimension_mismatch`, `occ_exception`.
+Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `disconnected_body`, `dimension_mismatch`, `occ_exception`.
 
-**Targeted sections for off-center features.** The default `--cross-sections` cuts
-each of X/Y/Z through the part's bounding-box center only. If this part unions a
-feature (a boss, tab, dovetail, rib) into a body that already has a cavity (pit,
-pocket, shell) elsewhere in the same script, and that feature's XY position is
-**not** at the bounding-box center, the default cuts will not pass through it and
-cannot reveal a feature that pokes into the cavity (see `CadQuery Pattern
-Reference.md` gotcha 12). Add one `--extra-section axis=value_mm` per such feature
-position (repeatable), e.g. `--extra-section x=50 --extra-section x=110` for two
-seam tabs at x=50 and x=110, so the checklist item 8 review in Step 4 actually has
-a section that crosses the feature to look at.
+The `--preview` overview is a **2x2 first-angle tile** (Front, Left side, Top,
+Isometric); `--cross-sections` writes the interior sections as **separate files**
+(`previews[1:]`), not into the tile. Pass the declared feature/union positions from
+`BUILD_PLAN.json` as `--extra-section` cuts so the review's connectedness and
+interior questions have a section that actually crosses the geometry.
 
-**Feature detail previews for small features.** The default overview tile packs
-every view into a compact grid (isometric, front, side, top, plus back-isometric
-and bottom, each a few hundred pixels) — a small feature (a boss, a slot, one
-dovetail tooth, a vent hole) is hard to actually inspect at that scale, especially
+**Sections through declared positions.** With no positions, `--cross-sections` cuts
+X/Y/Z through the bounding-box center only. If this part unions a feature (a boss,
+tab, dovetail, rib) into a body that already has a cavity (pit, pocket, shell)
+elsewhere in the same script, or joins bodies at a junction away from the center, the
+center cuts will not pass through it — and a disconnection or a feature poking into a
+cavity is invisible from every exterior panel (see `CadQuery Pattern Reference.md`
+gotcha 12). Add one `--extra-section axis=value_mm` per such position (repeatable),
+e.g. `--extra-section x=50 --extra-section x=110` for two seam tabs at x=50 and x=110,
+so the Step 4 review has a section crossing each feature/junction to answer against.
+When `--extra-section` positions are given they replace the center cuts (they are the
+declared positions); each is written as its own `<part>_section_<axis>_<pos>mm.png`.
+
+**Feature detail previews for small features.** The default overview tile packs the
+four views into a compact 2x2 grid (Front, Left, Top, Isometric, each a few hundred
+pixels) — a small feature (a boss, a slot, one dovetail tooth, a vent hole) is hard
+to actually inspect at that scale, especially
 right after adding or changing it at the user's specific request, when they want
 to see that exact change clearly. Generate a standalone, higher-resolution detail
 preview for it via `--detail`, in **addition to** (not instead of) the normal
@@ -514,11 +521,17 @@ feature they specifically asked about.
 Handle geometry errors first, then the visual self-review. A part is done only
 when geometry validation passes AND the visual self-review confirms intent.
 
-1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the visual review for this attempt.
-2. **`success: true` AND no blocking errors** → run the **visual self-review**: examine the preview PNG against every item in `reference/Visual Review Checklist.md` (shape match, feature completeness, feature placement, proportions, connected geometry, flat bed face, orientation), judged against this part's entry in `BUILD_PLAN.json`. For item 8, confirm every unioned-after-a-cavity feature was actually crossed by a section (the default center cuts or an added `--extra-section`) — an off-center feature with no section through it is not a verified pass, it's an unchecked blind spot.
-   - **All checklist items pass** → part done. Record `geometry.bbox`. Display the preview PNG. Advance to next part.
-   - **Any item fails** AND attempt < 3 → record a `visual_mismatch` finding naming the failed item(s) and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3).
+1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the visual review for this attempt. Blocking types include `disconnected_body` (a union that split into separate solids — union or bridge the pieces so they fuse into one component).
+2. **`success: true` AND no blocking errors** → run the **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union) plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not).
+   - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against). Advance to next part.
+   - **Any question answered "no"** AND attempt < 3 → record a `visual_mismatch` finding naming the failed question, the cited view, and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3).
 3. **Attempt 3 exhausted** with remaining geometry errors or an unresolved `visual_mismatch` → summarize the remaining errors and any visual mismatch to the user. Ask conversationally: provide a hint, accept the part as-is, or skip this part.
+
+**Read the render before re-rendering.** The preview tile and its section/detail
+files are written to stable per-part names, so the next attempt's render overwrites
+them. Complete the visual review of an attempt (examine and cite the tile and every
+section/detail file it produced) **before** you re-author and re-render for the next
+attempt — never review against a file a later render has already overwritten.
 
 ### Progressive build
 
@@ -1027,6 +1040,7 @@ it as a typed `silent_boolean` / `feature_overflow` / `workplane_drift` error na
 |------------|---------|--------|
 | `non_manifold_edge` | Geometry has non-manifold edges | Rebuild booleans; ensure no zero-thickness faces |
 | `non_watertight` | Mesh has open holes | Check for unclosed boolean bodies |
+| `disconnected_body` | A union body split into more than one connected component (a part meant to be one solid rendered as separate pieces) | Union or bridge the pieces so they overlap and fuse into one component. Carries `union` and `component_count`. |
 | `dimension_mismatch` | Bounding box deviates from plan beyond tolerance | Correct the parameter driving that axis |
 | `occ_exception` | OpenCASCADE kernel error | See hint for the specific exception class |
 | `silent_boolean` | A `cq_verify.verify_boolean` assertion fired: the boolean produced no change (tool did not overlap) | Reposition the tool so it intersects the body; check the offset placing it. Names the feature `label`. |
@@ -1034,7 +1048,7 @@ it as a typed `silent_boolean` / `feature_overflow` / `workplane_drift` error na
 | `workplane_drift` | A `cq_verify.check_workplane` assertion fired: the workplane origin drifted (often after `.center()`/`.hole()`) | Re-anchor with `.workplane(origin=...)` or a fresh `cq.Workplane` before placing the feature. Names the workplane `label`. |
 | `thin_wall` | Wall below `wall_min_mm` | Increase wall parameter or reduce cutout size |
 | `overhang_exceeded` | Face angle exceeds `overhang_max_deg` | Add chamfers, redesign, or warn user if unavoidable |
-| `visual_mismatch` | Render fails a `reference/Visual Review Checklist.md` item (wrong shape, missing/misplaced/mirrored feature, wrong proportions) | Re-examine intent against the plan; fix the responsible parameter or geometry. See Phase 3 Step 4. |
+| `visual_mismatch` | A question in `reference/Visual Review Checklist.md` was answered "no" (wrong shape, missing/misplaced/mirrored feature, wrong proportions, disconnection visible in section) | Name the failed question and the cited view; re-examine intent against the plan; fix the responsible parameter or geometry. See Phase 3 Step 4. |
 
 The `visual_mismatch` finding is recorded by Claude during the Phase 3 part loop, not emitted by `run_cadquery_model.py` — the wrapper JSON contract is unchanged and contains no `visual_mismatch` entry. It participates in the same 3-attempt retry budget as the geometry errors above.
 

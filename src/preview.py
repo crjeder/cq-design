@@ -12,6 +12,7 @@ Usage (via render_preview.py subprocess):
 Public API:
     render_single(workplane, output_path, title, width, height)
     render_multi_view(workplane, output_path, title, subtitle, view_size)
+    render_section(workplane, output_path, axis, position, view_size)
     render_detail_view(workplane, output_path, focus_center, focus_size)
     render_detail_section(workplane, output_path, axis, position, focus_center, focus_size)
 
@@ -186,7 +187,9 @@ def _info_lines(wp, n_triangles):
 # ---------------------------------------------------------------------------
 
 
-def _render_cq_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW_SIZE, focus=None):
+def _render_cq_view(
+    wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW_SIZE, focus=None, ortho=False
+):
     """Render one view of a CadQuery object. Returns a PIL Image (RGB).
 
     Uses FigureCanvasAgg directly so no display server or global pyplot
@@ -196,6 +199,10 @@ def _render_cq_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW
     whole-mesh-fit axis limits with a fixed-size cubic window centered on a point
     -- used for feature detail views where the feature is small relative to the
     whole part and would be imperceptible at the default whole-part framing.
+
+    `ortho` selects true orthographic projection (parallel edges stay parallel, no
+    perspective convergence). Used for the axis-aligned drei-tafel panels where an
+    undistorted measured projection matters; the isometric panel leaves it False.
     """
     verts, triangles = _tessellate(wp)
 
@@ -205,6 +212,8 @@ def _render_cq_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW
     fig.patch.set_facecolor(_BG_COLOR)
 
     ax = fig.add_subplot(111, projection="3d")
+    if ortho:
+        ax.set_proj_type("ortho")
     ax.set_facecolor(_BG_COLOR)
 
     if triangles:
@@ -344,93 +353,68 @@ def render_detail_section(
     return output_path
 
 
+def render_section(wp, output_path, axis, position, view_size=DEFAULT_VIEW_SIZE):
+    """Render a full cross-section cut at `axis`/`position` as a standalone file.
+
+    Cuts `wp` with an axis-aligned half-space at `position` (same keep-side and
+    camera convention as the in-tile sections used to use) and frames the whole cut
+    body (no focus window, unlike `render_detail_section`). Returns `output_path` on
+    success, `None` if the cut fails (OCC failure on a degenerate plane) so the
+    caller can skip writing a meaningless blank file. Used by render_preview.py to
+    write `--cross-sections` as separate files instead of tiles.
+    """
+    shape = _get_shape(wp)
+    sec = _cut_half(shape, axis, position, remove_positive=_SECTION_REMOVE_POSITIVE[axis])
+    if sec is None:
+        return None
+    elev, azim = _SECTION_CAMERA[axis]
+    img = _render_cq_view(sec, elev, azim, view_size, view_size)
+    img.save(output_path)
+    return output_path
+
+
 def render_multi_view(
     wp,
     output_path,
     title="Model Preview",
     subtitle=None,
     view_size=DEFAULT_VIEW_SIZE,
-    cross_sections=False,
-    extra_sections=None,
 ):
-    """Render a technical preview tile.
+    """Render the default 2x2 first-angle (DIN) projection tile.
 
-    Without cross_sections: 3x2 grid of 6 exterior views.
-    With cross_sections=True: adds Section Y, Section X, Section Z through the
-    bounding-box center.
+    Panels, in first-angle placement (Front above Top, Left-side view drawn on the
+    right):
 
-    `extra_sections` is an optional list of `(axis, position_mm)` pairs appended as
-    additional targeted section tiles, one per pair. Use this to check a feature
-    (a seam tab, boss, dovetail) whose footprint sits away from the bounding-box
-    center: the default center cuts above only pass through whatever happens to be
-    at the midpoint of each axis and can miss an off-center feature entirely (see
-    `CadQuery Pattern Reference.md` gotcha 12).
+        Front (Vorderansicht, look -Y)   top-left      [orthographic]
+        Left  (Seitenansicht, from left) top-right     [orthographic]
+        Top   (Draufsicht, look -Z)      bottom-left   [orthographic]
+        Isometric                        bottom-right  [pictorial]
+
+    The three orthographic panels use true orthographic projection with exact
+    axis-aligned cameras (no perspective tilt) so edges stay undistorted; the
+    isometric panel keeps a pictorial view for the 3D read. Overall bounding box,
+    volume, triangle count, and PLA estimate are shown in the caption -- no
+    dimension lines are drawn on the panels. Cross-sections are no longer part of
+    this tile; they are rendered as separate files (see render_preview.py
+    --cross-sections).
     """
-    views = [
-        (25, -60, "Isometric"),
-        (5, -90, "Front (Y-)"),
-        (5, 0, "Right (X+)"),
-        (25, 120, "Back Isometric"),
-        (90, -90, "Top (Z+)"),
-        (-90, -90, "Bottom (Z-)"),
+    # (elev, azim, label, ortho). Left side is the view-from-left (camera on the -X
+    # side looking +X, azim 180), drawn in the top-right per first-angle convention.
+    panels = [
+        (0, -90, "Front (Y-)", True),
+        (0, 180, "Left (X-)", True),
+        (90, -90, "Top (Z+)", True),
+        (25, -60, "Isometric", False),
     ]
 
     _, triangles = _tessellate(wp)
     images = [
-        (_render_cq_view(wp, elev, azim, view_size, view_size), label)
-        for elev, azim, label in views
+        (_render_cq_view(wp, elev, azim, view_size, view_size, ortho=ortho), label)
+        for elev, azim, label, ortho in panels
     ]
 
-    if cross_sections:
-        shape = _get_shape(wp)
-        try:
-            bb = shape.BoundingBox()
-            cx = (bb.xmax + bb.xmin) / 2
-            cy = (bb.ymax + bb.ymin) / 2
-            cz = (bb.zmax + bb.zmin) / 2
-        except Exception:
-            cx = cy = cz = 0.0
-
-        # Section Y: keep Y+ (remove Y-), camera at Front direction (-Y side)
-        sec_y = _cut_half(shape, "y", cy, remove_positive=False)
-        # Section X: keep X- (remove X+), camera at Right direction (+X side)
-        sec_x = _cut_half(shape, "x", cx, remove_positive=True)
-        # Section Z: keep Z- (remove Z+), camera at Top direction (+Z side)
-        sec_z = _cut_half(shape, "z", cz, remove_positive=True)
-
-        for sec, elev, azim, label in [
-            (sec_y, 5, -90, "Section Y"),
-            (sec_x, 5, 0, "Section X"),
-            (sec_z, 90, -90, "Section Z"),
-        ]:
-            if sec is not None:
-                img = _render_cq_view(sec, elev, azim, view_size, view_size)
-            else:
-                print(
-                    f"WARNING: cross-section {label} failed, using blank tile",
-                    file=sys.stderr,
-                )
-                img = _blank_tile(view_size)
-            images.append((img, label))
-
-    if extra_sections:
-        shape = _get_shape(wp)
-        for axis, pos in extra_sections:
-            sec = _cut_half(shape, axis, pos, remove_positive=_SECTION_REMOVE_POSITIVE[axis])
-            label = f"Section {axis.upper()} @ {pos:g}mm"
-            if sec is not None:
-                elev, azim = _SECTION_CAMERA[axis]
-                img = _render_cq_view(sec, elev, azim, view_size, view_size)
-            else:
-                print(
-                    f"WARNING: cross-section {label} failed, using blank tile",
-                    file=sys.stderr,
-                )
-                img = _blank_tile(view_size)
-            images.append((img, label))
-
-    cols = 3
-    rows = (len(images) + cols - 1) // cols  # ceil: extra_sections need not fill a row
+    cols = 2
+    rows = (len(images) + cols - 1) // cols
     gap = 4
     header_h = 40 + (20 if subtitle else 0)
     footer_h = 55

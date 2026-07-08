@@ -179,6 +179,43 @@ def test_multi_union_dict_result_validates_each_union(tmp_path):
     assert data["geometry"]["face_count"] >= 24
 
 
+def test_disconnected_body_single_union_reported(tmp_path):
+    """A single-union part whose `result` is two non-overlapping solids fused into one
+    Workplane is flagged as a disconnected_body with the union id and component count."""
+    script = tmp_path / "split.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        "a = cq.Workplane('XY').box(10, 10, 10)\n"
+        "b = cq.Workplane('XY').box(10, 10, 10).translate((50, 0, 0))\n"
+        "result = a.union(b)\n"
+    )
+    _, data = run(script)
+    disc = [e for e in data["errors"] if e["type"] == "disconnected_body"]
+    assert len(disc) == 1
+    assert disc[0]["component_count"] == 2
+    assert disc[0]["union"] == "split"
+
+
+def test_disconnected_body_fails_under_strict(tmp_path):
+    """disconnected_body is blocking under --strict (rc 1, success False)."""
+    script = tmp_path / "split.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        "a = cq.Workplane('XY').box(10, 10, 10)\n"
+        "b = cq.Workplane('XY').box(10, 10, 10).translate((50, 0, 0))\n"
+        "result = a.union(b)\n"
+    )
+    rc, data = run(script, "--strict")
+    assert rc == 1
+    assert data["success"] is False
+
+
+def test_connected_body_reports_no_disconnected(good_script):
+    """A normal single connected body produces no disconnected_body error."""
+    _, data = run(good_script)
+    assert [e for e in data["errors"] if e["type"] == "disconnected_body"] == []
+
+
 def test_translate_stderr_ignores_plain_capitalized_lines():
     """A model printing a 'Capitalized: ...' diagnostic to stderr must not be
     misread as an occ_exception (which is error-severity in the gate)."""
@@ -277,11 +314,16 @@ def test_preview_renders_png(good_script):
 
 
 def test_preview_cross_sections(good_script):
-    """--preview --cross-sections produces a preview PNG."""
+    """--preview --cross-sections writes the 2x2 tile plus separate section files
+    (the bbox-center X/Y/Z cuts when no positions are supplied)."""
     rc, data = run(good_script, "--preview", "--cross-sections")
     assert rc == 0
-    assert len(data["previews"]) == 1
-    assert os.path.exists(data["previews"][0])
+    # tile + three center-cut section files, each its own file
+    assert len(data["previews"]) == 4
+    for path in data["previews"]:
+        assert os.path.exists(path)
+    section_files = [p for p in data["previews"][1:] if "section" in os.path.basename(p)]
+    assert len(section_files) == 3
 
 
 def test_preview_dir_redirects_output(good_script, tmp_path):
@@ -296,19 +338,24 @@ def test_preview_dir_redirects_output(good_script, tmp_path):
 
 
 def test_preview_extra_section(good_script):
-    """--preview --extra-section x=2 threads a targeted off-center cut through to
-    render_preview.py and produces a preview PNG."""
+    """--preview --extra-section x=2 threads a targeted cut through to
+    render_preview.py and writes it as a separate section file (tile + 1 section)."""
     rc, data = run(good_script, "--preview", "--extra-section", "x=2")
     assert rc == 0
-    assert len(data["previews"]) == 1
+    assert len(data["previews"]) == 2
     assert os.path.exists(data["previews"][0])
+    assert os.path.exists(data["previews"][1])
+    assert "section" in os.path.basename(data["previews"][1])
 
 
 def test_preview_extra_section_repeatable(good_script):
-    """--extra-section can be passed multiple times for several targeted cuts."""
+    """--extra-section can be passed multiple times: one separate section file each."""
     rc, data = run(good_script, "--preview", "--extra-section", "x=2", "--extra-section", "y=-3")
     assert rc == 0
-    assert os.path.exists(data["previews"][0])
+    # tile + two targeted section files
+    assert len(data["previews"]) == 3
+    for path in data["previews"]:
+        assert os.path.exists(path)
 
 
 def test_preview_detail_view_adds_named_file_to_previews(good_script):
