@@ -83,13 +83,40 @@
                   "description": "Interface category (port_cutout, screw_mount, pcb_mount, snap_fit, etc.)"
                 },
                 "description": {"type": "string"},
+                "connector": {
+                  "type": "string",
+                  "description": "Connector or standard name for this interface, e.g. usb_c"
+                },
+                "wall": {
+                  "type": "string",
+                  "description": "Face the interface sits on (descriptive, e.g. north/south/top)"
+                },
                 "clearance_mm": {
                   "type": "number",
                   "minimum": 0,
                   "description": "Per-mate fit clearance for this interface, in mm"
+                },
+                "position_mm": {
+                  "type": "array",
+                  "items": {"type": "number"},
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "description": "Feature center in the part's authored frame [x, y, z] in mm; enables the deterministic feature-presence check"
+                },
+                "diameter_mm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Round-feature diameter in mm (feature-presence size target)"
+                },
+                "size_mm": {
+                  "type": "array",
+                  "items": {"type": "number", "exclusiveMinimum": 0},
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "description": "Rectangular-feature [w, h] in mm (feature-presence size target)"
                 }
               },
-              "additionalProperties": true
+              "additionalProperties": false
             }
           },
           "blocks_needed": {
