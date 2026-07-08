@@ -384,6 +384,14 @@ def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | 
     return run_edge_treatment_check(plan, script_path, orientations)
 
 
+def _run_feature_presence_stage(plan: dict, script_path: str) -> list[dict]:
+    """Assert this part's declared-position interface features were actually built (once,
+    outside the fix loop). `feature_absent` is blocking; drift/skips are advisory."""
+    from feature_presence_check import run_feature_presence_check
+
+    return run_feature_presence_check(plan, script_path)
+
+
 def _run_cosmetic_slope_stage(plan: dict, script_path: str, orientation: dict | None) -> list[dict]:
     """Report up-facing cosmetic stair-step area for a visual_quality part (advisory).
 
@@ -566,6 +574,8 @@ def run_gate(
         all_issues += _run_keep_out_stage(plan, stl_dir)
         # ---- edge-treatment (chamfer/fillet) check (once, outside the fix loop) ----
         all_issues += _run_edge_treatment_stage(plan, script_path, orientation)
+        # ---- feature-presence check (declared interfaces built; once, outside the fix loop) ----
+        all_issues += _run_feature_presence_stage(plan, script_path)
         # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
         all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
     errors = [i for i in all_issues if i["severity"] == "error"]

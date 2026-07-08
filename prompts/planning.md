@@ -15,6 +15,8 @@ All wall positions, interface locations, and directional language in this plan u
 
 The Down face (Z = 0) is the print bed. Parts are always modeled with their print-bed face at Z = 0.
 
+When an interface's location is known, give its `position_mm` as the feature's intended center `[x, y, z]` in the part's own authored frame (same frame as `dimensions`), plus a size (`diameter_mm` for round features, `size_mm: [w, h]` for rectangular). These structured fields are optional, but supplying them enables the deterministic feature-presence check to confirm the feature was actually built where you declared it.
+
 SPATIAL FRAME:
 - World frame is fixed, not viewer-relative
 - Position = reference point + (direction, distance). E.g. "50mm North of hole-A center."
@@ -216,6 +218,7 @@ profile is present above, take these values from what the user stated in Phase 1
           "type": "port_cutout",
           "connector": "usb_c",
           "wall": "south",
+          "position_mm": [10.0, 0.0, 15.0],
           "size_mm": [9.0, 3.5],
           "clearance_mm": 0.25
         }

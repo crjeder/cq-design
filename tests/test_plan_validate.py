@@ -168,6 +168,46 @@ def test_assembly_field_rejected(plan_file):
     assert any("assembly" in e for e in errors)
 
 
+def test_interface_type_only_still_validates(plan_file):
+    """An interface entry with only `type` (no structured placement) is valid."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [{"type": "port_cutout"}]
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
+
+
+def test_interface_structured_placement_validates(plan_file):
+    """Structured position/size on an interface entry is accepted."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [
+        {
+            "type": "port_cutout",
+            "wall": "south",
+            "position_mm": [10.0, 0.0, 15.0],
+            "size_mm": [9.0, 3.5],
+        },
+        {"type": "screw_boss", "position_mm": [5, 5, 0], "diameter_mm": 3.2},
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
+
+
+def test_interface_malformed_position_rejected(plan_file):
+    """A `position_mm` that is not three numbers is rejected by the schema."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [{"type": "port_cutout", "position_mm": [10.0, 0.0]}]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_interface_unknown_field_rejected(plan_file):
+    """An undefined interface field is rejected now that the entry is closed."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [{"type": "port_cutout", "bogus_field": 1}]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
 def test_invalid_json(tmp_path):
     p = tmp_path / "bad.json"
     p.write_text("{not valid json")
