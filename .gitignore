@@ -14,7 +14,10 @@ __pycache__/
 
 # CocoIndex Code (ccc)
 /.cocoindex_code/
+
 .sentrux/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+.codegraph
+.fossil
