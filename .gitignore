@@ -14,6 +14,7 @@ __pycache__/
 
 # CocoIndex Code (ccc)
 /.cocoindex_code/
+
 .sentrux/
 .ruff_cache/
 .pytest_cache/
@@ -21,3 +22,5 @@ __pycache__/
 
 # Golden meshes for the eval corpus are committed artifacts
 !evals/cases/*/golden/*.stl
+.codegraph
+.fossil
