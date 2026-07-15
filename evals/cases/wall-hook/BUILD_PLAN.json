@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "J-profile wall hook with mounting plate and retaining lip",
+  "parts": [
+    {
+      "id": "wall_hook",
+      "description": "J-hook: 6 mm back plate, 30 mm arm, 20 mm lip, 20 mm wide",
+      "dimensions": {
+        "w_mm": 30,
+        "d_mm": 20,
+        "h_mm": 60
+      },
+      "interfaces": [
+        {
+          "type": "screw_mount",
+          "description": "Screws through back plate",
+          "wall": "back"
+        }
+      ],
+      "blocks_needed": [],
+      "part_notes": "Load hangs on the arm; bending at the plate-arm corner."
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

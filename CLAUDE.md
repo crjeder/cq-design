@@ -70,6 +70,8 @@ run real CadQuery scripts (a few seconds each).
 | `src/interference.py` | Shared static interference primitive (trimesh + python-fcl, no CadQuery). `colliding_names(moving_mesh, manager, penetration_tol_mm)` tests one moving mesh against a prebuilt `CollisionManager` of named fixed bodies: `penetration_tol_mm=None` counts any fcl-reported contact (keep-out semantics), a float counts only contacts whose deepest penetration exceeds it (kinematic semantics). `check_interference(subject, others, *, exclude, penetration_tol_mm)` is the static single-subject convenience (builds the manager, honoring an exclusion set). `load_backend()` centralizes the trimesh/fcl import probe so callers degrade to their own `check_skipped`. Consumed by `keep_out_check.py` (once per zone) and `kinematic_check.py` (per swept pose); next intended caller is an assembly-clearance placeholder volume. |
 | `src/edge_treatment_check.py` | Per-part Chamfer / Fillet rule enforcement (horizontal edge -> chamfer, vertical edge -> fillet). Inspects the treatment at apply-time rather than reverse-engineering it from a mesh: wraps `cq.Workplane.fillet`/`.chamfer` and re-runs the part script (`exporters._load_result`) to record the exact BRep tangent + midpoint of every treated edge (faces expand to their edges; round features never enter a fillet/chamfer call, so no false positives), attributes each edge to its union by bbox, then classifies it **in the print frame** -- the bed-relative frame where the rule matters -- by rotating its authored-frame tangent through the union's print orientation via `placement.transform_direction`. A fillet on a horizontal edge and a chamfer on a vertical edge are advisory findings; diagonal edges and tilted round rims are passed silently. Emits the shared `{source, severity, type, message, hint}` contract with `source`/`type` `"edge_treatment"`, `severity: "warning"` (a print-quality preference, not a hard failure -- the harmful half, a bottom-edge fillet past the overhang limit, is already caught by the overhang check). A treated union with no supplied print orientation is reported as `check_skipped` (never classified in the authored frame, since that is the wrong frame for a bed-relative rule); also degrades to `check_skipped` if CadQuery is unavailable. |
 | `src/feature_presence_check.py` | Per-part feature-presence validation: asserts that every `interfaces[]` entry declaring a structured `position_mm` (and optional `diameter_mm`/`size_mm`) was actually built at that position. Captures placement at construction time -- wraps `cq.Workplane.cut`/`.union` and re-runs the part script (`exporters._load_result`, the `edge_treatment_check` pattern) to record each positioned tool's authored-frame bbox center + extents (interface blocks return unpositioned solids, so the placement is captured at the boolean that applies them, not by hooking the block). Matches declared interfaces against the recorded features: no feature within `_POS_TOL_MM` of a declared position is a blocking `feature_absent` error; a nearest match beyond `_DRIFT_TOL_MM` in center, or a declared size absent from the feature's extents, is an advisory `feature_drift` warning. Only block-emitted types (`port_cutout`, `cable_slot`, `vent_grid`, `screw_boss`, `pcb_standoff`) are asserted; any other type or a non-re-runnable script is `check_skipped`, never a false `feature_absent`. The in-place hole family is out of first scope. The deterministic backstop beneath the visual per-feature review question. Wired into `quality_gate.py` as a once-outside-the-fix-loop stage. |
+| `src/telemetry.py` | Append-only per-attempt telemetry: the part loop appends one JSON record per attempt to `build/attempts.jsonl` (part id, attempt, outcome, error types, visual-review result, prompt size, model) via `append_attempt` / the `append` CLI. Validates the record, stamps `ts`, never truncates or rewrites -- `build/attempts.jsonl` is durable session state like `build/orientations.json`. Stdlib only. |
+| `evals/run_evals.py` | Eval harness over the canonical corpus in `evals/cases/` (~10 requests, each with `request.md`, golden `BUILD_PLAN.json`, golden meshes, `case.json`). Default mode scores an existing run dir (no model calls): first-shot rate + attempts-to-pass + cost per accepted part from `build/attempts.jsonl` and `evals/model_prices.json`, Chamfer distance (point-to-surface, bbox-center aligned; needs `rtree`) against the golden meshes; emits `scorecard.json`/`scorecard.md`. `--generate` (opt-in, costs tokens) runs `claude -p` per case first. `evals/generate_goldens.py` regenerates the golden STLs. |
 | `src/measure_stl.py` | Geometry feature extractor: detects bounding box, horizontal layers, vertical cylindrical features, and thin regions (local ray-cast wall thickness, classified thin-in-XY vs thin-in-Z) from an STL using trimesh + numpy. Emits structured JSON. |
 | `src/preview.py` | Headless preview renderer using CadQuery tessellation + matplotlib (Agg backend) -> multi-view PNG. No OpenGL or display server required. |
 | `src/render_preview.py` | Subprocess entry point for previews: runs a model script in an isolated namespace, captures `result`, calls `preview.render_multi_view`/`render_single`. |
@@ -120,6 +122,7 @@ run real CadQuery scripts (a few seconds each).
     units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
     model_export.py          # Model-level export: named 3MF + per-union/plate/keep-out-zone STL
     build_template.py        # build.py template copied to build/; regenerates plates in print orientation
+    telemetry.py             # Append-only per-attempt log -> build/attempts.jsonl
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer
     render_preview.py        # Subprocess entry point for preview.py
@@ -144,6 +147,12 @@ run real CadQuery scripts (a few seconds each).
       stl.py step.py threemf.py obj.py iges.py scad.py
       threemf_multi.py       # Multi-object 3MF writer (named unions + plate metadata)
 
+  evals/
+    cases/<case>/        # request.md, golden BUILD_PLAN.json, golden/*.stl, case.json
+    run_evals.py         # Scorecard runner (score-only by default; --generate opt-in)
+    generate_goldens.py  # Regenerates the golden STLs
+    model_prices.json    # Editable USD-per-MTok table for cost estimates
+
   prompts/
     planning.md          # Planning phase prompt (outputs BUILD_PLAN.json)
     part.md              # Per-part code generation prompt
@@ -161,6 +170,9 @@ run real CadQuery scripts (a few seconds each).
     test_stl_to_3mf.py               # 3MF export path
     test_cq_warehouse_integration.py # cq_warehouse fastener integration
     test_plan_validate.py            # Schema validation -- fast, no CadQuery
+    test_telemetry.py                # Attempt-log helper + CLI -- fast, no CadQuery
+    test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
+    test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # printer_profile.json schema + write-back -- fast, no CadQuery
     test_edge_treatment_check.py     # Chamfer/fillet rule check (CadQuery)
     fixtures/
