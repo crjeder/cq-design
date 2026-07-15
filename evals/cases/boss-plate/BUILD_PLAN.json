@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "Flat mounting plate with four screw bosses on a rectangular pattern",
+  "parts": [
+    {
+      "id": "boss_plate",
+      "description": "Plate 100x60x4 with four d8 h6 bosses on an 80x40 pattern",
+      "dimensions": {
+        "w_mm": 100,
+        "d_mm": 60,
+        "h_mm": 10
+      },
+      "interfaces": [
+        {
+          "type": "screw_mount",
+          "description": "Four bosses, 80x40 pattern",
+          "wall": "top"
+        }
+      ],
+      "blocks_needed": [
+        "screw_boss"
+      ]
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

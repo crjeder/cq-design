@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "Wedge phone stand with inclined back face",
+  "parts": [
+    {
+      "id": "phone_stand",
+      "description": "Right-triangle wedge, 80 mm deep, 70 mm wide, 70 mm tall",
+      "dimensions": {
+        "w_mm": 80,
+        "d_mm": 70,
+        "h_mm": 70
+      },
+      "interfaces": [
+        {
+          "type": "rest_surface",
+          "description": "Phone leans on the incline"
+        }
+      ],
+      "blocks_needed": []
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

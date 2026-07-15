@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "Open-top rectangular electronics enclosure body with 2 mm walls",
+  "parts": [
+    {
+      "id": "enclosure_body",
+      "description": "Open-top box, 2 mm walls, 80x50x30 mm outer",
+      "dimensions": {
+        "w_mm": 80,
+        "d_mm": 50,
+        "h_mm": 30
+      },
+      "interfaces": [
+        {
+          "type": "lid_seat",
+          "description": "Open top rim seats a lid",
+          "wall": "top"
+        }
+      ],
+      "blocks_needed": [
+        "hollow_box"
+      ]
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

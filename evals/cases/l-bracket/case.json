@@ -1,0 +1,8 @@
+{
+  "tolerance_mm": 1.5,
+  "expected_parts": 1,
+  "tags": [
+    "l",
+    "bracket"
+  ]
+}

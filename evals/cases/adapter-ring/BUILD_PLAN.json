@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "Flanged adapter ring, 80 mm flange, 60 mm tube, 50 mm bore",
+  "parts": [
+    {
+      "id": "adapter_ring",
+      "description": "Flange OD80 t5 with tube OD60, bore ID50, 20 mm tall",
+      "dimensions": {
+        "w_mm": 80,
+        "d_mm": 80,
+        "h_mm": 20
+      },
+      "interfaces": [
+        {
+          "type": "bore",
+          "description": "50 mm through bore",
+          "diameter_mm": 50
+        }
+      ],
+      "blocks_needed": []
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

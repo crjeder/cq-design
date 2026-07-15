@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "Snap-on lid: flat plate with two underside snap prongs",
+  "parts": [
+    {
+      "id": "snap_lid",
+      "description": "Lid plate 80x50x2 with two 4x3x4 snap prongs underneath",
+      "dimensions": {
+        "w_mm": 80,
+        "d_mm": 50,
+        "h_mm": 6
+      },
+      "interfaces": [
+        {
+          "type": "snap_fit",
+          "description": "Two prongs engage the box walls",
+          "wall": "bottom"
+        }
+      ],
+      "blocks_needed": [
+        "snap_hook_clip"
+      ]
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}
