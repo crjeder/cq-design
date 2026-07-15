@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "L-bracket joining two panels at 90 degrees",
+  "parts": [
+    {
+      "id": "l_bracket",
+      "description": "L-bracket, 60x40x6 base with 60x6x60 upright",
+      "dimensions": {
+        "w_mm": 60,
+        "d_mm": 40,
+        "h_mm": 60
+      },
+      "interfaces": [
+        {
+          "type": "screw_mount",
+          "description": "Screws through base and upright"
+        }
+      ],
+      "blocks_needed": [
+        "counterbore_hole"
+      ],
+      "part_notes": "Load is bending at the corner; gusset optional."
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

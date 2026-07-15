@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "Sliding lid: flat plate with an inner locating lip",
+  "parts": [
+    {
+      "id": "sliding_lid",
+      "description": "Flat lid plate 80x50x2 with 74x44x2 locating lip",
+      "dimensions": {
+        "w_mm": 80,
+        "d_mm": 50,
+        "h_mm": 4
+      },
+      "interfaces": [
+        {
+          "type": "lid_seat",
+          "description": "Lip locates in the box rim",
+          "wall": "bottom"
+        }
+      ],
+      "blocks_needed": [
+        "fillet_box"
+      ]
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

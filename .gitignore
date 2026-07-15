@@ -19,5 +19,8 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+
+# Golden meshes for the eval corpus are committed artifacts
+!evals/cases/*/golden/*.stl
 .codegraph
 .fossil
