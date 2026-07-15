@@ -449,6 +449,21 @@ without a `unions` array keeps the single `result = <wp>` form (one union, id = 
 
 On retry attempts: review the error types and hints from the previous attempt, apply targeted fixes. Do not start over blindly — you have full planning context.
 
+**Step 2.5 — Lint before validate**
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/script_lint.py" build/<part_id>.py
+```
+
+Pure-stdlib AST lint, no CadQuery subprocess — catches mechanically-detectable
+anti-patterns (a boolean inside a loop, a missing `result`, a submodule block
+import, a direct `cq.exporters.export` call, a magic number outside the named
+parameters, an unre-anchored `.center()`/`.hole()` chain, an unguarded
+computed-offset boolean, `.shell()` after `.fillet()`) in milliseconds instead of
+a full run. Exit 0 means no findings — proceed to Step 3. Exit 1 prints
+`{"success": false, "findings": [...]}`; fix every finding in the script and
+re-lint before spending the first `run_cadquery_model.py` call.
+
 **Step 3 — Validate**
 
 ```bash
