@@ -1,0 +1,5 @@
+{
+  "_comment": "USD per million input tokens, keyed by the telemetry 'model' field. Edit to your billing rates; 'default' is used for unknown models. Cost figures in the scorecard are estimates (tokens approximated as prompt_chars / 4).",
+  "default": 15.0,
+  "inline": 15.0
+}

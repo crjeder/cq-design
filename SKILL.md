@@ -527,6 +527,27 @@ when geometry validation passes AND the visual self-review confirms intent.
    - **Any question answered "no"** AND attempt < 3 → record a `visual_mismatch` finding naming the failed question, the cited view, and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3).
 3. **Attempt 3 exhausted** with remaining geometry errors or an unresolved `visual_mismatch` → summarize the remaining errors and any visual mismatch to the user. Ask conversationally: provide a hint, accept the part as-is, or skip this part.
 
+**Step 5 — Log the attempt (always, before retrying or advancing)**
+
+Append exactly one telemetry record for this attempt to `build/attempts.jsonl`
+via the helper (never hand-write the JSONL):
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" append build/attempts.jsonl \
+    --field 'part_id=<part_id>' --field 'attempt=<n>' --field 'outcome=<pass|fail>' \
+    --field 'error_types=["<type>", ...]' \
+    --field 'visual_review={"passed": <bool>, "failed_question": "<q or null>"}' \
+    --field 'prompt_chars=<len of the rendered step-1 prompt>' --field 'model=inline'
+```
+
+- `outcome=pass` only when step 4 accepted the part on this attempt; everything
+  else (geometry errors, visual_mismatch, user skip) is `fail`.
+- `error_types` lists the typed errors from the wrapper/gate JSON (empty on pass).
+- `visual_review` is the JSON `null` when the review did not run for this attempt
+  (e.g. geometry failed first).
+- Skipping this step loses the measurement baseline every prompt/reference change
+  is judged against -- it is part of the loop, not optional bookkeeping.
+
 **Read the render before re-rendering.** The preview tile and its section/detail
 files are written to stable per-part names, so the next attempt's render overwrites
 them. Complete the visual review of an attempt (examine and cite the tile and every
@@ -1033,6 +1054,30 @@ available: `verify_feature_bounds(before, after, label, tolerance)` to catch a f
 poking past the base body. A failed assertion crashes the script and the wrapper reports
 it as a typed `silent_boolean` / `feature_overflow` / `workplane_drift` error naming the
 `label`, so a Step 4 fix can target the exact feature.
+
+## Measurement: telemetry + eval harness
+
+Two measurement rules back every tuning decision:
+
+1. **Telemetry is mandatory in the part loop** (part-loop step 5): one record
+   per attempt appended to `build/attempts.jsonl` via `src/telemetry.py`. The
+   log is append-only and survives across sessions.
+2. **Run the eval suite around any change to prompts, references, or model
+   routing.** Before and after such a change, score a run of the canonical
+   corpus and compare scorecards:
+
+   ```bash
+   # score an existing run directory (free, no model calls)
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/evals/run_evals.py" --run-dir <dir>
+
+   # generate a fresh run first (costs tokens; subset with --cases a,b)
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/evals/run_evals.py" --run-dir <dir> --generate
+   ```
+
+   The scorecard reports first-shot success rate, mean attempts-to-pass,
+   Chamfer distance against each case's golden mesh, and estimated cost per
+   accepted part. A change that worsens these against the baseline does not
+   ship on vibes -- fix it or revert it.
 
 ## Error handling reference
 

@@ -1,0 +1,8 @@
+{
+  "tolerance_mm": 2.0,
+  "expected_parts": 1,
+  "tags": [
+    "phone",
+    "stand"
+  ]
+}

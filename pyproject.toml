@@ -18,6 +18,8 @@ dependencies = [
     "scipy>=1.10,<2",
     # networkx: required by trimesh's scene graph (3MF export path)
     "networkx>=3,<4",
+    # rtree: required by trimesh.proximity (eval-harness Chamfer distance)
+    "rtree>=1,<2",
 ]
 
 [tool.uv.sources]

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "Two-part storage box: hollow body and lipped lid",
+  "parts": [
+    {
+      "id": "box_body",
+      "description": "Open-top box body, 70x50x25 mm outer, 2 mm walls",
+      "dimensions": {
+        "w_mm": 70,
+        "d_mm": 50,
+        "h_mm": 25
+      },
+      "interfaces": [
+        {
+          "type": "lid_seat",
+          "description": "Top rim seats the lid",
+          "wall": "top"
+        }
+      ],
+      "blocks_needed": [
+        "hollow_box"
+      ]
+    },
+    {
+      "id": "box_lid",
+      "description": "Lid plate 70x50x3 with 66x46x2 locating lip",
+      "dimensions": {
+        "w_mm": 70,
+        "d_mm": 50,
+        "h_mm": 5
+      },
+      "interfaces": [
+        {
+          "type": "lid_seat",
+          "description": "Lip locates in the body rim",
+          "wall": "bottom"
+        }
+      ],
+      "blocks_needed": [
+        "fillet_box"
+      ]
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}
