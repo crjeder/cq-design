@@ -70,11 +70,11 @@ and as human-readable markdown.
 ### Requirement: Eval discipline in the skill
 SKILL.md SHALL instruct that the eval suite be run (score mode over a fresh or
 prior generation) before and after any change to prompts, references, or model
-routing, and that the part loop append one telemetry record per attempt via
-the telemetry helper.
+routing, and that the part loop (`skill/phase3_build.md`) append one telemetry
+record per attempt via the telemetry helper.
 
 #### Scenario: Part loop includes the telemetry step
-- **WHEN** SKILL.md's part loop is followed for one attempt
+- **WHEN** the skill's part loop (`skill/phase3_build.md`) is followed for one attempt
 - **THEN** it directs appending one record to `build/attempts.jsonl` via
   `telemetry.py` as a mandatory loop step once the attempt's outcome (including
   any visual review) is decided

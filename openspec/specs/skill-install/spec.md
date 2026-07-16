@@ -18,8 +18,8 @@ be `~/.claude/skills/cq-design/`, overridable via a destination flag or the
 #### Scenario: Fresh install to default location
 
 - **WHEN** a user runs the installer with no existing install present
-- **THEN** the skill's `SKILL.md`, `src/`, `prompts/`, and `reference/` are
-  placed under `~/.claude/skills/cq-design/`
+- **THEN** the skill's `SKILL.md`, `skill/`, `src/`, `prompts/`, and `reference/`
+  are placed under `~/.claude/skills/cq-design/`
 - **AND** the installer reports the destination path on success
 
 #### Scenario: Custom destination
