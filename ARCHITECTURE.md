@@ -10,7 +10,7 @@ flowchart TB
     D["`**Refine:** <br>LLM applies the fixes`"] -- refined code --> C
     E -- "No - issues found" --> D
     E -- "Yes - clean" --> K["`**Audit**<br>LLM audits if the plan is implemented`"]
-    K --> H{"Implementation<br> according to <br>**Plan**?"}
+    K --> H{"`Implementation<br> according to <br>**Plan**?`"}
     H -- "No - deviates from plan" --> D
     H -- Plan implemented --> I["Customer Review"]
     F["Programm optimizes print orientation"] --> G["✓ Final Code"]
@@ -32,7 +32,12 @@ flowchart TB
     style J stroke:#f87171,fill:#fef2f2
 ```
 # Plan 
+- Interview user intent
 - Web search
-- Reverse engineer .stl, .step ...
-- measure dimensions
-- user intent
+- measure dimensions in .stl, .step ...
+
+# Agents
+- Plan
+- Draft
+- Audit
+- Refine
