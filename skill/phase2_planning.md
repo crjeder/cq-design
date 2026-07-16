@@ -11,6 +11,24 @@ Build the planning prompt from the template in `prompts/planning.md`. Substitute
 | `{{FDM_GUIDELINES}}` | Sections tagged `always` from `reference/FDM 3D Print Design Guidelines.md` |
 | `{{PRINTER_PROFILE}}` | `printer`/`material`/`nozzle_mm`/`constraints` from a validated `printer_profile.json` in the working directory, or a note that none is available |
 
+## Planner agent
+
+Spawn a single agent (Agent tool) whose prompt is the fully rendered `prompts/planning.md`
+from above, model override: the strongest available. A topology or interface-tree error in
+the plan costs a full rebuild of every part downstream of it, which is why this role gets
+the strongest model rather than the builder's mid-tier default. The agent has no user
+channel — everything user-facing (topology clarification, dimension checkpoint approval,
+the plan summary below) already happened in main before this call, or happens in main
+after it returns.
+
+The agent returns the plan JSON as its final message. Parse it, write it to disk, and
+validate exactly as below. **`plan_validate.py` rejection re-enters the planner agent**:
+resume the same agent (not a fresh one) with the validator's error list as the next
+message — it keeps its own reasoning and the rejected draft in context, so a targeted fix
+is cheaper than a cold re-generation. Repeat until the plan validates or the loop needs a
+user decision (e.g. a genuinely ambiguous schema conflict), in which case fall back to
+asking the user in main.
+
 Follow the planning prompt instructions to produce `BUILD_PLAN.json`. The plan must conform to `src/build_plan_schema.json`.
 
 Write the plan to disk, then validate:

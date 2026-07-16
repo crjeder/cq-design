@@ -17,6 +17,14 @@ scripts via Bash, iterates on errors) -- there is no `orchestrate.py` script. Th
 Python files under `src/` are the tool boundaries Claude calls. This CLAUDE.md covers
 development of those scripts.
 
+Phase 1-3 LLM roles (dimension research, planning, and autonomous part authoring) may
+execute in sub-agents rather than inline in the main session -- see `ARCHITECTURE.md`
+for the agent roster and `skill/phase1_requirements.md` / `skill/phase2_planning.md` /
+`skill/phase3_build.md` for the invocation, return-contract, and escalation details.
+The agent-routing gate itself (autonomous vs. progressive per part) lives in
+`skill/phase3_build.md`'s Agent routing gate section; user checkpoints always stay in
+the main session regardless of routing.
+
 ## Python Version Constraint
 
 **Python 3.10-3.12 only.** CadQuery's OpenCASCADE (OCC) kernel has no wheels for 3.13+.

@@ -40,9 +40,32 @@ continuing to dimension lookups or the plan.
 
 ## Dimension lookup with Playwright
 
-When a real product is mentioned, use the Playwright MCP to fetch its spec page before writing a single dimension into the plan.
+When a real product is mentioned, run the lookup workflow below in a **research agent**
+before writing a single dimension into the plan.
 
-**Workflow:**
+**Gate: only spawn the research agent when a real-world lookup is actually needed** — a
+real product, PCB, or connector is named and its dimensions are not already fully known
+from the user or `printer_profile.json`. A request with no external product reference
+(pure user-stated dimensions) never spawns this agent — skip straight to the checkpoint
+below with an empty table, or skip the checkpoint entirely per its own rule.
+
+**Research agent.** Spawn one agent whose task is the full lookup workflow below (web
+search, spec pages, community model pages, STL download + `measure_stl.py`) for every
+dimension this request needs looked up. Model override: session default — this role does
+not carry the topology/rebuild cost that justifies the planner's strong-model override.
+The agent has no user channel: it never asks the user anything and never presents the
+checkpoint. It returns exactly two things as its final message:
+
+- The dimension validation table (Item / Value / Source / Status — the same shape as the
+  Dimension validation checkpoint table below).
+- The list of source URLs it consulted.
+
+Everything else the lookup workflow touches — page snapshots, screenshots, downloaded
+STLs, intermediate search results — stays inside the agent; main receives only the table
+and the sources. Main then runs the Dimension validation checkpoint below exactly as
+written, using the returned table.
+
+**Workflow (followed by the research agent):**
 
 1. Navigate to the manufacturer spec page or a reliable secondary source:
    - Phones / tablets: manufacturer product page, then GSMArena as a cross-check
@@ -84,7 +107,7 @@ The output JSON contains `bounding_box_mm`, `flat_faces` (Z heights and radii of
 
 Use `browser_take_screenshot` only when the spec is in an image or the snapshot returns no useful text. Prefer `browser_snapshot` - it is faster and more token-efficient.
 
-**Lookup narration:** Before each lookup, output a one-line status naming what is being looked up and which source is being consulted (e.g., "Looking up Bosch MUM9 bowl dimensions on bosch-home.com..."). After each lookup, report the value found and the source URL (e.g., "Found bowl diameter: 220 mm -- bosch-home.com/en/product/...").
+**Lookup narration:** Before each lookup, note internally what is being looked up and which source is being consulted (e.g., "Looking up Bosch MUM9 bowl dimensions on bosch-home.com..."). After each lookup, note the value found and the source URL (e.g., "Found bowl diameter: 220 mm -- bosch-home.com/en/product/..."). This narration lives inside the research agent's own reasoning — it has no user channel, so none of it reaches the user directly; the user-visible summary is the Dimension validation checkpoint table main presents after the agent returns.
 
 ## Dimension validation checkpoint
 
