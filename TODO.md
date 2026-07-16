@@ -5,12 +5,16 @@ change lives in that change's `tasks.md`, not here.
 
 
 - [ ] optimize prompts, they are growing to long
-      Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
+      - [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
       `{{CQ_REFERENCE}}` only for parts that involve text (was concatenated into every
       part prompt); removed the duplicate fit-clearance row from the FDM "Basic Dimension
       Rules" table (planning.md rule 4 is the source of truth); verified the coordinate
-      tables in planning.md/part.md/SKILL.md are consistent. Still open: the planning.md
-      template itself (13 verbose rules) could be condensed.
+      tables in planning.md/part.md/SKILL.md are consistent.
+      - [ ]  the planning.md template itself (13 verbose rules) could be condensed.
+- [ ] restructure to combat context creep. options:
+      - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
+      - [ ] python script owns the loop and switches context & models. prompt will be split
+      - [ ] use sub-agents / workers for each phase
 - [ ] kinematic: explore adding one simple ground/seating plane (lid-hits-floor
       checks); surrounding-geometry questions stay out of scope (external simulation)
 - [ ] kinematic: articulated chains (a moving union carries other unions through
@@ -107,13 +111,7 @@ change lives in that change's `tasks.md`, not here.
       / chamfer-step transform was split out to the reverse-engineer-mesh item above.
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 - [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
-- [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
-- [ ] restructure to combat context creep. options:
-      - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
-      - [ ] python script owns the loop and switches context & models. prompt will be split
-      - [ ] use sub-agents / workers for each phase
-      
-
+- [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)    
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
