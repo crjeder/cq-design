@@ -5,16 +5,16 @@ change lives in that change's `tasks.md`, not here.
 
 
 - [ ] optimize prompts, they are growing to long
- - [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
+  - [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
       `{{CQ_REFERENCE}}` only for parts that involve text (was concatenated into every
       part prompt); removed the duplicate fit-clearance row from the FDM "Basic Dimension
       Rules" table (planning.md rule 4 is the source of truth); verified the coordinate
       tables in planning.md/part.md/SKILL.md are consistent.
- - [ ]  the planning.md template itself (13 verbose rules) could be condensed.
+  - [ ]  the planning.md template itself (13 verbose rules) could be condensed.
 - [ ] restructure to combat context creep. options:
-      - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
-      - [ ] python script owns the loop and switches context & models. prompt will be split
-      - [ ] use sub-agents / workers for each phase
+  - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
+  - [ ] python script owns the loop and switches context & models. prompt will be split
+  - [ ] use sub-agents / workers for each phase
 - [ ] kinematic: explore adding one simple ground/seating plane (lid-hits-floor
       checks); surrounding-geometry questions stay out of scope (external simulation)
 - [ ] kinematic: articulated chains (a moving union carries other unions through
