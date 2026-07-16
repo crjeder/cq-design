@@ -108,8 +108,11 @@ change lives in that change's `tasks.md`, not here.
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 - [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
 - [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
-- [ ] restructure like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
-- [ ] or: python script owns the loop and switches context & models
+- [ ] restructure to combat context creep. options:
+      - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
+      - [ ] python script owns the loop and switches context & models. prompt will be split
+      - [ ] use sub-agents / workers for each phase
+      
 
 
 ## Prior-art ideas
