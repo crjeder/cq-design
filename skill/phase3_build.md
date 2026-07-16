@@ -238,6 +238,96 @@ them. Complete the visual review of an attempt (examine and cite the tile and ev
 section/detail file it produced) **before** you re-author and re-render for the next
 attempt — never review against a file a later render has already overwritten.
 
+## Builder return contract
+
+When the executor is a builder agent (autonomous part), the last thing it does before
+finishing is return this contract as its final message — main parses it and never
+ingests any image content, only these fields and the paths inside them:
+
+```json
+{
+  "part_id": "<part id>",
+  "status": "passed | blocked",
+  "bbox": {"...": "geometry.bbox from the last successful validate"},
+  "preview_paths": ["preview/<part_id>_preview.png", "preview/<part_id>_section_*.png", "..."],
+  "attempts": <n>,
+  "error_summary": "<remaining errors / visual mismatch, or null on passed>"
+}
+```
+
+`status: passed` means the light self-check found nothing obviously broken — it is
+**not** final acceptance; the part still owes the Implementation audit below.
+`status: blocked` means attempt 3 exhausted with unresolved geometry errors or a
+self-check finding; `error_summary` is what main shows the user in Escalation.
+
+## Escalation (blocked builder)
+
+When a builder agent returns `status: blocked`:
+
+1. Main summarizes `error_summary` to the user and asks conversationally: provide a
+   hint, accept the part as-is, or skip this part.
+2. **Hint** → **resume the same builder agent** (the one already spawned for this part,
+   not a new one) with the hint as its next message. The resumed agent keeps its full
+   attempt history and context — a cold respawn would discard exactly the memory the
+   hint is meant to steer. It continues the write/lint/validate/render/self-check loop
+   with the hint applied and returns an updated **Builder return contract** when done.
+2. **Accept as-is** → treat the last attempt's render as the final result for this part;
+   record it and advance. Skip the Implementation audit for this part (the user already
+   overrode the bar).
+3. **Skip** → advance to the next part without this part's geometry; note the skip in
+   the design-approval checkpoint summary.
+
+## Implementation audit
+
+Every part a builder agent returns as `status: passed` is judged by a fresh-context
+**auditor agent** before it counts as accepted — this, not the builder's own light
+self-check, is the real acceptance bar for an autonomous part.
+
+1. **Spawn** one auditor agent per accepted part. Its prompt contains: the part's full
+   `BUILD_PLAN.json` entry (dimensions, interfaces, blocks_needed, unions) and the
+   preview/section/detail image paths from the Builder return contract. It does **not**
+   receive the part script — the auditor judges the render against the plan's intent
+   with no chance to rationalize from the code that produced it.
+2. **Checklist.** The auditor applies `reference/Visual Review Checklist.md` exactly as
+   Step 4's progressive-mode review would: one question per interface, block, and union,
+   plus the universal invariants (single connected body, flat bed face, proportions,
+   shape match, authored orientation), each answered against a specific cited view.
+3. **Return contract:**
+
+```json
+{
+  "part_id": "<part id>",
+  "verdict": "pass | fail",
+  "failed_questions": [
+    {"question": "<checklist question>", "view": "<cited file>", "discrepancy": "<what's wrong>"}
+  ]
+}
+```
+
+4. **Pass** → the part is finally accepted. Advance to the next part.
+5. **Fail** → **resume the same builder agent** (not the auditor, and not a fresh
+   builder) with the named question, cited view, and discrepancy as a targeted
+   `visual_mismatch` fix — the builder still has its attempt history and script in
+   context. The builder re-enters step 2 for that fix, re-validates, and returns an
+   updated contract; re-spawn the auditor on the new preview paths. This does not
+   consume one of the builder's original 3 attempts against a part that already passed
+   its own loop — treat it as a bounded follow-up (one retry) before escalating to the
+   user the same way as **Escalation** above.
+
+## Cross-part pitfall injection
+
+Before spawning the builder agent for part *k* (k > 1 in this session), scan this
+session's `build/attempts.jsonl` for error types that recurred (the same `error_types`
+entry across 2+ prior attempts, any part). If any are found, prepend one or two lines to
+the rendered part prompt before it becomes the agent's prompt:
+
+```
+Known pitfalls this session: <error_type> recurred <n> times (e.g. on <part_id>). <one-line mitigation if obvious from the error's hint>.
+```
+
+Keep it to a line or two — this is a cheap nudge, not a report. Skip it entirely when no
+error type has recurred, or for the first part of a build (nothing to scan yet).
+
 ## Progressive build
 
 Used for a part the Build mode gate (or the user) routed to progressive. Instead of
@@ -267,12 +357,13 @@ the same bar as the autonomous path. Progressive build does not lower the criter
 
 ## Design approval checkpoint
 
-Once every part in `plan["parts"]` has passed its part loop (autonomous or
-progressive), stop before optimizing print orientation or exporting anything. The
-per-part visual self-review in Step 4 is Claude checking a render against the plan's
-own checklist — it is not the user checking the render against what they actually
-pictured. A part can pass that checklist and still be wrong in the user's eyes, and
-nothing upstream of this point has asked them to look.
+Once every part in `plan["parts"]` has passed its part loop and, for autonomous parts,
+its Implementation audit (progressive parts pass on their own full Step 4 review), stop
+before optimizing print orientation or exporting anything. Both the builder's self-check
+and the auditor's checklist are Claude checking a render against the plan's own
+checklist — it is not the user checking the render against what they actually pictured.
+A part can pass that checklist and still be wrong in the user's eyes, and nothing
+upstream of this point has asked them to look.
 
 Display every part's final preview PNG together in one message (re-display ones shown
 earlier in the loop; don't assume the user still has them in view) and ask directly:
