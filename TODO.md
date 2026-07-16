@@ -18,7 +18,7 @@ change lives in that change's `tasks.md`, not here.
 - [ ] kinematic: explore adding one simple ground/seating plane (lid-hits-floor
       checks); surrounding-geometry questions stay out of scope (external simulation)
 - [ ] kinematic: articulated chains (a moving union carries other unions through
-      the sweep) -- deferred
+      the sweep)
 - [ ] joints: multi-DOF / coupled simultaneous movements. A joint is a LIST of
       single-axis movements (`rotate`/`translate`, each with axis + reference
       vector + range); independent movements for now. A spherical/ball joint is
@@ -70,8 +70,6 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
-- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
-      (-> Differential geometry comparison)
 - [x] preview: cross-section previews wired into workflow. The `--cross-sections`
       flag now renders a 3x3 grid (6 exterior + 3 interior section views) as the
       default for whole-part validation. Visual Review Checklist extended with
@@ -111,7 +109,9 @@ change lives in that change's `tasks.md`, not here.
       / chamfer-step transform was split out to the reverse-engineer-mesh item above.
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 - [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
-- [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)    
+- [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
+- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
+      (-> Differential geometry comparison) / "import" mesh files (.stl)
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
