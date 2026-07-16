@@ -8,7 +8,7 @@ Defines requirements for a progressive (staged, user-checkpointed) build mode in
 
 ### Requirement: A complexity gate selects progressive or autonomous build per part
 
-The Phase 3 part loop SHALL decide per part whether to build progressively (staged, with user checkpoints) or autonomously (the existing single-shot loop). By default the decision SHALL be driven by a stated complexity gate: a part SHALL build progressively when it has at least one `interfaces` entry OR its `blocks_needed` count meets or exceeds a stated threshold; otherwise it SHALL build autonomously. The gate condition and threshold SHALL be stated in `SKILL.md` as tunable values.
+The Phase 3 part loop SHALL decide per part whether to build progressively (staged, with user checkpoints) or autonomously (the existing single-shot loop). By default the decision SHALL be driven by a stated complexity gate: a part SHALL build progressively when it has at least one `interfaces` entry OR its `blocks_needed` count meets or exceeds a stated threshold; otherwise it SHALL build autonomously. The gate condition and threshold SHALL be stated as tunable values in the Phase 3 build documentation (`skill/phase3_build.md`).
 
 #### Scenario: Simple part builds autonomously
 - **WHEN** a part has no `interfaces` and a `blocks_needed` count below the threshold
@@ -18,8 +18,8 @@ The Phase 3 part loop SHALL decide per part whether to build progressively (stag
 - **WHEN** a part has at least one `interfaces` entry or a `blocks_needed` count at or above the threshold
 - **THEN** the part is built progressively with user checkpoints between stages
 
-#### Scenario: Gate values are stated in SKILL.md
-- **WHEN** a reader consults the Phase 3 part loop documentation
+#### Scenario: Gate values are stated in the Phase 3 build documentation
+- **WHEN** a reader consults `skill/phase3_build.md`
 - **THEN** the complexity gate condition and the threshold are stated explicitly as tunable values
 
 ### Requirement: Progressive build proceeds in stages with a checkpoint between each

@@ -75,9 +75,9 @@ The system SHALL include entries for `heat_set_boss`, `counterbore_hole`, `count
 
 ---
 
-### Requirement: SKILL.md hardware dimension reference tables
-`SKILL.md` SHALL include a reference table section with standard dimensions for: CNC Kitchen heat-set inserts (M2, M2.5, M3, M4 - insert OD, insert length, recommended boss OD, recommended hole diameter for PLA), ISO 4762 SHCS (M3, M4, M5 - head diameter, head height, clearance hole diameter), and ISO 4032 hex nuts (M3, M4, M5 - across flats, thickness).
+### Requirement: Hardware dimension reference tables
+The skill SHALL include a reference table section with standard dimensions for: CNC Kitchen heat-set inserts (M2, M2.5, M3, M4 - insert OD, insert length, recommended boss OD, recommended hole diameter for PLA), ISO 4762 SHCS (M3, M4, M5 - head diameter, head height, clearance hole diameter), and ISO 4032 hex nuts (M3, M4, M5 - across flats, thickness). This table lives in `reference/hardware_dims.md`, read only when a fastener/hardware block is in `blocks_needed` (see the `skill-doc-structure` capability); `SKILL.md` carries only the pointer to it.
 
 #### Scenario: Planning LLM uses correct M3 heat-set dimensions
-- **WHEN** a developer reads SKILL.md
+- **WHEN** a developer reads `reference/hardware_dims.md`
 - **THEN** they find the M3 CNC Kitchen insert OD (4.6 mm), insert length (5.7 mm), recommended boss OD (7.5 mm), and recommended hole diameter for PLA (4.4 mm)
