@@ -5,7 +5,7 @@ change lives in that change's `tasks.md`, not here.
 
 
 - [ ] optimize prompts, they are growing to long
-      - [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
+-- [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
       `{{CQ_REFERENCE}}` only for parts that involve text (was concatenated into every
       part prompt); removed the duplicate fit-clearance row from the FDM "Basic Dimension
       Rules" table (planning.md rule 4 is the source of truth); verified the coordinate
