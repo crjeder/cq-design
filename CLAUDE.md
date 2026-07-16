@@ -8,7 +8,10 @@ This is the **cq-design** Claude Code skill. It generates parametric 3D models
 using [CadQuery](https://cadquery.readthedocs.io/) (Python) via the pipeline:
 Planning -> Part Loop -> Model Export -> Quality Gate.
 
-The skill definition and phase descriptions live in `SKILL.md`. Claude itself drives
+The skill definition lives in `SKILL.md` (trigger, contracts, and per-phase pointers)
+with phase detail split into `skill/phase1_requirements.md` through
+`skill/phase4_deliver.md` and `skill/setup.md`, read on demand as each phase starts.
+Claude itself drives
 the pipeline inline (reads `BUILD_PLAN.json`, writes each part script, runs the tool
 scripts via Bash, iterates on errors) -- there is no `orchestrate.py` script. The
 Python files under `src/` are the tool boundaries Claude calls. This CLAUDE.md covers
@@ -159,7 +162,8 @@ run real CadQuery scripts (a few seconds each).
     planning.md          # Planning phase prompt (outputs BUILD_PLAN.json)
     part.md              # Per-part code generation prompt
 
-  reference/             # Injected design references (CadQuery patterns, FDM DFM)
+  skill/                 # Per-phase SKILL.md detail (setup, phase1-4), read on demand
+  reference/             # Injected design references (CadQuery patterns, FDM DFM, hardware_dims)
   openspec/              # OpenSpec specs and change history
 
   tests/

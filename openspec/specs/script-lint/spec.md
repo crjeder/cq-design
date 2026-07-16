@@ -78,9 +78,9 @@ exit 0 when no findings exist and 1 when findings exist.
 - **THEN** it prints `success: false` with the findings array and exits 1
 
 ### Requirement: Part-loop integration before first run
-The SKILL.md part loop SHALL include a step ("Step 2.5") that runs the linter on
-each generated part script and requires findings to be fixed before the first
-`run_cadquery_model.py` invocation.
+The skill's part loop (documented in `skill/phase3_build.md`) SHALL include a step
+("Step 2.5") that runs the linter on each generated part script and requires findings
+to be fixed before the first `run_cadquery_model.py` invocation.
 
 #### Scenario: Lint gate before wrapper run
 - **WHEN** a generated part script produces lint findings
