@@ -5,16 +5,20 @@ change lives in that change's `tasks.md`, not here.
 
 
 - [ ] optimize prompts, they are growing to long
-      Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
+  - [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
       `{{CQ_REFERENCE}}` only for parts that involve text (was concatenated into every
       part prompt); removed the duplicate fit-clearance row from the FDM "Basic Dimension
       Rules" table (planning.md rule 4 is the source of truth); verified the coordinate
-      tables in planning.md/part.md/SKILL.md are consistent. Still open: the planning.md
-      template itself (13 verbose rules) could be condensed.
+      tables in planning.md/part.md/SKILL.md are consistent.
+  - [ ]  the planning.md template itself (13 verbose rules) could be condensed.
+- [ ] restructure to combat context creep. options:
+  - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
+  - [ ] python script owns the loop and switches context & models. prompt will be split
+  - [ ] use sub-agents / workers for each phase
 - [ ] kinematic: explore adding one simple ground/seating plane (lid-hits-floor
       checks); surrounding-geometry questions stay out of scope (external simulation)
 - [ ] kinematic: articulated chains (a moving union carries other unions through
-      the sweep) -- deferred
+      the sweep)
 - [ ] joints: multi-DOF / coupled simultaneous movements. A joint is a LIST of
       single-axis movements (`rotate`/`translate`, each with axis + reference
       vector + range); independent movements for now. A spherical/ball joint is
@@ -66,8 +70,6 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
-- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
-      (-> Differential geometry comparison)
 - [x] preview: cross-section previews wired into workflow. The `--cross-sections`
       flag now renders a 3x3 grid (6 exterior + 3 interior section views) as the
       default for whole-part validation. Visual Review Checklist extended with
@@ -108,7 +110,8 @@ change lives in that change's `tasks.md`, not here.
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 - [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
 - [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
-
+- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
+      (-> Differential geometry comparison) / "import" mesh files (.stl)
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
@@ -133,6 +136,39 @@ integration point is the planning prompt: rule 13 in `prompts/planning.md` tells
 LLM to note in `planning_notes` and point to the repo as a downloadable resource
 when a design needs gears, instead of inventing gear geometry from scratch. Also
 added to the README Prior-art table.
+
+### Parametric CAD library survey (2026-07) -- strategy varies per item
+GitHub survey of reusable OpenSCAD/CadQuery/build123d model libraries, rated for
+usability as `src/blocks/` additions. Full ratings table in session history;
+summary below. Confirms `cq_warehouse` (already a pinned dep) is the strongest
+direct-reuse candidate; everything else is reference-only or needs hand-porting.
+- [x] `cq_warehouse` (gumyr/cq_warehouse, 151 stars) -- strategy: pinned dep --
+      already the project's `cq-warehouse` git dependency. No action.
+- [ ] `cq-gridfinity` (michaelgale/cq-gridfinity, 200 stars, active) -- strategy:
+      reimplement (blocks) -- pure CadQuery, narrow domain. Teardrop/bridged-hole
+      DFM pattern already tracked above under "Print-friendly parameterizations";
+      no separate action beyond that item.
+- [ ] `vibe-cading` (fa-mc/vibe-cading, 5 stars, active) -- strategy: reimplement
+      (blocks) -- CadQuery + LLM-agent-oriented typed-parameter part classes
+      (screws, gears, joints, bearings, heat-set inserts, hinges, standoffs);
+      closest philosophical match to this skill's block pattern. Low stars/
+      immature -- cherry-pick specific parts as reference when adding new blocks,
+      not a dependency.
+- [ ] `cadqueryhelper` (medicationforall/cadqueryhelper, 25 stars, active) --
+      strategy: reimplement (blocks) -- small CadQuery primitive helpers, borrow
+      individual functions if needed.
+- BOSL2 (BelfrySCAD/BOSL2, 2252 stars, very active), NopSCADlib (nophead/
+  NopSCADlib, 1602 stars), MCAD (openscad/MCAD, 681 stars) -- OpenSCAD, not
+  Python; no direct import possible. Reference only for formulas/dimensions
+  (threading, gears, standard-part sizes) when a new block needs a formula
+  `cq_warehouse` doesn't cover. No action.
+- `bd_warehouse` (gumyr/bd_warehouse, 96 stars, active) -- build123d, not
+  CadQuery; the actively-maintained successor to `cq_warehouse` with broader
+  fastener/thread/gear/pipe coverage. Reference only (hand-port on demand) since
+  the kernel wrapper API doesn't match. No action.
+- `cqparts` (cqparts/cqparts, 148 stars, unmaintained since 2020) -- wrapper
+  framework, assembly abstraction conflicts with this skill's direct-Workplane
+  block pattern. Not adopted.
 
 ### Print orientation (Tweaker-3) -- one change -- strategy: reimplement
 Clean-room native port of the orientation formulas. Tweaker-3 is GPL-3.0 and this
