@@ -221,12 +221,15 @@ def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
         "directory. Append telemetry per attempt to build/attempts.jsonl as "
         f"the skill directs.\n\n{request}"
     )
-    subprocess.run(
-        ["claude", "-p", prompt, "--dangerously-skip-permissions"],
-        cwd=case_run_dir,
-        timeout=timeout_s,
-        check=False,
-    )
+    try:
+        subprocess.run(
+            ["claude", "-p", prompt, "--dangerously-skip-permissions"],
+            cwd=case_run_dir,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"  {case}: timed out after {timeout_s}s -- scoring whatever it produced", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:
