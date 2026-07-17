@@ -226,7 +226,6 @@ def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
         cwd=case_run_dir,
         timeout=timeout_s,
         check=False,
-        shell=sys.platform == "win32",
     )
 
 
