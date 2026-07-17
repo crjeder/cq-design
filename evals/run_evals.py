@@ -222,7 +222,7 @@ def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
         f"the skill directs.\n\n{request}"
     )
     subprocess.run(
-        ["claude", "-p", prompt],
+        ["claude", "-p", prompt, "--dangerously-skip-permissions"],
         cwd=case_run_dir,
         timeout=timeout_s,
         check=False,
