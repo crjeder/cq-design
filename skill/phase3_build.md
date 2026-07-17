@@ -374,7 +374,12 @@ earlier in the loop; don't assume the user still has them in view) and ask direc
 - **Approve** → continue to print-orientation optimization.
 - **Request a change** → identify the affected part(s), re-enter that part's loop
   (Step 2 onward) with the user's feedback as a targeted edit, re-validate (Step 3),
-  re-review (Step 4), then re-present this checkpoint with the updated renders.
+  re-review (Step 4), then re-present this checkpoint with the updated renders. If this
+  is a later session and the part's script may have been hand-edited outside the skill
+  since it was last generated, read its current `PARAMETERS` block before editing --
+  treat those values as authoritative over `BUILD_PLAN.json`'s `dimensions`/`part_notes`
+  for that part. Update `BUILD_PLAN.json`'s `dimensions` afterward only if the edit
+  changes the part's overall envelope.
 
 Skip this checkpoint only when the user has explicitly asked for a fully autonomous
 run with no checkpoints (see Build mode override above) — in that case still display
