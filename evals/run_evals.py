@@ -219,7 +219,11 @@ def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
     prompt = (
         "Use the cq-design skill to fulfil this request in the current "
         "directory. Append telemetry per attempt to build/attempts.jsonl as "
-        f"the skill directs.\n\n{request}"
+        "the skill directs. This is an unattended eval run -- there is no "
+        "user to answer clarifying questions. If anything is topology- or "
+        "dimension-ambiguous, pick the most common/standard reading, record "
+        "the assumption in planning_notes, and proceed without asking.\n\n"
+        f"{request}"
     )
     try:
         subprocess.run(
