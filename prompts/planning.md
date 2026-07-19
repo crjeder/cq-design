@@ -181,6 +181,17 @@ Before committing to any dimension values, populate `planning_notes` with your r
     the gap in its `part_notes` as usual. Omit this note entirely when the design has no
     gear parts.
 
+14. **Populate `request_log` verbatim.** On a fresh plan, set `request_log` to the
+    user's original request as one `kind: "initial"` entry (first in the array), followed
+    by one `kind: "clarification"` entry per clarification gathered in Phase 1/2 (topology
+    confirmation, dimension checkpoint corrections, fit-type answers, etc.), each in the
+    order it was given. `text` is the user's own wording, verbatim — never paraphrased or
+    summarized. `ts` is the current UTC time in ISO-8601. **On a re-plan** (this agent is
+    invoked again against an existing `BUILD_PLAN.json`, e.g. after a validation rejection
+    or a correction that requires regenerating the plan): carry every prior `request_log`
+    entry forward unchanged, in the same order, and only append the new entry — never
+    rewrite, reorder, or drop existing entries.
+
 ## Block inventory (name and use only)
 
 {{BLOCK_INVENTORY}}
@@ -208,6 +219,10 @@ profile is present above, take these values from what the user stated in Phase 1
   "material": "PLA",
   "nozzle_mm": 0.4,
   "optimize_for": "strength",
+  "request_log": [
+    {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "<user's original request, verbatim>"},
+    {"ts": "2026-07-19T10:05:00Z", "kind": "clarification", "text": "<verbatim clarification answer>"}
+  ],
   "parts": [
     {
       "id": "body",
@@ -259,7 +274,8 @@ Note: `plate` and `placement` are optional (default: own plate, identity placeme
 it makes strength scoring orientation-neutral -- no load axis is guessed -- which is only
 correct when the part truly carries no structural load); `load.type` defaults to
 `tension` when `load.dir` is given. Omit `kinematics` unless the model has a declared
-range of motion to verify.
+range of motion to verify. `request_log` is schema-optional but you SHOULD populate it
+per rule 14 -- every fresh plan gets an `initial` entry plus one per clarification.
 
 ## FDM Design Guidelines
 

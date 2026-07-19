@@ -43,6 +43,13 @@
       "enum": ["strength", "min_support", "visual_quality"],
       "description": "Plan-level print-orientation objective. 'strength' (default when omitted) keeps the part's load in the layer plane; 'min_support' minimizes support material; 'visual_quality' favors clean visible surfaces (penalizes gentle inclines under 45 deg, orients the cosmetic show_face against the bed). A per-part optimize_for overrides this for that part."
     },
+    "request_log": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Append-only verbatim log of the user's request history: the initial request, plus every clarification or correction given during planning or the build. Optional; existing plans without it remain valid. When present, entries are never rewritten, reordered, or removed -- only appended.",
+      "items": [{"$ref": "#/definitions/request_log_initial_entry"}],
+      "additionalItems": {"$ref": "#/definitions/request_log_followup_entry"}
+    },
     "parts": {
       "type": "array",
       "minItems": 1,
@@ -292,6 +299,26 @@
     }
   },
   "definitions": {
+    "request_log_initial_entry": {
+      "type": "object",
+      "required": ["ts", "kind", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "ts": {"type": "string", "description": "ISO-8601 UTC timestamp"},
+        "kind": {"const": "initial"},
+        "text": {"type": "string", "minLength": 1, "description": "Verbatim user wording"}
+      }
+    },
+    "request_log_followup_entry": {
+      "type": "object",
+      "required": ["ts", "kind", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "ts": {"type": "string", "description": "ISO-8601 UTC timestamp"},
+        "kind": {"enum": ["clarification", "correction"]},
+        "text": {"type": "string", "minLength": 1, "description": "Verbatim user wording"}
+      }
+    },
     "kinematics_entry": {
       "type": "object",
       "required": ["joint_id", "moving_union", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "step"],
