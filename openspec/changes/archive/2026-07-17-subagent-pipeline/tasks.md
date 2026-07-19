@@ -38,13 +38,14 @@
 
 ## 3. Eval gate
 
-- [ ] 3.1 Baseline: score a run of the eval corpus on the current inline
+- [x] 3.1 Baseline: score a run of the eval corpus on the current inline
   pipeline (`evals/run_evals.py --run-dir <baseline>`)
-- [ ] 3.2 Post-change: generate and score a run with agent routing active;
+- [x] 3.2 Post-change: generate and score a run with agent routing active;
   compare first-shot rate, attempts-to-pass, cost per accepted part, Chamfer
   distance
-- [ ] 3.3 Decide per the adoption gate: regression means fix or revert; record
-  the comparison in the change before archiving
+- [x] 3.3 Decide per the adoption gate: regression means fix or revert; record
+  the comparison in the change before archiving (see design.md "Eval gate
+  results" -- adopted, no regression, ~23% lower cost per accepted part)
 
 ## 4. Docs
 
