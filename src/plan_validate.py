@@ -265,6 +265,88 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     return errors
 
 
+def _check_single_joint(
+    joint: dict[str, Any], part_ids: set[str], inventory_path: str
+) -> tuple[tuple[str, str] | None, list[str]]:
+    """Validate one `joints[]` entry. Return (edge, errors); edge is None if invalid.
+
+    `edge` is the (part_a, part_b) pair to add to the mate graph, only when both
+    parts are declared and distinct.
+    """
+    from blocks.validate import get_block
+
+    errors: list[str] = []
+    jid = joint.get("joint_id", "(unknown)")
+    block_name = joint["block"]
+    block = get_block(block_name, inventory_path)
+    if block is None:
+        errors.append(f"Joint '{jid}': unknown block '{block_name}' (not in inventory)")
+        return None, errors
+    emits = block.get("emits")
+    if not emits:
+        errors.append(
+            f"Joint '{jid}': block '{block_name}' has no 'emits' descriptor and cannot back a joint"
+        )
+        return None, errors
+
+    members = joint["members"]
+    member_ids = [m["member"] for m in members]
+    part_refs = [m["part"] for m in members]
+
+    for mid in member_ids:
+        if mid not in emits:
+            errors.append(
+                f"Joint '{jid}': member '{mid}' is not one of block '{block_name}' emits {emits}"
+            )
+    if all(mid in emits for mid in member_ids) and len(set(member_ids)) < len(member_ids):
+        errors.append(
+            f"Joint '{jid}': the two members must reference distinct emits ids, got {member_ids}"
+        )
+
+    for p in part_refs:
+        if p not in part_ids:
+            errors.append(f"Joint '{jid}': part '{p}' is not a declared part id")
+
+    if part_refs[0] == part_refs[1]:
+        errors.append(
+            f"Joint '{jid}': both members reference the same part '{part_refs[0]}'; "
+            "a same-part matched pair uses the part's own 'unions' array, not a "
+            "'joints' entry"
+        )
+        return None, errors
+
+    if part_refs[0] in part_ids and part_refs[1] in part_ids:
+        return (part_refs[0], part_refs[1]), errors
+    return None, errors
+
+
+def _bfs_mate_tree(
+    root_part: str, adjacency: dict[str, list[str]]
+) -> tuple[dict[str, str | None], set[str]]:
+    """BFS the undirected mate graph from `root_part`.
+
+    Tracks each node's parent so the edge back to where we came from isn't
+    mistaken for a cycle. Returns (parent, conflicting) -- `conflicting` holds
+    parts reachable via more than one mate path.
+    """
+    parent: dict[str, str | None] = {root_part: None}
+    order = [root_part]
+    conflicting: set[str] = set()
+    i = 0
+    while i < len(order):
+        cur = order[i]
+        i += 1
+        for nxt in adjacency.get(cur, []):
+            if nxt == parent.get(cur):
+                continue
+            if nxt in parent:
+                conflicting.add(nxt)
+                continue
+            parent[nxt] = cur
+            order.append(nxt)
+    return parent, conflicting
+
+
 def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
     """Cross-check `joints` entries and validate the mate graph is a single tree.
 
@@ -281,8 +363,6 @@ def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
     if not joints:
         return []
 
-    from blocks.validate import get_block
-
     errors: list[str] = []
     part_ids = {p["id"] for p in plan.get("parts", [])}
     parts_by_id = {p["id"]: p for p in plan.get("parts", [])}
@@ -292,50 +372,10 @@ def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
     graph_parts: set[str] = set()
 
     for joint in joints:
-        jid = joint.get("joint_id", "(unknown)")
-        block_name = joint["block"]
-        block = get_block(block_name, inventory_path)
-        if block is None:
-            errors.append(f"Joint '{jid}': unknown block '{block_name}' (not in inventory)")
-            continue
-        emits = block.get("emits")
-        if not emits:
-            errors.append(
-                f"Joint '{jid}': block '{block_name}' has no 'emits' descriptor "
-                "and cannot back a joint"
-            )
-            continue
-
-        members = joint["members"]
-        member_ids = [m["member"] for m in members]
-        part_refs = [m["part"] for m in members]
-
-        for mid in member_ids:
-            if mid not in emits:
-                errors.append(
-                    f"Joint '{jid}': member '{mid}' is not one of block '{block_name}' "
-                    f"emits {emits}"
-                )
-        if all(mid in emits for mid in member_ids) and len(set(member_ids)) < len(member_ids):
-            errors.append(
-                f"Joint '{jid}': the two members must reference distinct emits ids, "
-                f"got {member_ids}"
-            )
-
-        for p in part_refs:
-            if p not in part_ids:
-                errors.append(f"Joint '{jid}': part '{p}' is not a declared part id")
-
-        if part_refs[0] == part_refs[1]:
-            errors.append(
-                f"Joint '{jid}': both members reference the same part '{part_refs[0]}'; "
-                "a same-part matched pair uses the part's own 'unions' array, not a "
-                "'joints' entry"
-            )
-            continue
-
-        if part_refs[0] in part_ids and part_refs[1] in part_ids:
-            a, b = part_refs
+        edge, joint_errors = _check_single_joint(joint, part_ids, inventory_path)
+        errors.extend(joint_errors)
+        if edge is not None:
+            a, b = edge
             adjacency.setdefault(a, []).append(b)
             adjacency.setdefault(b, []).append(a)
             graph_parts.add(a)
@@ -351,23 +391,7 @@ def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
         errors.append(f"root_part '{root_part}' is not a declared part id")
         return errors
 
-    # BFS from root_part over the undirected mate graph, tracking each node's
-    # parent so the edge back to where we came from isn't mistaken for a cycle.
-    parent: dict[str, str | None] = {root_part: None}
-    order = [root_part]
-    conflicting: set[str] = set()
-    i = 0
-    while i < len(order):
-        cur = order[i]
-        i += 1
-        for nxt in adjacency.get(cur, []):
-            if nxt == parent.get(cur):
-                continue
-            if nxt in parent:
-                conflicting.add(nxt)
-                continue
-            parent[nxt] = cur
-            order.append(nxt)
+    parent, conflicting = _bfs_mate_tree(root_part, adjacency)
 
     for p in sorted(conflicting):
         errors.append(
