@@ -609,3 +609,80 @@ def test_plan_without_joints_needs_no_root_part(plan_file):
     # part keeps using its own placement mechanism unchanged.
     errors = validate_plan(plan_file(VALID_PLAN))
     assert errors == []
+
+
+# ---- request_log ---------------------------------------------------------
+
+
+def test_plan_without_request_log_is_valid(plan_file):
+    # Regression: existing plans (including eval-corpus goldens) have no
+    # request_log at all; absence must not be an error.
+    errors = validate_plan(plan_file(VALID_PLAN))
+    assert errors == []
+
+
+def test_well_formed_request_log_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make an enclosure"},
+        {"ts": "2026-07-19T10:05:00Z", "kind": "clarification", "text": "USB-C on the south wall"},
+        {"ts": "2026-07-19T11:00:00Z", "kind": "correction", "text": "Actually make it 5mm taller"},
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_request_log_unknown_kind_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "bogus", "text": "hi"}]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_request_log_empty_text_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": ""}]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_request_log_extra_property_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "extra": 1}
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_request_log_missing_field_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "initial"}]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_request_log_zero_initial_entries_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "clarification", "text": "hi"}]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_request_log_duplicate_initial_entries_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi"},
+        {"ts": "2026-07-19T10:05:00Z", "kind": "initial", "text": "again"},
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_request_log_non_first_initial_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "clarification", "text": "hi"},
+        {"ts": "2026-07-19T10:05:00Z", "kind": "initial", "text": "again"},
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
