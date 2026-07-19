@@ -126,6 +126,17 @@ PETG +0.1 mm (stringing); TPU +0.2 mm (3.0 mm+ walls, prefer flexible snaps); AB
 | North / East / South / West | +Y / +X / -Y / -X | |
 | Up / Down | +Z / -Z | Down is the print bed face, always Z = 0 |
 
+## Request log
+
+`BUILD_PLAN.json` may carry an optional `request_log`: an append-only, verbatim record
+of the initial request plus every clarification/correction, each entry `{ts, kind,
+text}` (`kind` one of `initial`/`clarification`/`correction`). The planning prompt
+(Phase 2) writes the `initial` entry and any Phase 1/2 clarifications. **Any later
+clarification or correction the user gives mid-build (Phase 3 onward) must be appended
+to `request_log` as a new dated entry — never edit, reorder, or remove existing
+entries.** A correction that triggers re-planning carries the existing log forward
+unchanged before the planning prompt appends the new entry.
+
 ## Generated script rules
 
 Every CadQuery script the pipeline produces must: begin with a flat

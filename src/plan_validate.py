@@ -94,6 +94,7 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
     errors.extend(_check_nonzero_dir(plan, "show_face"))
     errors.extend(_check_kinematics(plan, inventory_path))
     errors.extend(_check_joints(plan, inventory_path))
+    errors.extend(_check_request_log(plan))
 
     return errors
 
@@ -387,6 +388,21 @@ def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
             )
 
     return errors
+
+
+def _check_request_log(plan: dict[str, Any]) -> list[str]:
+    """When present, `request_log` must hold exactly one `initial` entry, first in
+    the array. Draft-7 has no minContains/maxContains, so this is checked here
+    instead of in the schema (see request-log design.md, Decision 2)."""
+    log = plan.get("request_log")
+    if not log:
+        return []
+    initial_idxs = [i for i, entry in enumerate(log) if entry.get("kind") == "initial"]
+    if len(initial_idxs) != 1:
+        return [f"request_log must contain exactly one 'initial' entry, found {len(initial_idxs)}"]
+    if initial_idxs[0] != 0:
+        return ["request_log's 'initial' entry must be first"]
+    return []
 
 
 def check_block_thinness(plan: dict[str, Any]) -> list[str]:

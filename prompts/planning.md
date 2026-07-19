@@ -181,6 +181,13 @@ Before committing to any dimension values, populate `planning_notes` with your r
     the gap in its `part_notes` as usual. Omit this note entirely when the design has no
     gear parts.
 
+14. **Populate `request_log` verbatim.** On a fresh plan, set it to the user's original
+    request as the `initial` entry, followed by one `clarification` entry per question you
+    asked and were answered during Phase 1/2 -- each entry `{ts, kind, text}` with the
+    user's wording unchanged (never summarized or paraphrased). On a re-plan (a correction
+    triggers regenerating the plan), carry the existing `request_log` forward unchanged and
+    append the new entry -- do not reset or drop prior history.
+
 ## Block inventory (name and use only)
 
 {{BLOCK_INVENTORY}}
@@ -246,6 +253,10 @@ profile is present above, take these values from what the user stated in Phase 1
       "step": 5
     }
   ],
+  "request_log": [
+    {"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": "<user's original request, verbatim>"},
+    {"ts": "2026-01-01T00:05:00Z", "kind": "clarification", "text": "<verbatim answer to a Phase 1/2 question>"}
+  ],
   "constraints": {
     "wall_min_mm": 1.2,
     "overhang_max_deg": 45,
@@ -259,7 +270,8 @@ Note: `plate` and `placement` are optional (default: own plate, identity placeme
 it makes strength scoring orientation-neutral -- no load axis is guessed -- which is only
 correct when the part truly carries no structural load); `load.type` defaults to
 `tension` when `load.dir` is given. Omit `kinematics` unless the model has a declared
-range of motion to verify.
+range of motion to verify. `request_log` is schema-optional but you SHOULD populate it
+per rule 14 -- verbatim, `initial` entry first, carried forward on any re-plan.
 
 ## FDM Design Guidelines
 
