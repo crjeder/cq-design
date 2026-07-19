@@ -118,3 +118,40 @@ Two facts about the existing design make the split cheap:
   the user already approved each stage)? Current answer: yes, same bar, cheap.
 - Parallel builders: worth it beyond ~3 parts, blocked on telemetry
   concurrency check.
+
+## Eval gate results (2026-07-17)
+
+Baseline = commit `143d34a` (pre-subagent-pipeline, pure inline). Post-change =
+commit `c86c23e` (this change plus unrelated commits landed in parallel). Both
+scored with `evals/run_evals.py --generate` over the full 10-case corpus, same
+(fixed) harness for both runs so the comparison is apples-to-apples.
+
+| metric | baseline (inline) | post-change (agent-routed) |
+|---|---|---|
+| first-shot rate | 0.90 | 0.90 |
+| mean attempts-to-pass | 1.10 | 1.10 |
+| mean chamfer (mm) | 3.883 (5/10 cases had a measurable STL) | 2.315 (2/10 cases had a measurable STL) |
+| cost per accepted part (USD) | 0.0499 | 0.0382 |
+
+**Decision: adopt.** First-shot rate and attempts-to-pass are identical; cost
+per accepted part is ~23% lower post-change. No regression on the metrics the
+adoption gate names.
+
+**Caveats (n=1 per case, not a controlled trial):**
+- `u-clip` regressed from first-shot pass (baseline) to a 2nd-attempt pass
+  (post-change) - the one individual-case regression in the run; aggregate is
+  unaffected but worth watching in future eval passes.
+- Chamfer coverage is low and uneven in both runs (STL-detection gap in
+  `find_produced_stl`, not something either pipeline mode controls) - not
+  treated as a real accuracy signal here, just noted as-is.
+- Getting real (non-`"unavailable"`) telemetry out of `--generate` required
+  five harness fixes to `evals/run_evals.py`, all committed on this branch
+  ahead of this change: (1) `shell=True` mangled multi-line prompts on
+  Windows, (2) headless sessions had no permission to write files, (3) one
+  stuck/timed-out case could crash the whole batch, (4) no way to resolve a
+  topology-clarification question headlessly (added an auto-resolve
+  instruction to the generation prompt), (5) surfaced repeatedly during
+  generation, not yet fixed: `skill/phase3_build.md`'s Model export bundling
+  list is missing `cq_verify.py` and `cq_compat.py` from the `lib/` copy list,
+  even though `blocks/hardware.py` and generated part scripts can depend on
+  them - a real, separate skill bug worth its own follow-up.

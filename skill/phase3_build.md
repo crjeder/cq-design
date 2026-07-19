@@ -505,7 +505,7 @@ tooling, STL, 3MF, previews) lives elsewhere:
     orientations.json, *.orientation.json   # build-process bookkeeping
   lib/                     # bundled tooling, copied so the project is skill-free
     mesh_io.py, model_export.py, print_orientation.py, placement.py,
-    mate_chain.py, units.py, exporters/, blocks/
+    mate_chain.py, units.py, cq_verify.py, cq_compat.py, exporters/, blocks/
   stl/
     <part_id>.stl, plate_<n>.stl
   preview/
@@ -520,10 +520,14 @@ Five steps:
 2. **Bundle the tooling into `lib/`** (a sibling of `build/`, not inside it -- `build/`
    holds only edited part scripts): create `lib/` if absent, then copy in the modules
    `mesh_io.py`, `model_export.py`, `print_orientation.py`, `placement.py`,
-   `mate_chain.py`, `units.py` and the packages `exporters/` and `blocks/` (copy the
-   whole directories, including their `*.json` data files). `build.py` adds `../lib`
-   (relative to its own location) to `sys.path` itself, so no further wiring is needed.
-   Re-running the skill overwrites `lib/` with the current `src/` versions.
+   `mate_chain.py`, `units.py`, `cq_verify.py`, `cq_compat.py` and the packages
+   `exporters/` and `blocks/` (copy the whole directories, including their `*.json`
+   data files). `cq_verify.py` and `cq_compat.py` are runtime dependencies of generated
+   part scripts and `blocks/hardware.py` respectively (the `cq_warehouse` compat shim) --
+   omitting either breaks the standalone project's own `build/build.py` re-run and its
+   mypy check on a fresh machine with no `$SKILL_DIR` to fall back on. `build.py` adds
+   `../lib` (relative to its own location) to `sys.path` itself, so no further wiring is
+   needed. Re-running the skill overwrites `lib/` with the current `src/` versions.
 
 3. **Scaffold the uv project files** at the working-directory root: copy
    `$SKILL_DIR/src/project_template/pyproject.toml` to `pyproject.toml` and
@@ -537,7 +541,7 @@ Five steps:
 # POSIX
 cp "$SKILL_DIR/src/build_template.py" build/build.py
 mkdir -p lib
-for m in mesh_io.py model_export.py print_orientation.py placement.py mate_chain.py units.py; do
+for m in mesh_io.py model_export.py print_orientation.py placement.py mate_chain.py units.py cq_verify.py cq_compat.py; do
     cp "$SKILL_DIR/src/$m" lib/
 done
 cp -r "$SKILL_DIR/src/exporters" "$SKILL_DIR/src/blocks" lib/
@@ -551,7 +555,7 @@ uv run python build/build.py
 # Windows (PowerShell)
 Copy-Item "$SKILL_DIR/src/build_template.py" build/build.py
 New-Item -ItemType Directory -Force lib | Out-Null
-'mesh_io.py','model_export.py','print_orientation.py','placement.py','mate_chain.py','units.py' |
+'mesh_io.py','model_export.py','print_orientation.py','placement.py','mate_chain.py','units.py','cq_verify.py','cq_compat.py' |
     ForEach-Object { Copy-Item "$SKILL_DIR/src/$_" lib/ }
 Copy-Item "$SKILL_DIR/src/exporters","$SKILL_DIR/src/blocks" lib/ -Recurse
 Copy-Item "$SKILL_DIR/src/project_template/pyproject.toml" pyproject.toml
