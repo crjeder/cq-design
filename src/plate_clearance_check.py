@@ -24,14 +24,11 @@ Usage:
     python3 plate_clearance_check.py --plan BUILD_PLAN.json --stl-dir dist
 """
 
-import argparse
-import json
 import os
-import sys
 from itertools import combinations
 from typing import cast
 
-from units import make_issue, stl_path
+from units import make_issue, run_stl_dir_check_cli, stl_path
 
 
 def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
@@ -120,21 +117,11 @@ def run_plate_clearance_check(plan: dict, stl_dir: str) -> list[dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Plate-clearance validation")
-    parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
-    parser.add_argument(
-        "--stl-dir",
-        required=True,
-        help="Directory holding exported assembled <part_id>.stl files",
+    run_stl_dir_check_cli(
+        "Plate-clearance validation",
+        "Directory holding exported assembled <part_id>.stl files",
+        run_plate_clearance_check,
     )
-    args = parser.parse_args()
-
-    with open(args.plan, encoding="utf-8") as f:
-        plan = json.load(f)
-    issues = run_plate_clearance_check(plan, args.stl_dir)
-    print(json.dumps({"issues": issues}, indent=2))
-    has_error = any(i["severity"] == "error" for i in issues)
-    sys.exit(1 if has_error else 0)
 
 
 if __name__ == "__main__":

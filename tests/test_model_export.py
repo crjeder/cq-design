@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 import trimesh
+from conftest import minimal_plan as _plan
 
 from model_export import export_model
 
@@ -19,22 +20,6 @@ def _write_part(parts_dir, pid):
     (parts_dir / f"{pid}.py").write_text(
         "import cadquery as cq\nresult = cq.Workplane('XY').box(20, 20, 4)\n"
     )
-
-
-def _plan(parts):
-    return {
-        "schema_version": 1,
-        "intent": "model export fixture",
-        "printer": "Bambu P1S",
-        "material": "PLA",
-        "nozzle_mm": 0.4,
-        "parts": parts,
-        "constraints": {
-            "wall_min_mm": 1.0,
-            "overhang_max_deg": 45,
-            "dimension_tolerance_mm": 0.2,
-        },
-    }
 
 
 def _read_3mf_objects(path):
@@ -489,6 +474,22 @@ def test_distinct_descriptions_keep_plain_names(tmp_path):
 # ---- joint-mate-entity: derived pose replaces placement ----
 
 
+def _hinge_joint(wall_dock=None):
+    """A single revolute door/wall `pin_hinge` `joints` entry: the mate-chain fixture
+    shared by the mate-chain and keep-out-zone-inheritance tests below."""
+    leaf_b = {"member": "leaf_b", "part": "wall"}
+    if wall_dock is not None:
+        leaf_b["dock"] = wall_dock
+    return [
+        {
+            "joint_id": "hinge1",
+            "block": "pin_hinge",
+            "params": {},
+            "members": [{"member": "leaf_a", "part": "door"}, leaf_b],
+        }
+    ]
+
+
 def test_mate_chain_part_pose_replaces_placement(tmp_path):
     """A part reached via a `joints` mate chain is positioned by its derived pose,
     not by (absent) `placement`."""
@@ -504,17 +505,7 @@ def test_mate_chain_part_pose_replaces_placement(tmp_path):
         ]
     )
     plan["root_part"] = "door"
-    plan["joints"] = [
-        {
-            "joint_id": "hinge1",
-            "block": "pin_hinge",
-            "params": {},
-            "members": [
-                {"member": "leaf_a", "part": "door"},
-                {"member": "leaf_b", "part": "wall", "dock": {"translate_mm": [0, 0, 10]}},
-            ],
-        }
-    ]
+    plan["joints"] = _hinge_joint(wall_dock={"translate_mm": [0, 0, 10]})
 
     result = export_model(plan, str(parts_dir), str(out))
 
@@ -601,17 +592,7 @@ def test_keep_out_zone_inherits_mate_chain_pose(tmp_path):
         ]
     )
     plan["root_part"] = "door"
-    plan["joints"] = [
-        {
-            "joint_id": "hinge1",
-            "block": "pin_hinge",
-            "params": {},
-            "members": [
-                {"member": "leaf_a", "part": "door"},
-                {"member": "leaf_b", "part": "wall", "dock": {"translate_mm": [0, 0, 10]}},
-            ],
-        }
-    ]
+    plan["joints"] = _hinge_joint(wall_dock={"translate_mm": [0, 0, 10]})
 
     result = export_model(plan, str(parts_dir), str(out))
 
@@ -642,17 +623,7 @@ def test_part_outside_mate_chain_still_uses_own_placement(tmp_path):
         ]
     )
     plan["root_part"] = "door"
-    plan["joints"] = [
-        {
-            "joint_id": "hinge1",
-            "block": "pin_hinge",
-            "params": {},
-            "members": [
-                {"member": "leaf_a", "part": "door"},
-                {"member": "leaf_b", "part": "wall"},
-            ],
-        }
-    ]
+    plan["joints"] = _hinge_joint()
 
     result = export_model(plan, str(parts_dir), str(out))
 
