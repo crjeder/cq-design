@@ -22,17 +22,17 @@ def box_workplane():
     return cq.Workplane("XY").box(10, 10, 10)
 
 
-def test_render_multi_view_produces_png(box_workplane, tmp_path):
-    output = tmp_path / "multi.png"
-    result = preview.render_multi_view(box_workplane, str(output))
-    assert result == str(output)
-    assert output.exists()
-    assert output.stat().st_size > 0
-
-
-def test_render_single_produces_png(box_workplane, tmp_path):
-    output = tmp_path / "single.png"
-    result = preview.render_single(box_workplane, str(output), title="Test Box")
+@pytest.mark.parametrize(
+    "render_fn, kwargs",
+    [
+        (preview.render_multi_view, {}),
+        (preview.render_single, {"title": "Test Box"}),
+    ],
+    ids=["multi_view", "single"],
+)
+def test_render_produces_png(box_workplane, tmp_path, render_fn, kwargs):
+    output = tmp_path / "out.png"
+    result = render_fn(box_workplane, str(output), **kwargs)
     assert result == str(output)
     assert output.exists()
     assert output.stat().st_size > 0
@@ -122,16 +122,6 @@ def test_render_cq_view_ortho_option(box_workplane):
     assert img.size == (200, 200)
 
 
-def test_render_detail_view_produces_png(box_workplane, tmp_path):
-    out = tmp_path / "detail.png"
-    result = preview.render_detail_view(
-        box_workplane, str(out), focus_center=(0, 0, 0), focus_size=4.0, view_size=200
-    )
-    assert result == str(out)
-    assert out.exists()
-    assert out.stat().st_size > 0
-
-
 def test_render_detail_view_is_higher_default_resolution_than_tile():
     assert preview.DETAIL_VIEW_SIZE > preview.DEFAULT_VIEW_SIZE
 
@@ -162,10 +152,18 @@ def test_render_detail_view_zoomed_fills_more_of_frame_than_whole_part(box_workp
     assert _bg_fraction(zoomed_path) < _bg_fraction(whole_path)
 
 
-def test_render_detail_section_produces_png(box_workplane, tmp_path):
-    out = tmp_path / "detail_section.png"
-    result = preview.render_detail_section(
-        box_workplane, str(out), "x", 0.0, focus_center=(0, 0, 0), focus_size=6.0, view_size=200
+@pytest.mark.parametrize(
+    "render_fn, args, focus_size",
+    [
+        (preview.render_detail_view, (), 4.0),
+        (preview.render_detail_section, ("x", 0.0), 6.0),
+    ],
+    ids=["detail_view", "detail_section"],
+)
+def test_render_detail_produces_png(box_workplane, tmp_path, render_fn, args, focus_size):
+    out = tmp_path / "detail.png"
+    result = render_fn(
+        box_workplane, str(out), *args, focus_center=(0, 0, 0), focus_size=focus_size, view_size=200
     )
     assert result == str(out)
     assert out.exists()
