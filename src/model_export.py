@@ -31,7 +31,7 @@ from exporters import _load_result
 from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
 from mate_chain import compute_mate_poses
 from placement import apply_cq, apply_matrix
-from units import keep_out_stl_name, plate_of, resolve_keep_out, resolve_unions
+from units import keep_out_stl_name, load_plan, plate_of, resolve_keep_out, resolve_unions
 
 _NAME_MAX_LEN = 64
 
@@ -228,8 +228,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    with open(args.plan, encoding="utf-8") as f:
-        plan = json.load(f)
+    plan = load_plan(args.plan)
     print_orientations = None
     if args.orientations:
         with open(args.orientations, encoding="utf-8") as f:

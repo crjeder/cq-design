@@ -30,13 +30,18 @@ Usage:
 """
 
 import argparse
-import json
 import os
-import sys
 from collections.abc import Iterator
 from typing import Any
 
-from units import make_issue, stl_path
+from units import (
+    add_plan_argument,
+    add_stl_dir_argument,
+    emit_issues,
+    load_plan,
+    make_issue,
+    stl_path,
+)
 
 _INVENTORY_PATH = os.path.join(os.path.dirname(__file__), "blocks", "inventory.json")
 
@@ -274,12 +279,8 @@ def run_kinematic_check(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Kinematic range-of-motion validation")
-    parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
-    parser.add_argument(
-        "--stl-dir",
-        required=True,
-        help="Directory holding exported <part_id>.stl files",
-    )
+    add_plan_argument(parser)
+    add_stl_dir_argument(parser, "Directory holding exported <part_id>.stl files")
     parser.add_argument(
         "--penetration-tol",
         type=float,
@@ -291,12 +292,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    with open(args.plan, encoding="utf-8") as f:
-        plan = json.load(f)
+    plan = load_plan(args.plan)
     issues = run_kinematic_check(plan, args.stl_dir, args.inventory, args.penetration_tol)
-    print(json.dumps({"issues": issues}, indent=2))
-    has_error = any(i["severity"] == "error" for i in issues)
-    sys.exit(1 if has_error else 0)
+    emit_issues(issues)
 
 
 if __name__ == "__main__":

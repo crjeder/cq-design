@@ -33,13 +33,11 @@ Usage:
 """
 
 import argparse
-import json
 import math
 import os
-import sys
 from typing import Any
 
-from units import make_issue
+from units import add_plan_argument, emit_issues, load_plan, make_issue
 
 # Interface types whose feature is emitted through a hooked `.cut`/`.union` boolean.
 _ASSERTABLE_TYPES = frozenset(
@@ -252,16 +250,13 @@ def run_feature_presence_check(plan: dict, script_path: str) -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Feature-presence validation")
-    parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
+    add_plan_argument(parser)
     parser.add_argument("--script", required=True, help="Path to the part script to re-run")
     args = parser.parse_args()
 
-    with open(args.plan, encoding="utf-8") as f:
-        plan = json.load(f)
+    plan = load_plan(args.plan)
     issues = run_feature_presence_check(plan, args.script)
-    print(json.dumps({"issues": issues}, indent=2))
-    has_error = any(i["severity"] == "error" for i in issues)
-    sys.exit(1 if has_error else 0)
+    emit_issues(issues)
 
 
 if __name__ == "__main__":

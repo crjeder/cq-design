@@ -13,6 +13,7 @@ import subprocess
 import sys
 
 import trimesh
+from conftest import minimal_plan
 
 # Tooling build.py imports, bundled into lib/ (a sibling of build/, mirrors the skill).
 _BUNDLE_MODULES = (
@@ -45,27 +46,11 @@ def _write_part(build_dir, pid, body):
     (build_dir / f"{pid}.py").write_text(body, encoding="utf-8")
 
 
-def _plan(parts):
-    return {
-        "schema_version": 1,
-        "intent": "build script fixture",
-        "printer": "Bambu P1S",
-        "material": "PLA",
-        "nozzle_mm": 0.4,
-        "parts": parts,
-        "constraints": {
-            "wall_min_mm": 1.0,
-            "overhang_max_deg": 45,
-            "dimension_tolerance_mm": 0.2,
-        },
-    }
-
-
 def _setup(tmp_path, skill_src, parts, part_bodies):
     """Lay out tmp/BUILD_PLAN.json + tmp/build/{parts, build.py}; return build dir."""
     build_dir = tmp_path / "build"
     build_dir.mkdir()
-    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(_plan(parts)), encoding="utf-8")
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(minimal_plan(parts)), encoding="utf-8")
     for pid, body in part_bodies.items():
         _write_part(build_dir, pid, body)
     _render_build_py(build_dir, skill_src)

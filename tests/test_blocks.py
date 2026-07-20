@@ -306,20 +306,22 @@ def test_counterbore_hole():
     assert abs(bb.zlen - 10.0) < 0.1
 
 
-def test_counterbore_hole_as_cut():
-    slab = cq.Workplane("XY").box(20, 20, 10)
-    r = slab.cut(counterbore_hole(3.4, 5.5, 3.0, 10.0))
-    assert _is_solid(r)
-
-
 def test_countersink_hole():
     r = countersink_hole(d_screw=3.2, d_sink=6.0, depth=10.0)
     assert _is_solid(r)
 
 
-def test_countersink_hole_as_cut():
+@pytest.mark.parametrize(
+    "hole_fn, args",
+    [
+        (counterbore_hole, (3.4, 5.5, 3.0, 10.0)),
+        (countersink_hole, (3.2, 6.0, 10.0)),
+    ],
+    ids=["counterbore", "countersink"],
+)
+def test_hole_as_cut(hole_fn, args):
     slab = cq.Workplane("XY").box(20, 20, 10)
-    r = slab.cut(countersink_hole(3.2, 6.0, 10.0))
+    r = slab.cut(hole_fn(*args))
     assert _is_solid(r)
 
 
@@ -767,9 +769,10 @@ def _block_with_interface(itype):
     }
 
 
-def test_union_interface_type_accepted():
-    """A block declaring a `union` interface (fused into the parent body) validates."""
-    errors = validate_inventory([_block_with_interface("union")])
+@pytest.mark.parametrize("itype", ["union", "joint_axis", "dovetail_corner"])
+def test_interface_type_accepted(itype):
+    """A block declaring an interface type from the allowed vocabulary validates."""
+    errors = validate_inventory([_block_with_interface(itype)])
     assert errors == [], errors
 
 
@@ -781,18 +784,6 @@ def test_unknown_interface_type_still_rejected():
 def test_shipped_inventory_still_valid():
     """Regression guard: adding `union` to the vocabulary keeps inventory.json valid."""
     assert validate_inventory(load_inventory()) == []
-
-
-def test_joint_axis_interface_type_accepted():
-    """A block declaring the motion-agnostic `joint_axis` kinematic reference validates."""
-    errors = validate_inventory([_block_with_interface("joint_axis")])
-    assert errors == [], errors
-
-
-def test_dovetail_corner_interface_type_accepted():
-    """A block declaring the new `dovetail_corner` interface type validates."""
-    errors = validate_inventory([_block_with_interface("dovetail_corner")])
-    assert errors == [], errors
 
 
 def test_dovetail_corner_joint_declares_emits():
