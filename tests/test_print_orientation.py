@@ -3,6 +3,7 @@
 """Tests for the print-orientation optimizer (trimesh + numpy, no CadQuery)."""
 
 import numpy as np
+import pytest
 import trimesh
 
 from print_orientation import (
@@ -103,81 +104,65 @@ def test_support_increases_with_exposed_overhang():
     assert on_side > standing
 
 
-def test_strength_wins_outside_band():
-    # Higher strength but more support vs. lower strength with no support: the
-    # strong one wins because the gap exceeds the band.
-    candidates = [
-        {"idx": 0, "strength": 0.95, "support": 100.0, "bed_contact": 5.0},
-        {"idx": 1, "strength": 0.40, "support": 0.0, "bed_contact": 50.0},
-    ]
-    assert _select(candidates, "strength")["idx"] == 0
-
-
-def test_support_breaks_a_strength_tie():
-    # Two candidates within the band are tied on strength; least support wins.
-    candidates = [
-        {"idx": 0, "strength": 0.99, "support": 80.0, "bed_contact": 10.0},
-        {"idx": 1, "strength": 0.98, "support": 12.0, "bed_contact": 10.0},
-    ]
-    assert _select(candidates, "strength")["idx"] == 1
-
-
-def test_min_support_mode_minimizes_support():
-    # Strongest candidate has heavy support; min_support picks the low-support one
-    # even though it is much weaker (outside any strength consideration).
-    candidates = [
-        {
-            "idx": 0,
-            "strength": 0.95,
-            "support": 100.0,
-            "bed_contact": 5.0,
-            "visual": 0.1,
-        },
-        {
-            "idx": 1,
-            "strength": 0.40,
-            "support": 2.0,
-            "bed_contact": 50.0,
-            "visual": 0.2,
-        },
-    ]
-    assert _select(candidates, "min_support")["idx"] == 1
-
-
-def test_min_support_strength_breaks_a_support_tie():
-    # Two candidates within the support band; best strength wins the tie.
-    candidates = [
-        {
-            "idx": 0,
-            "strength": 0.50,
-            "support": 5.0,
-            "bed_contact": 10.0,
-            "visual": 0.1,
-        },
-        {
-            "idx": 1,
-            "strength": 0.90,
-            "support": 5.5,
-            "bed_contact": 10.0,
-            "visual": 0.1,
-        },
-    ]
-    assert _select(candidates, "min_support")["idx"] == 1
-
-
-def test_visual_mode_picks_best_visual():
-    # Best visual wins over a stronger, lower-support candidate.
-    candidates = [
-        {"idx": 0, "strength": 0.95, "support": 0.0, "bed_contact": 5.0, "visual": 0.1},
-        {
-            "idx": 1,
-            "strength": 0.40,
-            "support": 50.0,
-            "bed_contact": 5.0,
-            "visual": 0.9,
-        },
-    ]
-    assert _select(candidates, "visual_quality")["idx"] == 1
+@pytest.mark.parametrize(
+    "candidates, mode, expected_idx",
+    [
+        pytest.param(
+            [
+                {"idx": 0, "strength": 0.95, "support": 100.0, "bed_contact": 5.0},
+                {"idx": 1, "strength": 0.40, "support": 0.0, "bed_contact": 50.0},
+            ],
+            "strength",
+            0,
+            id="strength_wins_outside_band",
+            # Higher strength but more support vs. lower strength with no support: the
+            # strong one wins because the gap exceeds the band.
+        ),
+        pytest.param(
+            [
+                {"idx": 0, "strength": 0.99, "support": 80.0, "bed_contact": 10.0},
+                {"idx": 1, "strength": 0.98, "support": 12.0, "bed_contact": 10.0},
+            ],
+            "strength",
+            1,
+            id="support_breaks_a_strength_tie",
+            # Two candidates within the band are tied on strength; least support wins.
+        ),
+        pytest.param(
+            [
+                {"idx": 0, "strength": 0.95, "support": 100.0, "bed_contact": 5.0, "visual": 0.1},
+                {"idx": 1, "strength": 0.40, "support": 2.0, "bed_contact": 50.0, "visual": 0.2},
+            ],
+            "min_support",
+            1,
+            id="min_support_mode_minimizes_support",
+            # Strongest candidate has heavy support; min_support picks the low-support one
+            # even though it is much weaker (outside any strength consideration).
+        ),
+        pytest.param(
+            [
+                {"idx": 0, "strength": 0.50, "support": 5.0, "bed_contact": 10.0, "visual": 0.1},
+                {"idx": 1, "strength": 0.90, "support": 5.5, "bed_contact": 10.0, "visual": 0.1},
+            ],
+            "min_support",
+            1,
+            id="min_support_strength_breaks_a_support_tie",
+            # Two candidates within the support band; best strength wins the tie.
+        ),
+        pytest.param(
+            [
+                {"idx": 0, "strength": 0.95, "support": 0.0, "bed_contact": 5.0, "visual": 0.1},
+                {"idx": 1, "strength": 0.40, "support": 50.0, "bed_contact": 5.0, "visual": 0.9},
+            ],
+            "visual_quality",
+            1,
+            id="visual_mode_picks_best_visual",
+            # Best visual wins over a stronger, lower-support candidate.
+        ),
+    ],
+)
+def test_select_picks_expected_candidate(candidates, mode, expected_idx):
+    assert _select(candidates, mode)["idx"] == expected_idx
 
 
 def test_unknown_mode_rejected():

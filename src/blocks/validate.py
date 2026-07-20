@@ -122,21 +122,6 @@ def get_block(name: str, path: str = _INVENTORY_PATH) -> dict[str, Any] | None:
     return None
 
 
-def get_blocks_for_part(
-    block_names: list[str], path: str = _INVENTORY_PATH
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Return (found_blocks, missing_names) for a list of block names."""
-    inventory = {e["name"]: e for e in load_inventory(path)}
-    found = []
-    missing = []
-    for name in block_names:
-        if name in inventory:
-            found.append(inventory[name])
-        else:
-            missing.append(name)
-    return found, missing
-
-
 def search_inventory(keyword: str, path: str = _INVENTORY_PATH) -> list[dict[str, Any]]:
     """Return inventory entries whose name/use/params/interfaces mention `keyword`.
 

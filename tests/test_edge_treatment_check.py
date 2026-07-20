@@ -4,6 +4,8 @@ Runs real CadQuery scripts through the fillet/chamfer recording hook, so each te
 takes a couple of seconds.
 """
 
+import pytest
+
 from edge_treatment_check import run_edge_treatment_check
 
 
@@ -22,16 +24,29 @@ def _identity(*uids):
     return {uid: {"rotate": []} for uid in uids}
 
 
-def test_compliant_part_has_no_findings(tmp_path):
-    """Vertical edges filleted + horizontal edges chamfered follows the rule."""
-    script = _script(
-        tmp_path,
-        "body",
-        "import cadquery as cq\n"
-        "result = cq.Workplane('XY').box(20, 20, 10)"
-        ".edges('|Z').fillet(2).edges('|X or |Y').chamfer(1)\n",
-    )
-    assert run_edge_treatment_check(_plan("body"), script, _identity("body")) == []
+@pytest.mark.parametrize(
+    "script_name, part_id, body",
+    [
+        (
+            "body",
+            "body",
+            "import cadquery as cq\n"
+            "result = cq.Workplane('XY').box(20, 20, 10)"
+            ".edges('|Z').fillet(2).edges('|X or |Y').chamfer(1)\n",
+        ),
+        (
+            "orphan",
+            "something_else",
+            "import cadquery as cq\n"
+            "result = cq.Workplane('XY').box(10, 10, 10).edges('|Z').chamfer(1)\n",
+        ),
+    ],
+    ids=["compliant_part", "unknown_script"],
+)
+def test_no_findings(tmp_path, script_name, part_id, body):
+    """No findings when the treatment follows the rule, or the script's part id is unknown."""
+    script = _script(tmp_path, script_name, body)
+    assert run_edge_treatment_check(_plan(part_id), script, _identity(script_name)) == []
 
 
 def test_no_edge_treatment_returns_empty(tmp_path):
@@ -61,15 +76,26 @@ def test_chamfered_vertical_edge_is_flagged(tmp_path):
     assert issue["count"] == 4
 
 
-def test_filleted_horizontal_edge_is_flagged(tmp_path):
-    """Filleting a horizontal edge should recommend a chamfer."""
-    script = _script(
-        tmp_path,
-        "bad",
-        "import cadquery as cq\n"
-        "result = cq.Workplane('XY').box(20, 20, 10).edges('|X').fillet(1)\n",
-    )
-    issues = run_edge_treatment_check(_plan("bad"), script, _identity("bad"))
+@pytest.mark.parametrize(
+    "script_name, body",
+    [
+        (
+            "bad",
+            "import cadquery as cq\n"
+            "result = cq.Workplane('XY').box(20, 20, 10).edges('|X').fillet(1)\n",
+        ),
+        (
+            "rim",
+            "import cadquery as cq\n"
+            "result = cq.Workplane('XY').circle(10).extrude(15).edges('>Z').fillet(2)\n",
+        ),
+    ],
+    ids=["straight_edge", "round_rim"],
+)
+def test_filleted_horizontal_edge_is_flagged(tmp_path, script_name, body):
+    """Filleting a horizontal edge (straight or a round rim) should recommend a chamfer."""
+    script = _script(tmp_path, script_name, body)
+    issues = run_edge_treatment_check(_plan(script_name), script, _identity(script_name))
     assert len(issues) == 1
     assert issues[0]["applied"] == "fillet"
     assert issues[0]["recommended"] == "chamfer"
@@ -104,21 +130,6 @@ def test_orientation_transform_reclassifies_edge(tmp_path):
     assert issues[0]["edge_orientation"] == "horizontal"
 
 
-def test_filleted_top_rim_is_flagged(tmp_path):
-    """A filleted horizontal round rim (cylinder top edge) is a horizontal edge."""
-    script = _script(
-        tmp_path,
-        "rim",
-        "import cadquery as cq\n"
-        "result = cq.Workplane('XY').circle(10).extrude(15).edges('>Z').fillet(2)\n",
-    )
-    issues = run_edge_treatment_check(_plan("rim"), script, _identity("rim"))
-    assert len(issues) == 1
-    assert issues[0]["applied"] == "fillet"
-    assert issues[0]["recommended"] == "chamfer"
-    assert issues[0]["edge_orientation"] == "horizontal"
-
-
 def test_multi_union_attributes_to_correct_union(tmp_path):
     """A violating treatment is reported under the union it belongs to, not its sibling."""
     script = _script(
@@ -133,17 +144,6 @@ def test_multi_union_attributes_to_correct_union(tmp_path):
     issues = run_edge_treatment_check(plan, script, _identity("a", "b"))
     assert len(issues) == 1
     assert issues[0]["union"] == "a"
-
-
-def test_unknown_script_returns_empty(tmp_path):
-    """A script with no matching part id in the plan is skipped."""
-    script = _script(
-        tmp_path,
-        "orphan",
-        "import cadquery as cq\n"
-        "result = cq.Workplane('XY').box(10, 10, 10).edges('|Z').chamfer(1)\n",
-    )
-    assert run_edge_treatment_check(_plan("something_else"), script, _identity("orphan")) == []
 
 
 def test_missing_orientation_skips_instead_of_authored_frame(tmp_path):
