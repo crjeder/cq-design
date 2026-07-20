@@ -3,20 +3,43 @@ import os
 import subprocess
 import sys
 
+import pytest
+from conftest import WRAPPER
+from conftest import run_wrapper as run
+
 SRC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 
-WRAPPER = os.path.join(SRC_DIR, "run_cadquery_model.py")
 RENDER_PREVIEW = os.path.join(SRC_DIR, "render_preview.py")
 
 
-def run(script_path, *extra_args):
-    result = subprocess.run(
-        [sys.executable, WRAPPER, str(script_path), *extra_args],
+def _run_typed_errors(tmp_path, name, body, error_type):
+    """Write `body` as tmp_path/name, run the wrapper, and return `(rc, data, matching_errors)`
+    filtered to `error_type`."""
+    script = tmp_path / name
+    script.write_text(body)
+    rc, data = run(script)
+    return rc, data, [e for e in data["errors"] if e["type"] == error_type]
+
+
+def _run_render_preview_cli(tmp_path, output_name, *extra_args):
+    """Write a standard box-model script and run render_preview.py's CLI against it."""
+    script = tmp_path / "box_model.py"
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
+    output = tmp_path / output_name
+    proc = subprocess.run(
+        [
+            sys.executable,
+            RENDER_PREVIEW,
+            "--script",
+            str(script),
+            "--output",
+            str(output),
+            *extra_args,
+        ],
         capture_output=True,
         text=True,
     )
-    data = json.loads(result.stdout) if result.stdout.strip() else {}
-    return result.returncode, data
+    return proc, output
 
 
 # ---- core behavior (exit codes and success flag) ----
@@ -182,15 +205,15 @@ def test_multi_union_dict_result_validates_each_union(tmp_path):
 def test_disconnected_body_single_union_reported(tmp_path):
     """A single-union part whose `result` is two non-overlapping solids fused into one
     Workplane is flagged as a disconnected_body with the union id and component count."""
-    script = tmp_path / "split.py"
-    script.write_text(
+    _, _, disc = _run_typed_errors(
+        tmp_path,
+        "split.py",
         "import cadquery as cq\n"
         "a = cq.Workplane('XY').box(10, 10, 10)\n"
         "b = cq.Workplane('XY').box(10, 10, 10).translate((50, 0, 0))\n"
-        "result = a.union(b)\n"
+        "result = a.union(b)\n",
+        "disconnected_body",
     )
-    _, data = run(script)
-    disc = [e for e in data["errors"] if e["type"] == "disconnected_body"]
     assert len(disc) == 1
     assert disc[0]["component_count"] == 2
     assert disc[0]["union"] == "split"
@@ -270,18 +293,18 @@ def test_translate_stderr_unrelated_runtimeerror_not_misclassified():
 
 def test_silent_boolean_end_to_end(tmp_path):
     """A script whose verify_boolean fires yields a typed silent_boolean error."""
-    script = tmp_path / "silent.py"
-    script.write_text(
+    rc, data, sb = _run_typed_errors(
+        tmp_path,
+        "silent.py",
         "import cadquery as cq\n"
         "from cq_verify import verify_boolean\n"
         "body = cq.Workplane('XY').box(20, 20, 20)\n"
         "tool = cq.Workplane('XY').transformed(offset=(100, 0, 0)).box(5, 5, 5)\n"
-        "result = verify_boolean(body, body.cut(tool), 'cut', 'vent_slot')\n"
+        "result = verify_boolean(body, body.cut(tool), 'cut', 'vent_slot')\n",
+        "silent_boolean",
     )
-    rc, data = run(script)
     assert rc == 1
     assert data["success"] is False
-    sb = [e for e in data["errors"] if e["type"] == "silent_boolean"]
     assert len(sb) == 1
     assert sb[0]["label"] == "vent_slot"
 
@@ -337,15 +360,25 @@ def test_preview_dir_redirects_output(good_script, tmp_path):
     assert os.path.exists(data["previews"][0])
 
 
-def test_preview_extra_section(good_script):
-    """--preview --extra-section x=2 threads a targeted cut through to
-    render_preview.py and writes it as a separate section file (tile + 1 section)."""
-    rc, data = run(good_script, "--preview", "--extra-section", "x=2")
+@pytest.mark.parametrize(
+    "flag_args, expected_substrings",
+    [
+        (("--extra-section", "x=2"), ("section",)),
+        (("--detail", "name=corner;center=4,4,4;size=3"), ("corner", "detail")),
+    ],
+    ids=["extra_section", "detail_view"],
+)
+def test_preview_second_file_named(good_script, flag_args, expected_substrings):
+    """--preview plus a targeted flag (--extra-section or --detail) threads through to
+    render_preview.py and writes a second, appropriately-named preview file."""
+    rc, data = run(good_script, "--preview", *flag_args)
     assert rc == 0
     assert len(data["previews"]) == 2
     assert os.path.exists(data["previews"][0])
-    assert os.path.exists(data["previews"][1])
-    assert "section" in os.path.basename(data["previews"][1])
+    second = data["previews"][1]
+    assert os.path.exists(second)
+    for substr in expected_substrings:
+        assert substr in os.path.basename(second)
 
 
 def test_preview_extra_section_repeatable(good_script):
@@ -356,19 +389,6 @@ def test_preview_extra_section_repeatable(good_script):
     assert len(data["previews"]) == 3
     for path in data["previews"]:
         assert os.path.exists(path)
-
-
-def test_preview_detail_view_adds_named_file_to_previews(good_script):
-    """--detail produces an extra, feature-named file and appends it to `previews`
-    (the main overview stays `previews[0]`)."""
-    rc, data = run(good_script, "--preview", "--detail", "name=corner;center=4,4,4;size=3")
-    assert rc == 0
-    assert len(data["previews"]) == 2
-    assert os.path.exists(data["previews"][0])
-    detail_path = data["previews"][1]
-    assert os.path.exists(detail_path)
-    assert "corner" in os.path.basename(detail_path)
-    assert "detail" in os.path.basename(detail_path)
 
 
 def test_preview_detail_with_section_adds_two_named_files(good_script):
@@ -443,81 +463,34 @@ def test_render_preview_cli_missing_result(tmp_path):
     assert "result" in proc.stderr.lower()
 
 
-def test_render_preview_cli_rejects_invalid_extra_section(tmp_path):
-    """render_preview.py exits 1 on a malformed --extra-section spec (bad axis, no
-    value, non-numeric value) instead of crashing deeper in preview rendering."""
-    script = tmp_path / "box_model.py"
-    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
-    output = tmp_path / "out.png"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            RENDER_PREVIEW,
-            "--script",
-            str(script),
-            "--output",
-            str(output),
-            "--extra-section",
-            "w=5",  # invalid axis
-        ],
-        capture_output=True,
-        text=True,
-    )
+@pytest.mark.parametrize(
+    "extra_args, expected_substring",
+    [
+        (("--extra-section", "w=5"), "extra-section"),  # invalid axis
+        (("--detail", "name=mount_hole;center=8,6,3"), "detail"),  # missing size=
+    ],
+    ids=["invalid_extra_section", "invalid_detail_spec"],
+)
+def test_render_preview_cli_rejects_invalid_spec(tmp_path, extra_args, expected_substring):
+    """render_preview.py exits 1 on a malformed --extra-section/--detail spec instead of
+    crashing deeper in preview rendering."""
+    proc, output = _run_render_preview_cli(tmp_path, "out.png", *extra_args)
     assert proc.returncode == 1
-    assert "extra-section" in proc.stderr.lower()
+    assert expected_substring in proc.stderr.lower()
     assert not output.exists()
 
 
 def test_render_preview_cli_detail_produces_named_files(tmp_path):
     """render_preview.py --detail produces a feature-named detail file next to
     the main output, and reports it in the final extra_previews JSON line."""
-    script = tmp_path / "box_model.py"
-    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
-    output = tmp_path / "box_preview.png"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            RENDER_PREVIEW,
-            "--script",
-            str(script),
-            "--output",
-            str(output),
-            "--detail",
-            "name=mount_hole;center=8,6,3;size=5",
-        ],
-        capture_output=True,
-        text=True,
+    proc, output = _run_render_preview_cli(
+        tmp_path, "box_preview.png", "--detail", "name=mount_hole;center=8,6,3;size=5"
     )
     assert proc.returncode == 0, proc.stderr
-    detail_path = tmp_path / "box_preview_detail_mount_hole.png"
+    detail_path = output.parent / "box_preview_detail_mount_hole.png"
     assert detail_path.exists()
     assert detail_path.stat().st_size > 0
 
     last_line = proc.stdout.strip().splitlines()[-1]
     reported = json.loads(last_line)
     assert reported["extra_previews"] == [str(detail_path)]
-
-
-def test_render_preview_cli_rejects_invalid_detail_spec(tmp_path):
-    """render_preview.py exits 1 on a malformed --detail spec (missing a
-    required field) instead of crashing deeper in preview rendering."""
-    script = tmp_path / "box_model.py"
-    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
-    output = tmp_path / "out.png"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            RENDER_PREVIEW,
-            "--script",
-            str(script),
-            "--output",
-            str(output),
-            "--detail",
-            "name=mount_hole;center=8,6,3",  # missing size=
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 1
-    assert "detail" in proc.stderr.lower()
-    assert not output.exists()

@@ -36,11 +36,10 @@ import argparse
 import json
 import math
 import os
-import sys
 from typing import Any
 
 from placement import transform_direction
-from units import make_issue, resolve_unions
+from units import add_plan_argument, emit_issues, load_plan, make_issue, resolve_unions
 
 # An edge whose (build-frame) tangent is within this of horizontal counts as a horizontal
 # edge; within this of vertical counts as a vertical edge. ~5 deg, matching the tolerance
@@ -290,7 +289,7 @@ def run_edge_treatment_check(plan: dict, script_path: str, orientations: dict) -
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Chamfer / Fillet edge-treatment validation")
-    parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
+    add_plan_argument(parser)
     parser.add_argument("--script", required=True, help="Path to the part's <id>.py script")
     parser.add_argument(
         "--orientations",
@@ -300,16 +299,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    with open(args.plan, encoding="utf-8") as f:
-        plan = json.load(f)
+    plan = load_plan(args.plan)
     orientations = {}
     if args.orientations and os.path.isfile(args.orientations):
         with open(args.orientations, encoding="utf-8") as f:
             orientations = json.load(f)
 
     issues = run_edge_treatment_check(plan, args.script, orientations)
-    print(json.dumps({"issues": issues}, indent=2))
-    sys.exit(0)
+    emit_issues(issues, fail_on_error=False)
 
 
 if __name__ == "__main__":

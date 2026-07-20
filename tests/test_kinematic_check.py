@@ -314,20 +314,20 @@ def test_plan_validate_accepts_valid_placement_and_plate(tmp_path):
     assert errors == []
 
 
-def test_plan_validate_rejects_unknown_block(tmp_path):
+@pytest.mark.parametrize(
+    "block_name, expected_substring",
+    [
+        ("no_such_block", "unknown block 'no_such_block'"),
+        ("finger_joint", "has no 'dof' descriptor"),  # exists but carries no dof
+    ],
+    ids=["unknown_block", "block_without_dof"],
+)
+def test_plan_validate_rejects_bad_block(tmp_path, block_name, expected_substring):
     entry = _revolute_entry([0, 90])
-    entry["block"] = "no_such_block"
+    entry["block"] = block_name
     plan_path = _write_plan(tmp_path, [entry])
     errors = validate_plan(plan_path)
-    assert any("unknown block 'no_such_block'" in e for e in errors)
-
-
-def test_plan_validate_rejects_block_without_dof(tmp_path):
-    entry = _revolute_entry([0, 90])
-    entry["block"] = "finger_joint"  # exists but carries no dof
-    plan_path = _write_plan(tmp_path, [entry])
-    errors = validate_plan(plan_path)
-    assert any("has no 'dof' descriptor" in e for e in errors)
+    assert any(expected_substring in e for e in errors)
 
 
 def test_plan_validate_rejects_unit_field(tmp_path):

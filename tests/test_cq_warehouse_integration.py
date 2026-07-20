@@ -1,17 +1,12 @@
+# mypy: ignore-errors
+# type: ignore  # CAD/trimesh stub-union noise; tests are ruff-linted, not type-checked
 """Integration tests for cq_warehouse hardware catalog."""
 
-import json
 import os
-import subprocess
-import sys
 
 import pytest
+from conftest import run_wrapper as run
 
-WRAPPER = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "src",
-    "run_cadquery_model.py",
-)
 FIXTURE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "fixtures",
@@ -19,16 +14,6 @@ FIXTURE = os.path.join(
 )
 
 pytest.importorskip("cq_warehouse", reason="cq_warehouse not installed")
-
-
-def run(script_path, *extra_args):
-    result = subprocess.run(
-        [sys.executable, WRAPPER, str(script_path), *extra_args],
-        capture_output=True,
-        text=True,
-    )
-    data = json.loads(result.stdout) if result.stdout.strip() else {}
-    return result.returncode, data
 
 
 def test_cq_warehouse_script_succeeds(tmp_path):

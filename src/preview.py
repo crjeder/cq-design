@@ -138,15 +138,6 @@ def _cut_half(shape, axis: str, center: float, remove_positive: bool = True):
         return None
 
 
-def _blank_tile(size: int):
-    """Return a solid-background PIL Image with an 'N/A' label (fallback tile)."""
-    img = Image.new("RGB", (size, size), _BG_COLOR)
-    draw = ImageDraw.Draw(img)
-    font = _get_font(14)
-    draw.text((size // 2, size // 2), "N/A", fill="#888888", font=font, anchor="mm")
-    return img
-
-
 # ---------------------------------------------------------------------------
 # Font helper
 # ---------------------------------------------------------------------------
