@@ -17,13 +17,10 @@ Usage:
     python3 keep_out_check.py --plan BUILD_PLAN.json --stl-dir dist
 """
 
-import argparse
 import glob
-import json
 import os
-import sys
 
-from units import KEEP_OUT_KEY, make_issue, stl_path
+from units import KEEP_OUT_KEY, make_issue, run_stl_dir_check_cli, stl_path
 
 _ZONE_PREFIX = f"{KEEP_OUT_KEY}__"
 
@@ -123,21 +120,11 @@ def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Keep-out-zone validation")
-    parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
-    parser.add_argument(
-        "--stl-dir",
-        required=True,
-        help="Directory holding exported <union_id>.stl and keep_out__*.stl files",
+    run_stl_dir_check_cli(
+        "Keep-out-zone validation",
+        "Directory holding exported <union_id>.stl and keep_out__*.stl files",
+        run_keep_out_check,
     )
-    args = parser.parse_args()
-
-    with open(args.plan, encoding="utf-8") as f:
-        plan = json.load(f)
-    issues = run_keep_out_check(plan, args.stl_dir)
-    print(json.dumps({"issues": issues}, indent=2))
-    has_error = any(i["severity"] == "error" for i in issues)
-    sys.exit(1 if has_error else 0)
 
 
 if __name__ == "__main__":
