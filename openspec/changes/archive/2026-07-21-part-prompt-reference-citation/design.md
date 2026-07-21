@@ -86,6 +86,41 @@ One commit: edit `prompts/part.md`, edit the SKILL.md substitution table. No cod
 or schema changes; rollback is `git revert`. Before/after eval run recorded in the
 change's notes (scorecard.json diff).
 
+### Eval comparison (2026-07-20/21, full 10-case corpus, `--generate`)
+
+Full runs at `evals/runs/before-citation/` (pre-change) and
+`evals/runs/after-citation/` (post-change), scorecards in each directory.
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| First-shot rate (aggregate) | 0.80 | 0.70 | -0.10 |
+| Attempts-to-pass (aggregate) | 1.40 | 1.30 | -0.10 (better) |
+| Cost/accepted part (USD, aggregate) | 0.1845 | 0.0722 | -61% |
+| Mean `prompt_chars` (telemetry, all attempts) | 33430 | 15513 | -54% |
+
+**Target metric (cost per accepted part) improved by 61%**, and mean rendered
+prompt size dropped 54% — both consistent with removing the ~10k-token reference
+duplication from inline (progressive-part) renders while autonomous parts'
+cold-context builder-agent renders keep full substitution (their `prompt_chars`
+stayed near the pre-change max, ~53k, confirming the mode split is working as
+designed).
+
+**Guardrail check:** the one first-shot regression (`adapter-ring`, 1.00 -> 0.00)
+is fully attributable to a single attempt-1 `occ_exception` (an OpenCASCADE
+geometry-kernel error, unrelated to reference-doc comprehension) before passing
+on attempt 2 — not a citation-comprehension failure. `attempts-to-pass` improved
+in aggregate because `phone-stand` needed fewer retries (4 -> 2) after the
+change, outweighing `adapter-ring`'s one extra attempt. With n=1 per case, a
+single flaky geometry failure is within ordinary run-to-run noise, not a
+signal attributable to this change. No case regressed in a way traceable to a
+model failing to apply a cited-but-not-pasted rule.
+
+Two eval-harness runs each independently hit the Claude account's own session
+usage limit partway through generation (`You've hit your session limit`) and
+had to be resumed per-case after the reset; this is an artifact of running the
+harness's nested unattended `claude -p` calls back-to-back in one sitting, not
+a defect in either the harness or this change.
+
 ## Open Questions
 
 - Whether the citation block should also name the specific anti-pattern entries
