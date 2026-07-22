@@ -695,3 +695,21 @@ def test_request_log_non_first_initial_rejected(plan_file):
     ]
     errors = validate_plan(plan_file(plan))
     assert len(errors) >= 1
+
+
+def test_valid_archetype_passes(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["archetype"] = "enclosure-body"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_unknown_archetype_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["archetype"] = "no-such-shape"
+    errors = validate_plan(plan_file(plan))
+    assert any("no-such-shape" in e and "body" in e for e in errors)
+
+
+def test_plan_without_archetypes_stays_valid(plan_file):
+    # VALID_PLAN carries no `archetype` field on any part.
+    assert validate_plan(plan_file(VALID_PLAN)) == []

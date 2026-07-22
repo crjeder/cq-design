@@ -114,6 +114,30 @@ progressive part's retries stay inline; a part never switches modes mid-build.
 | `{{CQ_REFERENCE}}` | **Cold** (builder agent / future `claude -p`): full contents of `CadQuery Pattern Reference.md`, then the full contents of `CadQuery Anti-Patterns.md` (appended **always**, for every part), then `emboss_text.md` **only when this part involves text/emboss** (its `description`, `part_notes`, or any `interfaces` entry mentions text/engrave/emboss/label; otherwise omit it — the pattern reference already carries the basic `.text()` idiom). **Inline** (progressive part, main session): a citation naming `reference/CadQuery Pattern Reference.md` and `reference/CadQuery Anti-Patterns.md` as already-in-context documents to apply, do not paste their contents; name `reference/emboss_text.md` too under the same text/emboss gate. |
 | `{{FDM_GUIDELINES}}` | Sections from `FDM 3D Print Design Guidelines.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always`. **Cold:** inject those sections' full text. **Inline:** cite the same selected sections by name only (the tag-filter computation is unchanged; only whether its output is bodies or names differs by mode). |
 
+**Step 1.5 — Match archetype**
+
+Before authoring from a blank file, check whether `templates/archetypes.json` has a
+known-good template for this part's shape:
+
+1. **Planned value.** If `part["archetype"]` is set (the planner's rule 3a match), look up
+   that entry's `use` description and confirm it actually fits this part's `description` /
+   `part_notes` / `interfaces`. A confirmed fit skips straight to step 3 below.
+2. **No planned value, or the planned value doesn't fit.** Scan `templates/archetypes.json`
+   for an entry whose `use` or `aliases` matches this part's shape. No entry read here needs
+   its full script contents yet -- match on `name`/`use`/`aliases` only.
+3. **Match found (planned or newly matched).** Author the part script by copying
+   `templates/<file>` verbatim into `build/<part_id>.py`, then edit its top-level
+   `PARAMETERS` block to this part's dimensions/positions and apply any needed deltas
+   (added/removed features) -- preserving the template's existing `cq_verify` guards
+   rather than stripping them. This replaces Step 2's from-scratch authoring for this part;
+   Steps 2.5 onward (lint, validate, review) run unchanged against the resulting script.
+4. **No match.** Fall back to raw authoring (Step 2 below) and state in one line why no
+   archetype fit (e.g. "no archetype fits: this is a multi-cavity organizer tray, not a
+   single enclosure/lid/bracket shape").
+
+A retry within the part loop does not re-run this match -- it edits the already-authored
+script (from either path) per Step 2's "On retry attempts".
+
 **Step 2 — Write the part script**
 
 Write `build/<part_id>.py`. The script must open with a flat import line for every block in `blocks_needed` — the `blocks` package re-exports every block, so no submodule path is needed:
