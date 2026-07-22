@@ -113,6 +113,33 @@ wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))     # after a .c
 A failed assertion crashes the script and is reported as a typed `silent_boolean` /
 `feature_overflow` / `workplane_drift` error naming the `label`.
 
+### Construction plan for scratch geometry
+
+**If this part has no matching archetype template and no matching block** (raw
+fluent CadQuery from a blank file), open the script with an ordered construction
+plan: name each stage (e.g. `"base_shell"`, `"mounting_bosses"`, `"vent_cutouts"`)
+and assert it with `verify_stage` before building the next stage on top of it,
+so a wrong topology fails at the stage that introduced it instead of surfacing
+several steps later as a cryptic OCC error or a failed visual review:
+
+```python
+from cq_verify import verify_stage
+
+body = cq.Workplane("XY").box(width, depth, wall)
+body = verify_stage(body, "base_shell", bbox=(-width/2, width/2, -depth/2, depth/2, 0, wall))
+
+body = body.faces(">Z").workplane().rect(boss_w, boss_d, forConstruction=True) \
+    .vertices().circle(boss_r).extrude(boss_h)
+body = verify_stage(body, "mounting_bosses", vol_min=base_volume)
+```
+
+Supply `bbox` and/or `vol_min` per stage -- whichever expectation is meaningful for
+that stage's geometry. A failed `verify_stage` is reported as a typed
+`stage_mismatch` error naming the stage.
+
+**This does not apply** when the part is built from an archetype template (Step 1.5)
+or primarily from inventory blocks -- those already inherit verified topology.
+
 <!--
 {{FDM_GUIDELINES}} / {{CQ_REFERENCE}} are mode-dependent (see SKILL.md Phase 3
 Step 1 substitution table):

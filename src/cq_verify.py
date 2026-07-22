@@ -1,16 +1,19 @@
 """Construction-time assertions for generated CadQuery part scripts.
 
 Import these in a part script (the wrapper sets ``PYTHONPATH=<src>``) to catch
-three silent failure modes at build time, where the offending feature can still
-be named -- rather than downstream as a vague watertight/dimension symptom:
+silent failure modes at build time, where the offending feature can still be
+named -- rather than downstream as a vague watertight/dimension symptom:
 
 - ``verify_boolean`` -- a ``.cut()``/``.union()``/``.intersect()`` whose tool did
   not overlap, producing no change and no exception.
 - ``verify_feature_bounds`` -- an added feature that pokes past the base body.
 - ``check_workplane`` -- a workplane whose origin drifted (the ``.center()`` /
   ``.hole()`` origin-shift trap), silently placing a feature off-target.
+- ``verify_stage`` -- a named construction stage whose bbox/volume doesn't match
+  what the construction plan expected, catching a wrong-topology stage at the
+  point it was introduced instead of several steps later.
 
-All three raise a single marked ``RuntimeError`` on failure and return their
+All four raise a single marked ``RuntimeError`` on failure and return their
 post-operation argument on success, so they sit inline in the build chain. The
 marker lets ``run_cadquery_model.py`` map the failure to a typed error; nothing
 else parses it. Depends only on CadQuery + the standard library.
@@ -107,4 +110,40 @@ def check_workplane(wp, label: str = "", expected_origin=None, tolerance: float 
             f"({expected_origin[0]:.2f}, {expected_origin[1]:.2f}, {expected_origin[2]:.2f}), "
             f"delta {drift:.3f} mm; re-anchor with .workplane(origin=...) or a fresh workplane",
         )
+    return wp
+
+
+def verify_stage(
+    wp, label: str = "", bbox=None, vol_min: float | None = None, tolerance: float = 0.1
+):
+    """Raise if a named construction stage's bbox/volume doesn't match expectations.
+
+    ``bbox`` is (xmin, xmax, ymin, ymax, zmin, zmax); at least one of ``bbox`` or
+    ``vol_min`` must be supplied. Returns ``wp`` unchanged on success.
+    """
+    if bbox is None and vol_min is None:
+        raise ValueError(f"verify_stage({label!r}): supply bbox and/or vol_min")
+
+    shape = _solid(wp)
+
+    if bbox is not None:
+        bb = shape.BoundingBox()
+        actual = (bb.xmin, bb.xmax, bb.ymin, bb.ymax, bb.zmin, bb.zmax)
+        if any(abs(a - e) > tolerance for a, e in zip(actual, bbox, strict=True)):
+            raise _fail(
+                "stage_mismatch",
+                label,
+                f"bbox {tuple(round(v, 2) for v in actual)} does not match expected "
+                f"{tuple(bbox)} within {tolerance} mm",
+            )
+
+    if vol_min is not None:
+        volume = shape.Volume()
+        if volume < vol_min:
+            raise _fail(
+                "stage_mismatch",
+                label,
+                f"volume {volume:.3f} mm^3 is below expected minimum {vol_min:.3f} mm^3",
+            )
+
     return wp

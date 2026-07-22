@@ -101,6 +101,10 @@ _VERIFY_HINTS = {
         "the workplane origin moved (often from a prior .center()/.hole()) — re-anchor "
         "with .workplane(origin=...) or a fresh cq.Workplane before placing the feature"
     ),
+    "stage_mismatch": (
+        "the construction stage's bbox/volume didn't match the plan — the wrong-topology "
+        "step is the stage named in this error, not a later one"
+    ),
 }
 
 
