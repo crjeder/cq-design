@@ -63,7 +63,7 @@ from exporters import _load_result
 from mesh_io import load_mesh
 from model_export import export_model
 from print_orientation import optimize_orientation
-from units import resolve_unions
+from units import load_plan, resolve_unions
 
 
 def _orientation_for(
@@ -182,8 +182,7 @@ def main() -> None:
 
     orientations_path = args.orientations or os.path.join(args.parts_dir, "orientations.json")
 
-    with open(args.plan, encoding="utf-8") as f:
-        plan = json.load(f)
+    plan = load_plan(args.plan)
 
     try:
         orientations, summary = resolve_orientations(plan, args.parts_dir, orientations_path)

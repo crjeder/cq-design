@@ -8,21 +8,23 @@ Also activate on these explicit slash commands:
 
 | Command | Action |
 |---------|--------|
-| `/cq-design` | Full pipeline (phases 1-4) |
+| `/cq-design` | Full pipeline (phases 0-4) |
 | `/plan` | Planning only (phases 1-2, stop after BUILD_PLAN.json is approved) |
 | `/deliver <script.py>` | Export STL and 3MF for an existing script |
 | `/render <script.py>` | Render a multi-view preview PNG for an existing script |
 
 Read the first token of the user's message to pick the command, then jump to its
-section below. For `/cq-design` (or a natural-language trigger), start at Phase 1.
+section below. For `/cq-design` (or a natural-language trigger), start at Phase 0.
 
 ## Overview
 
-Four-phase pipeline for parametric 3D-printable CadQuery models: **Requirements
-gathering** (Phase 1) -> **Planning** (Phase 2, produces `BUILD_PLAN.json`) ->
-**Build** (Phase 3, part scripts + print orientation + model export + quality gate) ->
-**Deliver** (Phase 4). Each phase section below carries a summary and a mandatory
-pointer to its `skill/phase*.md` detail file — not optional background.
+A sourcing triage (Phase 0) ahead of a four-phase build pipeline for parametric
+3D-printable CadQuery models: **Sourcing triage** (Phase 0, checks for a usable
+existing model before designing) -> **Requirements gathering** (Phase 1) ->
+**Planning** (Phase 2, produces `BUILD_PLAN.json`) -> **Build** (Phase 3, part
+scripts + print orientation + model export + quality gate) -> **Deliver** (Phase 4).
+Each phase section below carries a summary and a mandatory pointer to its
+`skill/phase*.md` detail file — not optional background.
 
 ## Prerequisites
 
@@ -44,6 +46,18 @@ writes to the working directory, not `$SKILL_DIR`.
 **Before Phase 1 in a directory not yet seeded, read `skill/setup.md` in full** (venv,
 permission bootstrap, printer-profile bootstrap). Skip straight to Phase 1 if already
 seeded (`.claude/settings.local.json` has the patterns, `printer_profile.json` exists).
+
+## Phase 0: Sourcing triage
+
+Before designing from scratch, search for a usable existing model (parametric source,
+BREP/STEP, or mesh) and classify the best find against a five-rung decision ladder;
+requests resolved at rungs 1-3 skip Phase 1-3 entirely. Skipped on an explicit
+from-scratch request; a quick single-pass search when the request is dominated by
+user-specific dimensions.
+
+**Before starting Phase 0, read `skill/phase0_sourcing.md` in full** — the decision
+ladder, per-rung handling (reuse/convert, dumb-solid import, vet-then-deliver, partial
+rebuild), and the mandatory license check.
 
 ## Phase 1: Requirements gathering
 
@@ -125,6 +139,17 @@ PETG +0.1 mm (stringing); TPU +0.2 mm (3.0 mm+ walls, prefer flexible snaps); AB
 |-----------|------|-------|
 | North / East / South / West | +Y / +X / -Y / -X | |
 | Up / Down | +Z / -Z | Down is the print bed face, always Z = 0 |
+
+## Request log
+
+`BUILD_PLAN.json` may carry an optional `request_log`: an append-only, verbatim record
+of the initial request plus every clarification/correction, each entry `{ts, kind,
+text}` (`kind` one of `initial`/`clarification`/`correction`). The planning prompt
+(Phase 2) writes the `initial` entry and any Phase 1/2 clarifications. **Any later
+clarification or correction the user gives mid-build (Phase 3 onward) must be appended
+to `request_log` as a new dated entry — never edit, reorder, or remove existing
+entries.** A correction that triggers re-planning carries the existing log forward
+unchanged before the planning prompt appends the new entry.
 
 ## Generated script rules
 

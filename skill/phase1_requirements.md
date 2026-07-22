@@ -1,5 +1,14 @@
 # Phase 1: Requirements gathering
 
+**Sourcing search vs. dimension lookup:** Phase 0 (`skill/phase0_sourcing.md`) already
+runs a full-model search — "does a usable model already exist for this request" —
+before Phase 1 starts. The "Dimension lookup with Playwright" workflow below answers a
+narrower question — "what are the exact dimensions of a named real-world product or
+component" — and is not a repeat of Phase 0's search. **No second sweep:** if Phase 0
+ran and fell through to Phase 1 (rung 5, nothing usable), reuse its search results
+already in context instead of re-running the platform searches from scratch; only look
+up dimensions genuinely still missing.
+
 Collect the following before generating the plan. Ask if any are missing:
 
 - What the part is for and its primary function

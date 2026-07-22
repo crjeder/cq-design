@@ -89,6 +89,159 @@ def _section_cuts(result, extra_sections, cross_sections):
     ]
 
 
+def _parse_extra_sections(args) -> list[tuple[str, float]]:
+    """Parse and validate every `--extra-section` spec, exiting on error."""
+    extra_sections = []
+    for spec in args.extra_section:
+        axis, _, value = spec.partition("=")
+        axis = axis.strip().lower()
+        if axis not in ("x", "y", "z") or not value:
+            print(
+                f"ERROR: invalid --extra-section '{spec}', expected AXIS=VALUE_MM "
+                "with AXIS one of x/y/z",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            extra_sections.append((axis, float(value)))
+        except ValueError:
+            print(
+                f"ERROR: invalid --extra-section '{spec}', VALUE_MM must be numeric",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    return extra_sections
+
+
+def _parse_details(args) -> list[dict]:
+    """Parse and validate every `--detail` spec, exiting on error."""
+    details = []
+    for spec in args.detail:
+        try:
+            details.append(_parse_detail_spec(spec))
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(1)
+    return details
+
+
+def _load_script_result(script_path: str, skill_root: str):
+    """Run the model script in an isolated temp dir and return its validated `result`."""
+    if not os.path.exists(script_path):
+        print(f"ERROR: script not found: {script_path}", file=sys.stderr)
+        sys.exit(1)
+
+    # Ensure src/ is on the path so block imports resolve
+    if skill_root not in sys.path:
+        sys.path.insert(0, skill_root)
+
+    # Run the model script in a temp directory so any STL exports land there
+    # instead of polluting the caller's working directory.
+    run_dir = tempfile.mkdtemp(prefix="cq_preview_")
+    orig_dir = os.getcwd()
+    try:
+        os.chdir(run_dir)
+        try:
+            namespace = runpy.run_path(script_path, init_globals={"__file__": script_path})
+        except Exception as exc:
+            print(f"ERROR: model script failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+    finally:
+        os.chdir(orig_dir)
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+    import cadquery as cq
+
+    result = namespace.get("result")
+    if result is None:
+        print(
+            "ERROR: model script did not assign a `result` variable.\n"
+            "Every generated script must assign the final geometry to `result`.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if isinstance(result, dict):
+        # Multi-union part: preview all unions together (added as separate solids, not fused).
+        # The reserved keep-out key holds declared zones, not real geometry -- skip it (as
+        # run_model_shim does) so zones don't render as phantom solids.
+        from units import KEEP_OUT_KEY
+
+        union_wps = [wp for uid, wp in result.items() if uid != KEEP_OUT_KEY]
+        combined = union_wps[0]
+        for wp in union_wps[1:]:
+            combined = combined.add(wp)
+        result = combined
+    if not isinstance(result, (cq.Workplane, cq.Shape)):
+        print(
+            f"ERROR: `result` is {type(result).__name__}, expected a CadQuery Workplane or Shape.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return result
+
+
+def _render_all(
+    result, args, extra_sections: list[tuple[str, float]], details: list[dict]
+) -> list[str]:
+    """Render the main preview plus any cross-section/detail files. Return extra preview paths."""
+    import preview
+
+    title = args.title or (
+        os.path.splitext(os.path.basename(args.script))[0].replace("_", " ").title()
+    )
+    if args.views == "multi":
+        preview.render_multi_view(result, args.output, title=title, subtitle=args.subtitle)
+    else:
+        preview.render_single(result, args.output, title=title)
+
+    out_dir = os.path.dirname(args.output) or "."
+    stem = os.path.splitext(os.path.basename(args.output))[0]
+    extra_previews = []
+
+    # Cross-sections as SEPARATE files (multi view only): through the
+    # caller-supplied declared positions (--extra-section) when provided, else the
+    # bounding-box-center X/Y/Z cuts. Each is its own file so the review can open
+    # and scrutinize it against a specific verification question, one at a time.
+    if args.views == "multi" and (args.cross_sections or extra_sections):
+        for axis, pos, is_center in _section_cuts(result, extra_sections, args.cross_sections):
+            name = (
+                f"{stem}_section_{axis}.png"
+                if is_center
+                else f"{stem}_section_{axis}_{pos:g}mm.png"
+            )
+            section_path = os.path.join(out_dir, name)
+            written = preview.render_section(result, section_path, axis, pos)
+            if written is None:
+                print(
+                    f"WARNING: cross-section {axis}={pos:g} failed (degenerate cut), skipping",
+                    file=sys.stderr,
+                )
+            else:
+                extra_previews.append(section_path)
+
+    for spec in details:
+        detail_path = os.path.join(out_dir, f"{stem}_detail_{spec['name']}.png")
+        preview.render_detail_view(result, detail_path, spec["center"], spec["size"])
+        extra_previews.append(detail_path)
+
+        if spec["section"] is not None:
+            axis, pos = spec["section"]
+            section_path = os.path.join(out_dir, f"{stem}_section_{axis}_{spec['name']}.png")
+            written = preview.render_detail_section(
+                result, section_path, axis, pos, spec["center"], spec["size"]
+            )
+            if written is None:
+                print(
+                    f"WARNING: detail section for '{spec['name']}' failed "
+                    "(degenerate cut), skipping",
+                    file=sys.stderr,
+                )
+            else:
+                extra_previews.append(section_path)
+
+    return extra_previews
+
+
 def main():
     parser = argparse.ArgumentParser(description="Render a CadQuery model script as a preview PNG")
     parser.add_argument("--script", required=True, help="Path to the CadQuery .py model script")
@@ -130,149 +283,15 @@ def main():
     )
     args = parser.parse_args()
 
-    extra_sections = []
-    for spec in args.extra_section:
-        axis, _, value = spec.partition("=")
-        axis = axis.strip().lower()
-        if axis not in ("x", "y", "z") or not value:
-            print(
-                f"ERROR: invalid --extra-section '{spec}', expected AXIS=VALUE_MM "
-                "with AXIS one of x/y/z",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        try:
-            extra_sections.append((axis, float(value)))
-        except ValueError:
-            print(
-                f"ERROR: invalid --extra-section '{spec}', VALUE_MM must be numeric",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-    details = []
-    for spec in args.detail:
-        try:
-            details.append(_parse_detail_spec(spec))
-        except ValueError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            sys.exit(1)
+    extra_sections = _parse_extra_sections(args)
+    details = _parse_details(args)
 
     script_path = os.path.abspath(args.script)
-    if not os.path.exists(script_path):
-        print(f"ERROR: script not found: {script_path}", file=sys.stderr)
-        sys.exit(1)
-
-    # Ensure src/ is on the path so block imports resolve
     skill_root = os.path.dirname(os.path.abspath(__file__))
-    if skill_root not in sys.path:
-        sys.path.insert(0, skill_root)
+    result = _load_script_result(script_path, skill_root)
 
-    # Run the model script in a temp directory so any STL exports land there
-    # instead of polluting the caller's working directory.
-    run_dir = tempfile.mkdtemp(prefix="cq_preview_")
-    orig_dir = os.getcwd()
     try:
-        os.chdir(run_dir)
-        try:
-            namespace = runpy.run_path(script_path, init_globals={"__file__": script_path})
-        except Exception as exc:
-            print(f"ERROR: model script failed: {exc}", file=sys.stderr)
-            sys.exit(1)
-    finally:
-        os.chdir(orig_dir)
-        shutil.rmtree(run_dir, ignore_errors=True)
-
-    # Extract result
-    import cadquery as cq
-
-    result = namespace.get("result")
-    if result is None:
-        print(
-            "ERROR: model script did not assign a `result` variable.\n"
-            "Every generated script must assign the final geometry to `result`.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if isinstance(result, dict):
-        # Multi-union part: preview all unions together (added as separate solids, not fused).
-        # The reserved keep-out key holds declared zones, not real geometry -- skip it (as
-        # run_model_shim does) so zones don't render as phantom solids.
-        from units import KEEP_OUT_KEY
-
-        union_wps = [wp for uid, wp in result.items() if uid != KEEP_OUT_KEY]
-        combined = union_wps[0]
-        for wp in union_wps[1:]:
-            combined = combined.add(wp)
-        result = combined
-    if not isinstance(result, (cq.Workplane, cq.Shape)):
-        print(
-            f"ERROR: `result` is {type(result).__name__}, expected a CadQuery Workplane or Shape.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    # Render
-    try:
-        import preview
-
-        title = args.title or (
-            os.path.splitext(os.path.basename(args.script))[0].replace("_", " ").title()
-        )
-        if args.views == "multi":
-            preview.render_multi_view(
-                result,
-                args.output,
-                title=title,
-                subtitle=args.subtitle,
-            )
-        else:
-            preview.render_single(result, args.output, title=title)
-
-        out_dir = os.path.dirname(args.output) or "."
-        stem = os.path.splitext(os.path.basename(args.output))[0]
-        extra_previews = []
-
-        # Cross-sections as SEPARATE files (multi view only): through the
-        # caller-supplied declared positions (--extra-section) when provided, else the
-        # bounding-box-center X/Y/Z cuts. Each is its own file so the review can open
-        # and scrutinize it against a specific verification question, one at a time.
-        if args.views == "multi" and (args.cross_sections or extra_sections):
-            for axis, pos, is_center in _section_cuts(result, extra_sections, args.cross_sections):
-                name = (
-                    f"{stem}_section_{axis}.png"
-                    if is_center
-                    else f"{stem}_section_{axis}_{pos:g}mm.png"
-                )
-                section_path = os.path.join(out_dir, name)
-                written = preview.render_section(result, section_path, axis, pos)
-                if written is None:
-                    print(
-                        f"WARNING: cross-section {axis}={pos:g} failed (degenerate cut), skipping",
-                        file=sys.stderr,
-                    )
-                else:
-                    extra_previews.append(section_path)
-
-        for spec in details:
-            detail_path = os.path.join(out_dir, f"{stem}_detail_{spec['name']}.png")
-            preview.render_detail_view(result, detail_path, spec["center"], spec["size"])
-            extra_previews.append(detail_path)
-
-            if spec["section"] is not None:
-                axis, pos = spec["section"]
-                section_path = os.path.join(out_dir, f"{stem}_section_{axis}_{spec['name']}.png")
-                written = preview.render_detail_section(
-                    result, section_path, axis, pos, spec["center"], spec["size"]
-                )
-                if written is None:
-                    print(
-                        f"WARNING: detail section for '{spec['name']}' failed "
-                        "(degenerate cut), skipping",
-                        file=sys.stderr,
-                    )
-                else:
-                    extra_previews.append(section_path)
+        extra_previews = _render_all(result, args, extra_sections, details)
     except Exception as exc:
         print(f"ERROR: preview render failed: {exc}", file=sys.stderr)
         sys.exit(1)

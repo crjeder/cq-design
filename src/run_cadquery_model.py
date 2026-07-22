@@ -570,12 +570,101 @@ def _append_stderr(result: dict, msg: str) -> None:
     result["stderr"] = (result["stderr"] or "") + msg + "\n"
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+def _run_geometry_checks(union_stls: list[str], args, result: dict) -> bool:
+    """Run per-union geometry/DFM checks and populate `result`.
+
+    Returns True if the checks fail the run under --strict (non-watertight).
+    """
+    multi = len(union_stls) > 1
+    per_union_geo: list[tuple[str, dict | None]] = []
+    thin_regions_all: list = []
+    watertight_all = True
+
+    for stl in union_stls:
+        uid = os.path.splitext(os.path.basename(stl))[0]
+
+        geo_i, geo_errors_i, tm_i = _compute_geometry(stl)
+        per_union_geo.append((uid, geo_i))
+        result["errors"].extend(_attribute_to_union(geo_errors_i, uid, multi))
+        # Per-union connectedness: a union expected to be one body that splits
+        # into multiple components is a disconnected_body error (always carries
+        # its own union id, so it is not routed through _attribute_to_union).
+        if tm_i is not None:
+            disc = _disconnected_body_error(tm_i, uid, multi)
+            if disc is not None:
+                result["errors"].append(disc)
+        clean = geo_i is not None and not any(
+            e["type"] in ("non_manifold_edge", "non_watertight") for e in geo_errors_i
+        )
+        watertight_all = watertight_all and clean
+
+        if args.wall_min > 0:
+            thin_regions_i, thin_errors_i = _check_thin_interfaces(
+                stl, args.wall_min, args.line_width
+            )
+            for r in thin_regions_i:
+                thin_regions_all.append({**r, "union": uid} if multi else r)
+            result["errors"].extend(_attribute_to_union(thin_errors_i, uid, multi))
+
+    result["geometry"] = _aggregate_geometry(per_union_geo)
+    result["watertight"] = watertight_all
+    if result["geometry"] is not None and args.wall_min > 0:
+        result["geometry"]["thin_regions"] = thin_regions_all
+
+    # Dimension check against plan expectations (single-union parts only; a multi-union
+    # part has no single bounding box to compare against the plan's w/d/h).
+    if args.expected_dims and not multi and result["geometry"] is not None:
+        try:
+            expected = [float(x) for x in args.expected_dims.split(",")]
+            result["errors"].extend(
+                _check_dimensions(result["geometry"], expected, args.dim_tolerance)
+            )
+        except ValueError:
+            _append_stderr(result, f"Invalid --expected-dims value: {args.expected_dims}")
+
+    return bool(args.strict and not result["watertight"])
 
 
-def main():
+def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: dict) -> bool:
+    """Render the preview into `result`. Returns True if rendering failed."""
+    preview_paths, render_err = _render_preview(
+        script_path,
+        skill_root,
+        args.views,
+        env,
+        args.cross_sections,
+        args.extra_section,
+        args.detail,
+        args.preview_dir,
+    )
+    if render_err:
+        _append_stderr(result, render_err)
+        result["success"] = False
+        return True
+    result["previews"] = preview_paths
+    result["preview"] = preview_paths[0] if preview_paths else None
+    return False
+
+
+def _handle_deliver(args, script_path: str, result: dict) -> None:
+    """Run the modular exporter and populate stl/stls/threemf paths in `result`."""
+    try:
+        from exporters import run_exporters
+
+        out_dir = args.output_dir or os.path.dirname(script_path)
+        os.makedirs(out_dir, exist_ok=True)
+        formats = [f.strip() for f in args.formats.split(",") if f.strip()]
+        delivered = run_exporters(script_path, formats, out_dir)
+        result["stls"] = [p for p in delivered if p.endswith(".stl")]
+        result["threemfs"] = [p for p in delivered if p.endswith(".3mf")]
+        result["stl"] = result["stls"][0] if result["stls"] else None
+        result["threemf"] = result["threemfs"][0] if result["threemfs"] else None
+    except Exception as e:
+        _append_stderr(result, f"Exporter failed: {e}")
+        result["success"] = False
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run a CadQuery model script and report a JSON result",
         epilog="Exit codes: 0 success, 1 failure, 2 cannot launch, 3 timeout.",
@@ -666,7 +755,11 @@ def main():
         default=None,
         help="Output directory for --deliver (default: alongside the script)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = _build_arg_parser().parse_args()
 
     script_path = os.path.abspath(args.script)
     skill_root = os.path.dirname(os.path.abspath(__file__))
@@ -751,98 +844,24 @@ def main():
         # finding to its union when there is more than one. The `geometry` block aggregates
         # to keep the JSON contract a single object.
         if stls_in_temp:
-            union_stls = sorted(stls_in_temp)
-            multi = len(union_stls) > 1
-            per_union_geo: list[tuple[str, dict | None]] = []
-            thin_regions_all: list = []
-            watertight_all = True
-
-            for stl in union_stls:
-                uid = os.path.splitext(os.path.basename(stl))[0]
-
-                geo_i, geo_errors_i, tm_i = _compute_geometry(stl)
-                per_union_geo.append((uid, geo_i))
-                result["errors"].extend(_attribute_to_union(geo_errors_i, uid, multi))
-                # Per-union connectedness: a union expected to be one body that splits
-                # into multiple components is a disconnected_body error (always carries
-                # its own union id, so it is not routed through _attribute_to_union).
-                if tm_i is not None:
-                    disc = _disconnected_body_error(tm_i, uid, multi)
-                    if disc is not None:
-                        result["errors"].append(disc)
-                watertight_all = watertight_all and (
-                    geo_i is not None
-                    and not any(
-                        e["type"] in ("non_manifold_edge", "non_watertight") for e in geo_errors_i
-                    )
-                )
-
-                if args.wall_min > 0:
-                    thin_regions_i, thin_errors_i = _check_thin_interfaces(
-                        stl, args.wall_min, args.line_width
-                    )
-                    for r in thin_regions_i:
-                        thin_regions_all.append({**r, "union": uid} if multi else r)
-                    result["errors"].extend(_attribute_to_union(thin_errors_i, uid, multi))
-
-            result["geometry"] = _aggregate_geometry(per_union_geo)
-            result["watertight"] = watertight_all
-            if result["geometry"] is not None and args.wall_min > 0:
-                result["geometry"]["thin_regions"] = thin_regions_all
-
-            # Dimension check against plan expectations (single-union parts only; a multi-union
-            # part has no single bounding box to compare against the plan's w/d/h).
-            if args.expected_dims and not multi and result["geometry"] is not None:
-                try:
-                    expected = [float(x) for x in args.expected_dims.split(",")]
-                    result["errors"].extend(
-                        _check_dimensions(result["geometry"], expected, args.dim_tolerance)
-                    )
-                except ValueError:
-                    _append_stderr(result, f"Invalid --expected-dims value: {args.expected_dims}")
-
-            # Fail on strict + non-watertight
-            if args.strict and not result["watertight"]:
+            strict_fail = _run_geometry_checks(sorted(stls_in_temp), args, result)
+            if strict_fail:
                 result["success"] = False
                 print(json.dumps(result, indent=2))
                 sys.exit(1)
 
         # Preview rendering via render_preview.py subprocess (CQ-native, no OpenGL)
-        if args.preview and stls_in_temp:
-            preview_paths, render_err = _render_preview(
-                script_path,
-                skill_root,
-                args.views,
-                env,
-                args.cross_sections,
-                args.extra_section,
-                args.detail,
-                args.preview_dir,
-            )
-            if render_err:
-                _append_stderr(result, render_err)
-                result["success"] = False
-                print(json.dumps(result, indent=2))
-                sys.exit(1)
-            result["previews"] = preview_paths
-            result["preview"] = preview_paths[0] if preview_paths else None
+        if (
+            args.preview
+            and stls_in_temp
+            and _handle_preview(args, script_path, skill_root, env, result)
+        ):
+            print(json.dumps(result, indent=2))
+            sys.exit(1)
 
         # --deliver: run modular exporter and expose output paths
         if args.deliver and stls_in_temp:
-            try:
-                from exporters import run_exporters
-
-                out_dir = args.output_dir or os.path.dirname(script_path)
-                os.makedirs(out_dir, exist_ok=True)
-                formats = [f.strip() for f in args.formats.split(",") if f.strip()]
-                delivered = run_exporters(script_path, formats, out_dir)
-                result["stls"] = [p for p in delivered if p.endswith(".stl")]
-                result["threemfs"] = [p for p in delivered if p.endswith(".3mf")]
-                result["stl"] = result["stls"][0] if result["stls"] else None
-                result["threemf"] = result["threemfs"][0] if result["threemfs"] else None
-            except Exception as e:
-                _append_stderr(result, f"Exporter failed: {e}")
-                result["success"] = False
+            _handle_deliver(args, script_path, result)
 
         # Mark success=False if any error-severity issues were found
         error_types = {e["type"] for e in result["errors"]}

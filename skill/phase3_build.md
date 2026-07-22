@@ -23,11 +23,17 @@ Read into context (once, before the loop):
 - `BUILD_PLAN.json` — the validated plan
 - `$SKILL_DIR/src/blocks/inventory.json` — block metadata (module, function, params)
 - `$SKILL_DIR/prompts/part.md` — part prompt template
-- `$SKILL_DIR/reference/CadQuery Pattern Reference.md` — full contents for `{{CQ_REFERENCE}}`; always append `$SKILL_DIR/reference/CadQuery Anti-Patterns.md` after it, then append `$SKILL_DIR/reference/emboss_text.md` only for a part that involves text/emboss (see the `{{CQ_REFERENCE}}` row below)
-- `$SKILL_DIR/reference/FDM 3D Print Design Guidelines.md` — tag-filtered sections for `{{FDM_GUIDELINES}}`
+- `$SKILL_DIR/reference/CadQuery Pattern Reference.md`, `$SKILL_DIR/reference/CadQuery Anti-Patterns.md`, `$SKILL_DIR/reference/emboss_text.md` — read into context once here. This read is the precondition for a progressive part's inline `{{CQ_REFERENCE}}` citation (see the `{{CQ_REFERENCE}}` row below): citation is valid only because these documents are already in the main session's context. An autonomous part's builder agent is a fresh spawn with none of this context, so it still gets the full contents read here re-substituted in full at render time.
+- `$SKILL_DIR/reference/FDM 3D Print Design Guidelines.md` — read into context once here, same role for `{{FDM_GUIDELINES}}`
 - `$SKILL_DIR/reference/Visual Review Checklist.md` — the visual self-review checklist applied in Step 4
 
 Create the `build/` directory in your current working directory.
+
+**Precondition for inline citation.** If the part loop starts in a session where these
+setup reads are not visible in context (a resumed or compacted session), re-read the
+reference documents above before rendering the first inline part prompt — citing a
+document that is not actually in context is worse than the duplication this change
+removes.
 
 ## Build mode (per part)
 
@@ -73,7 +79,23 @@ For each part in `plan["parts"]`, in order, attempt up to **3 times**:
 
 **Step 1 — Render the part prompt**
 
-Read `$SKILL_DIR/prompts/part.md` and substitute every placeholder:
+Read `$SKILL_DIR/prompts/part.md` and substitute every placeholder. The rendering
+**mode** is set by where this prompt ends up being read, and the `{{CQ_REFERENCE}}` /
+`{{FDM_GUIDELINES}}` rows below are mode-keyed:
+
+- **Inline** — the prompt is authored and consumed in the **main session's own
+  context**, which already holds the Phase 3 setup reads. Today this is only a
+  **progressive part's** per-stage authoring (see Progressive build). Substitute
+  with a citation, not file contents.
+- **Cold** — the prompt is sent to a context with no ambient reads of its own: a
+  spawned **builder agent** (every autonomous part, per the Agent routing gate —
+  an Agent-tool spawn starts fresh with none of main's context, even though main
+  renders Step 1 before spawning it) or a future `claude -p` subprocess (item 15's
+  routed part authoring). Substitute with full file contents.
+
+A retry within the part loop (Step 2's "On retry attempts") re-renders Step 1 in the
+same mode as the attempt it is retrying — a builder agent's retries stay cold, a
+progressive part's retries stay inline; a part never switches modes mid-build.
 
 | Placeholder | Value |
 |-------------|-------|
@@ -89,8 +111,8 @@ Read `$SKILL_DIR/prompts/part.md` and substitute every placeholder:
 | `{{OVERHANG_MAX_DEG}}` | `plan["constraints"]["overhang_max_deg"]` |
 | `{{MATERIAL}}` | `plan["material"]` |
 | `{{NOZZLE_MM}}` | `plan["nozzle_mm"]` |
-| `{{CQ_REFERENCE}}` | Full contents of `CadQuery Pattern Reference.md`, then the full contents of `CadQuery Anti-Patterns.md` (appended **always**, for every part). Then append `emboss_text.md` **only when this part involves text/emboss** — i.e. its `description`, `part_notes`, or any `interfaces` entry mentions text/engrave/emboss/label. Otherwise omit `emboss_text.md` (the pattern reference already carries the basic `.text()` idiom); its deboss/overflow/bbox gotchas are dead weight for a part with no text. |
-| `{{FDM_GUIDELINES}}` | Sections from `FDM 3D Print Design Guidelines.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always` |
+| `{{CQ_REFERENCE}}` | **Cold** (builder agent / future `claude -p`): full contents of `CadQuery Pattern Reference.md`, then the full contents of `CadQuery Anti-Patterns.md` (appended **always**, for every part), then `emboss_text.md` **only when this part involves text/emboss** (its `description`, `part_notes`, or any `interfaces` entry mentions text/engrave/emboss/label; otherwise omit it — the pattern reference already carries the basic `.text()` idiom). **Inline** (progressive part, main session): a citation naming `reference/CadQuery Pattern Reference.md` and `reference/CadQuery Anti-Patterns.md` as already-in-context documents to apply, do not paste their contents; name `reference/emboss_text.md` too under the same text/emboss gate. |
+| `{{FDM_GUIDELINES}}` | Sections from `FDM 3D Print Design Guidelines.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always`. **Cold:** inject those sections' full text. **Inline:** cite the same selected sections by name only (the tag-filter computation is unchanged; only whether its output is bodies or names differs by mode). |
 
 **Step 2 — Write the part script**
 

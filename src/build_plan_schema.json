@@ -234,6 +234,20 @@
       "description": "Declared range-of-motion checks for articulating joints, nested into a tree via `children`. Each entry sweeps its moving union (plus everything nested under its `children`) through its required range against every union outside that subtree. Optional; absent or empty skips the kinematic stage.",
       "items": {"$ref": "#/definitions/kinematics_entry"}
     },
+    "request_log": {
+      "type": "array",
+      "description": "Append-only verbatim request history: the initial request plus every clarification/correction that shaped the plan. Optional; absent plans (including eval-corpus goldens) stay valid. When present, exactly one `initial` entry, first in the array (enforced by plan_validate.py, not expressible cleanly in draft-7).",
+      "items": {
+        "type": "object",
+        "required": ["ts", "kind", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "ts": {"type": "string", "description": "ISO-8601 UTC timestamp"},
+          "kind": {"type": "string", "enum": ["initial", "clarification", "correction"]},
+          "text": {"type": "string", "minLength": 1, "description": "Verbatim user wording"}
+        }
+      }
+    },
     "root_part": {
       "type": "string",
       "description": "The one part anchored directly into the world: its own `placement` (identity when absent) is its edge into the assembled frame. Required when `joints` is non-empty; every other part named in a `joints` entry gets its pose derived along the mate chain from this part instead of declaring its own `placement`."
