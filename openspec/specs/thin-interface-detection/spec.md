@@ -71,7 +71,7 @@ Thin-region findings SHALL appear in the `geometry` block of the wrapper JSON so
 
 #### Scenario: Quality gate aggregates thin-interface findings
 - **WHEN** `quality_gate.py` aggregates DFM results for a part with thin regions
-- **THEN** the report includes the thin-interface findings together with overhang and orca-check results
+- **THEN** the report includes the thin-interface findings together with the in-process trimesh overhang and geometry results
 
 ### Requirement: Thin-region detection is robust to mesh triangle density
 
