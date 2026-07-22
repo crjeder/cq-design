@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -6,6 +7,38 @@ import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
+
+WRAPPER = os.path.join(REPO_ROOT, "src", "run_cadquery_model.py")
+
+
+def run_wrapper(script_path, *extra_args):
+    """Run run_cadquery_model.py on `script_path` as a subprocess; return `(rc, data)`.
+    Shared by every test that exercises the wrapper's CLI/JSON contract."""
+    result = subprocess.run(
+        [sys.executable, WRAPPER, str(script_path), *extra_args],
+        capture_output=True,
+        text=True,
+    )
+    data = json.loads(result.stdout) if result.stdout.strip() else {}
+    return result.returncode, data
+
+
+def minimal_plan(parts: list[dict]) -> dict:
+    """Minimal valid BUILD_PLAN.json dict wrapping the given `parts`, shared by every
+    integration test that only cares about the `parts` list."""
+    return {
+        "schema_version": 1,
+        "intent": "test fixture",
+        "printer": "Bambu P1S",
+        "material": "PLA",
+        "nozzle_mm": 0.4,
+        "parts": parts,
+        "constraints": {
+            "wall_min_mm": 1.0,
+            "overhang_max_deg": 45,
+            "dimension_tolerance_mm": 0.2,
+        },
+    }
 
 
 @pytest.fixture

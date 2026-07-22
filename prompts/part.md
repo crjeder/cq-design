@@ -113,6 +113,23 @@ wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))     # after a .c
 A failed assertion crashes the script and is reported as a typed `silent_boolean` /
 `feature_overflow` / `workplane_drift` error naming the `label`.
 
+<!--
+{{FDM_GUIDELINES}} / {{CQ_REFERENCE}} are mode-dependent (see SKILL.md Phase 3
+Step 1 substitution table):
+- Inline render (orchestrating Claude, same session as Phase 3 setup): cite, do
+  not paste.
+  {{CQ_REFERENCE}} -> "Apply `reference/CadQuery Pattern Reference.md` and
+  `reference/CadQuery Anti-Patterns.md` (already read in Phase 3 setup)." Append
+  ", and `reference/emboss_text.md` for its text/emboss gotchas" only when this
+  part involves text/emboss (description/part_notes/interfaces mention
+  text/engrave/emboss/label).
+  {{FDM_GUIDELINES}} -> "The following FDM guideline sections apply to this part
+  (already read in Phase 3 setup): <comma-separated section names from the tag
+  filter>." Section names only, not bodies.
+- Cold-context render (`claude -p` subprocess or a subagent, no ambient
+  context): substitute full document contents as specified in SKILL.md.
+-->
+
 ## FDM Design Guidelines
 
 {{FDM_GUIDELINES}}

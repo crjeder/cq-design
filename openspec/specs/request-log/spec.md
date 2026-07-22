@@ -6,6 +6,9 @@ Defines how the cq-design pipeline preserves the user's original request and
 every subsequent clarification or correction verbatim in `BUILD_PLAN.json`, so
 the exact wording that shaped the design stays available across planning,
 re-planning, and the part loop, independent of any session's context window.
+Preserve the user's original request and every subsequent clarification or correction
+verbatim alongside `BUILD_PLAN.json`, so the plan's provenance is auditable and re-planning
+never loses history.
 
 ## Requirements
 

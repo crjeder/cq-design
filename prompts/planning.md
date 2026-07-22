@@ -191,6 +191,19 @@ Before committing to any dimension values, populate `planning_notes` with your r
     or a correction that requires regenerating the plan): carry every prior `request_log`
     entry forward unchanged, in the same order, and only append the new entry — never
     rewrite, reorder, or drop existing entries.
+14. **Record provenance when the plan derives from a found source.** If this plan
+    reuses or converts a source found during Phase 0 sourcing triage (a reused/
+    converted parametric source at rung 1, an imported BREP at rung 2, or a rung-4
+    partial rebuild), `planning_notes` MUST state the source URL, its license, and the
+    sourcing rung under which it was reused. Plans for a from-scratch design (Phase 0
+    fell through to rung 5, or was skipped) need no such entry.
+
+15. **Populate `request_log` verbatim.** On a fresh plan, set it to the user's original
+    request as the `initial` entry, followed by one `clarification` entry per question you
+    asked and were answered during Phase 1/2 -- each entry `{ts, kind, text}` with the
+    user's wording unchanged (never summarized or paraphrased). On a re-plan (a correction
+    triggers regenerating the plan), carry the existing `request_log` forward unchanged and
+    append the new entry -- do not reset or drop prior history.
 
 ## Block inventory (name and use only)
 
@@ -260,6 +273,10 @@ profile is present above, take these values from what the user stated in Phase 1
       "hi_inclusive": true,
       "step": 5
     }
+  ],
+  "request_log": [
+    {"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": "<user's original request, verbatim>"},
+    {"ts": "2026-01-01T00:05:00Z", "kind": "clarification", "text": "<verbatim answer to a Phase 1/2 question>"}
   ],
   "constraints": {
     "wall_min_mm": 1.2,

@@ -106,38 +106,54 @@ def test_missing_optimize_for_is_valid(plan_file):
     assert validate_plan(plan_file(VALID_PLAN)) == []
 
 
-def test_invalid_optimize_for_rejected(plan_file):
-    plan = json.loads(json.dumps(VALID_PLAN))
-    plan["optimize_for"] = "speed"
-    errors = validate_plan(plan_file(plan))
-    assert any("optimize_for" in e for e in errors)
-
-
 def test_valid_show_face(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["show_face"] = {"dir": [0, 0, 1]}
     assert validate_plan(plan_file(plan)) == []
 
 
-def test_zero_show_face_direction_rejected(plan_file):
+def _set_optimize_for_speed(p):
+    p["optimize_for"] = "speed"
+
+
+def _set_zero_show_face(p):
+    p["parts"][0]["show_face"] = {"dir": [0, 0, 0]}
+
+
+def _del_dimensions(p):
+    del p["parts"][0]["dimensions"]
+
+
+def _del_material(p):
+    del p["material"]
+
+
+def _set_unknown_block(p):
+    p["parts"][0]["blocks_needed"] = ["nonexistent_block_xyz"]
+
+
+@pytest.mark.parametrize(
+    "mutate, expected_substring",
+    [
+        (_set_optimize_for_speed, "optimize_for"),
+        (_set_zero_show_face, "non-zero direction"),
+        (_del_dimensions, "dimensions"),
+        (_del_material, "material"),
+        (_set_unknown_block, "nonexistent_block_xyz"),
+    ],
+    ids=[
+        "invalid_optimize_for",
+        "zero_show_face_direction",
+        "missing_dimensions",
+        "missing_required_top_level",
+        "unknown_block_name",
+    ],
+)
+def test_invalid_plan_field_rejected(plan_file, mutate, expected_substring):
     plan = json.loads(json.dumps(VALID_PLAN))
-    plan["parts"][0]["show_face"] = {"dir": [0, 0, 0]}
+    mutate(plan)
     errors = validate_plan(plan_file(plan))
-    assert any("non-zero direction" in e for e in errors)
-
-
-def test_missing_dimensions(plan_file):
-    plan = json.loads(json.dumps(VALID_PLAN))
-    del plan["parts"][0]["dimensions"]
-    errors = validate_plan(plan_file(plan))
-    assert any("dimensions" in e for e in errors)
-
-
-def test_missing_required_top_level(plan_file):
-    plan = json.loads(json.dumps(VALID_PLAN))
-    del plan["material"]
-    errors = validate_plan(plan_file(plan))
-    assert any("material" in e for e in errors)
+    assert any(expected_substring in e for e in errors)
 
 
 def test_empty_parts_array(plan_file):
@@ -145,13 +161,6 @@ def test_empty_parts_array(plan_file):
     plan["parts"] = []
     errors = validate_plan(plan_file(plan))
     assert len(errors) >= 1
-
-
-def test_unknown_block_name(plan_file):
-    plan = json.loads(json.dumps(VALID_PLAN))
-    plan["parts"][0]["blocks_needed"] = ["nonexistent_block_xyz"]
-    errors = validate_plan(plan_file(plan))
-    assert any("nonexistent_block_xyz" in e for e in errors)
 
 
 def test_two_parts_no_assembly_field(plan_file):

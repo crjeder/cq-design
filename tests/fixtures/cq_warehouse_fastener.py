@@ -12,5 +12,5 @@ nut = HexNut(size="M6-1", fastener_type="iso4033", simple=True)
 bolt_solid = Solid(bolt.wrapped)
 nut_solid = Solid(nut.wrapped)
 
-result = cq.Workplane("XY").box(30, 30, 8).add(bolt_solid.translate((0, 0, 8)))
+result = cq.Workplane("XY").box(30, 30, 8).union(bolt_solid.translate((0, 0, 8)))
 cq.exporters.export(result, "bracket.stl", tolerance=0.01, angularTolerance=0.1)

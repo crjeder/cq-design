@@ -27,6 +27,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 
 SKILL_ROOT = os.path.dirname(os.path.abspath(__file__))
 MAX_FIX_ROUNDS = 2
@@ -339,6 +340,14 @@ def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     return run_kinematic_check(plan, stl_dir or ".")
 
 
+def _run_stl_dir_stage(
+    check_fn: Callable[[dict, str], list[dict]], plan: dict, stl_dir: str | None
+) -> list[dict]:
+    """Shared call shape for a whole-model check stage that takes `(plan, stl_dir)`,
+    defaulting `stl_dir` to the current directory."""
+    return check_fn(plan, stl_dir or ".")
+
+
 def _run_plate_clearance_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     """Check co-plated unions keep a gap above one layer height (once, outside the fix loop).
 
@@ -347,7 +356,7 @@ def _run_plate_clearance_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     """
     from plate_clearance_check import run_plate_clearance_check
 
-    return run_plate_clearance_check(plan, stl_dir or ".")
+    return _run_stl_dir_stage(run_plate_clearance_check, plan, stl_dir)
 
 
 def _run_keep_out_stage(plan: dict, stl_dir: str | None) -> list[dict]:
@@ -356,7 +365,7 @@ def _run_keep_out_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     """
     from keep_out_check import run_keep_out_check
 
-    return run_keep_out_check(plan, stl_dir or ".")
+    return _run_stl_dir_stage(run_keep_out_check, plan, stl_dir)
 
 
 def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | None) -> list[dict]:

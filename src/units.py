@@ -13,12 +13,61 @@ never itself a union: it is excluded from every union-shaped check, export, and 
 No CadQuery import here, so `plan_validate` (CadQuery-free) can use `iter_unions`.
 """
 
+import argparse
+import json
 import os
-from collections.abc import Iterator
+import sys
+from collections.abc import Callable, Iterator
 from typing import Any
 
 KEEP_OUT_KEY = "keep_out"
 """Reserved `result` key for a part's declared keep-out zones. Never itself a union id."""
+
+
+def load_plan(path: str) -> dict:
+    """Load and parse a BUILD_PLAN.json-shaped file. Shared by every CLI entry point that
+    takes a `--plan` argument."""
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def add_plan_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the `--plan` argument shared by every check-stage CLI entry point."""
+    parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
+
+
+def add_stl_dir_argument(parser: argparse.ArgumentParser, help: str) -> None:
+    """Add the `--stl-dir` argument shared by the STL-comparing check-stage CLIs
+    (`keep_out_check`, `plate_clearance_check`, `kinematic_check`), each with its own
+    stage-specific `help` text."""
+    parser.add_argument("--stl-dir", required=True, help=help)
+
+
+def emit_issues(issues: list[dict], *, fail_on_error: bool = True) -> None:
+    """Print `{"issues": issues}` and exit. Shared CLI tail for every check stage that
+    reports the quality-gate issue contract: exit 1 if any issue is `severity: "error"`
+    and `fail_on_error` (the default), else exit 0."""
+    print(json.dumps({"issues": issues}, indent=2))
+    if not fail_on_error:
+        sys.exit(0)
+    has_error = any(i["severity"] == "error" for i in issues)
+    sys.exit(1 if has_error else 0)
+
+
+def run_stl_dir_check_cli(
+    description: str, stl_dir_help: str, check_fn: Callable[[dict, str], list[dict]]
+) -> None:
+    """Shared CLI entry point for a check stage taking `--plan`/`--stl-dir` and calling
+    `check_fn(plan, stl_dir)` -- the common shape of `keep_out_check.main` and
+    `plate_clearance_check.main`."""
+    parser = argparse.ArgumentParser(description=description)
+    add_plan_argument(parser)
+    add_stl_dir_argument(parser, stl_dir_help)
+    args = parser.parse_args()
+
+    plan = load_plan(args.plan)
+    issues = check_fn(plan, args.stl_dir)
+    emit_issues(issues)
 
 
 def make_issue(
