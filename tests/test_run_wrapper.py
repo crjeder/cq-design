@@ -268,6 +268,7 @@ def test_translate_stderr_classifies_verify_markers():
         ("silent_boolean", "vent_slot"),
         ("feature_overflow", "tab"),
         ("workplane_drift", "lid_top"),
+        ("stage_mismatch", "base_shell"),
     ):
         stderr = (
             "Traceback (most recent call last):\n"
@@ -307,6 +308,23 @@ def test_silent_boolean_end_to_end(tmp_path):
     assert data["success"] is False
     assert len(sb) == 1
     assert sb[0]["label"] == "vent_slot"
+
+
+def test_stage_mismatch_end_to_end(tmp_path):
+    """A script whose verify_stage fires yields a typed stage_mismatch error."""
+    rc, data, sb = _run_typed_errors(
+        tmp_path,
+        "stage.py",
+        "import cadquery as cq\n"
+        "from cq_verify import verify_stage\n"
+        "body = cq.Workplane('XY').box(20, 20, 5, centered=(True, True, False))\n"
+        "result = verify_stage(body, 'base_shell', bbox=(-10, 10, -10, 10, 0, 50))\n",
+        "stage_mismatch",
+    )
+    assert rc == 1
+    assert data["success"] is False
+    assert len(sb) == 1
+    assert sb[0]["label"] == "base_shell"
 
 
 def test_expected_dims_mismatch(good_script):

@@ -170,6 +170,14 @@ plausible (computed offset, off-center feature, emboss/deboss merge); skip trivi
 overlapping ones. A failed assertion crashes the script; the wrapper reports it as a
 typed `silent_boolean` / `feature_overflow` / `workplane_drift` error naming the `label`.
 
+**Geometry contract for scratch parts.** A part with no matching archetype and no
+matching block (raw fluent CadQuery) must open with a named construction plan: each
+stage asserted via `verify_stage(wp, label, bbox=..., vol_min=...)` before building
+the next stage on top of it (`prompts/part.md` "Construction plan for scratch
+geometry"). A failed stage is reported as a typed `stage_mismatch` error naming the
+stage, so a wrong topology fails where it was introduced instead of surfacing as a
+cryptic OCC error or a failed visual review several steps later.
+
 ## Measurement: telemetry + eval harness
 
 1. **Telemetry is mandatory in the part loop** (Step 5): one record per attempt appended
@@ -193,6 +201,7 @@ typed `silent_boolean` / `feature_overflow` / `workplane_drift` error naming the
 | `silent_boolean` | No-op boolean (`verify_boolean`): reposition tool to intersect body (`label`) |
 | `feature_overflow` | Past base body (`verify_feature_bounds`): constrain/intersect with profile (`label`) |
 | `workplane_drift` | Origin drifted (`check_workplane`): re-anchor with `.workplane(origin=...)` (`label`) |
+| `stage_mismatch` | Construction stage bbox/volume off-plan (`verify_stage`): fix the stage named in `label`, not a later one |
 | `thin_wall` | Below `wall_min_mm`: increase wall or reduce cutout |
 | `overhang_exceeded` | Exceeds `overhang_max_deg`: chamfer, redesign, or warn |
 | `visual_mismatch` | Checklist question answered "no": name it/the view, fix the parameter/geometry (`skill/phase3_build.md` Step 4) |
