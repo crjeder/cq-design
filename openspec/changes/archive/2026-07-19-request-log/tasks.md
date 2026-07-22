@@ -21,4 +21,5 @@
 - [x] 3.1 Run `uv run pytest tests/test_plan_validate.py` and the eval-corpus
   sanity test (`tests/test_eval_corpus.py`) to confirm golden plans still validate
 - [x] 3.2 Update the CLAUDE.md `plan_validate.py` row if the exactly-one-initial
-  check lands in code rather than schema
+  check lands in code rather than schema (n/a: the check landed entirely in the
+  schema's tuple `items`/`additionalItems`, no new code path in `plan_validate.py`)

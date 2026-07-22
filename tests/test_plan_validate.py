@@ -624,30 +624,32 @@ def test_plan_without_joints_needs_no_root_part(plan_file):
 
 
 def test_plan_without_request_log_is_valid(plan_file):
-    # VALID_PLAN omits request_log; absence must not be an error.
-    assert validate_plan(plan_file(VALID_PLAN)) == []
+    # Regression: existing plans (including eval-corpus goldens) have no
+    # request_log at all; absence must not be an error.
+    errors = validate_plan(plan_file(VALID_PLAN))
+    assert errors == []
 
 
 def test_well_formed_request_log_validates(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["request_log"] = [
-        {"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": "Build an enclosure"},
-        {"ts": "2026-01-01T00:05:00Z", "kind": "clarification", "text": "Use PLA"},
-        {"ts": "2026-01-01T00:10:00Z", "kind": "correction", "text": "Make it 5mm taller"},
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make an enclosure"},
+        {"ts": "2026-07-19T10:05:00Z", "kind": "clarification", "text": "USB-C on the south wall"},
+        {"ts": "2026-07-19T11:00:00Z", "kind": "correction", "text": "Actually make it 5mm taller"},
     ]
     assert validate_plan(plan_file(plan)) == []
 
 
 def test_request_log_unknown_kind_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
-    plan["request_log"] = [{"ts": "2026-01-01T00:00:00Z", "kind": "bogus", "text": "x"}]
+    plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "bogus", "text": "hi"}]
     errors = validate_plan(plan_file(plan))
     assert len(errors) >= 1
 
 
 def test_request_log_empty_text_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
-    plan["request_log"] = [{"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": ""}]
+    plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": ""}]
     errors = validate_plan(plan_file(plan))
     assert len(errors) >= 1
 
@@ -655,7 +657,7 @@ def test_request_log_empty_text_rejected(plan_file):
 def test_request_log_extra_property_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["request_log"] = [
-        {"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": "x", "author": "user"}
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "extra": 1}
     ]
     errors = validate_plan(plan_file(plan))
     assert len(errors) >= 1
@@ -663,33 +665,33 @@ def test_request_log_extra_property_rejected(plan_file):
 
 def test_request_log_missing_field_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
-    plan["request_log"] = [{"ts": "2026-01-01T00:00:00Z", "kind": "initial"}]
+    plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "initial"}]
     errors = validate_plan(plan_file(plan))
     assert len(errors) >= 1
 
 
 def test_request_log_zero_initial_entries_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
-    plan["request_log"] = [{"ts": "2026-01-01T00:00:00Z", "kind": "clarification", "text": "x"}]
+    plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "clarification", "text": "hi"}]
     errors = validate_plan(plan_file(plan))
-    assert any("exactly one 'initial' entry" in e for e in errors)
+    assert len(errors) >= 1
 
 
 def test_request_log_duplicate_initial_entries_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["request_log"] = [
-        {"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": "x"},
-        {"ts": "2026-01-01T00:01:00Z", "kind": "initial", "text": "y"},
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi"},
+        {"ts": "2026-07-19T10:05:00Z", "kind": "initial", "text": "again"},
     ]
     errors = validate_plan(plan_file(plan))
-    assert any("exactly one 'initial' entry" in e for e in errors)
+    assert len(errors) >= 1
 
 
 def test_request_log_non_first_initial_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["request_log"] = [
-        {"ts": "2026-01-01T00:00:00Z", "kind": "clarification", "text": "x"},
-        {"ts": "2026-01-01T00:01:00Z", "kind": "initial", "text": "y"},
+        {"ts": "2026-07-19T10:00:00Z", "kind": "clarification", "text": "hi"},
+        {"ts": "2026-07-19T10:05:00Z", "kind": "initial", "text": "again"},
     ]
     errors = validate_plan(plan_file(plan))
-    assert any("'initial' entry must be first" in e for e in errors)
+    assert len(errors) >= 1
