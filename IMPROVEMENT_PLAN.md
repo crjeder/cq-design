@@ -4,6 +4,30 @@ Ordered by impact on result quality, then iteration count, then token cost.
 Diagnosis based on: SKILL.md (69 KB), prompts/ (22 KB), reference/ (81 KB),
 blocks/inventory.json (34 blocks), TODO.md, occ-error.md.
 
+**Status as of 2026-07-22** (verified against code, not just openspec claims):
+
+| # | Item | Status |
+|---|------|--------|
+| 1 | Phase 0 sourcing triage | DONE |
+| 2 | Part archetype templates | DONE |
+| 3 | Geometry contract before code | OPEN |
+| 4 | Move user review earlier / review policy | OPEN |
+| 5 | Engineering knowledge elicitation | OPEN |
+| 6 | Fix flaky export crash | DONE |
+| 7 | Static pre-flight lint | DONE |
+| 8 | Failure telemetry + eval harness | DONE |
+| 9 | Typed OCC error triage | PARTIAL |
+| 10 | Collapse redundant review layers | OPEN |
+| 11 | Restartability: request log + resume | DONE |
+| 12 | Split SKILL.md | DONE |
+| 13 | Stop re-substituting references | DONE |
+| 14 | Condense references against measured failures | OPEN |
+| 15 | Per-phase model routing | PARTIAL |
+
+Also in flight, not one of the original 15: `openspec/changes/import-params-from-py/`
+(reconcile a hand-edited script's params back into `BUILD_PLAN.json`) — proposed,
+all tasks unchecked, not implemented.
+
 ## Diagnosis
 
 The two reported failure modes — clumsy CadQuery code (repeated OCC / silent-boolean
@@ -23,7 +47,12 @@ same documents were already read into context once.
 
 ## P1 — Result quality (first-shot correctness)
 
-### 1. Phase 0: sourcing triage — search before designing
+### 1. Phase 0: sourcing triage — search before designing — DONE
+
+Implemented: `skill/phase0_sourcing.md` (five-rung ladder + license section),
+`src/convert_build123d.py` (build123d → CadQuery converter with smoke-check),
+provenance rule in `prompts/planning.md`. `openspec/changes/phase0-sourcing-triage/`
+has all tasks checked but the change folder has not been archived yet.
 
 cq-design's proper scope is the case where no usable parametric model exists online.
 Add a triage phase ahead of the pipeline with this decision ladder, taking the first
@@ -56,7 +85,12 @@ downloads fit worst. The two are complementary legs of the ladder.
   provenance, small converter helper for build123d sources.
 - Acceptance: requests answerable by a found model skip the build loop entirely.
 
-### 2. Part archetype templates (highest leverage for from-scratch parts)
+### 2. Part archetype templates (highest leverage for from-scratch parts) — DONE
+
+Implemented: `templates/*.py` (10 archetypes: enclosure body, sliding/snap/screwed
+lid, flanged adapter ring, L-bracket with gusset, plate with boss pattern, hook,
+clip, stand), `templates/archetypes.json` + schema, wired into the part loop as
+Step 1.5 ("Match archetype") in `skill/phase3_build.md`.
 
 Most from-scratch requests are variations of a dozen shapes: enclosure body, lid
 (sliding / snap / screwed), flanged adapter ring, L-bracket with gusset, flat plate
@@ -73,7 +107,10 @@ becomes the fallback, not the default.
 - Acceptance: for requests covered by an archetype, first-shot geometry pass rate
   measurably above the raw-authoring baseline (see item 8).
 
-### 3. Geometry contract before code
+### 3. Geometry contract before code — OPEN
+
+No `verify_stage` helper in `src/cq_verify.py`; `prompts/part.md` has no
+construction-plan / staged-assertion requirement. Not started.
 
 For scratch geometry (no block, no archetype), require the script to open with a
 construction plan: an ordered list of named stages, each with expected bbox/volume,
@@ -87,7 +124,12 @@ as a cryptic OCC error or a failed visual review.
 - Acceptance: retry prompts name the failing stage; average attempts on scratch
   parts drop.
 
-### 4. Move user review earlier — and make frequency a policy
+### 4. Move user review earlier — and make frequency a policy — OPEN
+
+No `review_policy` field in `src/build_plan_schema.json`, no profile-stub-render
+step in the part loop. Progressive build checkpoints exist (archived
+`2026-06-13-progressive-build-checkpoints`) but are still the complexity-gated
+exception, not the default, and there is no user-facing policy setting. Not started.
 
 User review catches intent mismatches (the wrong-topology failures); it does nothing
 for OCC errors and silent booleans, which belong to the deterministic loop. So the
@@ -108,7 +150,11 @@ instead of a rebuild:
 - Files: SKILL.md part loop (Step 0 stub + build-mode gate replaced by
   `review_policy`), `src/build_plan_schema.json` (one field), planning.md rule.
 
-### 5. Engineering knowledge: elicit it, don't just paste it
+### 5. Engineering knowledge: elicit it, don't just paste it — OPEN
+
+No `reference/Engineering Design Rules.md`, no engineering-rationale block
+requirement in `prompts/part.md`, no numbers-demanding rows added to the
+Visual Review Checklist. Not started.
 
 The model already knows cantilever snap-fit strain formulas, rib-to-wall ratios, and
 boss design rules from training; the failure is elicitation reliability. A large
@@ -133,7 +179,10 @@ Hybrid approach:
 - Files: `prompts/part.md`, `reference/Engineering Design Rules.md` (new, small),
   Visual Review Checklist rows.
 
-### 6. Fix the known flaky export crash
+### 6. Fix the known flaky export crash — DONE
+
+Landed via archived changes `2026-06-23-bypass-cq-warehouse-copy-patch` and
+`2026-07-03-fix-orientation-bintools-deepcopy`.
 
 `occ-error.md` documents a worked-around cq_warehouse `Shape.copy` deepcopy crash
 inside `model_export`'s rotations — flaky kernel failures burn retries and erode trust
@@ -148,7 +197,10 @@ through the BinTools serialize/deserialize path.
 
 ## P2 — Iteration count
 
-### 7. Static pre-flight lint (cheapest retry killer)
+### 7. Static pre-flight lint (cheapest retry killer) — DONE
+
+`src/script_lint.py` + `tests/test_script_lint.py` implemented; wired into the
+part loop as Step 2.5 in `skill/phase3_build.md`.
 
 New `src/script_lint.py`: AST-based, no CadQuery import, runs in milliseconds before
 the first real run. Mechanically checkable anti-patterns: booleans in a loop, missing
@@ -160,7 +212,10 @@ computed-offset boolean without a `verify_boolean` guard, `.shell()` after
 - Files: new `src/script_lint.py` + `tests/test_script_lint.py`; SKILL.md Step 2.5
   ("lint before validate; fix findings before the first run").
 
-### 8. Failure telemetry + eval harness (measurement backbone)
+### 8. Failure telemetry + eval harness (measurement backbone) — DONE
+
+`src/telemetry.py` (append-only `build/attempts.jsonl`) and `evals/` (canonical
+corpus, `run_evals.py` scorecard runner, `model_prices.json`) both implemented.
 
 Log every part attempt to `build/attempts.jsonl`: part id, attempt number, error
 types, whether visual review failed and on which question, approximate prompt size,
@@ -175,7 +230,14 @@ reference, or model-routing change.
 - Files: small hook in the SKILL.md part loop (append one JSON line per attempt),
   new `evals/` directory + runner script.
 
-### 9. Typed OCC error triage
+### 9. Typed OCC error triage — PARTIAL
+
+`run_cadquery_model.py` differentiates hint text per OCC exception class
+(`_OCC_HINTS`) but still emits one generic `"type": "occ_exception"` for all of
+them, rather than the distinct typed errors (e.g. a `fillet_failure` or
+`command_not_done` type) the item calls for, alongside the existing
+`silent_boolean`/`feature_overflow`/`workplane_drift` family. Telemetry (item 8)
+now exists to tell which signatures are worth splitting out first.
 
 `occ_exception` is a catch-all, so its retries are the least targeted. Map the
 recurring OCC signatures (BRepAlgoAPI "command not done", fillet/chamfer failures on
@@ -185,7 +247,12 @@ Feed frequencies from item 8's telemetry.
 
 - Files: `src/run_cadquery_model.py` error mapping + SKILL.md error table rows.
 
-### 10. Collapse redundant review layers
+### 10. Collapse redundant review layers — OPEN
+
+`quality_gate.py` has a `--no-fix` flag (`allow_fix=not args.no_fix`) but the
+fix loop is still **on by default**; report-only is opt-in, not the default.
+The claude -p fix rounds have not been routed back into the inline part-loop
+fix path. Not started.
 
 Three overlapping correction loops exist: part-loop visual review (3 attempts), the
 design approval checkpoint, and the quality gate's embedded `claude -p` fix rounds
@@ -197,7 +264,12 @@ findings back into the same inline part-loop fix path.
 - Files: `src/quality_gate.py` default flip, SKILL.md quality-gate section.
 - Also saves tokens (every `claude -p` round is a fresh full-context invocation).
 
-### 11. Restartability: request log + resume state
+### 11. Restartability: request log + resume state — DONE
+
+`request_log` is in `src/build_plan_schema.json` (initial + follow-up entry
+definitions, exactly-one-initial-first constraint enforced in
+`plan_validate.py` since draft-7 can't express it in schema). Landed via
+archived `2026-07-19-request-log`.
 
 A crashed or interrupted session is currently unrecoverable except by re-prompting
 from memory. Two pieces:
@@ -222,7 +294,10 @@ from memory. Two pieces:
 
 ## P3 — Token cost
 
-### 12. Split SKILL.md (69 KB → <10 KB core)
+### 12. Split SKILL.md (69 KB → <10 KB core) — DONE
+
+`skill/phase0_sourcing.md` through `skill/phase4_deliver.md` and `skill/setup.md`
+exist, read on demand per-phase. Landed via archived `2026-07-16-split-skill-md`.
 
 SKILL.md is ~17k tokens loaded on every trigger, but most content is phase-local.
 Keep in SKILL.md: trigger, phase overview, JSON contract, error table, coordinate
@@ -235,7 +310,10 @@ block is in play.
 
 - A `/render` or `/deliver` invocation then costs ~2k tokens instead of ~17k.
 
-### 13. Stop re-substituting references into every part prompt
+### 13. Stop re-substituting references into every part prompt — DONE
+
+`prompts/part.md` cites already-loaded reference docs by name instead of
+inlining them. Landed via archived `2026-07-21-part-prompt-reference-citation`.
 
 The Phase 3 setup already reads the pattern reference, anti-patterns, and FDM guide
 into context once — then the `{{CQ_REFERENCE}}`/`{{FDM_GUIDELINES}}` placeholders
@@ -248,7 +326,11 @@ Exception: any prompt sent to a cold context — a subprocess or a subagent (ite
 - Files: `prompts/part.md`, SKILL.md Step 1 substitution table.
 - Largest single token saving after item 12; zero information loss inline.
 
-### 14. Condense references against measured failures
+### 14. Condense references against measured failures — OPEN
+
+Reference files unchanged (`reference/CadQuery Pattern Reference.md`,
+`reference/CadQuery Anti-Patterns.md` still full size). Gated on item 8's
+telemetry, which now exists — this item is unblocked but not started.
 
 Once item 8's telemetry shows which reference sections actually correlate with
 avoided (or unavoided) failures, cut dead weight from the 24 KB pattern reference and
@@ -256,7 +338,15 @@ avoided (or unavoided) failures, cut dead weight from the 24 KB pattern referenc
 implicitly, shrinking what the reference must teach. Target: -40% with no measured
 regression on the eval set.
 
-### 15. Per-phase model routing (premium planner, cheaper coder)
+### 15. Per-phase model routing (premium planner, cheaper coder) — PARTIAL
+
+The subagent dispatch architecture landed (`ARCHITECTURE.md`, part loop routes
+autonomous parts through builder sub-agents, archived
+`2026-07-17-subagent-pipeline`) and `telemetry.py` has a `model` field ready to
+record it. Still missing: no `.claude/agents/cq-part-author.md` /
+`cq-planner.md` with a `model:` override, and no `skill_config.json` with a
+`models` section — so the model choice per phase is not actually configurable
+yet, only the dispatch mechanism exists.
 
 Use a top-tier model (e.g. Fable/Opus) for planning and topology decisions — the
 high-value, low-volume step — and a cheaper model (e.g. Sonnet) for part-script
@@ -291,7 +381,7 @@ Implementation:
 
 ---
 
-## Suggested sequence
+## Suggested sequence (original)
 
 Week 1: items 8 (telemetry/evals — the baseline everything is measured against),
 7, 12, 13 — all cheap, immediate wins. Add `request_log` (11) while touching the
@@ -300,9 +390,19 @@ Week 2–3: items 1 and 2 (the sourcing ladder + archetype core), 5, 9, 6.
 After that: 3, 4, 10, 14, then 15 once archetypes + condensed references make a
 cheaper coder viable — tuned against the eval harness.
 
-Expected end state: requests answerable by a found model never enter the build loop;
-archetype-covered parts reach valid geometry in one attempt most of the time; scratch
-parts fail with named stages instead of OCC mystery errors; interrupted sessions
-resume from the last passing part; and a typical run costs a fraction of today's
-tokens (no 17k trigger load, no 10k-per-part reference duplication, no cold
-`claude -p` fix rounds, cheap-model authoring where measurement proves it pays).
+## Remaining work (as of 2026-07-22)
+
+Items 8, 7, 12, 13, 11, 1, 2, 6 are done. Still open, roughly in original
+priority order: **3** (geometry contract / `verify_stage`), **4** (review
+policy / earlier review), **5** (engineering-rationale elicitation), **9**
+(split `occ_exception` into real typed errors — telemetry now exists to prove
+which signatures matter), **10** (gate report-only by default), **14**
+(condense references — also unblocked by telemetry), **15** (finish model
+routing: agent files + `skill_config.json`, now that item 2's archetypes and
+item 13's reference citation reduce the coder's exposure).
+
+Expected end state once the rest lands: scratch parts fail with named stages
+instead of OCC mystery errors; review happens earlier and at a frequency the
+user controls; OCC retries carry specific fixes instead of a generic hint; the
+gate stops paying for a cold `claude -p` round by default; and per-phase model
+routing is actually configurable, not just architecturally possible.
