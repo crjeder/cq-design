@@ -58,6 +58,15 @@ Before committing to any dimension values, populate `planning_notes` with your r
 
 3. **Select blocks from the inventory.** For each part's `blocks_needed`, choose only names that appear in the block inventory below. If no block fits, leave `blocks_needed` empty and explain the scratch geometry in `part_notes` for that part. When a block's instance size is known, give it as an object `{"name": "...", "extents_mm": [x, y, z]}` instead of a bare name string, so the thin-block DFM check can flag any extent below `wall_min_mm` before code is generated. A bare string is still valid when the size is not yet fixed.
 
+3a. **Match a part archetype when one fits.** Check each part's shape against the archetype
+    index below (`{{ARCHETYPE_INDEX}}`). When a part's overall topology fits an archetype's
+    `use` description (an enclosure body, a lid, a bracket, an adapter ring, a boss-pattern
+    plate, a hook, a clip, a stand), set that part's `archetype` to the archetype's `name`
+    so the Phase 3 part loop authors it by copying and editing the known-good template
+    instead of writing raw CadQuery from a blank file. Omit `archetype` when no entry's `use`
+    fits the part -- do not force a match. This is advisory: the part loop re-confirms the
+    fit before using it and falls back to raw authoring on a mismatch.
+
 4. **Clearance depends on fit type.** Use these defaults and write the resolved value into each mating interface's `clearance_mm`. Ask the user if the fit type is unclear.
 
    | Fit type        | Default clearance |
@@ -209,6 +218,13 @@ Before committing to any dimension values, populate `planning_notes` with your r
 
 {{BLOCK_INVENTORY}}
 
+## Part archetype index (name and use only)
+
+Known-good, pre-verified whole-part template scripts a part can be authored from instead
+of raw CadQuery (see rule 3a). Match by `use`, not just by name.
+
+{{ARCHETYPE_INDEX}}
+
 ## Printer profile
 
 {{PRINTER_PROFILE}}
@@ -252,6 +268,7 @@ profile is present above, take these values from what the user stated in Phase 1
         }
       ],
       "blocks_needed": [{"name": "hollow_box", "extents_mm": [50, 35, 20]}, "port_cutout"],
+      "archetype": "enclosure-body",
       "plate": "body",
       "placement": {"rotate": [{"axis": "X", "angle_deg": 0}], "translate_mm": [0, 0, 0]},
       "load": {"dir": [1, 0, 0]},
@@ -286,7 +303,8 @@ profile is present above, take these values from what the user stated in Phase 1
 }
 ```
 
-Note: `plate` and `placement` are optional (default: own plate, identity placement).
+Note: `archetype` is optional -- set it per rule 3a when a part fits an entry in the
+archetype index, omit otherwise. `plate` and `placement` are optional (default: own plate, identity placement).
 `load` is schema-optional but you SHOULD determine and declare it per rule 10 (omitting
 it makes strength scoring orientation-neutral -- no load axis is guessed -- which is only
 correct when the part truly carries no structural load); `load.type` defaults to

@@ -154,6 +154,11 @@
             "type": "string",
             "description": "LLM reasoning for this part: blocks chosen, geometry written from scratch, unusual decisions"
           },
+          "archetype": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Name of a matching entry in templates/archetypes.json, set by the planner when this part fits an archetype's `use` description. Cross-checked against the archetype index by plan_validate.py. Optional; omit when no archetype fits -- the part loop's own Step 1.5 match still runs either way."
+          },
           "plate": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_]*$",

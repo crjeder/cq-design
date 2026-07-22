@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Archetype Template Index",
+  "description": "Schema for templates/archetypes.json — machine-readable catalog of known-good, pre-verified part-archetype template scripts",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["name", "file", "use", "params"],
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$",
+        "description": "Unique kebab-case identifier referenced in BUILD_PLAN.json per-part `archetype`"
+      },
+      "file": {
+        "type": "string",
+        "description": "Template script filename, relative to templates/, e.g. enclosure_body.py"
+      },
+      "use": {
+        "type": "string",
+        "minLength": 10,
+        "description": "Plain-English description of what the archetype is for and when to match it"
+      },
+      "params": {
+        "type": "object",
+        "description": "Map of top-level parameter name to unit/description",
+        "additionalProperties": { "type": "string" }
+      },
+      "aliases": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Matching synonyms, e.g. 'box' for enclosure-body"
+      }
+    }
+  }
+}
