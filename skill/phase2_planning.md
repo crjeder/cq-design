@@ -2,12 +2,13 @@
 
 **Prerequisite:** The dimension validation checkpoint must be approved before this phase begins. If user-corrected values were provided during the checkpoint, use those values -- not the originally looked-up values -- when populating `BUILD_PLAN.json`.
 
-Build the planning prompt from the template in `prompts/planning.md`. Substitute four placeholders:
+Build the planning prompt from the template in `prompts/planning.md`. Substitute five placeholders:
 
 | Placeholder | Source |
 |-------------|--------|
 | `{{USER_REQUEST}}` | User's full description of the part |
 | `{{BLOCK_INVENTORY}}` | Condensed name + use lines from `src/blocks/inventory.json` |
+| `{{ARCHETYPE_INDEX}}` | Condensed name + use lines from `templates/archetypes.json` |
 | `{{FDM_GUIDELINES}}` | Sections tagged `always` from `reference/FDM 3D Print Design Guidelines.md` |
 | `{{PRINTER_PROFILE}}` | `printer`/`material`/`nozzle_mm`/`constraints` from a validated `printer_profile.json` in the working directory, or a note that none is available |
 

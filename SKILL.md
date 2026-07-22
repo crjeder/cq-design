@@ -84,10 +84,11 @@ format to approve.
 Write and validate each part script (autonomous or progressive), get user approval on
 the finished parts, optimize print orientation, export the model, and run the gate.
 
-**Before starting Phase 3, read `skill/phase3_build.md` in full** — the part loop (lint,
-visual self-review), progressive build staging, the design approval checkpoint,
-print-orientation optimization, model export, the block library, kinematic validation,
-and the quality gate. This phase is not runnable from the summary alone.
+**Before starting Phase 3, read `skill/phase3_build.md` in full** — the part loop
+(archetype match, lint, visual self-review), progressive build staging, the design
+approval checkpoint, print-orientation optimization, model export, the block library,
+kinematic validation, and the quality gate. This phase is not runnable from the summary
+alone.
 
 ## Phase 4: Deliver
 
@@ -217,6 +218,7 @@ part whose `blocks_needed` includes a fastener block** — never guess these dim
 | `prompts/planning.md` / `prompts/part.md` | Prompt templates |
 | `src/model_export.py` | Assembles unions into model.3mf + per-union/plate STL |
 | `src/blocks/inventory.json` / `validate.py --search <kw>` | Block descriptors; lookup |
+| `templates/archetypes.json` / `templates/*.py` | Known-good whole-part templates matched in Phase 3 Step 1.5 |
 | `skill/*.md` | Setup and per-phase detail (see phase sections above) |
 | `reference/hardware_dims.md` | Fastener sizing tables (block-gated, see above) |
 | `reference/CadQuery Pattern Reference.md` / `Anti-Patterns.md` | Idioms + mistakes, every part |
