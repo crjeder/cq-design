@@ -19,6 +19,7 @@ import jsonschema
 
 _SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "build_plan_schema.json")
 _INVENTORY_PATH = os.path.join(os.path.dirname(__file__), "blocks", "inventory.json")
+_ARCHETYPES_PATH = os.path.join(os.path.dirname(__file__), "..", "templates", "archetypes.json")
 
 # Fields the planning prompt explicitly forbids but an LLM may still emit out of habit
 # (e.g. from an older convention). Surfaced as a hint on the matching schema error
@@ -47,7 +48,11 @@ def _load_json(path: str) -> Any:
         return json.load(f)
 
 
-def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list[str]:
+def validate_plan(
+    plan_path: str,
+    inventory_path: str = _INVENTORY_PATH,
+    archetypes_path: str = _ARCHETYPES_PATH,
+) -> list[str]:
     """Validate a BUILD_PLAN.json file. Returns list of error strings (empty = OK).
 
     plan_path is used as-is (resolved relative to the caller's cwd, not this file's
@@ -88,6 +93,7 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
                     f"(not in inventory). Available: {sorted(valid_blocks)}"
                 )
 
+    errors.extend(_check_archetypes(plan, archetypes_path))
     errors.extend(_check_unions(plan))
     errors.extend(_check_placements(plan))
     errors.extend(_check_nonzero_dir(plan, "load"))
@@ -96,6 +102,32 @@ def validate_plan(plan_path: str, inventory_path: str = _INVENTORY_PATH) -> list
     errors.extend(_check_joints(plan, inventory_path))
     errors.extend(_check_request_log(plan))
 
+    return errors
+
+
+def _check_archetypes(plan: dict[str, Any], archetypes_path: str = _ARCHETYPES_PATH) -> list[str]:
+    """Cross-check each part's optional `archetype` against templates/archetypes.json
+    names, mirroring the `blocks_needed` inventory cross-check."""
+    parts = plan.get("parts", [])
+    if not any("archetype" in part for part in parts):
+        return []
+
+    try:
+        archetypes = _load_json(archetypes_path)
+        valid_names = {entry["name"] for entry in archetypes}
+    except (OSError, json.JSONDecodeError) as e:
+        return [f"Cannot load archetype index: {e}"]
+
+    errors = []
+    for part in parts:
+        name = part.get("archetype")
+        if name is None or name in valid_names:
+            continue
+        pid = part.get("id", "(unknown)")
+        errors.append(
+            f"Part '{pid}': unknown archetype '{name}' (not in templates/archetypes.json). "
+            f"Available: {sorted(valid_names)}"
+        )
     return errors
 
 
@@ -467,9 +499,12 @@ def main():
     parser.add_argument(
         "--inventory", default=_INVENTORY_PATH, help="Path to blocks/inventory.json"
     )
+    parser.add_argument(
+        "--archetypes", default=_ARCHETYPES_PATH, help="Path to templates/archetypes.json"
+    )
     args = parser.parse_args()
 
-    errors = validate_plan(args.plan, args.inventory)
+    errors = validate_plan(args.plan, args.inventory, args.archetypes)
     if errors:
         print(f"BUILD_PLAN validation FAILED ({len(errors)} error(s)):")
         for e in errors:

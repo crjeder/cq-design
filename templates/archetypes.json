@@ -1,0 +1,164 @@
+[
+  {
+    "name": "enclosure-body",
+    "file": "enclosure_body.py",
+    "use": "An open-top hollow box enclosure body, optionally with a 2x2 corner screw-boss pattern for a lid. Use for electronics cases, project boxes, and any body that needs walls and a floor but no lid.",
+    "params": {
+      "width": "mm outer width (X)",
+      "depth": "mm outer depth (Y)",
+      "height": "mm outer height (Z)",
+      "wall": "mm wall thickness",
+      "floor_t": "mm floor thickness",
+      "corner_r": "mm outer corner fillet radius (0 = sharp)",
+      "add_bosses": "bool, union a 2x2 corner screw-boss pattern onto the floor",
+      "boss_margin": "mm inset of each boss center from the outer corner",
+      "boss_d_screw": "mm self-tapping screw diameter",
+      "boss_d_outer": "mm boss outer diameter",
+      "boss_h": "mm boss height measured from Z=0"
+    },
+    "aliases": ["box", "case", "housing", "project box"]
+  },
+  {
+    "name": "lid-sliding",
+    "file": "lid_sliding.py",
+    "use": "A sliding dovetail lid: the tongue IS the lid, flush with the box top, sliding along +Y into a dovetail_groove cut into the mating enclosure body's top edge. Use when the lid should not be liftable straight off (retains itself once slid closed).",
+    "params": {
+      "box_width": "mm outer box width (must match the mating body's width)",
+      "wall": "mm box wall thickness (must match the mating body's wall)",
+      "lid_t": "mm lid thickness (equals dovetail depth)",
+      "lid_length": "mm lid length along the slide direction (+Y)",
+      "dovetail_angle": "degrees from vertical (default 55; keep >= 45 for printability)",
+      "clearance": "mm per-side clearance for smooth sliding (0.05 for a snug fit)"
+    },
+    "aliases": ["dovetail lid", "sliding cover"]
+  },
+  {
+    "name": "lid-snap",
+    "file": "lid_snap.py",
+    "use": "A flat snap-fit lid with cantilever snap_hook_clip features on the underside near two opposing edges. Mates with snap_socket_receiver slots cut into the enclosure body's walls. Use when the lid should snap on and off by hand without tools.",
+    "params": {
+      "lid_width": "mm outer lid width (X), matches the enclosure body's outer width",
+      "lid_depth": "mm outer lid depth (Y), matches the enclosure body's outer depth",
+      "lid_t": "mm lid panel thickness",
+      "corner_r": "mm outer corner fillet radius (0 = sharp)",
+      "clip_w": "mm snap hook clip width",
+      "clip_length": "mm cantilever beam length",
+      "clip_h": "mm beam thickness",
+      "clip_hook_h": "mm hook tooth protrusion",
+      "clip_inset": "mm inset of each clip's beam origin from the panel edge",
+      "clip_embed_mm": "mm the clip base embeds into the panel for a real volumetric overlap"
+    },
+    "aliases": ["snap-fit lid", "snap cover"]
+  },
+  {
+    "name": "lid-screwed",
+    "file": "lid_screwed.py",
+    "use": "A flat lid with a 2x2 corner counterbore pattern so a screw head sits flush with the top face and the shaft passes into the mating enclosure body's screw_boss (or heat_set_boss) pattern below. Use when the lid must be removable with a screwdriver and sealed under load.",
+    "params": {
+      "lid_width": "mm outer lid width (X), matches the enclosure body's outer width",
+      "lid_depth": "mm outer lid depth (Y), matches the enclosure body's outer depth",
+      "lid_t": "mm lid panel thickness",
+      "corner_r": "mm outer corner fillet radius (0 = sharp)",
+      "hole_margin": "mm inset of each hole center from the outer corner (match boss_margin)",
+      "d_screw": "mm screw shaft clearance diameter",
+      "d_head": "mm counterbore pocket diameter",
+      "h_head": "mm counterbore pocket depth (< lid_t)"
+    },
+    "aliases": ["screwed cover", "bolted lid"]
+  },
+  {
+    "name": "adapter-ring-flanged",
+    "file": "adapter_ring_flanged.py",
+    "use": "A stepped cylindrical bore adapter with a flat mounting flange drilled with a bolt-circle pattern. Use to adapt between two circular fittings of different diameter: pipe couplers, lens/filter adapters, motor-to-shaft collars, vacuum-port reducers.",
+    "params": {
+      "bore_d": "mm through-bore diameter (the smaller mating fitting)",
+      "body_d": "mm cylindrical body outer diameter (the larger mating fitting)",
+      "body_h": "mm cylindrical body height",
+      "flange_d": "mm flange outer diameter",
+      "flange_t": "mm flange thickness",
+      "bolt_circle_d": "mm bolt-circle diameter for the flange mounting holes",
+      "bolt_hole_d": "mm mounting hole clearance diameter",
+      "bolt_count": "count of mounting holes evenly spaced on the bolt circle"
+    },
+    "aliases": ["pipe adapter", "flange adapter", "coupler"]
+  },
+  {
+    "name": "l-bracket-gusset",
+    "file": "l_bracket_gusset.py",
+    "use": "An L-shaped bracket: two rectangular arms meeting at a right angle, each drilled with a mounting-screw clearance hole, reinforced by a diagonal gusset rib across the inner corner. Use for wall/shelf mounts and right-angle structural brackets.",
+    "params": {
+      "arm_a_len": "mm length of the vertical arm (Z)",
+      "arm_b_len": "mm length of the horizontal arm (X)",
+      "arm_w": "mm arm width (Y)",
+      "arm_t": "mm arm thickness",
+      "gusset_t": "mm gusset thickness (Y, centered in the arm width)",
+      "gusset_reach": "mm how far the gusset extends along each arm from the inner corner",
+      "hole_d": "mm mounting screw clearance diameter",
+      "hole_inset": "mm inset of each hole center from its arm's free end"
+    },
+    "aliases": ["bracket", "corner bracket", "wall bracket"]
+  },
+  {
+    "name": "plate-boss-pattern",
+    "file": "plate_boss_pattern.py",
+    "use": "A flat rectangular plate with a regular grid of screw bosses (standoffs) unioned onto the top face. Use for mounting a PCB or a panel of components; combine with vent_grid or port_cutout for enclosure-adjacent plates.",
+    "params": {
+      "plate_w": "mm plate width (X)",
+      "plate_d": "mm plate depth (Y)",
+      "plate_t": "mm plate thickness",
+      "corner_r": "mm outer corner fillet radius (0 = sharp)",
+      "boss_cols": "count of boss columns (X)",
+      "boss_rows": "count of boss rows (Y)",
+      "boss_spacing_x": "mm spacing between boss columns",
+      "boss_spacing_y": "mm spacing between boss rows",
+      "boss_d_screw": "mm screw clearance diameter",
+      "boss_d_outer": "mm boss outer diameter",
+      "boss_h": "mm standoff height above the plate top face"
+    },
+    "aliases": ["pcb mount plate", "standoff plate", "mounting plate"]
+  },
+  {
+    "name": "hook",
+    "file": "hook.py",
+    "use": "A flat wall-mount backplate with two screw clearance holes and a curved round-rod arm curling out and back from the front face to retain a hung item. Use for coat hooks, cable hooks, and tool hangers.",
+    "params": {
+      "plate_w": "mm backplate width (X)",
+      "plate_h": "mm backplate height (Z)",
+      "plate_t": "mm backplate thickness (Y)",
+      "hook_arm_r": "mm centerline radius of the hook arm's curve",
+      "hook_tube_d": "mm hook arm cross-section (round rod) diameter",
+      "hook_sweep_deg": "degrees the arm curls away from its pivot",
+      "hook_pivot_z": "mm pivot height on the backplate (Z)",
+      "mount_hole_d": "mm mounting screw clearance diameter",
+      "mount_hole_inset": "mm inset of each mounting hole from the backplate's top/bottom edge"
+    },
+    "aliases": ["wall hook", "coat hook", "cable hook"]
+  },
+  {
+    "name": "clip",
+    "file": "clip.py",
+    "use": "A U-shaped spring clip: a solid closed base at one end with two parallel arms extending from it, separated by a gap sized to grip a panel or rail edge by friction/spring-back. Use for cable clips, panel edge trim, badge clips, and rail-mount clips.",
+    "params": {
+      "clip_width": "mm clip width (X, constant along the whole clip)",
+      "gap_mm": "mm inner gap the clip grips (panel/rail thickness + a small squeeze)",
+      "wall_t": "mm wall thickness (also the closed base thickness at the bend)",
+      "arm_len": "mm straight arm length beyond the closed base, on each side"
+    },
+    "aliases": ["u-clip", "spring clip", "edge clip"]
+  },
+  {
+    "name": "stand",
+    "file": "stand.py",
+    "use": "A wedge-shaped base with a flat vertical back section and a sloped front ramp, with a slot cut into the flat back section that holds a flat device at a fixed viewing angle. Use for phone stands, tablet stands, and card/photo holders.",
+    "params": {
+      "base_w": "mm base width (X)",
+      "base_d": "mm base footprint depth (Y), back edge to front edge",
+      "base_h": "mm base height at the back (Z)",
+      "back_flat_w": "mm depth of the flat vertical back section that holds the slot",
+      "slot_w": "mm slot width (X), slightly less than base_w",
+      "slot_gap": "mm slot opening width (device thickness + clearance)",
+      "slot_depth": "mm how far the slot cuts down into the back section from the top"
+    },
+    "aliases": ["phone stand", "tablet stand", "device stand"]
+  }
+]
