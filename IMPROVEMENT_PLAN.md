@@ -11,7 +11,7 @@ blocks/inventory.json (34 blocks), TODO.md, occ-error.md.
 | 1 | Phase 0 sourcing triage | DONE |
 | 2 | Part archetype templates | DONE |
 | 3 | Geometry contract before code | DONE |
-| 4 | Move user review earlier / review policy | OPEN |
+| 4 | Move user review earlier / review policy | DONE |
 | 5 | Engineering knowledge elicitation | OPEN |
 | 6 | Fix flaky export crash | DONE |
 | 7 | Static pre-flight lint | DONE |
@@ -126,12 +126,17 @@ as a cryptic OCC error or a failed visual review.
 - Acceptance: retry prompts name the failing stage; average attempts on scratch
   parts drop.
 
-### 4. Move user review earlier — and make frequency a policy — OPEN
+### 4. Move user review earlier — and make frequency a policy — DONE
 
-No `review_policy` field in `src/build_plan_schema.json`, no profile-stub-render
-step in the part loop. Progressive build checkpoints exist (archived
-`2026-06-13-progressive-build-checkpoints`) but are still the complexity-gated
-exception, not the default, and there is no user-facing policy setting. Not started.
+Implemented: `review_policy` enum (`minimal` | `checkpoints` | `every_stage`,
+default `every_stage`) in `src/build_plan_schema.json`, elicited by
+`prompts/planning.md` rule 11a and surfaced in the plan summary
+(`skill/phase2_planning.md`). `skill/phase3_build.md` gains a Step 0
+profile-stub checkpoint ahead of full part authoring (user-facing under
+`checkpoints`/`every_stage`, self-reviewed under `minimal`) and its Build-mode
+section now selects progressive vs. autonomous per part from `review_policy`
+first, with the old complexity gate preserved only under `checkpoints`. Landed
+via `openspec/changes/earlier-user-review/`.
 
 User review catches intent mismatches (the wrong-topology failures); it does nothing
 for OCC errors and silent booleans, which belong to the deterministic loop. So the
@@ -394,9 +399,8 @@ cheaper coder viable — tuned against the eval harness.
 
 ## Remaining work (as of 2026-07-22)
 
-Items 8, 7, 12, 13, 11, 1, 2, 6, 3 are done. Still open, roughly in original
-priority order: **4** (review
-policy / earlier review), **5** (engineering-rationale elicitation), **9**
+Items 8, 7, 12, 13, 11, 1, 2, 6, 3, 4 are done. Still open, roughly in original
+priority order: **5** (engineering-rationale elicitation), **9**
 (split `occ_exception` into real typed errors — telemetry now exists to prove
 which signatures matter), **10** (gate report-only by default), **14**
 (condense references — also unblocked by telemetry), **15** (finish model
@@ -404,7 +408,7 @@ routing: agent files + `skill_config.json`, now that item 2's archetypes and
 item 13's reference citation reduce the coder's exposure).
 
 Expected end state once the rest lands: scratch parts fail with named stages
-instead of OCC mystery errors; review happens earlier and at a frequency the
-user controls; OCC retries carry specific fixes instead of a generic hint; the
-gate stops paying for a cold `claude -p` round by default; and per-phase model
-routing is actually configurable, not just architecturally possible.
+instead of OCC mystery errors; OCC retries carry specific fixes instead of a
+generic hint; the gate stops paying for a cold `claude -p` round by default;
+and per-phase model routing is actually configurable, not just
+architecturally possible.
