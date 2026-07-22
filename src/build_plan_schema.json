@@ -43,6 +43,11 @@
       "enum": ["strength", "min_support", "visual_quality"],
       "description": "Plan-level print-orientation objective. 'strength' (default when omitted) keeps the part's load in the layer plane; 'min_support' minimizes support material; 'visual_quality' favors clean visible surfaces (penalizes gentle inclines under 45 deg, orients the cosmetic show_face against the bed). A per-part optimize_for overrides this for that part."
     },
+    "review_policy": {
+      "type": "string",
+      "enum": ["minimal", "checkpoints", "every_stage"],
+      "description": "Plan-level review-frequency preference for the Phase 3 part loop. 'every_stage' (default when omitted) builds every part progressively with a stage checkpoint and shows the Step 0 profile-stub checkpoint. 'checkpoints' shows the stub checkpoint and applies the existing interfaces/blocks_needed complexity gate to decide progressive vs. autonomous per part. 'minimal' self-reviews the stub without pausing and builds every part autonomously with no stage checkpoints."
+    },
     "request_log": {
       "type": "array",
       "minItems": 1,

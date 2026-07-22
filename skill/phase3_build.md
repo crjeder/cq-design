@@ -38,17 +38,30 @@ removes.
 ## Build mode (per part)
 
 Decide per part whether to build **autonomously** (the single-shot Part loop below) or
-**progressively** (staged, with user checkpoints — see Progressive build).
+**progressively** (staged, with user checkpoints — see Progressive build). The decision
+is driven by the plan's effective `review_policy` (`plan["review_policy"]`, default
+`every_stage` when the field is absent):
 
-**Complexity gate (default):** build progressively when the part has **at least one
-`interfaces` entry** OR `len(part["blocks_needed"]) >= 3`; otherwise build autonomously.
-The threshold (`3`) is tunable — adjust it here from field experience.
+- **`every_stage`** (default): every part builds progressively, regardless of its
+  `interfaces` or `blocks_needed`.
+- **`checkpoints`**: build progressively when the part has **at least one `interfaces`
+  entry** OR `len(part["blocks_needed"]) >= 3` (the complexity gate); otherwise build
+  autonomously. The threshold (`3`) is tunable — adjust it here from field experience.
+  This reproduces the pre-`review_policy` default behavior as an explicit opt-in.
+- **`minimal`**: every part builds autonomously; no stage checkpoints are shown for any
+  part.
 
 **User override:** if the user asks to build progressively (e.g. "show me each step",
 "checkpoint as you go") or autonomously (e.g. "just build it", "no checkpoints"), honor
-that for the part or the whole run regardless of the gate. Absent an override, the gate decides.
+that for the part or the whole run regardless of `review_policy`. Absent an override,
+`review_policy` decides.
 
 ## Agent routing gate
+
+Step 0 (the profile-stub review) always runs in the main session, regardless of how the
+part's full authoring is routed below — under `checkpoints`/`every_stage` it is a user
+checkpoint, and even under `minimal` its self-review is cheap enough not to need a
+separate agent spawn. Only Steps 1 onward (full authoring) are subject to this gate.
 
 The build-mode gate above decides progressive vs. autonomous; this gate decides, for an
 autonomous part, whether the Part loop below runs inline or inside a spawned builder
@@ -75,7 +88,38 @@ part (Step 1 is rendered by main before spawning; Steps 2-5 run inside the agent
 **main session**, for a progressive part's per-stage authoring (see Progressive build,
 which reuses these steps) — every "you" below refers to that executor.
 
-For each part in `plan["parts"]`, in order, attempt up to **3 times**:
+For each part in `plan["parts"]`, in order:
+
+**Step 0 — Profile stub review**
+
+Before rendering the full part prompt (Step 1 below), author a minimal stub script:
+the part's characteristic 2D profile (from `dimensions` and, when it drives the
+outline, `part_notes`/`interfaces`), extruded to a nominal thickness. Write it to a
+throwaway path (e.g. `build/<part_id>_stub.py`, not `build/<part_id>.py`) and render it:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
+    build/<part_id>_stub.py --preview --preview-dir preview
+```
+
+This reuses the existing preview path; no new renderer is introduced. The stub is
+disposable — it is never reused as progressive build's base-shape stage, and its
+geometry is not required to match the construction plan later used for that stage
+(see the Progressive build section below).
+
+Branch on the plan's effective `review_policy` (see Build mode above):
+
+- **`checkpoints` or `every_stage`:** display the rendered stub and a one-line
+  description of the profile, then wait. The user can **approve** (proceed to Step 1),
+  **request a change** (re-author the stub with the feedback, re-render, present the
+  checkpoint again), or **skip** (proceed to Step 1 without further stub iteration).
+- **`minimal`:** still render the stub, but evaluate it yourself against the part's
+  design intent (does the silhouette look right) without pausing for the user —
+  the same self-review posture already used for autonomous parts' geometry. Note any
+  mismatch as a one-line self-correction and adjust the upcoming full script
+  accordingly; do not block on it.
+
+Then attempt up to **3 times**:
 
 **Step 1 — Render the part prompt**
 

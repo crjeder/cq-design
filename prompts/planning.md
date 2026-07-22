@@ -169,6 +169,16 @@ Before committing to any dimension values, populate `planning_notes` with your r
     the part's authored frame (the surface the optimizer orients face-down against the
     bed); omit it to let the optimizer infer the cosmetic surface.
 
+11a. **Record the user's review-frequency preference with `review_policy`.** Set a
+    plan-level `review_policy`, one of `minimal`, `checkpoints`, or `every_stage`
+    (default `every_stage` when the user states no preference). Map the user's intent:
+    "review every step" / "checkpoint often" / "show me as you go" -> `every_stage`;
+    "only pause for complex parts" / today's default behavior -> `checkpoints`; "just
+    build it" / "no checkpoints" / "run autonomously" -> `minimal`. This field is the
+    single source of truth for how often the Phase 3 part loop pauses for user review
+    (including the Step 0 profile-stub checkpoint) -- do not also track a separate
+    autonomous-run flag.
+
 12. **Proactively propose the `shadow_gap` block for any visible multi-part seam.** When
     two parts mate along a face that will be visible on the finished piece (quartered or
     segmented panels, a lid meeting a body on an outer surface, abutting decorative
@@ -248,6 +258,7 @@ profile is present above, take these values from what the user stated in Phase 1
   "material": "PLA",
   "nozzle_mm": 0.4,
   "optimize_for": "strength",
+  "review_policy": "every_stage",
   "request_log": [
     {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "<user's original request, verbatim>"},
     {"ts": "2026-07-19T10:05:00Z", "kind": "clarification", "text": "<verbatim clarification answer>"}
@@ -311,6 +322,8 @@ correct when the part truly carries no structural load); `load.type` defaults to
 `tension` when `load.dir` is given. Omit `kinematics` unless the model has a declared
 range of motion to verify. `request_log` is schema-optional but you SHOULD populate it
 per rule 14 -- every fresh plan gets an `initial` entry plus one per clarification.
+`review_policy` is schema-optional but you SHOULD set it per rule 11a from the user's
+stated review-frequency preference; omitting it defaults to `every_stage` downstream.
 
 ## FDM Design Guidelines
 

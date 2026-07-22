@@ -697,6 +697,28 @@ def test_request_log_non_first_initial_rejected(plan_file):
     assert len(errors) >= 1
 
 
+# ---- review_policy --------------------------------------------------------
+
+
+def test_plan_level_review_policy(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["review_policy"] = "minimal"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_missing_review_policy_is_valid(plan_file):
+    # VALID_PLAN omits `review_policy`; absence must not be an error (defaults
+    # to every_stage downstream).
+    assert validate_plan(plan_file(VALID_PLAN)) == []
+
+
+def test_invalid_review_policy_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["review_policy"] = "sometimes"
+    errors = validate_plan(plan_file(plan))
+    assert any("review_policy" in e for e in errors)
+
+
 def test_valid_archetype_passes(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["archetype"] = "enclosure-body"
