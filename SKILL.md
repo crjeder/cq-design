@@ -160,6 +160,14 @@ define all dimensions in a `PARAMETERS` block at the top (no magic numbers); ass
 final geometry to a top-level `result`; and never call `cq.exporters.export()` (the
 wrapper handles export).
 
+**Reconciling hand-edited PARAMETERS.** If a user (or Claude) tweaks a part script's
+`PARAMETERS` block directly after the plan was built, `BUILD_PLAN.json` goes stale --
+run `python src/import_params.py <script.py> --part <id> --write` to fold the edited
+`width`/`depth`/`height` values back into that part's `dimensions` (schema-validated
+before it writes). Do not hand-edit `BUILD_PLAN.json`'s dimensions to match; let the
+tool do the round-trip so the plan stays the source of truth the quality gate checks
+against.
+
 **Construction-time verification (`cq_verify`).** A no-op `.cut()`/`.union()` and a
 workplane-origin shift after `.center()`/`.hole()` both fail silently. Import from
 `cq_verify` (on the wrapper's `PYTHONPATH`) and assert at the point of risk — each call
