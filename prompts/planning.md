@@ -181,7 +181,14 @@ Before committing to any dimension values, populate `planning_notes` with your r
     the gap in its `part_notes` as usual. Omit this note entirely when the design has no
     gear parts.
 
-14. **Populate `request_log` verbatim.** On a fresh plan, set it to the user's original
+14. **Record provenance when the plan derives from a found source.** If this plan
+    reuses or converts a source found during Phase 0 sourcing triage (a reused/
+    converted parametric source at rung 1, an imported BREP at rung 2, or a rung-4
+    partial rebuild), `planning_notes` MUST state the source URL, its license, and the
+    sourcing rung under which it was reused. Plans for a from-scratch design (Phase 0
+    fell through to rung 5, or was skipped) need no such entry.
+
+15. **Populate `request_log` verbatim.** On a fresh plan, set it to the user's original
     request as the `initial` entry, followed by one `clarification` entry per question you
     asked and were answered during Phase 1/2 -- each entry `{ts, kind, text}` with the
     user's wording unchanged (never summarized or paraphrased). On a re-plan (a correction
