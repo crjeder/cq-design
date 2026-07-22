@@ -10,7 +10,7 @@ blocks/inventory.json (34 blocks), TODO.md, occ-error.md.
 |---|------|--------|
 | 1 | Phase 0 sourcing triage | DONE |
 | 2 | Part archetype templates | DONE |
-| 3 | Geometry contract before code | OPEN |
+| 3 | Geometry contract before code | DONE |
 | 4 | Move user review earlier / review policy | OPEN |
 | 5 | Engineering knowledge elicitation | OPEN |
 | 6 | Fix flaky export crash | DONE |
@@ -107,10 +107,12 @@ becomes the fallback, not the default.
 - Acceptance: for requests covered by an archetype, first-shot geometry pass rate
   measurably above the raw-authoring baseline (see item 8).
 
-### 3. Geometry contract before code — OPEN
+### 3. Geometry contract before code — DONE
 
-No `verify_stage` helper in `src/cq_verify.py`; `prompts/part.md` has no
-construction-plan / staged-assertion requirement. Not started.
+Implemented: `verify_stage(wp, label, bbox=.., vol_min=..)` in `src/cq_verify.py`,
+mapped to a typed `stage_mismatch` error in `src/run_cadquery_model.py`'s
+`_VERIFY_HINTS`, construction-plan requirement added to `prompts/part.md` and the
+error-type table in `SKILL.md`. Landed via `openspec/changes/geometry-contract/`.
 
 For scratch geometry (no block, no archetype), require the script to open with a
 construction plan: an ordered list of named stages, each with expected bbox/volume,
@@ -392,8 +394,8 @@ cheaper coder viable — tuned against the eval harness.
 
 ## Remaining work (as of 2026-07-22)
 
-Items 8, 7, 12, 13, 11, 1, 2, 6 are done. Still open, roughly in original
-priority order: **3** (geometry contract / `verify_stage`), **4** (review
+Items 8, 7, 12, 13, 11, 1, 2, 6, 3 are done. Still open, roughly in original
+priority order: **4** (review
 policy / earlier review), **5** (engineering-rationale elicitation), **9**
 (split `occ_exception` into real typed errors — telemetry now exists to prove
 which signatures matter), **10** (gate report-only by default), **14**

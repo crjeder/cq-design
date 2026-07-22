@@ -70,3 +70,36 @@ def test_workplane_drift_raises():
 def test_workplane_no_expected_origin_is_noop():
     wp = cq.Workplane("XY").center(5, 7)
     assert cq_verify.check_workplane(wp, "x") is wp  # no expected_origin -> never raises
+
+
+# ---- verify_stage ----
+
+
+def test_stage_bbox_match_passes():
+    body = cq.Workplane("XY").box(20, 10, 5, centered=(True, True, False))
+    assert cq_verify.verify_stage(body, "base_shell", bbox=(-10, 10, -5, 5, 0, 5)) is body
+
+
+def test_stage_bbox_mismatch_raises():
+    body = cq.Workplane("XY").box(20, 10, 5, centered=(True, True, False))
+    with pytest.raises(RuntimeError) as exc:
+        cq_verify.verify_stage(body, "base_shell", bbox=(-10, 10, -5, 5, 0, 50))
+    assert "cq-verify:stage_mismatch:base_shell" in str(exc.value)
+
+
+def test_stage_volume_above_minimum_passes():
+    body = cq.Workplane("XY").box(20, 20, 20)
+    assert cq_verify.verify_stage(body, "bossed", vol_min=100) is body
+
+
+def test_stage_volume_below_minimum_raises():
+    body = cq.Workplane("XY").box(20, 20, 20)
+    with pytest.raises(RuntimeError) as exc:
+        cq_verify.verify_stage(body, "bossed", vol_min=1e9)
+    assert "cq-verify:stage_mismatch:bossed" in str(exc.value)
+
+
+def test_stage_requires_bbox_or_vol_min():
+    body = cq.Workplane("XY").box(20, 20, 20)
+    with pytest.raises(ValueError):
+        cq_verify.verify_stage(body, "bossed")
