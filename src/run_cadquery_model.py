@@ -105,6 +105,11 @@ _VERIFY_HINTS = {
         "the construction stage's bbox/volume didn't match the plan — the wrong-topology "
         "step is the stage named in this error, not a later one"
     ),
+    "unbacked_mate": (
+        "the feature's declared mating face is not fully backed by its named neighbor — "
+        "extend the neighboring feature (or reposition this one) so it fully covers the "
+        "mating face, not just the shared centerline/axis coordinate"
+    ),
 }
 
 

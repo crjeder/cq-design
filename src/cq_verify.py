@@ -12,8 +12,12 @@ named -- rather than downstream as a vague watertight/dimension symptom:
 - ``verify_stage`` -- a named construction stage whose bbox/volume doesn't match
   what the construction plan expected, catching a wrong-topology stage at the
   point it was introduced instead of several steps later.
+- ``verify_backed`` -- a feature's mating face not fully backed by its intended
+  neighboring feature (e.g. a standoff post only half-supported by the leg it
+  stands on), catching a centerline-reused-as-boundary mistake at the point the
+  feature was authored.
 
-All four raise a single marked ``RuntimeError`` on failure and return their
+All five raise a single marked ``RuntimeError`` on failure and return their
 post-operation argument on success, so they sit inline in the build chain. The
 marker lets ``run_cadquery_model.py`` map the failure to a typed error; nothing
 else parses it. Depends only on CadQuery + the standard library.
@@ -147,3 +151,65 @@ def verify_stage(
             )
 
     return wp
+
+
+# Signed axis token -> (bbox axis letter, sign of the feature's face on that axis).
+_AXIS_TOKENS = {
+    "+x": ("x", 1),
+    "-x": ("x", -1),
+    "+y": ("y", 1),
+    "-y": ("y", -1),
+    "+z": ("z", 1),
+    "-z": ("z", -1),
+}
+
+
+def verify_backed(backer, feature, axis: str, label: str = "", tolerance: float = 0.1):
+    """Raise if `feature`'s mating face (named by `axis`) is not fully backed by `backer`.
+
+    `axis` is a signed token ("+x"/"-x"/"+y"/"-y"/"+z"/"-z") naming the direction from
+    `feature`'s interior toward `backer` -- e.g. "-z" for a feature whose bottom face
+    must rest on `backer`. Two bbox-only checks: `backer` must reach the contact plane,
+    and `feature`'s extent on the two axes orthogonal to `axis` must be fully contained
+    within `backer`'s extent there (the check that catches a feature only partially
+    supported by its intended neighbor). Returns `feature` unchanged on success.
+    """
+    if axis not in _AXIS_TOKENS:
+        raise ValueError(
+            f"verify_backed({label!r}): axis must be one of {sorted(_AXIS_TOKENS)}, got {axis!r}"
+        )
+
+    bb_f = _solid(feature).BoundingBox()
+    bb_b = _solid(backer).BoundingBox()
+    axis_name, sign = _AXIS_TOKENS[axis]
+    other_axes = [a for a in ("x", "y", "z") if a != axis_name]
+
+    if sign < 0:
+        contact = getattr(bb_f, f"{axis_name}min")
+        reach = getattr(bb_b, f"{axis_name}max")
+        reach_ok = reach >= contact - tolerance
+    else:
+        contact = getattr(bb_f, f"{axis_name}max")
+        reach = getattr(bb_b, f"{axis_name}min")
+        reach_ok = reach <= contact + tolerance
+
+    if not reach_ok:
+        raise _fail(
+            "unbacked_mate",
+            label,
+            f"backer does not reach the contact plane on {axis} (feature face at "
+            f"{contact:.2f} mm, backer extends to {reach:.2f} mm)",
+        )
+
+    for a in other_axes:
+        f_min, f_max = getattr(bb_f, f"{a}min"), getattr(bb_f, f"{a}max")
+        b_min, b_max = getattr(bb_b, f"{a}min"), getattr(bb_b, f"{a}max")
+        if f_min < b_min - tolerance or f_max > b_max + tolerance:
+            raise _fail(
+                "unbacked_mate",
+                label,
+                f"feature not fully backed on {a}: feature range [{f_min:.2f}, "
+                f"{f_max:.2f}] mm exceeds backer range [{b_min:.2f}, {b_max:.2f}] mm",
+            )
+
+    return feature
