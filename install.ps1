@@ -42,8 +42,7 @@ $Excludes = @(
     ".git", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache",
     ".ruff_cache", ".cocoindex_code", ".sentrux", ".playwright-mcp",
     ".vscode", "build", "BUILD_PLAN.json", ".fossil", ".codegraph",
-    "evals"
-)
+    "evals", "install.ps1", "install.sh")
 
 $SkillsDir = if ($Dest) { $Dest }
     elseif ($env:CLAUDE_SKILLS_DIR) { $env:CLAUDE_SKILLS_DIR }
