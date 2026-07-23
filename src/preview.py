@@ -30,8 +30,23 @@ import mpl_toolkits.mplot3d  # noqa: F401 -- registers the '3d' projection
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from mpl_toolkits.mplot3d import proj3d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from PIL import Image, ImageDraw, ImageFont
+
+# Cycled leader-line offsets (screen points) so badges near the same projected
+# area don't stack directly on top of each other.
+_CALLOUT_OFFSETS = [(20, 20), (-20, 20), (20, -20), (-20, -20)]
+
+# (elev, azim, label, ortho) for the default 2x2 tile. Labels name the compass
+# viewing station per prompts/planning.md (North=+Y, East=+X, up=+Z), verified
+# empirically against an asymmetric fixture -- see render_multi_view's docstring.
+MULTI_VIEW_PANELS = [
+    (0, -90, "Viewed from South", True),
+    (0, 180, "Viewed from West", True),
+    (90, -90, "Viewed from above", True),
+    (25, -60, "Isometric", False),
+]
 
 DEFAULT_VIEW_SIZE = 600
 # Higher resolution for standalone feature-detail renders so a small feature is
@@ -178,8 +193,50 @@ def _info_lines(wp, n_triangles):
 # ---------------------------------------------------------------------------
 
 
+def _draw_callouts(ax, callouts):
+    """Draw a numbered badge + leader line at each callout's projected 2D position.
+
+    Projects each callout's authored-frame `center` through the panel's own live
+    camera (`ax.get_proj()`) -- pure 3D-to-2D projection, no vision or heuristic
+    placement (design D2). Badge numbers follow `callouts` order (1-based).
+    """
+    proj = ax.get_proj()
+    for i, callout in enumerate(callouts, start=1):
+        cx, cy, cz = callout["center"]
+        x2, y2, _ = proj3d.proj_transform(cx, cy, cz, proj)
+        dx, dy = _CALLOUT_OFFSETS[(i - 1) % len(_CALLOUT_OFFSETS)]
+        ax.annotate(
+            str(i),
+            xy=(x2, y2),
+            xycoords="data",
+            xytext=(dx, dy),
+            textcoords="offset points",
+            ha="center",
+            va="center",
+            fontsize=10,
+            fontweight="bold",
+            color="black",
+            bbox={"boxstyle": "circle,pad=0.3", "fc": "#FFD400", "ec": "black", "lw": 1.2},
+            arrowprops={
+                "arrowstyle": "-",
+                "color": "black",
+                "lw": 1.1,
+                "shrinkA": 0,
+                "shrinkB": 6,
+            },
+            annotation_clip=False,
+        )
+
+
 def _render_cq_view(
-    wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW_SIZE, focus=None, ortho=False
+    wp,
+    elev,
+    azim,
+    width=DEFAULT_VIEW_SIZE,
+    height=DEFAULT_VIEW_SIZE,
+    focus=None,
+    ortho=False,
+    callouts=None,
 ):
     """Render one view of a CadQuery object. Returns a PIL Image (RGB).
 
@@ -194,6 +251,10 @@ def _render_cq_view(
     `ortho` selects true orthographic projection (parallel edges stay parallel, no
     perspective convergence). Used for the axis-aligned drei-tafel panels where an
     undistorted measured projection matters; the isometric panel leaves it False.
+
+    `callouts`, when given, is a list of `{"name": str, "center": (x, y, z)}` --
+    only meaningful when `ortho=True` (see `render_multi_view`); each draws a
+    numbered badge via `_draw_callouts`.
     """
     verts, triangles = _tessellate(wp)
 
@@ -238,6 +299,8 @@ def _render_cq_view(
         ax.set_zlim(mid_z - half, mid_z + half)
 
     ax.view_init(elev=elev, azim=azim)
+    if callouts and ortho:
+        _draw_callouts(ax, callouts)
     ax.set_axis_off()
 
     canvas.draw()
@@ -364,22 +427,36 @@ def render_section(wp, output_path, axis, position, view_size=DEFAULT_VIEW_SIZE)
     return output_path
 
 
+def _legend_line(callouts, unlocated_names):
+    """Caption legend row mapping badge numbers to names, or None if no callouts."""
+    if not callouts and not unlocated_names:
+        return None
+    parts = [f"{i} {c['name']}" for i, c in enumerate(callouts or [], start=1)]
+    parts += [f"{name} (not located)" for name in (unlocated_names or [])]
+    return "   ".join(parts)
+
+
 def render_multi_view(
     wp,
     output_path,
     title="Model Preview",
     subtitle=None,
     view_size=DEFAULT_VIEW_SIZE,
+    callouts=None,
+    unlocated_names=None,
 ):
     """Render the default 2x2 first-angle (DIN) projection tile.
 
-    Panels, in first-angle placement (Front above Top, Left-side view drawn on the
-    right):
+    Panels, in first-angle placement (South above above-view, West view drawn on the
+    right), labeled with the compass viewing station per `prompts/planning.md`
+    (North=+Y, East=+X, up=+Z) and verified empirically against an asymmetric
+    fixture -- not derived from prose, since the camera-to-compass mapping is not
+    obvious from the elev/azim values alone:
 
-        Front (Vorderansicht, look -Y)   top-left      [orthographic]
-        Left  (Seitenansicht, from left) top-right     [orthographic]
-        Top   (Draufsicht, look -Z)      bottom-left   [orthographic]
-        Isometric                        bottom-right  [pictorial]
+        Viewed from South (camera south of the part, looking North) top-left    [orthographic]
+        Viewed from West  (camera west of the part, looking East)   top-right   [orthographic]
+        Viewed from above (camera above, looking down)              bottom-left [orthographic]
+        Isometric                                                   bottom-right [pictorial]
 
     The three orthographic panels use true orthographic projection with exact
     axis-aligned cameras (no perspective tilt) so edges stay undistorted; the
@@ -388,27 +465,39 @@ def render_multi_view(
     dimension lines are drawn on the panels. Cross-sections are no longer part of
     this tile; they are rendered as separate files (see render_preview.py
     --cross-sections).
+
+    `callouts`, when given, is a list of `{"name": str, "center": (x, y, z)}`
+    (authored frame) -- each gets a numbered badge + leader line on the three
+    orthographic panels only (not isometric), and a caption legend line mapping
+    badge numbers to names, in supply order. `unlocated_names` are named features
+    with no known position: listed in the legend unbadged as "name (not located)"
+    so the tile still carries the complete agreed vocabulary. Neither argument
+    changes anything when omitted.
     """
-    # (elev, azim, label, ortho). Left side is the view-from-left (camera on the -X
-    # side looking +X, azim 180), drawn in the top-right per first-angle convention.
-    panels = [
-        (0, -90, "Front (Y-)", True),
-        (0, 180, "Left (X-)", True),
-        (90, -90, "Top (Z+)", True),
-        (25, -60, "Isometric", False),
-    ]
+    legend_line = _legend_line(callouts, unlocated_names)
 
     _, triangles = _tessellate(wp)
     images = [
-        (_render_cq_view(wp, elev, azim, view_size, view_size, ortho=ortho), label)
-        for elev, azim, label, ortho in panels
+        (
+            _render_cq_view(
+                wp,
+                elev,
+                azim,
+                view_size,
+                view_size,
+                ortho=ortho,
+                callouts=callouts if ortho else None,
+            ),
+            label,
+        )
+        for elev, azim, label, ortho in MULTI_VIEW_PANELS
     ]
 
     cols = 2
     rows = (len(images) + cols - 1) // cols
     gap = 4
     header_h = 40 + (20 if subtitle else 0)
-    footer_h = 55
+    footer_h = 55 + (20 if legend_line else 0)
     label_h = 24
     w = view_size * cols + gap * (cols - 1)
     h = view_size * rows + gap * (rows - 1) + header_h + footer_h + label_h * rows
@@ -440,8 +529,13 @@ def render_multi_view(
         )
 
     line1, line2 = _info_lines(wp, len(triangles))
-    draw.text((w // 2, h - 30), line1, fill="gray", font=info_font, anchor="mb")
-    draw.text((w // 2, h - 10), line2, fill="gray", font=info_font, anchor="mb")
+    if legend_line:
+        draw.text((w // 2, h - 50), line1, fill="gray", font=info_font, anchor="mb")
+        draw.text((w // 2, h - 30), line2, fill="gray", font=info_font, anchor="mb")
+        draw.text((w // 2, h - 10), legend_line, fill="#333333", font=info_font, anchor="mb")
+    else:
+        draw.text((w // 2, h - 30), line1, fill="gray", font=info_font, anchor="mb")
+        draw.text((w // 2, h - 10), line2, fill="gray", font=info_font, anchor="mb")
 
     canvas.save(output_path)
     return output_path
