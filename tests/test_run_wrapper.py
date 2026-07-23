@@ -269,6 +269,7 @@ def test_translate_stderr_classifies_verify_markers():
         ("feature_overflow", "tab"),
         ("workplane_drift", "lid_top"),
         ("stage_mismatch", "base_shell"),
+        ("unbacked_mate", "standoff_to_leg"),
     ):
         stderr = (
             "Traceback (most recent call last):\n"
@@ -325,6 +326,70 @@ def test_stage_mismatch_end_to_end(tmp_path):
     assert data["success"] is False
     assert len(sb) == 1
     assert sb[0]["label"] == "base_shell"
+
+
+# Reproduces the C5 Phone-Holder hinge-knuckle bug (build/cradle.py ROUND 5-7 comments):
+# a standoff post centered on a pivot coordinate was only half-backed by the leg beneath
+# it, because the leg stopped exactly at the pivot coordinate instead of extending to the
+# standoff's far edge.
+_LEG_STANDOFF_PREAMBLE = (
+    "import cadquery as cq\n"
+    "from cq_verify import verify_backed\n"
+    "leg = cq.Workplane('XY').box(10, {leg_dy}, 2, centered=(False, False, False))"
+    ".translate((0, -15, 0))\n"
+    "standoff = cq.Workplane('XY').box(10, 2, 5, centered=(False, False, False))"
+    ".translate((0, 4, 2))\n"
+)
+
+
+def test_unbacked_mate_end_to_end(tmp_path):
+    """A standoff only half-backed by its leg (pre-ROUND-7 dimensions) fails verify_backed
+    on the Y axis, naming the leg as an insufficient backer."""
+    rc, data, sb = _run_typed_errors(
+        tmp_path,
+        "unbacked.py",
+        _LEG_STANDOFF_PREAMBLE.format(leg_dy=20)  # leg stops at Y=5, standoff reaches Y=6
+        + "result = verify_backed(leg, standoff, '-z', 'standoff_to_leg')\n",
+        "unbacked_mate",
+    )
+    assert rc == 1
+    assert data["success"] is False
+    assert len(sb) == 1
+    assert sb[0]["label"] == "standoff_to_leg"
+    assert "y" in sb[0]["message"].lower()
+
+
+def test_unbacked_mate_reach_failure_end_to_end(tmp_path):
+    """A backer that stops short of the feature's contact plane fails the reach check."""
+    rc, data, sb = _run_typed_errors(
+        tmp_path,
+        "unreached.py",
+        "import cadquery as cq\n"
+        "from cq_verify import verify_backed\n"
+        "leg = cq.Workplane('XY').box(10, 21, 1, centered=(False, False, False))"
+        ".translate((0, -15, 0))\n"  # leg top face at Z=1, short of standoff's Z=2 base
+        "standoff = cq.Workplane('XY').box(10, 2, 5, centered=(False, False, False))"
+        ".translate((0, 4, 2))\n"
+        "result = verify_backed(leg, standoff, '-z', 'standoff_to_leg')\n",
+        "unbacked_mate",
+    )
+    assert rc == 1
+    assert data["success"] is False
+    assert len(sb) == 1
+    assert "contact plane" in sb[0]["message"]
+
+
+def test_verify_backed_passes_when_fully_backed(tmp_path):
+    """The ROUND-7-fixed dimensions (leg extended to the standoff's far edge) pass."""
+    script = tmp_path / "backed.py"
+    script.write_text(
+        _LEG_STANDOFF_PREAMBLE.format(leg_dy=21)  # leg now reaches Y=6, standoff's far edge
+        + "result = verify_backed(leg, standoff, '-z', 'standoff_to_leg').union(leg)\n"
+    )
+    rc, data = run(script)
+    assert rc == 0
+    assert data["success"] is True
+    assert data["errors"] == []
 
 
 def test_expected_dims_mismatch(good_script):
