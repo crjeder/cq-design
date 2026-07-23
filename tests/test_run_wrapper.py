@@ -436,6 +436,29 @@ def test_preview_detail_invalid_spec_fails(good_script):
     assert "detail" in data.get("stderr", "").lower()
 
 
+def test_preview_callout_and_unlocated_name(good_script):
+    """--callout draws badges on the main tile (no extra file, unlike --detail);
+    --unlocated-name is accepted alongside it."""
+    rc, data = run(
+        good_script,
+        "--preview",
+        "--callout",
+        "name=handle;center=1,1,1",
+        "--unlocated-name",
+        "boss_sw",
+    )
+    assert rc == 0
+    assert len(data["previews"]) == 1
+    assert os.path.exists(data["previews"][0])
+
+
+def test_preview_callout_invalid_spec_fails(good_script):
+    """A malformed --callout spec (missing center=) fails the run."""
+    rc, data = run(good_script, "--preview", "--callout", "name=handle")
+    assert rc == 1
+    assert "callout" in data.get("stderr", "").lower()
+
+
 def test_render_preview_cli_produces_png(tmp_path):
     """render_preview.py CLI creates a PNG from a script with a `result` variable."""
     script = tmp_path / "box_model.py"
@@ -486,8 +509,9 @@ def test_render_preview_cli_missing_result(tmp_path):
     [
         (("--extra-section", "w=5"), "extra-section"),  # invalid axis
         (("--detail", "name=mount_hole;center=8,6,3"), "detail"),  # missing size=
+        (("--callout", "name=handle"), "callout"),  # missing center=
     ],
-    ids=["invalid_extra_section", "invalid_detail_spec"],
+    ids=["invalid_extra_section", "invalid_detail_spec", "invalid_callout_spec"],
 )
 def test_render_preview_cli_rejects_invalid_spec(tmp_path, extra_args, expected_substring):
     """render_preview.py exits 1 on a malformed --extra-section/--detail spec instead of

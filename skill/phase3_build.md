@@ -16,6 +16,20 @@ initiative. Append only — never edit, reorder, or remove an existing entry, ev
 retroactively invent an `initial` entry); if a re-plan regenerates the file, the planner
 carries the existing log forward per `prompts/planning.md` rule 14.
 
+## Vocabulary
+
+The same rules as `skill/phase2_planning.md`'s Vocabulary section apply to every
+user-facing message in this phase (checkpoints, Escalation, fix confirmations):
+
+- Use compass/up-down terms for spatial references; left/right/front/back only when
+  directly quoting the user's own words.
+- Before acting on a spatial or unagreed feature reference from the user (e.g. "the
+  slot on the left"), restate it using the agreed plan name -- and the badge number,
+  when the part's callout-annotated preview exists (Step 3 threads one badge per
+  named, positioned interface) -- in the same turn you apply the change, e.g.
+  "widening `cable_slot` (2)". When the reference plausibly matches more than one
+  declared feature, ask which one is meant instead of guessing.
+
 ## Setup
 
 Read into context (once, before the loop):
@@ -225,11 +239,23 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
     --dim-tolerance <dimension_tolerance_mm> \
     --wall-min <wall_min_mm> \
     --preview --preview-dir preview \
-    --cross-sections
+    --cross-sections \
+    --callout "name=<name>;center=<x>,<y>,<z>" [...one per named+positioned interface] \
+    --unlocated-name <name> [...one per named interface with no position_mm]
 ```
 
 `--preview-dir preview` writes the preview PNG(s) to the project's `preview/` directory
 instead of alongside the script, keeping `build/` free of generated images.
+
+**Thread the part's agreed vocabulary onto the tile.** For each of this part's
+`interfaces[]` entries that declares both `name` and `position_mm`, add one
+`--callout "name=<name>;center=<x>,<y>,<z>"` (plan order -- badge numbers follow
+supply order); for each named interface with no `position_mm`, add one
+`--unlocated-name <name>`. This makes the tile the checkpoint's vocabulary-
+ratification artifact (design D2/D3 of `shared-feature-vocabulary`): every agreed
+feature name gets a numbered badge and a legend line, or an explicit "not located"
+listing, so later conversation can reference features by name and badge instead of
+re-describing their location in prose.
 
 Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `disconnected_body`, `dimension_mismatch`, `occ_exception`.
 
