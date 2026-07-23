@@ -56,6 +56,18 @@ Before committing to any dimension values, populate `planning_notes` with your r
 
 2. **Decompose into the simplest possible parts.** A two-part enclosure (body + lid) is better than one complex part. Each part must be printable without supports if possible.
 
+2a. **Name parts and interfaces with the user's own words.** When the user has named a
+    part or feature in their request or during conversation (e.g. "a mug with a
+    handle"), use that word verbatim -- normalized only mechanically (lowercased,
+    spaces and hyphens to underscores) -- as the corresponding part `id` or
+    `interfaces[].name`. Never replace it with a synonym you prefer (`handle`, not
+    `grip` or `side_loop`). Coin a name only for a part or feature the user never
+    named, and introduce every coined name explicitly in the plan summary at the
+    checkpoint (see `skill/phase2_planning.md`) so the user can correct it before the
+    build loop starts. If normalization produces a collision with an existing id,
+    disambiguate with a suffix (e.g. `hole`, `hole_2`) and state the mapping in
+    `planning_notes` and the plan summary -- never silently rename one.
+
 3. **Select blocks from the inventory.** For each part's `blocks_needed`, choose only names that appear in the block inventory below. If no block fits, leave `blocks_needed` empty and explain the scratch geometry in `part_notes` for that part. When a block's instance size is known, give it as an object `{"name": "...", "extents_mm": [x, y, z]}` instead of a bare name string, so the thin-block DFM check can flag any extent below `wall_min_mm` before code is generated. A bare string is still valid when the size is not yet fixed.
 
 3a. **Match a part archetype when one fits.** Check each part's shape against the archetype

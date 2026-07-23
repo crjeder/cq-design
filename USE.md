@@ -42,6 +42,22 @@ For "Turn," think of it like a clock face viewed from above: **"turn clockwise, 
 ## When a part has its own smaller part attached
 If you're describing a small piece that sits on a bigger piece (like a bracket on a frame), say clearly whether you mean directions from your own fixed viewpoint, or directions relative to the bracket itself — especially if the bracket has already been rotated. When in doubt, just say "from my viewpoint" to be safe.
 
+## Reading the preview tile
+
+The rendered preview shows the part from three fixed compass viewing stations plus
+one pictorial angle, labeled "Viewed from South", "Viewed from West", "Viewed from
+above", and "Isometric" -- never "Front"/"Left"/"Top". "Viewed from South" is the one
+that matches your own fixed viewpoint above (you stand South of the object facing
+North, so the face nearest you -- your intuitive "front" -- is the object's South
+face); "Viewed from West" and "Viewed from above" show the other two sides your
+viewpoint can't see directly.
+
+When a part has named features (a `handle`, a `cable_slot`), the tile marks each with
+a numbered badge and a leader line on the three orthographic panels, plus a legend
+line mapping badge numbers to names underneath. Use those names and numbers instead
+of re-describing a feature's location: "widen `cable_slot` (2)" is unambiguous where
+"widen the slot on the left" depends on which panel you're looking at.
+
 ## When words aren't enough
 Some things are genuinely hard to describe in words alone:
 - Curvy, rounded shapes with no flat side to measure from

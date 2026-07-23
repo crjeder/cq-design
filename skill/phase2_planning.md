@@ -88,6 +88,18 @@ Repeat `--set` for each changed field (dotted for constraints, e.g.
 ("Updated printer_profile.json: nozzle_mm -> 0.6"). Skip this step entirely when the plan
 matches the profile, or when the user asked for a one-time exception.
 
+**Vocabulary rules for all user-facing text in this phase (and Phase 3):**
+
+- Use compass/up-down terms (North/South/East/West, up/down) for any spatial
+  reference, per the coordinate table in `prompts/planning.md`. Use
+  left/right/front/back only when directly quoting the user's own words.
+- Every part id or interface name the planner coined (rule 2a in
+  `prompts/planning.md`) -- i.e. not a word the user themselves used -- must be
+  introduced explicitly in the summary below, e.g. "I'm calling the bottom part
+  `base`." so the user can correct it before Phase 3 starts. A colliding user
+  noun that got a disambiguating suffix is introduced the same way (state the
+  mapping, e.g. "two features are both called `hole` -- the second is `hole_2`").
+
 Display a human-readable Markdown summary of the validated plan (do not show raw JSON in chat) and confirm the write path using the absolute path:
 
 > Written to: `/absolute/path/to/BUILD_PLAN.json`
@@ -132,9 +144,14 @@ pause for review.
 
 **Interfaces** (omit section if no part has any interfaces)
 
-| Part | Type | Connector | Wall | Position (mm) |
-|------|------|-----------|------|---------------|
-| ... | ... | ... | ... | ... |
+| Part | Name | Type | Connector | Wall | Position (mm) |
+|------|------|------|-----------|------|---------------|
+| ... | ... | ... | ... | ... | ... |
+
+(The `Name` column is the agreed vocabulary word -- `interfaces[].name` verbatim,
+whether it came from the user or was coined by the planner and introduced above.
+This table is what the checkpoint preview's callout legend will echo once a
+callout-annotated render exists, so names here should match exactly.)
 
 **Constraints**
 

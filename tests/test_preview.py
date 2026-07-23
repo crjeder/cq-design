@@ -12,6 +12,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 import cadquery as cq
+import numpy as np
 
 import preview
 
@@ -178,3 +179,119 @@ def test_render_detail_section_returns_none_on_cut_failure(box_workplane):
             box_workplane, "unused.png", "x", 0.0, focus_center=(0, 0, 0), focus_size=6.0
         )
     assert result is None
+
+
+def test_panel_labels_are_compass_terms():
+    """Panel labels use the compass convention; no left/right/front/back terms."""
+    labels = [label for _, _, label, _ in preview.MULTI_VIEW_PANELS]
+    assert labels == [
+        "Viewed from South",
+        "Viewed from West",
+        "Viewed from above",
+        "Isometric",
+    ]
+    for label in labels:
+        lowered = label.lower()
+        assert "front" not in lowered
+        assert "left" not in lowered
+        assert "right" not in lowered
+
+
+def test_north_face_marker_confirms_compass_mapping(tmp_path):
+    """An asymmetric marker protruding past the North (+Y) face changes the
+    silhouette in the West and above panels (Y is a screen axis there) but not
+    in the South panel (Y is the depth axis there), confirming empirically that
+    the labeled panels show what their compass names claim."""
+    from PIL import Image
+
+    view_size = 200
+    plain = cq.Workplane("XY").box(40, 30, 20)
+    marked = plain.union(cq.Workplane("XY").center(10, 15).box(8, 4, 8))
+
+    plain_png = tmp_path / "plain.png"
+    marked_png = tmp_path / "marked.png"
+    preview.render_multi_view(plain, str(plain_png), view_size=view_size)
+    preview.render_multi_view(marked, str(marked_png), view_size=view_size)
+
+    plain_img = np.asarray(Image.open(plain_png).convert("RGB"), dtype=int)
+    marked_img = np.asarray(Image.open(marked_png).convert("RGB"), dtype=int)
+
+    header_h = 40
+    label_h = 24
+    gap = 4
+    diffs = []
+    for idx in range(4):
+        col, row = idx % 2, idx // 2
+        px = col * (view_size + gap)
+        py = header_h + label_h + row * (view_size + gap + label_h)
+        p_crop = plain_img[py : py + view_size, px : px + view_size]
+        m_crop = marked_img[py : py + view_size, px : px + view_size]
+        diffs.append(int(np.abs(p_crop - m_crop).sum()))
+
+    south_diff, west_diff, above_diff, _iso_diff = diffs
+    assert west_diff > south_diff
+    assert above_diff > south_diff
+
+
+def test_legend_line_matches_names_verbatim():
+    line = preview._legend_line(
+        [
+            {"name": "handle", "center": (0, 0, 0)},
+            {"name": "cable_slot", "center": (1, 1, 1)},
+        ],
+        ["boss_sw"],
+    )
+    assert line == "1 handle   2 cable_slot   boss_sw (not located)"
+
+
+def test_legend_line_none_without_callouts():
+    assert preview._legend_line(None, None) is None
+    assert preview._legend_line([], []) is None
+
+
+def test_callouts_change_ortho_panels_but_not_isometric(box_workplane, tmp_path):
+    """Badges + leader lines are drawn on the three orthographic panels only; the
+    isometric panel is pixel-identical with or without callouts."""
+    from PIL import Image
+
+    view_size = 200
+    callouts = [{"name": "corner", "center": (4, 4, 4)}]
+
+    plain_png = tmp_path / "plain.png"
+    calledout_png = tmp_path / "calledout.png"
+    preview.render_multi_view(box_workplane, str(plain_png), view_size=view_size)
+    preview.render_multi_view(
+        box_workplane, str(calledout_png), view_size=view_size, callouts=callouts
+    )
+
+    plain_img = np.asarray(Image.open(plain_png).convert("RGB"), dtype=int)
+    calledout_img = np.asarray(Image.open(calledout_png).convert("RGB"), dtype=int)
+
+    header_h = 40
+    label_h = 24
+    gap = 4
+    diffs = []
+    for idx in range(4):
+        col, row = idx % 2, idx // 2
+        px = col * (view_size + gap)
+        py = header_h + label_h + row * (view_size + gap + label_h)
+        p_crop = plain_img[py : py + view_size, px : px + view_size]
+        c_crop = calledout_img[py : py + view_size, px : px + view_size]
+        diffs.append(int(np.abs(p_crop - c_crop).sum()))
+
+    south_diff, west_diff, above_diff, iso_diff = diffs
+    assert south_diff > 0
+    assert west_diff > 0
+    assert above_diff > 0
+    assert iso_diff == 0
+
+
+def test_no_callouts_renders_unchanged_tile(box_workplane, tmp_path):
+    """With no callouts and no unlocated names, the tile is identical to the
+    pre-callout-feature baseline (no legend row, same dimensions)."""
+    out = tmp_path / "unchanged.png"
+    preview.render_multi_view(box_workplane, str(out), view_size=100)
+    from PIL import Image
+
+    img = Image.open(str(out))
+    assert img.width == 204
