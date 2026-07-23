@@ -107,6 +107,30 @@ change lives in that change's `tasks.md`, not here.
       (`print_orientation.py` visual_quality mode); the gate just surfaces the residual.
       Deferred: slope-aware layer-height recipe hint (optional). The Greedy Look-Ahead Filter
       / chamfer-step transform was split out to the reverse-engineer-mesh item above.
+- [ ] anchors: BOSL2-style attachment/anchor helper for INTRA-part feature placement
+      (explored 2026-07-22). BOSL2 attachments (BelfrySCAD/BOSL2 wiki
+      Tutorial-Attachment-Overview) place children on named parent anchors (TOP,
+      RIGHT+FRONT, ...) instead of hand-computed coordinates. Assessment: the
+      inter-part half is already covered better by `joints` + block docks +
+      `mate_chain.py` (typed anchors, exact composed poses, tree-validated) -- do
+      NOT build a parallel assembly language. The gap is intra-part: part scripts
+      do coordinate arithmetic by hand (`w_mm/2 - wall - boss_od/2`), which is the
+      error class `script_lint` (`magic_number`, `unanchored_feature`), `cq_verify`
+      (`check_workplane`, `verify_feature_bounds`) and `feature_presence_check`
+      exist to police. Proposed narrow form: a `src/cq_anchor.py` helper importable
+      like `cq_verify` (`anchor(body, "TOP+RIGHT", inset=...) -> (x,y,z)` resolved
+      from the body/cavity bbox; maybe `place_at(...)` sugar over the boolean) --
+      lowers to explicit coordinates at runtime so `feature_presence_check` /
+      `import_params` keep working. Plus optionally per-archetype named anchor sets
+      in `templates/` (bbox anchors lie on non-box parts like L-brackets/rings).
+      Cautions: don't add a 4th positioning concept unless it lowers to the
+      existing one; plan `interfaces[].position_mm` stays numeric (symbolic
+      positions in the plan schema = much bigger blast radius, separate decision).
+      Open questions: (1) quantify via `build/attempts.jsonl` whether placement
+      arithmetic is actually the top error class; (2) script-only sugar vs
+      plan-level symbolic positions; (3) archetype anchor sets as shared vocabulary
+      for visual review. Strategy: reimplement (concept only; BOSL2 is OpenSCAD +
+      GPL-incompatible, see Prior-art survey below).
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 - [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
 - [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
