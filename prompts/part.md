@@ -94,10 +94,11 @@ surfaces far downstream. Guard the risky ones with `cq_verify` (importable exact
 `blocks`); each call returns its post-operation argument, so it sits inline:
 
 ```python
-from cq_verify import verify_boolean, check_workplane
+from cq_verify import verify_boolean, check_workplane, verify_backed
 
 result = verify_boolean(body, body.cut(slot), "cut", "vent_slot")   # off-center cut
 wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))     # after a .center()
+standoff = verify_backed(leg, standoff, "-z", "standoff_to_leg")    # mating area check
 ```
 
 - **Wrap a boolean** in `verify_boolean(before, after, op, label)` when a silent no-op is
@@ -109,9 +110,18 @@ wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))     # after a .c
   (those calls permanently shift the origin).
 - `verify_feature_bounds(before, after, label, tolerance)` catches a feature that pokes
   past the base body.
+- **Declare a mating area** with `verify_backed(backer, feature, axis, label)` when a
+  feature (a standoff, boss, rib, ear, or gusset) must be **fully backed by a specific
+  named neighboring feature** at one face -- `axis` is the signed direction
+  (`"+x"`/`"-x"`/`"+y"`/`"-y"`/`"+z"`/`"-z"`) from the feature's interior toward that
+  neighbor. This is the check for the recurring mistake where a coordinate that means
+  "centerline/axis of one feature" gets reused, unadjusted, as the boundary another
+  feature must reach -- off by half the first feature's thickness. Do NOT use it for a
+  feature that legitimately extends past its base on other axes (e.g. a post rising off
+  its base); that overflow is expected, not a mating-area case.
 
 A failed assertion crashes the script and is reported as a typed `silent_boolean` /
-`feature_overflow` / `workplane_drift` error naming the `label`.
+`feature_overflow` / `workplane_drift` / `unbacked_mate` error naming the `label`.
 
 ### Construction plan for scratch geometry
 
