@@ -168,5 +168,5 @@ def test_gate_surfaces_keep_out_violation(tmp_path, good_script):
     assert len(_violations(report["issues"])) == 1
 
     # The finding renders into the fix prompt the auto-fixer would see.
-    prompt = quality_gate._render_fix_prompt(str(good_script), report["issues"], "")
+    prompt = quality_gate._render_fix_prompt(str(good_script), report["issues"])
     assert "keep_out_violation" in prompt

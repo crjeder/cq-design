@@ -38,9 +38,11 @@ $SkillName = "cq-design"
 $RepoRoot = Split-Path -Parent (Resolve-Path $PSCommandPath)
 
 $Excludes = @(
+    ".claude", "info", "openspec", "tests", "src/.fossil", "src/_pycache_",
     ".git", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache",
     ".ruff_cache", ".cocoindex_code", ".sentrux", ".playwright-mcp",
-    ".vscode", "build", "BUILD_PLAN.json"
+    ".vscode", "build", "BUILD_PLAN.json", ".fossil", ".codegraph",
+    "evals"
 )
 
 $SkillsDir = if ($Dest) { $Dest }

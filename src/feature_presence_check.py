@@ -37,7 +37,7 @@ import math
 import os
 from typing import Any
 
-from units import add_plan_argument, emit_issues, load_plan, make_issue
+from units import add_plan_argument, bbox_envelope, emit_issues, load_plan, make_issue
 
 # Interface types whose feature is emitted through a hooked `.cut`/`.union` boolean.
 _ASSERTABLE_TYPES = frozenset(
@@ -59,17 +59,10 @@ def _tool_bbox(tool: Any) -> tuple[tuple[float, float, float], tuple[float, floa
     its solids is used.
     """
     shapes = tool.vals() if hasattr(tool, "vals") else [tool]
-    lo = [math.inf, math.inf, math.inf]
-    hi = [-math.inf, -math.inf, -math.inf]
-    for shape in shapes:
-        try:
-            bb = shape.BoundingBox()
-        except Exception:
-            continue
-        lo = [min(lo[0], bb.xmin), min(lo[1], bb.ymin), min(lo[2], bb.zmin)]
-        hi = [max(hi[0], bb.xmax), max(hi[1], bb.ymax), max(hi[2], bb.zmax)]
-    if lo[0] == math.inf:
+    envelope = bbox_envelope(shapes)
+    if envelope is None:
         return None
+    lo, hi = envelope
     center = ((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2)
     extents = (hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2])
     return center, extents
