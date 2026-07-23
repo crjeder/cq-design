@@ -39,7 +39,14 @@ import os
 from typing import Any
 
 from placement import transform_direction
-from units import add_plan_argument, emit_issues, load_plan, make_issue, resolve_unions
+from units import (
+    add_plan_argument,
+    bbox_envelope,
+    emit_issues,
+    load_plan,
+    make_issue,
+    resolve_unions,
+)
 
 # An edge whose (build-frame) tangent is within this of horizontal counts as a horizontal
 # edge; within this of vertical counts as a vertical edge. ~5 deg, matching the tolerance
@@ -121,17 +128,10 @@ def _run_with_hook(script_path: str) -> tuple[Any, list[dict]]:
 
 def _union_bbox(workplane: Any) -> tuple[float, float, float, float, float, float] | None:
     """Authored-frame bounding box (xmin..zmax) enveloping every solid in a union, or None."""
-    lo = [math.inf, math.inf, math.inf]
-    hi = [-math.inf, -math.inf, -math.inf]
-    for shape in workplane.vals():
-        try:
-            bb = shape.BoundingBox()
-        except Exception:
-            continue
-        lo = [min(lo[0], bb.xmin), min(lo[1], bb.ymin), min(lo[2], bb.zmin)]
-        hi = [max(hi[0], bb.xmax), max(hi[1], bb.ymax), max(hi[2], bb.zmax)]
-    if lo[0] == math.inf:
+    envelope = bbox_envelope(workplane.vals())
+    if envelope is None:
         return None
+    lo, hi = envelope
     return (lo[0], lo[1], lo[2], hi[0], hi[1], hi[2])
 
 

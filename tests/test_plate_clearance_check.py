@@ -182,5 +182,5 @@ def test_gate_surfaces_plate_clearance(tmp_path, good_script):
     assert len(clearance) == 1
 
     # The finding renders into the fix prompt the auto-fixer would see.
-    prompt = quality_gate._render_fix_prompt(str(good_script), report["issues"], "")
+    prompt = quality_gate._render_fix_prompt(str(good_script), report["issues"])
     assert "plate_clearance" in prompt

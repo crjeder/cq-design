@@ -246,7 +246,7 @@ def _emit_print_recipe(plan: dict, geometry: dict | None, orientation: dict | No
 # ---------------------------------------------------------------------------
 
 
-def _render_fix_prompt(script_path: str, issues: list[dict], prompt_template: str) -> str:
+def _render_fix_prompt(script_path: str, issues: list[dict]) -> str:
     """Render a targeted fix prompt listing only failing checks."""
     errors = [i for i in issues if i["severity"] == "error"]
     warnings = [i for i in issues if i["severity"] == "warning"]
@@ -550,7 +550,7 @@ def run_gate(
 
         # ---- fix round ----
         print(f"[QUALITY GATE] Round {fix_round + 1}: {len(errors)} error(s) — invoking fix...")
-        fix_prompt = _render_fix_prompt(script_path, all_issues, "")
+        fix_prompt = _render_fix_prompt(script_path, all_issues)
         try:
             raw = _call_claude(fix_prompt)
             code = _extract_python(raw)

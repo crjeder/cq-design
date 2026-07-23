@@ -15,6 +15,7 @@ No CadQuery import here, so `plan_validate` (CadQuery-free) can use `iter_unions
 
 import argparse
 import json
+import math
 import os
 import sys
 from collections.abc import Callable, Iterator
@@ -91,6 +92,27 @@ def stl_path(stl_dir: str, union_id: str) -> str:
     """Assembled-pose STL path for a union/part id: the naming convention `model_export.py`
     writes and every whole-model check stage reads."""
     return os.path.join(stl_dir, f"{union_id}.stl")
+
+
+def bbox_envelope(
+    shapes: list[Any],
+) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+    """Authored-frame (lo, hi) bbox enveloping every CadQuery shape/solid in `shapes`, or
+    None if none have a usable `.BoundingBox()`. Shared by `edge_treatment_check` and
+    `feature_presence_check`, which construction-time-hook fillet/chamfer/cut/union to
+    record positioned features and need the same min/max accumulation over their solids."""
+    lo = [math.inf, math.inf, math.inf]
+    hi = [-math.inf, -math.inf, -math.inf]
+    for shape in shapes:
+        try:
+            bb = shape.BoundingBox()
+        except Exception:
+            continue
+        lo = [min(lo[0], bb.xmin), min(lo[1], bb.ymin), min(lo[2], bb.zmin)]
+        hi = [max(hi[0], bb.xmax), max(hi[1], bb.ymax), max(hi[2], bb.zmax)]
+    if lo[0] == math.inf:
+        return None
+    return (lo[0], lo[1], lo[2]), (hi[0], hi[1], hi[2])
 
 
 def plate_of(part: dict, union_id: str, union: dict | None = None) -> str:
