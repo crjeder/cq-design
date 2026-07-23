@@ -136,6 +136,29 @@ change lives in that change's `tasks.md`, not here.
 - [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
 - [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
       (-> Differential geometry comparison) / "import" mesh files (.stl)
+- [x] design error: the llm often places the center of a box where actually a one of the walls  should sit --
+      INTRA-PART case DONE via openspec change `intra-part-mating-area` (`verify_backed`
+      in `cq_verify.py`: a feature's face, named by a signed axis, must be fully backed
+      by a named neighboring feature -- bbox reach + orthogonal-axis containment).
+      Reproduces and fixes the C5 Phone-Holder hinge-knuckle standoff bug
+      (`build/cradle.py` ROUND 5-7 comments: a standoff centered on the pivot coordinate
+      was only half-backed by its leg, which stopped exactly at that coordinate instead
+      of the standoff's far edge). Vocabulary ("mating area", "backed by material")
+      reused from `openspec/changes/archive/2026-07-01-joint-contract/design.md:412-421`.
+      INTER-UNION case NOT implemented -- that archived design covers a block declaring a
+      mating area between the two unions of a multi-body block (e.g. a hinge's two
+      leaves), checked once at the whole-model gate after export. It was captured only as
+      "exploratory capture, NOT ready to implement" and stayed blocked on two open cruxes
+      that `intra-part-mating-area` does not touch: (1) satisfaction algebra -- precisely
+      how a requested joint matches a block instance (axis-alignment semantics, range
+      subset, how plan A/B bind to the block's two unions); (2) sub-body naming
+      convention -- how a multi-union block labels its sub-bodies so `model_export` splits
+      them into distinct unions instead of fusing them into one compound. Both need their
+      own exploration before that half can be built.
+      OPEN CRUX for whoever picks up that archived design next: does `verify_backed`
+      generalize upward into the inter-union check once those cruxes resolve (applied to
+      two unions' exported STLs instead of two in-script solids), or does it stay a
+      separate, narrower mechanism that only shares vocabulary with the block-level one?
 
 ## Prior-art ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
