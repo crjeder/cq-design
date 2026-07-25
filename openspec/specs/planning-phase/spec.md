@@ -374,3 +374,47 @@ the summary.
 - **WHEN** the user names two distinct features with the same word
 - **THEN** the plan disambiguates them with suffixes and the summary states the
   mapping, rather than silently renaming one
+
+---
+
+### Requirement: Plans derived from found sources record provenance
+
+When a `BUILD_PLAN.json` derives from a source found during Phase 0 sourcing
+triage (a reused/converted parametric source, an imported BREP, or a rung-4
+partial rebuild), `prompts/planning.md` SHALL instruct that `planning_notes`
+records the source URL, the license, and the sourcing rung under which it was
+reused. Plans for from-scratch designs (rung 5 or Phase 0 skipped) are
+unaffected.
+
+#### Scenario: Rung 4 partial rebuild plan
+
+- **WHEN** planning runs for a part rebuilt from a close-fit found mesh
+- **THEN** the resulting `BUILD_PLAN.json`'s `planning_notes` contains the
+  found model's URL, its license, and the rung
+
+#### Scenario: From-scratch plan
+
+- **WHEN** planning runs for a request where Phase 0 found nothing usable
+- **THEN** no provenance entry is required in `planning_notes`
+
+---
+
+### Requirement: Planning prompt rules are uniquely numbered
+
+`prompts/planning.md`'s Rules section SHALL assign each rule a unique identifier
+(a bare number, or a number with a lettered suffix such as `3a`), with no two rules
+sharing the same identifier. Other documents in the repository (e.g.
+`skill/phase2_planning.md`, `skill/phase3_build.md`) cite specific rules by this
+identifier; a duplicate identifier makes such a citation ambiguous.
+
+#### Scenario: No duplicate rule identifiers
+
+- **WHEN** `prompts/planning.md`'s Rules section is scanned for its rule identifiers
+- **THEN** every identifier appears exactly once
+
+#### Scenario: Cross-referenced rule identifiers stay resolvable
+
+- **WHEN** another document in the repository cites a `prompts/planning.md` rule by
+  number (e.g. "rule 14")
+- **THEN** exactly one rule in the current `prompts/planning.md` carries that
+  identifier, and its subject matter matches what the citing document describes

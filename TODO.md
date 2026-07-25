@@ -10,7 +10,89 @@ change lives in that change's `tasks.md`, not here.
       part prompt); removed the duplicate fit-clearance row from the FDM "Basic Dimension
       Rules" table (planning.md rule 4 is the source of truth); verified the coordinate
       tables in planning.md/part.md/SKILL.md are consistent.
-  - [ ]  the planning.md template itself (13 verbose rules) could be condensed.
+  - [x] Pass 2 done: `prompts/planning.md`'s Rules section condensed (openspec change
+      `condense-planning-prompt`) -- narrative paragraphs tightened to lead-sentence +
+      bullets, the accidental duplicate `request_log` rule (old `14.`/`14.`/`15.`
+      collision) merged into one rule 14, provenance renumbered to 15. Rule numbers
+      1-13 kept stable since `skill/phase2_planning.md`/`skill/phase3_build.md`
+      cross-reference them by number (verified unaffected by grep). Whole-file word
+      count 3189 -> 2735 (~14%); behavior unchanged, `test_plan_validate.py` +
+      `test_eval_corpus.py` still pass.
+- [ ] skill improvements from the C5 Phone-Holder retrospective (read 2026-07-25 from
+      `D:\3D Druck\C5 Phone-Holder`; 7 correction rounds, plan/scripts/orientations
+      inspected). Each sub-item is independent; pick up separately.
+  - [ ] plan bloat: `part_notes` doubled as a full round-by-round changelog (the cradle's
+        part_notes alone is ~6KB of ROUND 2..7 narrative, largely duplicating
+        `request_log` and the scripts' own comments). This feeds straight into the
+        "prompts growing too long" problem above, since the plan is injected into part
+        prompts. Prescribe in SKILL.md/planning.md: `part_notes` describes the CURRENT
+        design state only; per-round history goes to `request_log` (already exists for
+        exactly this) or a `build/CHANGELOG.md`; superseded rounds get deleted, not
+        annotated with "SUPERSEDED by round N below".
+  - [ ] kinematics for custom (block-free) hinges. planning_notes documents why the
+        `kinematics` schema entry was OMITTED: the axis contract requires a referenced
+        block with a `dof`, but this hinge is raw-primitive clevis/tongue geometry, so
+        declaring it would force a bogus block reference. Result: rounds 4-7 each
+        hand-wrote an ad-hoc boolean fold-collision sweep (0.25deg steps, plus a
+        binary search for the minimum notch height Z=16). Two-part fix: (a) let a
+        `kinematics` entry declare `axis_dir` + pivot point directly, without a block
+        `dof` backing it, so `kinematic_check.py` can sweep custom hinges; (b) promote
+        the ad-hoc sweep into a first-class tool -- sweep a union about an axis over a
+        range, report binding angle + colliding body + min clearance, and optionally
+        search for the minimal cutout dimension that clears the sweep (the "minimum
+        notch height" question answered manually here).
+  - [ ] hinge design-rule reference: rounds 5-6 were both instances of one geometric
+        rule the LLM got wrong twice and the user derived: for a flat face to fold
+        flush against a target plane at exactly +-90deg, the pivot axis must stand off
+        the folding face's plane by exactly the axis's perpendicular distance to the
+        target plane (here EAR_STANDOFF = PIVOT_Y = 5mm; rotation-matrix proof in
+        `cradle.py`). Add a "flush-fold hinge placement" recipe (with that derivation
+        and the clevis/tongue/standoff vocabulary) to `reference/` so the part prompt
+        can get it right the first time instead of via user correction.
+  - [ ] orientation cache staleness: `build/orientations.json` still carries the
+        round-4 rationale and `build_height_mm: 8.599` for the cradle, whose round-6
+        geometry is 16.1mm tall -- `build.py` "reuses orientations.json when present"
+        with no invalidation, so deliverables regenerate against stale orientation
+        data/scores after geometry edits. Add invalidation: store a hash of the part
+        script (or the geometry bbox) alongside each entry and recompute (or at least
+        warn) on mismatch.
+  - [ ] print-orientation bed-stability term: cradle part_notes records that BOTH
+        `strength` and `min_support` modes picked a pose balanced on a single
+        0.635mm^2 contact point (would tip instantly); the user had to override to
+        visual_quality + show_face to get the sane flat pose. Scoring weighs overhang
+        only, not bed-contact stability. Add a bed-contact-area / tipping term (or a
+        minimum-contact floor) to `print_orientation.py` scoring. Cross-ref: memory
+        `skill_gap_print_orientation_pathological_poses`, and the Tweaker-3
+        reimplementation block below (Tweaker's bottom-contact formulas cover this).
+  - [ ] telemetry not written in real runs: `build/attempts.jsonl` is absent from this
+        7-round project, so the eval harness's first-shot-rate / attempts-to-pass /
+        cost metrics have no data from exactly the kind of session they exist to
+        measure. Verify SKILL.md phase 3 actually prescribes the `telemetry.py append`
+        call per attempt (and per correction round), and make the quality gate warn
+        when the file is missing/empty at delivery.
+  - [ ] formalize the `parameters.py` sourced-measurements convention: the project
+        grew an ad-hoc root-level `parameters.py` ("sourced real-world measurements...
+        not imported by the build") that keeps user-measured numbers + provenance +
+        correction history separate from each script's resolved PARAMETERS block.
+        It proved valuable across rounds (hole 60->55 correction etc.) but is pure
+        convention: nothing generates, validates, or reconciles it. Decide: make it a
+        prescribed Phase 1/4 deliverable (dimension research output lands there), and
+        optionally extend `import_params.py` beyond the w/d/h mapping so edits stay
+        reconciled with the plan.
+  - [ ] prescribe the printable-foundation authoring frame up front: the plate script's
+        Z_OFFSET pattern (author the part with its physical bottom at script Z=0, then
+        undo via `placement.translate_mm` to land in the shared assembled frame) was
+        "discovered/adopted during the build" per planning_notes. It is a good general
+        pattern for parts whose assembled frame has the part floating (here bottom at
+        Z=-2). Add it to the part prompt / phase-3 guidance as the default convention
+        instead of leaving each session to rediscover it.
+  - [ ] correction rounds driven by user sketches: rounds 5-7 were steered by annotated
+        images (`ear-placement.png`, `hinge-ear.png`, `C5 Aschenbecher-annotated.jpg`)
+        that the session preserved in the project root and referenced from
+        request_log/part_notes ad hoc. Formalize: request_log entries get an optional
+        `images` field, sketches are copied into the project (e.g. `sketches/`), and
+        the part prompt is told to re-read the referenced sketch when iterating on
+        that feature.
 - [ ] restructure to combat context creep. options:
   - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
   - [ ] python script owns the loop and switches context & models. prompt will be split
