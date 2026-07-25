@@ -25,9 +25,11 @@ reference - and SHALL be under 10 KB.
 ---
 
 ### Requirement: Phase detail lives in per-phase files
-The skill SHALL provide `skill/phase1_requirements.md`, `skill/phase2_planning.md`,
-`skill/phase3_build.md`, and `skill/phase4_deliver.md`, carrying the full moved
-content of their SKILL.md phase sections without loss.
+The skill SHALL provide `skill/phase0_sourcing.md`, `skill/phase1_requirements.md`,
+`skill/phase2_planning.md`, `skill/phase3_build.md`, and `skill/phase4_deliver.md`,
+carrying the full moved content of their SKILL.md phase sections without loss.
+`skill/phase0_sourcing.md` carries the sourcing-triage decision ladder and its
+per-rung handling, referencing (not duplicating) the Phase 1 search workflow.
 
 #### Scenario: Content preservation
 - **WHEN** the split lands
@@ -38,6 +40,12 @@ content of their SKILL.md phase sections without loss.
 - **WHEN** the part loop, progressive build, orientation loop, or kinematic
   validation walkthrough is needed
 - **THEN** it is found in `skill/phase3_build.md`
+
+#### Scenario: Sourcing-triage detail location
+- **WHEN** Phase 0 sourcing triage is entered
+- **THEN** the decision ladder, license rules, and per-rung handling are found in
+  `skill/phase0_sourcing.md`, and SKILL.md's phase overview lists Phase 0 with a
+  mandatory read pointer to it
 
 ---
 

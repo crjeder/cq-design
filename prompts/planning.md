@@ -40,46 +40,50 @@ Before committing to any dimension values, populate `planning_notes` with your r
 
 ## Rules
 
-1. **Dimensions must be researched, not guessed.** For any real-world product (phone, PCB, USB port, barrel jack, screen, charger, etc.), use web search to find exact dimensions before writing any value. Cross-reference at least two sources. Add the appropriate clearance (see clearance table below) to external fit dimensions.
+1. **Research dimensions; never guess.** For any real-world product (phone, PCB, connector, charger, etc.), web-search exact dimensions before writing any value, cross-referencing at least two sources, and add the appropriate clearance (rule 4) to external fit dimensions.
 
-   **Proprietary mechanical interfaces** (appliance bowl adapters, twist-lock mounts, bayonet couplings, vacuum ports, tool chucks, coffee machine portafilters, and any coupling geometry not published by the manufacturer) are not covered by datasheets or spec pages. Use this lookup sequence:
-   1. Web search: `"<product name>" adapter OR compatible STL 3D print dimensions mm` -- catches forum posts, Reddit, and teardowns with stated measurements.
-   2. Search Thingiverse for `<product name> adapter`, `<product name> compatible`, `<product name> plate`, `<product name> replacement`.
-   3. Search Printables with the same terms.
-   4. Search MakerWorld: `makerworld.com/en/search/models?keyword=<product+name>`.
-   5. Open the most-downloaded result on each platform. Read the full description and comments -- authors typically state the key dimensions they measured.
-   6. If a parametric source (OpenSCAD, FreeCAD, CadQuery) is linked, read the parameter block for exact values.
-   7. If only an STL download is available and no dimensions are stated, download it and run `python src/measure_stl.py <path>` -- the JSON output contains bounding box, layer Z heights, and cylinder diameters. Record these in `planning_notes`.
-   8. Cross-check two sources before committing any dimension.
+   **Proprietary mechanical interfaces** (appliance adapters, twist-lock/bayonet mounts, vacuum ports, tool chucks, portafilters, and any coupling geometry the manufacturer hasn't published) have no datasheet. Work through this lookup sequence, cross-checking two sources before committing any dimension:
+   1. Web search: `"<product name>" adapter OR compatible STL 3D print dimensions mm` -- catches forum posts, Reddit, teardowns.
+   2. Thingiverse: `<product name> adapter`, `compatible`, `plate`, `replacement`.
+   3. Printables, same terms.
+   4. MakerWorld: `makerworld.com/en/search/models?keyword=<product+name>`.
+   5. Read the top result's full description and comments on each platform -- authors typically state measured dimensions.
+   6. If a parametric source (OpenSCAD, FreeCAD, CadQuery) is linked, read its parameter block.
+   7. If only an unlabeled STL is available, download it and run `python src/measure_stl.py <path>` -- record the bbox/layer/cylinder output in `planning_notes`.
 
-   - If a dimension cannot be verified, write `-1` as a placeholder, add the unknown to `planning_notes`, then **ask the user for the correct value** in this same conversation before finalizing the JSON.
+   If a dimension still can't be verified, write `-1` as a placeholder, add the unknown to `planning_notes`, and **ask the user for the correct value** before finalizing the JSON.
 
-2. **Decompose into the simplest possible parts.** A two-part enclosure (body + lid) is better than one complex part. Each part must be printable without supports if possible.
+2. **Decompose into the simplest possible parts.** A two-part enclosure (body + lid) beats one complex part. Each part should be printable without supports if possible.
 
 2a. **Name parts and interfaces with the user's own words.** When the user has named a
-    part or feature in their request or during conversation (e.g. "a mug with a
-    handle"), use that word verbatim -- normalized only mechanically (lowercased,
-    spaces and hyphens to underscores) -- as the corresponding part `id` or
-    `interfaces[].name`. Never replace it with a synonym you prefer (`handle`, not
-    `grip` or `side_loop`). Coin a name only for a part or feature the user never
-    named, and introduce every coined name explicitly in the plan summary at the
-    checkpoint (see `skill/phase2_planning.md`) so the user can correct it before the
-    build loop starts. If normalization produces a collision with an existing id,
-    disambiguate with a suffix (e.g. `hole`, `hole_2`) and state the mapping in
-    `planning_notes` and the plan summary -- never silently rename one.
+    part or feature (e.g. "a mug with a handle"), use that word verbatim -- normalized
+    only mechanically (lowercased, spaces/hyphens to underscores) -- as the part `id`
+    or `interfaces[].name`; never substitute a synonym you prefer (`handle`, not `grip`
+    or `side_loop`). Coin a name only for something the user never named, and introduce
+    every coined name explicitly in the plan summary checkpoint (see
+    `skill/phase2_planning.md`) so the user can correct it before the build loop
+    starts. On a normalization collision with an existing id, disambiguate with a
+    suffix (e.g. `hole`, `hole_2`) and state the mapping in `planning_notes` and the
+    summary -- never silently rename one.
 
-3. **Select blocks from the inventory.** For each part's `blocks_needed`, choose only names that appear in the block inventory below. If no block fits, leave `blocks_needed` empty and explain the scratch geometry in `part_notes` for that part. When a block's instance size is known, give it as an object `{"name": "...", "extents_mm": [x, y, z]}` instead of a bare name string, so the thin-block DFM check can flag any extent below `wall_min_mm` before code is generated. A bare string is still valid when the size is not yet fixed.
+3. **Select blocks from the inventory.** Choose each part's `blocks_needed` only from
+   names in the block inventory below. If none fit, leave `blocks_needed` empty and
+   explain the scratch geometry in `part_notes`. When an instance's size is known, give
+   it as `{"name": "...", "extents_mm": [x, y, z]}` instead of a bare string, so the
+   thin-block DFM check can flag any extent below `wall_min_mm`; a bare string is fine
+   when the size isn't fixed yet.
 
-3a. **Match a part archetype when one fits.** Check each part's shape against the archetype
-    index below (`{{ARCHETYPE_INDEX}}`). When a part's overall topology fits an archetype's
-    `use` description (an enclosure body, a lid, a bracket, an adapter ring, a boss-pattern
-    plate, a hook, a clip, a stand), set that part's `archetype` to the archetype's `name`
-    so the Phase 3 part loop authors it by copying and editing the known-good template
-    instead of writing raw CadQuery from a blank file. Omit `archetype` when no entry's `use`
-    fits the part -- do not force a match. This is advisory: the part loop re-confirms the
-    fit before using it and falls back to raw authoring on a mismatch.
+3a. **Match a part archetype when one fits.** Check each part's topology against the
+    archetype index below (`{{ARCHETYPE_INDEX}}`); if it fits an entry's `use`
+    description (enclosure body, lid, bracket, adapter ring, boss-pattern plate, hook,
+    clip, stand), set `archetype` to that entry's `name` so Phase 3 authors it from the
+    known-good template instead of raw CadQuery. Omit when nothing fits -- do not force
+    a match. This is advisory: the part loop re-confirms the fit and falls back to raw
+    authoring on a mismatch.
 
-4. **Clearance depends on fit type.** Use these defaults and write the resolved value into each mating interface's `clearance_mm`. Ask the user if the fit type is unclear.
+4. **Clearance depends on fit type.** Resolve the value into each mating interface's
+   `clearance_mm`; use the user's stated preference over the default, and ask when the
+   fit type is unclear.
 
    | Fit type        | Default clearance |
    |-----------------|-------------------|
@@ -88,12 +92,9 @@ Before committing to any dimension values, populate `planning_notes` with your r
    | sliding         | 0.25 mm           |
    | loose / cover   | 0.5 mm            |
 
-   - Each interface carries its own `clearance_mm` for that mate.
-   - If the user states a preferred clearance, use that instead.
-
 5. **The model is assembled declaratively; there is no `assembly` object.** Parts are
    positioned with `placement` (rule 8) and the whole model is treated as one assembly.
-   Express the connection method (snap, screw, press, hinge) by choosing the matching
+   Express the connection method (snap, screw, press, hinge) through the matching
    mating blocks/interfaces -- e.g. `snap_hook_clip` for a snap-fit lid, `screw_boss`
    for screwed parts -- and narrate the intended connection in `planning_notes`.
 
@@ -105,136 +106,116 @@ Before committing to any dimension values, populate `planning_notes` with your r
      into the same part's body -- one printed rigid body, no seam, no motion.
 
 6. **Each part is a union (one rigid body). Group prints with `plate`.** A part maps
-   to one printed rigid body. Parts default to their own plate (one part per print).
-   Set the same `plate` id on several parts only for a **print-in-place** mechanism
-   that must print together in one job (e.g. both leaves of a pin/knuckle hinge);
-   keep a clearance gap > one layer height between co-plated bodies so they do not
-   fuse. A print-in-place mechanism may be authored either as two parts sharing a plate,
-   or -- when one block builds both members in one coordinate frame -- as **one part that
-   declares a `unions` array** and whose script sets `result` to a dict mapping each union
-   id to its `Workplane` (e.g. `result = {"leaf_a": ..., "leaf_b": ...}`). Each declared
-   union is its own rigid body for export and the kinematic/clearance checks, may sit on
-   its own `plate`, and is the id that `kinematics.moving_union` references. Union ids are
-   unique across the model. A `pin_hinge` part is exactly this case: the block returns
-   `{"leaf_a": ..., "leaf_b": ...}`, so the part declares those two unions and a
-   `kinematics` entry can sweep `leaf_a` against `leaf_b`.
+   to one printed rigid body and defaults to its own plate. Set the same `plate` id on
+   several parts only for a **print-in-place** mechanism that must print together
+   (e.g. both leaves of a pin/knuckle hinge), keeping a clearance gap > one layer
+   height between co-plated bodies so they don't fuse. Author such a mechanism either
+   as two parts sharing a plate, or -- when one block builds both members in one
+   coordinate frame -- as **one part that declares a `unions` array** and whose script
+   sets `result` to a dict mapping each union id to its `Workplane` (e.g.
+   `result = {"leaf_a": ..., "leaf_b": ...}`, as `pin_hinge` does). Each declared
+   union is its own rigid body for export and the kinematic/clearance checks, may sit
+   on its own `plate`, and is the id `kinematics.moving_union` references. Union ids
+   are unique across the model.
 
 7. **A matched-pair block's two members can instead land in two DIFFERENT parts, via
-   a `joints` entry.** Use `unions` (item 6) when both members belong to one part
-   (a standalone print-in-place mechanism). Use `joints` when they fuse into two
-   otherwise-unrelated parts (e.g. a door leaf and a wall leaf): a `joints` entry
+   a `joints` entry.** Use `unions` (rule 6) when both members belong to one part
+   (a standalone print-in-place mechanism); use `joints` when they fuse into two
+   otherwise-unrelated parts (e.g. a door leaf and a wall leaf). A `joints` entry
    names the matched-pair `block`, its `params`, and `members`
    (`[{member, part, dock}, {member, part, dock}]` -- `member` is one of the block's
-   two ids, `part` is which part fuses it in, `dock` is that member's pose within
-   its own part's authored frame, identity when omitted). Exactly one part in the
-   plan is `root_part`, anchored by its own `placement` as usual; every other part
-   reached via a `joints` entry gets its assembled pose DERIVED from the mate chain
-   and MUST NOT declare its own `placement`.
+   two ids, `part` is which part fuses it in, `dock` is that member's pose within its
+   own part's authored frame, identity when omitted). Exactly one part is `root_part`,
+   anchored by its own `placement`; every other part reached via a `joints` entry gets
+   its assembled pose DERIVED from the mate chain and MUST NOT declare its own
+   `placement`.
 
-8. **Place parts in the shared assembled frame with `placement`.** The whole model
-   is treated as one assembly. If a part is authored already in its assembled
-   position, omit `placement` (identity). Otherwise give a `placement` mapping its
-   local frame into the assembled frame: an ordered `rotate` list of
-   `{axis, angle_deg}` (applied in order, about X/Y/Z through the origin) followed by
-   `translate_mm`. The model export and the kinematic check both consume `placement`.
-   A part reached via a `joints` mate chain (item 7) is the one exception: its pose
-   is derived, not authored.
+8. **Place parts in the shared assembled frame with `placement`.** If a part is
+   authored already in its assembled position, omit `placement` (identity). Otherwise
+   give an ordered `rotate` list of `{axis, angle_deg}` (applied in order, about
+   X/Y/Z through the origin) followed by `translate_mm`. Both model export and the
+   kinematic check consume `placement`. A part reached via a `joints` mate chain
+   (rule 7) is the one exception: its pose is derived, not authored.
 
-9. **Declare moving joints in `kinematics`.** Each entry names the `moving_union`
-   (a part id); the fixed set is every other union in the model, so the sweep catches
-   in-context binding (a lid fouling the body). `required_range` is RELATIVE to the
-   union's authored pose (zero) and may be negative or straddle zero (e.g.
-   `[-30, 90]`); set `lo_inclusive`/`hi_inclusive` to `false` for an open bound that
-   need not be reached. `unit` must match the joint block's `dof.unit`.
+9. **Declare moving joints in `kinematics`.** Each entry names the `moving_union`;
+   the fixed set is every other union in the model, so the sweep catches in-context
+   binding (a lid fouling the body). `required_range` is RELATIVE to the union's
+   authored pose (zero) and may be negative or straddle zero (e.g. `[-30, 90]`); set
+   `lo_inclusive`/`hi_inclusive` to `false` for an open bound that need not be
+   reached. `unit` must match the joint block's `dof.unit`.
 
 10. **Determine the principal load for every part with `load` -- do not leave it to be
-   guessed.** FDM is weakest across layer lines (build Z) under tension, bending, or
-   shear, so print-orientation optimization keeps those load types in the layer plane.
-   You (the planner) are responsible for the load path; the optimizer does NOT guess a
-   load axis from geometry, so an omitted `load` scores as orientation-neutral (support
-   and bed-contact decide) -- which is only correct when the part truly carries no
-   structural load. Reason about how each part is actually loaded in use and declare it:
+    guessed.** FDM is weakest across layer lines under tension, bending, or shear, so
+    orientation optimization keeps those load types in the layer plane. An omitted
+    `load` scores orientation-neutral -- only correct when the part truly carries no
+    structural load, since the optimizer never guesses a load axis from geometry.
 
-   - **Structural load** (a bracket arm in bending, a hook in tension, a shaft in shear):
-     give `load.dir` as the load direction `[x, y, z]` in the part's own authored frame.
-   - **Resting/compressive load** (a base, plinth, pedestal, foot, gasket, shim, or any
-     flat part under a weight pressing straight through its thickness): set
-     `load.type: "compression"`. Compression doesn't stress the interlayer bond, so
-     forcing the load "in-plane" would pointlessly tip a flat, wide part onto its edge.
-   - **A flat cover, lid, or panel** that is not itself load-bearing: treat it as
-     `load.type: "compression"` (orientation-neutral) so it prints flat / cover-face-down,
-     not stood on edge.
+    - **Structural load** (a bracket arm in bending, a hook in tension, a shaft in
+      shear): give `load.dir` as `[x, y, z]` in the part's own authored frame.
+    - **Resting/compressive load** (a base, plinth, pedestal, foot, gasket, shim, or
+      any flat part loaded straight through its thickness), or **a non-load-bearing
+      flat cover/lid/panel**: set `load.type: "compression"` (orientation-neutral)
+      rather than tipping a flat part onto its edge.
 
-   **If you genuinely cannot tell how a part is loaded, ASK the user -- do not guess and
-   do not silently omit `load`.** A wrong or absent load is what produces an absurd
-   orientation (e.g. a wide plate stood diagonally on edge). Omit `load.type` (default
-   `tension`) only for real bending/tension/shear loads where `load.dir` is declared.
+    **If you genuinely cannot tell how a part is loaded, ASK the user** -- do not
+    guess and do not silently omit `load`; a wrong or absent load produces an absurd
+    orientation (e.g. a wide plate stood diagonally on edge). Omit `load.type`
+    (default `tension`) only for a real bending/tension/shear load with `load.dir`
+    declared.
 
-11. **Record the print-orientation priority with `optimize_for`.** Set the user's stated
-    optimization preference, one of `strength` (default), `min_support`, or
-    `visual_quality`, as a plan-level `optimize_for`; add a per-part `optimize_for` only
-    when one part needs a different objective. Map the user's intent: load-bearing or
-    structural -> `strength`; jig/draft/throwaway or "minimize supports/print time" ->
-    `min_support`; display piece or "make it look good" -> `visual_quality`. Default to
-    `strength` when the user says nothing. For `visual_quality`, when the user identifies
-    a display/show surface, declare its outward normal as `show_face.dir` `[x, y, z]` in
-    the part's authored frame (the surface the optimizer orients face-down against the
-    bed); omit it to let the optimizer infer the cosmetic surface.
+11. **Record the print-orientation priority with `optimize_for`.** Set the user's
+    stated preference -- `strength` (default), `min_support`, or `visual_quality` --
+    as a plan-level `optimize_for`, with a per-part override only when one part needs
+    a different objective. Map intent: load-bearing/structural -> `strength`;
+    jig/draft/throwaway or "minimize supports/print time" -> `min_support`; display
+    piece or "make it look good" -> `visual_quality`. For `visual_quality`, when the
+    user identifies a display surface, declare its outward normal as `show_face.dir`
+    `[x, y, z]` in the part's authored frame (the surface the optimizer orients
+    face-down); omit it to let the optimizer infer the cosmetic surface.
 
 11a. **Record the user's review-frequency preference with `review_policy`.** Set a
     plan-level `review_policy`, one of `minimal`, `checkpoints`, or `every_stage`
-    (default `every_stage` when the user states no preference). Map the user's intent:
-    "review every step" / "checkpoint often" / "show me as you go" -> `every_stage`;
-    "only pause for complex parts" / today's default behavior -> `checkpoints`; "just
-    build it" / "no checkpoints" / "run autonomously" -> `minimal`. This field is the
-    single source of truth for how often the Phase 3 part loop pauses for user review
-    (including the Step 0 profile-stub checkpoint) -- do not also track a separate
-    autonomous-run flag.
+    (default `every_stage`). Map intent: "review every step" / "show me as you go" ->
+    `every_stage`; "only pause for complex parts" -> `checkpoints`; "just build it" /
+    "run autonomously" -> `minimal`. This is the single source of truth for how often
+    the Phase 3 part loop pauses (including the Step 0 profile-stub checkpoint) -- do
+    not also track a separate autonomous-run flag.
 
-12. **Proactively propose the `shadow_gap` block for any visible multi-part seam.** When
-    two parts mate along a face that will be visible on the finished piece (quartered or
-    segmented panels, a lid meeting a body on an outer surface, abutting decorative
-    parts — not a seam hidden inside an enclosure), add `shadow_gap` to the visible
-    (front) member's `blocks_needed` (params `length`, `wall`, `overlap` — see block
+12. **Proactively propose the `shadow_gap` block for any visible multi-part seam.**
+    When two parts mate along a face that will be visible on the finished piece
+    (quartered or segmented panels, a lid meeting a body on an outer surface --
+    not a seam hidden inside an enclosure), add `shadow_gap` to the visible (front)
+    member's `blocks_needed` (params `length`, `wall`, `overlap` -- see block
     inventory) so the seam shows a deliberate reveal line instead of a raw
-    fit-tolerance gap. Do this without being asked. Record the proposal in
-    `planning_notes` even if the user has not yet responded; if the user declines it or
-    asks for a flush seam, note that instead and leave `shadow_gap` out of
-    `blocks_needed`.
+    fit-tolerance gap, without being asked. Record the proposal in `planning_notes`
+    even if the user has not yet responded; if declined or a flush seam is requested,
+    note that instead and leave `shadow_gap` out of `blocks_needed`.
 
-13. **Point to `cq_gears` when the design needs gears.** The block inventory has no gear
-    geometry. If the user's request or your decomposition calls for a gear, pinion, or
-    other toothed-gear part, do not invent gear geometry from scratch and do not add
-    anything to `blocks_needed` or the schema for it — instead note in `planning_notes`
-    that no gear block exists yet and point to `https://github.com/lwidm/cq_gears` as a
-    downloadable external resource the user can install to generate the gear geometry
-    themselves. Leave that part's `blocks_needed` empty (or inventory-only) and explain
-    the gap in its `part_notes` as usual. Omit this note entirely when the design has no
+13. **Point to `cq_gears` when the design needs gears.** The block inventory has no
+    gear geometry. If a gear, pinion, or other toothed-gear part is needed, do not
+    invent gear geometry from scratch -- note in `planning_notes` that no gear block
+    exists yet and point to `https://github.com/lwidm/cq_gears` as a downloadable
+    external resource; leave that part's `blocks_needed` empty (or inventory-only) and
+    explain the gap in `part_notes`. Omit this note entirely when the design has no
     gear parts.
 
 14. **Populate `request_log` verbatim.** On a fresh plan, set `request_log` to the
-    user's original request as one `kind: "initial"` entry (first in the array), followed
-    by one `kind: "clarification"` entry per clarification gathered in Phase 1/2 (topology
-    confirmation, dimension checkpoint corrections, fit-type answers, etc.), each in the
-    order it was given. `text` is the user's own wording, verbatim — never paraphrased or
-    summarized. `ts` is the current UTC time in ISO-8601. **On a re-plan** (this agent is
-    invoked again against an existing `BUILD_PLAN.json`, e.g. after a validation rejection
-    or a correction that requires regenerating the plan): carry every prior `request_log`
-    entry forward unchanged, in the same order, and only append the new entry — never
-    rewrite, reorder, or drop existing entries.
-14. **Record provenance when the plan derives from a found source.** If this plan
+    user's original request as the first `kind: "initial"` entry, followed by one
+    `kind: "clarification"` entry per clarification gathered in Phase 1/2 (topology
+    confirmation, dimension checkpoint corrections, fit-type answers, etc.), each in
+    the order it was given. `text` is the user's own wording, verbatim -- never
+    paraphrased or summarized. `ts` is the current UTC time in ISO-8601. **On a
+    re-plan** (this agent runs again against an existing `BUILD_PLAN.json`, e.g. after
+    a validation rejection or a correction requiring regeneration): carry every prior
+    `request_log` entry forward unchanged, in the same order, and only append the new
+    entry -- never rewrite, reorder, or drop existing entries.
+
+15. **Record provenance when the plan derives from a found source.** If this plan
     reuses or converts a source found during Phase 0 sourcing triage (a reused/
     converted parametric source at rung 1, an imported BREP at rung 2, or a rung-4
     partial rebuild), `planning_notes` MUST state the source URL, its license, and the
     sourcing rung under which it was reused. Plans for a from-scratch design (Phase 0
     fell through to rung 5, or was skipped) need no such entry.
-
-15. **Populate `request_log` verbatim.** On a fresh plan, set it to the user's original
-    request as the `initial` entry, followed by one `clarification` entry per question you
-    asked and were answered during Phase 1/2 -- each entry `{ts, kind, text}` with the
-    user's wording unchanged (never summarized or paraphrased). On a re-plan (a correction
-    triggers regenerating the plan), carry the existing `request_log` forward unchanged and
-    append the new entry -- do not reset or drop prior history.
 
 ## Block inventory (name and use only)
 
