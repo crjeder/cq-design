@@ -80,12 +80,56 @@ wall = {{WALL_MIN_MM}}
 # ... other parameters
 
 # ============================================================
+# ENGINEERING RATIONALE
+# ============================================================
+# Load path: <where the load enters and how it travels through the part>
+# Worst-case stress: <the specific location that sees the highest stress>
+# Check: <formula, evaluated with this script's own parameter names> = <result>
+#   <= / >= <stated material allowable>
+
+# ============================================================
 # MODEL
 # ============================================================
 result = (
     # ... geometry here
 )
 ```
+
+## Engineering rationale
+
+Every script SHALL contain an `ENGINEERING RATIONALE` comment section between
+PARAMETERS and MODEL.
+
+**Full form (three lines)** — required when this part's plan entry declares a
+`load` (any type), OR its `blocks_needed`/`archetype` is in this load-bearing set:
+snap hooks, clips, hooks, brackets, screw bosses, pcb standoffs, living hinge,
+dovetail joints.
+
+```python
+# ============================================================
+# ENGINEERING RATIONALE
+# ============================================================
+# Load path: clip arm bends at its root when the lid is pressed on
+# Worst-case stress: arm root, bending at full deflection
+# Check: strain = 1.5*t*d/L^2 = 1.5*1.2*1.8/18^2 = 1.0% <= 2.0% allowable (PETG)
+```
+
+- The computed check MUST reference this script's own parameter names (e.g. `t`,
+  `d`, `L` as defined in PARAMETERS above), not free-standing constants — a check
+  that doesn't move when the parameters change is not a real derivation.
+- Pull material constants and formula coefficients from `reference/Engineering
+  Design Rules.md` (see below); do not invent an allowable.
+- On a retry, if the fix changes a parameter that appears in this check, re-evaluate
+  the check with the new value — the rationale must stay consistent with the script
+  it accompanies.
+
+**One-line form** — for every other part:
+
+```python
+# ENGINEERING RATIONALE: no load-bearing features (static cosmetic part)
+```
+
+Never invent a load for a part that doesn't have one just to fill out the full form.
 
 ## Construction-time verification
 
@@ -163,6 +207,9 @@ Step 1 substitution table):
   {{FDM_GUIDELINES}} -> "The following FDM guideline sections apply to this part
   (already read in Phase 3 setup): <comma-separated section names from the tag
   filter>." Section names only, not bodies.
+  {{ENGINEERING_RULES}} -> same split as {{FDM_GUIDELINES}}: inline cites the
+  selected `reference/Engineering Design Rules.md` section names, cold substitutes
+  their full bodies.
 - Cold-context render (`claude -p` subprocess or a subagent, no ambient
   context): substitute full document contents as specified in SKILL.md.
 -->
@@ -174,5 +221,9 @@ Step 1 substitution table):
 ## CadQuery Reference
 
 {{CQ_REFERENCE}}
+
+## Engineering Design Rules
+
+{{ENGINEERING_RULES}}
 
 Output only the Python script.
