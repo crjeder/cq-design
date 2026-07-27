@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-07-27
+goal: Let a kinematics entry declare its axis directly, without an inventory
+  block dof, so custom raw-primitive joints can be swept
