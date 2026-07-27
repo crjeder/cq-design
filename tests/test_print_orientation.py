@@ -2,10 +2,16 @@
 # type: ignore  # CAD/trimesh stub-union noise; tests are ruff-linted, not type-checked
 """Tests for the print-orientation optimizer (trimesh + numpy, no CadQuery)."""
 
+import json
+import os
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 import trimesh
 
+from freshness import script_hash
 from print_orientation import (
     _area_cumulation_normals,
     _gentle_incline_fraction,
@@ -315,3 +321,40 @@ def test_min_build_height_deterministic():
     a = optimize_orientation(bar, overhang_deg=45.0, optimize_for="min_build_height")
     b = optimize_orientation(bar, overhang_deg=45.0, optimize_for="min_build_height")
     assert a == b
+
+
+_PRINT_ORIENTATION_CLI = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "print_orientation.py"
+)
+
+
+def test_cli_source_script_stamps_result(tmp_path):
+    stl = tmp_path / "box.stl"
+    trimesh.creation.box([20.0, 20.0, 4.0]).export(str(stl))
+    script = tmp_path / "part.py"
+    script.write_text("result = 1\n", encoding="utf-8")
+
+    proc = subprocess.run(
+        [sys.executable, _PRINT_ORIENTATION_CLI, str(stl), "--source-script", str(script)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert result["source_script_hash"] == script_hash(str(script))
+
+
+def test_cli_without_source_script_is_unstamped(tmp_path):
+    stl = tmp_path / "box.stl"
+    trimesh.creation.box([20.0, 20.0, 4.0]).export(str(stl))
+
+    proc = subprocess.run(
+        [sys.executable, _PRINT_ORIENTATION_CLI, str(stl)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert "source_script_hash" not in result

@@ -20,7 +20,8 @@ Usage:
 import glob
 import os
 
-from units import KEEP_OUT_KEY, make_issue, run_stl_dir_check_cli, stl_path
+from freshness import read_manifest, stale_ids
+from units import KEEP_OUT_KEY, iter_unions, make_issue, run_stl_dir_check_cli, stl_path
 
 _ZONE_PREFIX = f"{KEEP_OUT_KEY}__"
 
@@ -45,11 +46,14 @@ def _discover_zones(plan: dict, stl_dir: str) -> list[tuple[str, str, str]]:
     return zones
 
 
-def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
+def run_keep_out_check(plan: dict, stl_dir: str, *, parts_dir: str | None = None) -> list[dict]:
     """Check every declared keep-out zone against every foreign union. Returns issues.
 
     Returns an empty list without loading the geometry stack when the model declares no
-    keep-out zones (regardless of whether the collision backend is available).
+    keep-out zones (regardless of whether the collision backend is available). When
+    `parts_dir` is given and an export manifest is present, a stale zone (its declaring
+    part's script changed) or a stale foreign union is flagged as `stale_artifact` and
+    excluded from that zone's intersection check.
     """
     zones = _discover_zones(plan, stl_dir)
     if not zones:
@@ -71,13 +75,74 @@ def run_keep_out_check(plan: dict, stl_dir: str) -> list[dict]:
             )
         ]
 
-    from units import iter_unions
-
     all_unions = [(part.get("id"), uid) for part, uid, _plate in iter_unions(plan)]
 
     issues: list[dict] = []
+
+    manifest = read_manifest(stl_dir) if parts_dir else None
+    if parts_dir is None or manifest is None:
+        issues.append(
+            make_issue(
+                "geometry",
+                "warning",
+                "check_skipped",
+                "Export manifest not available; cannot verify exported STLs are current.",
+                "Run the model export (writes export_manifest.json) and pass --parts-dir "
+                "to enable staleness detection.",
+            )
+        )
+        stale_unions: set[str] = set()
+        stale_zones: set[str] = set()
+    else:
+        uid_to_script = {uid: os.path.join(parts_dir, f"{pid}.py") for pid, uid in all_unions}
+        stale_unions = stale_ids(manifest.get("unions", {}), uid_to_script)
+        zone_to_script = {
+            f"{declaring_part}::{zone_name}": os.path.join(parts_dir, f"{declaring_part}.py")
+            for declaring_part, zone_name, _path in zones
+        }
+        stale_zones = stale_ids(manifest.get("keep_out_zones", {}), zone_to_script)
+
     for declaring_part, zone_name, zone_path in zones:
-        fixed = [(pid, uid) for pid, uid in all_unions if pid != declaring_part]
+        zone_key = f"{declaring_part}::{zone_name}"
+        if zone_key in stale_zones:
+            issues.append(
+                make_issue(
+                    "geometry",
+                    "error",
+                    "stale_artifact",
+                    f"Keep-out zone '{zone_name}' (part '{declaring_part}'): exported STL "
+                    "is stale -- its source script changed since the model was last "
+                    "exported.",
+                    "Re-run the model export so this zone's STL reflects the current "
+                    "script, then re-run the quality gate.",
+                    zone_part=declaring_part,
+                    zone_name=zone_name,
+                )
+            )
+            continue
+
+        fixed = [
+            (pid, uid)
+            for pid, uid in all_unions
+            if pid != declaring_part and uid not in stale_unions
+        ]
+        for pid, uid in all_unions:
+            if pid != declaring_part and uid in stale_unions:
+                issues.append(
+                    make_issue(
+                        "geometry",
+                        "error",
+                        "stale_artifact",
+                        f"Union '{uid}': exported STL is stale -- its source script "
+                        f"changed since the model was last exported (checked against "
+                        f"keep-out zone '{zone_name}' declared by part '{declaring_part}').",
+                        "Re-run the model export so this union's STL reflects the current "
+                        "script, then re-run the quality gate.",
+                        zone_part=declaring_part,
+                        zone_name=zone_name,
+                        union=uid,
+                    )
+                )
         missing = [uid for _pid, uid in fixed if not os.path.exists(stl_path(stl_dir, uid))]
         if missing:
             issues.append(

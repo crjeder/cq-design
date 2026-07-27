@@ -53,6 +53,7 @@ import numpy as np
 import trimesh
 from trimesh.transformations import euler_from_matrix
 
+from freshness import script_hash
 from mesh_io import load_mesh, support_cost, up_facing_incline_area
 
 # A candidate primary score within this band of the best is treated as tied, so the
@@ -471,6 +472,13 @@ def main() -> None:
         default=None,
         help="Cosmetic surface normal 'x,y,z' in the authored frame; omit to infer",
     )
+    parser.add_argument(
+        "--source-script",
+        default=None,
+        help="Part script that produced this STL; when given, the result is stamped with "
+        "the script's provenance hash (source_script_hash) so a consumer can detect a "
+        "later edit. Omit to leave the result unstamped.",
+    )
     args = parser.parse_args()
 
     load_dir = None
@@ -489,6 +497,8 @@ def main() -> None:
         show_face=show_face,
         load_type=args.load_type,
     )
+    if args.source_script:
+        result["source_script_hash"] = script_hash(args.source_script)
     print(json.dumps(result, indent=2))
     sys.exit(0)
 

@@ -128,13 +128,79 @@ def test_backend_missing_degrades_to_warning(tmp_path, monkeypatch):
     assert issues[0]["severity"] == "warning"
 
 
+# ---- freshness: stale exported STL --------------------------------------------
+
+
+def _write_scripts_and_manifest(tmp_path, hashes):
+    """Write <id>.py for each id in `hashes`, then an export manifest whose recorded
+    stamp for each union is `hashes[id]` (a real current-content hash, or a bogus one to
+    simulate staleness)."""
+    from freshness import MANIFEST_FILENAME
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir(exist_ok=True)
+    manifest: dict = {
+        "exported_at": "2026-01-01T00:00:00+00:00",
+        "unions": {},
+        "keep_out_zones": {},
+    }
+    for uid, stamp in hashes.items():
+        (parts_dir / f"{uid}.py").write_text("result = 1\n", encoding="utf-8")
+        manifest["unions"][uid] = {"part_id": uid, "source_script_hash": stamp}
+    (tmp_path / MANIFEST_FILENAME).write_text(json.dumps(manifest), encoding="utf-8")
+    return str(parts_dir)
+
+
+def test_stale_union_flagged_and_excluded_from_pair_check(tmp_path):
+    from freshness import script_hash
+
+    plan = _two_on_one_plate(tmp_path, cx=10.1)  # would otherwise flag plate_clearance
+    (tmp_path / "parts").mkdir()
+    (tmp_path / "parts" / "b.py").write_text("result = 1\n", encoding="utf-8")
+    b_hash = script_hash(str(tmp_path / "parts" / "b.py"))
+    parts_dir_str = _write_scripts_and_manifest(tmp_path, {"a": "0" * 64, "b": b_hash})
+
+    issues = run_plate_clearance_check(plan, str(tmp_path), parts_dir=parts_dir_str)
+
+    stale = [i for i in issues if i["type"] == "stale_artifact"]
+    assert len(stale) == 1
+    assert stale[0]["union"] == "a"
+    assert stale[0]["severity"] == "error"
+    # Fewer than two fresh unions remain on the plate -> no pairwise clearance check.
+    assert _clearance_issues(issues) == []
+
+
+def test_fresh_manifest_passes_through_unaffected(tmp_path):
+
+    plan = _two_on_one_plate(tmp_path, cx=10.1)  # gap 0.1 < 0.2 -> should still flag
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    (parts_dir / "a.py").write_text("result = 1\n", encoding="utf-8")
+    (parts_dir / "b.py").write_text("result = 2\n", encoding="utf-8")
+    from freshness import write_manifest
+
+    write_manifest(
+        str(tmp_path),
+        {
+            "a": ("a", str(parts_dir / "a.py")),
+            "b": ("b", str(parts_dir / "b.py")),
+        },
+    )
+
+    issues = run_plate_clearance_check(plan, str(tmp_path), parts_dir=str(parts_dir))
+
+    assert [i for i in issues if i["type"] == "stale_artifact"] == []
+    assert len(_clearance_issues(issues)) == 1
+
+
 def test_missing_stl_degrades_to_warning(tmp_path):
-    # Plate declared with two unions but no exported STLs yet.
+    # Plate declared with two unions but no exported STLs yet. Without --parts-dir the
+    # freshness check also degrades, so both warnings are present.
     plan = _plan([{"id": "a", "plate": "shared"}, {"id": "b", "plate": "shared"}])
     issues = run_plate_clearance_check(plan, str(tmp_path))
-    assert len(issues) == 1
-    assert issues[0]["type"] == "check_skipped"
-    assert issues[0]["severity"] == "warning"
+    assert {i["type"] for i in issues} == {"check_skipped"}
+    assert all(i["severity"] == "warning" for i in issues)
+    assert any("assembled union STL not found" in i["message"] for i in issues)
 
 
 # ---- 3.6 gate integration: too-close pair blocks a clean pass ----------------

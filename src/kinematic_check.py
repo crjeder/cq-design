@@ -34,7 +34,9 @@ import os
 from collections.abc import Iterator
 from typing import Any
 
+from freshness import read_manifest, stale_ids
 from units import (
+    add_parts_dir_argument,
     add_plan_argument,
     add_stl_dir_argument,
     emit_issues,
@@ -159,9 +161,13 @@ def run_kinematic_check(
     stl_dir: str,
     inventory_path: str = _INVENTORY_PATH,
     penetration_tol_mm: float = 0.1,
+    *,
+    parts_dir: str | None = None,
 ) -> list[dict]:
     """Validate every `kinematics` entry in the plan, at every nesting depth. Returns a
-    list of issues."""
+    list of issues. When `parts_dir` is given and an export manifest is present, a union
+    whose exported STL is stale relative to its current source script is flagged as
+    `stale_artifact` and excluded from the sweep for any entry that references it."""
     kinematics = plan.get("kinematics", [])
     if not kinematics:
         return []
@@ -190,7 +196,28 @@ def run_kinematic_check(
 
     from units import iter_kinematics_entries, iter_unions
 
-    all_union_ids = [uid for _part, uid, _plate in iter_unions(plan)]
+    all_unions = [(part["id"], uid) for part, uid, _plate in iter_unions(plan)]
+    all_union_ids = [uid for _pid, uid in all_unions]
+
+    stale_unions: set[str] = set()
+    if collision_ok:
+        # Freshness only matters for the mesh sweep below; skip this check (and its own
+        # warning) entirely when the sweep itself is already skipped for lack of a backend.
+        manifest = read_manifest(stl_dir) if parts_dir else None
+        if parts_dir is None or manifest is None:
+            issues.append(
+                make_issue(
+                    "kinematics",
+                    "warning",
+                    "check_skipped",
+                    "Export manifest not available; cannot verify exported STLs are current.",
+                    "Run the model export (writes export_manifest.json) and pass "
+                    "--parts-dir to enable staleness detection.",
+                )
+            )
+        else:
+            uid_to_script = {uid: os.path.join(parts_dir, f"{pid}.py") for pid, uid in all_unions}
+            stale_unions = stale_ids(manifest.get("unions", {}), uid_to_script)
 
     for entry in iter_kinematics_entries(kinematics):
         jid = entry.get("joint_id", "(unknown)")
@@ -232,6 +259,29 @@ def run_kinematic_check(
 
         subtree_ids = [e["moving_union"] for e in iter_kinematics_entries([entry])]
         fixed_ids = [uid for uid in all_union_ids if uid not in subtree_ids]
+
+        stale_subtree = [uid for uid in subtree_ids if uid in stale_unions]
+        stale_fixed = [uid for uid in fixed_ids if uid in stale_unions]
+        if stale_subtree or stale_fixed:
+            issues.append(
+                make_issue(
+                    "kinematics",
+                    "error",
+                    "stale_artifact",
+                    f"Joint '{jid}': exported STL is stale for union(s) "
+                    f"{', '.join(stale_subtree + stale_fixed)} -- the source script "
+                    "changed since the model was last exported.",
+                    "Re-run the model export so these unions' STLs reflect the current "
+                    "scripts, then re-run the quality gate.",
+                    joint_id=jid,
+                    stale_unions=stale_subtree + stale_fixed,
+                )
+            )
+            if stale_subtree:
+                # The moving subtree itself is unreliable -- nothing meaningful to sweep.
+                continue
+            fixed_ids = [uid for uid in fixed_ids if uid not in stale_fixed]
+
         missing = [
             uid for uid in [*subtree_ids, *fixed_ids] if not os.path.exists(stl_path(stl_dir, uid))
         ]
@@ -281,6 +331,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Kinematic range-of-motion validation")
     add_plan_argument(parser)
     add_stl_dir_argument(parser, "Directory holding exported <part_id>.stl files")
+    add_parts_dir_argument(parser)
     parser.add_argument(
         "--penetration-tol",
         type=float,
@@ -293,7 +344,13 @@ def main() -> None:
     args = parser.parse_args()
 
     plan = load_plan(args.plan)
-    issues = run_kinematic_check(plan, args.stl_dir, args.inventory, args.penetration_tol)
+    issues = run_kinematic_check(
+        plan,
+        args.stl_dir,
+        args.inventory,
+        args.penetration_tol,
+        parts_dir=args.parts_dir,
+    )
     emit_issues(issues)
 
 
