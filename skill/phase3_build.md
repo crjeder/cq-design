@@ -39,6 +39,7 @@ Read into context (once, before the loop):
 - `$SKILL_DIR/prompts/part.md` — part prompt template
 - `$SKILL_DIR/reference/CadQuery Pattern Reference.md`, `$SKILL_DIR/reference/CadQuery Anti-Patterns.md`, `$SKILL_DIR/reference/emboss_text.md` — read into context once here. This read is the precondition for a progressive part's inline `{{CQ_REFERENCE}}` citation (see the `{{CQ_REFERENCE}}` row below): citation is valid only because these documents are already in the main session's context. An autonomous part's builder agent is a fresh spawn with none of this context, so it still gets the full contents read here re-substituted in full at render time.
 - `$SKILL_DIR/reference/FDM 3D Print Design Guidelines.md` — read into context once here, same role for `{{FDM_GUIDELINES}}`
+- `$SKILL_DIR/reference/Engineering Design Rules.md` — read into context once here, same role for `{{ENGINEERING_RULES}}`; this read is the precondition for a progressive part's inline citation, same as the FDM guide above
 - `$SKILL_DIR/reference/Visual Review Checklist.md` — the visual self-review checklist applied in Step 4
 
 Create the `build/` directory in your current working directory.
@@ -171,6 +172,7 @@ progressive part's retries stay inline; a part never switches modes mid-build.
 | `{{NOZZLE_MM}}` | `plan["nozzle_mm"]` |
 | `{{CQ_REFERENCE}}` | **Cold** (builder agent / future `claude -p`): full contents of `CadQuery Pattern Reference.md`, then the full contents of `CadQuery Anti-Patterns.md` (appended **always**, for every part), then `emboss_text.md` **only when this part involves text/emboss** (its `description`, `part_notes`, or any `interfaces` entry mentions text/engrave/emboss/label; otherwise omit it — the pattern reference already carries the basic `.text()` idiom). **Inline** (progressive part, main session): a citation naming `reference/CadQuery Pattern Reference.md` and `reference/CadQuery Anti-Patterns.md` as already-in-context documents to apply, do not paste their contents; name `reference/emboss_text.md` too under the same text/emboss gate. |
 | `{{FDM_GUIDELINES}}` | Sections from `FDM 3D Print Design Guidelines.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always`. **Cold:** inject those sections' full text. **Inline:** cite the same selected sections by name only (the tag-filter computation is unchanged; only whether its output is bodies or names differs by mode). |
+| `{{ENGINEERING_RULES}}` | Sections from `Engineering Design Rules.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always`, plus all load-relevant sections when `part["load"]` is declared (any type). **Cold:** inject those sections' full text. **Inline:** cite the same selected sections by name only. |
 
 **Step 1.5 — Match archetype**
 
@@ -214,6 +216,12 @@ union is then exported, posed, and kinematically/clearance checked as a distinct
 without a `unions` array keeps the single `result = <wp>` form (one union, id = part id).
 
 On retry attempts: review the error types and hints from the previous attempt, apply targeted fixes. Do not start over blindly — you have full planning context.
+
+**Rationale survives retries.** A correction prompt never waives the ENGINEERING
+RATIONALE requirement (see `prompts/part.md`). If the fix changes a parameter that
+appears in the rationale's computed check, re-evaluate that check with the new value
+in the corrected script — don't leave a stale number that no longer matches the
+parameters it claims to check.
 
 **Step 2.5 — Lint before validate**
 
