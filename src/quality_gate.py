@@ -327,7 +327,7 @@ def _run_plan_validation_stage(plan_path: str) -> list[dict]:
     ]
 
 
-def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
+def _run_kinematic_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) -> list[dict]:
     """Run the kinematic range check when the plan declares any joints.
 
     Runs once (not inside the fix loop): the auto-fixer operates on a single
@@ -337,18 +337,20 @@ def _run_kinematic_stage(plan: dict, stl_dir: str | None) -> list[dict]:
         return []
     from kinematic_check import run_kinematic_check
 
-    return run_kinematic_check(plan, stl_dir or ".")
+    return run_kinematic_check(plan, stl_dir or ".", parts_dir=parts_dir)
 
 
 def _run_stl_dir_stage(
-    check_fn: Callable[[dict, str], list[dict]], plan: dict, stl_dir: str | None
+    check_fn: Callable[..., list[dict]], plan: dict, stl_dir: str | None, parts_dir: str | None
 ) -> list[dict]:
-    """Shared call shape for a whole-model check stage that takes `(plan, stl_dir)`,
-    defaulting `stl_dir` to the current directory."""
-    return check_fn(plan, stl_dir or ".")
+    """Shared call shape for a whole-model check stage that takes `(plan, stl_dir,
+    parts_dir=...)`, defaulting `stl_dir` to the current directory."""
+    return check_fn(plan, stl_dir or ".", parts_dir=parts_dir)
 
 
-def _run_plate_clearance_stage(plan: dict, stl_dir: str | None) -> list[dict]:
+def _run_plate_clearance_stage(
+    plan: dict, stl_dir: str | None, parts_dir: str | None
+) -> list[dict]:
     """Check co-plated unions keep a gap above one layer height (once, outside the fix loop).
 
     No-op unless some plate holds more than one union; the auto-fixer operates on a
@@ -356,16 +358,16 @@ def _run_plate_clearance_stage(plan: dict, stl_dir: str | None) -> list[dict]:
     """
     from plate_clearance_check import run_plate_clearance_check
 
-    return _run_stl_dir_stage(run_plate_clearance_check, plan, stl_dir)
+    return _run_stl_dir_stage(run_plate_clearance_check, plan, stl_dir, parts_dir)
 
 
-def _run_keep_out_stage(plan: dict, stl_dir: str | None) -> list[dict]:
+def _run_keep_out_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) -> list[dict]:
     """Check every declared keep-out zone against every foreign union (once, outside the
     fix loop). No-op unless the model export produced at least one zone STL.
     """
     from keep_out_check import run_keep_out_check
 
-    return _run_stl_dir_stage(run_keep_out_check, plan, stl_dir)
+    return _run_stl_dir_stage(run_keep_out_check, plan, stl_dir, parts_dir)
 
 
 def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | None) -> list[dict]:
@@ -575,12 +577,15 @@ def run_gate(
     # when the plan validates; a malformed plan fails on the structured plan_invalid error
     # instead of crashing those stages.
     if not any(i["severity"] == "error" for i in plan_issues):
+        # Every part script lives alongside script_path, so that directory doubles as
+        # parts_dir for the freshness check the three whole-model stages below run.
+        parts_dir = os.path.dirname(os.path.abspath(script_path))
         # ---- kinematic range check (once, outside the fix loop) ----
-        all_issues += _run_kinematic_stage(plan, stl_dir)
+        all_issues += _run_kinematic_stage(plan, stl_dir, parts_dir)
         # ---- plate clearance check (once, outside the fix loop) ----
-        all_issues += _run_plate_clearance_stage(plan, stl_dir)
+        all_issues += _run_plate_clearance_stage(plan, stl_dir, parts_dir)
         # ---- keep-out zone check (once, outside the fix loop) ----
-        all_issues += _run_keep_out_stage(plan, stl_dir)
+        all_issues += _run_keep_out_stage(plan, stl_dir, parts_dir)
         # ---- edge-treatment (chamfer/fillet) check (once, outside the fix loop) ----
         all_issues += _run_edge_treatment_stage(plan, script_path, orientation)
         # ---- feature-presence check (declared interfaces built; once, outside the fix loop) ----

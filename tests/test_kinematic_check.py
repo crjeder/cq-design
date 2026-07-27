@@ -249,6 +249,104 @@ def test_fcl_missing_skips_sweep_keeps_numeric_check(clear_stls, monkeypatch):
     assert any(i["type"] == "range_exceeds_limit" for i in issues)
 
 
+# ---- freshness: stale exported STL ---------------------------------------------
+
+
+def _write_manifest(tmp_path, unions):
+    from freshness import MANIFEST_FILENAME
+
+    manifest = {"exported_at": "2026-01-01T00:00:00+00:00", "unions": unions, "keep_out_zones": {}}
+    (tmp_path / MANIFEST_FILENAME).write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def _write_scripts(parts_dir, ids):
+    parts_dir.mkdir(exist_ok=True)
+    for i, pid in enumerate(ids):
+        (parts_dir / f"{pid}.py").write_text(f"result = {i}\n", encoding="utf-8")
+
+
+def test_stale_moving_union_skips_entry_sweep(blocking_stls):
+    from freshness import script_hash
+
+    parts_dir = blocking_stls / "parts"
+    _write_scripts(parts_dir, ["base", "arm"])
+    _write_manifest(
+        blocking_stls,
+        {
+            "base": {
+                "part_id": "base",
+                "source_script_hash": script_hash(str(parts_dir / "base.py")),
+            },
+            "arm": {"part_id": "arm", "source_script_hash": "0" * 64},  # stale
+        },
+    )
+
+    issues = run_kinematic_check(
+        _plan([_revolute_entry([0, 90])]), str(blocking_stls), parts_dir=str(parts_dir)
+    )
+
+    stale = [i for i in issues if i["type"] == "stale_artifact"]
+    assert len(stale) == 1
+    assert stale[0]["stale_unions"] == ["arm"]
+    # The moving union is stale -> no sweep result at all for this entry.
+    assert [i for i in issues if i["type"] == "motion_collision"] == []
+
+
+def test_stale_fixed_union_excluded_from_sweep(blocking_stls):
+    from freshness import script_hash
+
+    # blocking_stls has "base" placed so the arm's sweep collides with it.
+    parts_dir = blocking_stls / "parts"
+    _write_scripts(parts_dir, ["base", "arm"])
+    _write_manifest(
+        blocking_stls,
+        {
+            "base": {"part_id": "base", "source_script_hash": "0" * 64},  # stale
+            "arm": {
+                "part_id": "arm",
+                "source_script_hash": script_hash(str(parts_dir / "arm.py")),
+            },
+        },
+    )
+
+    issues = run_kinematic_check(
+        _plan([_revolute_entry([0, 90])]), str(blocking_stls), parts_dir=str(parts_dir)
+    )
+
+    stale = [i for i in issues if i["type"] == "stale_artifact"]
+    assert len(stale) == 1
+    assert stale[0]["stale_unions"] == ["base"]
+    # "base" excluded from the fixed set -> the sweep runs but finds nothing to hit.
+    assert [i for i in issues if i["type"] == "motion_collision"] == []
+
+
+def test_fresh_manifest_passes_through_unaffected(clear_stls):
+    from freshness import script_hash
+
+    parts_dir = clear_stls / "parts"
+    _write_scripts(parts_dir, ["base", "arm"])
+    _write_manifest(
+        clear_stls,
+        {
+            "base": {
+                "part_id": "base",
+                "source_script_hash": script_hash(str(parts_dir / "base.py")),
+            },
+            "arm": {
+                "part_id": "arm",
+                "source_script_hash": script_hash(str(parts_dir / "arm.py")),
+            },
+        },
+    )
+
+    issues = run_kinematic_check(
+        _plan([_revolute_entry([0, 90])]), str(clear_stls), parts_dir=str(parts_dir)
+    )
+
+    assert [i for i in issues if i["type"] == "stale_artifact"] == []
+    assert not [i for i in issues if i["severity"] == "error"]
+
+
 # ---- 7.7 plan_validate cross-checks ------------------------------------------
 
 
