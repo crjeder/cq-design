@@ -34,13 +34,25 @@ change lives in that change's `tasks.md`, not here.
         block with a `dof`, but this hinge is raw-primitive clevis/tongue geometry, so
         declaring it would force a bogus block reference. Result: rounds 4-7 each
         hand-wrote an ad-hoc boolean fold-collision sweep (0.25deg steps, plus a
-        binary search for the minimum notch height Z=16). Two-part fix: (a) let a
-        `kinematics` entry declare `axis_dir` + pivot point directly, without a block
-        `dof` backing it, so `kinematic_check.py` can sweep custom hinges; (b) promote
-        the ad-hoc sweep into a first-class tool -- sweep a union about an axis over a
-        range, report binding angle + colliding body + min clearance, and optionally
-        search for the minimal cutout dimension that clears the sweep (the "minimum
-        notch height" question answered manually here).
+        binary search for the minimum notch height Z=16). Two-part fix, now both
+        proposed as openspec changes (2026-07-27, not yet implemented):
+        (a) `openspec/changes/blockless-kinematics/` -- make `block` optional on a
+        `kinematics` entry (a block-less entry declares `axis_origin_mm`/`axis_dir`/
+        `type`/`required_range`/`step` directly, with an optional `mechanical_limit`
+        for the numeric check), and skip `plan_validate.py`'s joint-contract arms
+        (type match, axis parallelism, coaxiality) for it since there is no block to
+        contract against.
+        (b) `openspec/changes/contact-limited-sweep/` -- promote the ad-hoc sweep into
+        a first-class tool: fix the sweep's semantics (report first-contact angle +
+        colliding body instead of a range-wide pass/fail, since a joint whose closed
+        position IS a contact stop can never pass a range-based check) and its
+        measurement (switch `interference.py` from fcl penetration-depth thresholding,
+        shown ill-conditioned on near-coplanar triangles -- 7.2mm reported for a
+        0.09mm^3 true overlap, non-monotonic with angle -- to `manifold3d` boolean
+        intersection *volume*, which is what the hand-written sweeps used and got
+        right). Both changes reference the C5 Phone-Holder cradle/plate hinge as the
+        worked example (shipped part folds cleanly; ad-hoc sweep reported jamming at
+        -53.5deg to -90deg that the real geometry never reaches).
   - [ ] hinge design-rule reference: rounds 5-6 were both instances of one geometric
         rule the LLM got wrong twice and the user derived: for a flat face to fold
         flush against a target plane at exactly +-90deg, the pivot axis must stand off
@@ -98,6 +110,17 @@ change lives in that change's `tasks.md`, not here.
         `images` field, sketches are copied into the project (e.g. `sketches/`), and
         the part prompt is told to re-read the referenced sketch when iterating on
         that feature.
+- [x] engineering rationale in part scripts -- `openspec/changes/engineering-knowledge/`
+      sections 1-3 done (2026-07-27): `prompts/part.md` now requires an
+      `ENGINEERING RATIONALE` comment block between PARAMETERS and MODEL (full
+      three-line form -- load path, worst-case stress location, a check computed from
+      the script's own parameter names against a stated allowable -- for parts with a
+      declared `load` or a load-bearing `blocks_needed`/archetype; one-line form
+      otherwise), backed by a new `reference/Engineering Design Rules.md` (material
+      constants, snap-fit strain formula, rib/boss/gusset ratios) wired into Phase 3's
+      substitution table, plus new "Engineering rows" in
+      `reference/Visual Review Checklist.md`. Section 4 (eval-corpus A/B run,
+      `IMPROVEMENT_PLAN.md` update) still open.
 - [ ] restructure to combat context creep. options:
   - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
   - [ ] python script owns the loop and switches context & models. prompt will be split
