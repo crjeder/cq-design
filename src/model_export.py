@@ -29,6 +29,7 @@ import cadquery as cq
 
 from exporters import _load_result
 from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
+from freshness import write_manifest
 from mate_chain import compute_mate_poses
 from placement import apply_cq, apply_matrix
 from units import keep_out_stl_name, load_plan, plate_of, resolve_keep_out, resolve_unions
@@ -106,8 +107,9 @@ def export_model(
     never assigned a plate, and never included in a fused plate STL.
 
     Returns a dict with `model_3mf`, `union_stls` (id -> path), `plate_stls`
-    (plate -> path, only for multi-union plates), and `keep_out_stls`
-    (`"<part_id>::<zone_name>"` -> path, only for parts that declare zones).
+    (plate -> path, only for multi-union plates), `keep_out_stls`
+    (`"<part_id>::<zone_name>"` -> path, only for parts that declare zones), and
+    `manifest` (path to the written provenance manifest, see `freshness.write_manifest`).
     """
     os.makedirs(model_dir, exist_ok=True)
     stl_dir = stl_dir or model_dir
@@ -124,6 +126,8 @@ def export_model(
     records: list[tuple[str, dict]] = []  # (union_id, part) in order
     plates: dict[str, list[str]] = {}
     keep_out_stls: dict[str, str] = {}
+    union_scripts: dict[str, tuple[str, str]] = {}  # union_id -> (part_id, script_path)
+    keep_out_scripts: dict[str, tuple[str, str]] = {}  # "<part_id>::<zone>" -> (part_id, path)
     for part in parts:
         script = os.path.join(parts_dir, f"{part['id']}.py")
         result = _load_result(script)
@@ -137,6 +141,7 @@ def export_model(
             plate_by_uid[uid] = plate
             plates.setdefault(plate, []).append(uid)
             records.append((uid, part))
+            union_scripts[uid] = (part["id"], script)
 
         # Keep-out zones ride along with their declaring part's pose, but are never a
         # union: no 3MF object, no plate, no per-union/plate STL -- only their own
@@ -144,7 +149,9 @@ def export_model(
         for zone_name, zone_wp in resolve_keep_out(part, result):
             zone_stl = os.path.join(stl_dir, keep_out_stl_name(part["id"], zone_name))
             cq.exporters.export(_pose_union(zone_wp, part, mate_pose), zone_stl)
-            keep_out_stls[f"{part['id']}::{zone_name}"] = zone_stl
+            zone_key = f"{part['id']}::{zone_name}"
+            keep_out_stls[zone_key] = zone_stl
+            keep_out_scripts[zone_key] = (part["id"], script)
 
     # 1. named 3MF: each object in its print orientation when one is supplied,
     # else its assembled pose.
@@ -202,11 +209,14 @@ def export_model(
         cq.exporters.export(fused, plate_path)
         plate_stls[plate] = plate_path
 
+    manifest_path = write_manifest(stl_dir, union_scripts, keep_out_scripts)
+
     return {
         "model_3mf": model_3mf,
         "union_stls": union_stls,
         "plate_stls": plate_stls,
         "keep_out_stls": keep_out_stls,
+        "manifest": manifest_path,
     }
 
 

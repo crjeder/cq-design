@@ -549,10 +549,14 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
 # load on every part per planning rule 10; if a part legitimately has no structural
 # load, the plan carries load.type=compression). Omitting --load makes strength
 # orientation-neutral (no load axis is guessed). Pass --show-face when declared, else
-# it is inferred. --optimize-for is the part's effective mode (default strength)
+# it is inferred. --optimize-for is the part's effective mode (default strength).
+# --source-script stamps the result with this script's provenance hash, so a later
+# edit to build/<part_id>.py is detectable as staleness when build.py reuses this
+# entry from orientations.json (see "Artifact freshness" below).
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
     stl/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
     --optimize-for <strength|min_support|visual_quality> \
+    --source-script build/<part_id>.py \
     [--load x,y,z] [--load-type tension|compression|bending|shear] [--show-face x,y,z]
 ```
 
@@ -635,8 +639,10 @@ tooling, STL, 3MF, previews) lives elsewhere:
     orientations.json, *.orientation.json   # build-process bookkeeping
   lib/                     # bundled tooling, copied so the project is skill-free
     mesh_io.py, model_export.py, print_orientation.py, placement.py,
-    mate_chain.py, units.py, cq_verify.py, cq_compat.py, exporters/, blocks/
+    mate_chain.py, units.py, freshness.py, cq_verify.py, cq_compat.py,
+    exporters/, blocks/
   stl/
+    export_manifest.json   # provenance stamp per union/zone (see "Artifact freshness")
     <part_id>.stl, plate_<n>.stl
   preview/
     <part_id>_preview.png, <part_id>_detail_*.png, <part_id>_section_*.png
@@ -650,14 +656,16 @@ Five steps:
 2. **Bundle the tooling into `lib/`** (a sibling of `build/`, not inside it -- `build/`
    holds only edited part scripts): create `lib/` if absent, then copy in the modules
    `mesh_io.py`, `model_export.py`, `print_orientation.py`, `placement.py`,
-   `mate_chain.py`, `units.py`, `cq_verify.py`, `cq_compat.py` and the packages
-   `exporters/` and `blocks/` (copy the whole directories, including their `*.json`
-   data files). `cq_verify.py` and `cq_compat.py` are runtime dependencies of generated
-   part scripts and `blocks/hardware.py` respectively (the `cq_warehouse` compat shim) --
-   omitting either breaks the standalone project's own `build/build.py` re-run and its
-   mypy check on a fresh machine with no `$SKILL_DIR` to fall back on. `build.py` adds
-   `../lib` (relative to its own location) to `sys.path` itself, so no further wiring is
-   needed. Re-running the skill overwrites `lib/` with the current `src/` versions.
+   `mate_chain.py`, `units.py`, `freshness.py`, `cq_verify.py`, `cq_compat.py` and the
+   packages `exporters/` and `blocks/` (copy the whole directories, including their
+   `*.json` data files). `cq_verify.py` and `cq_compat.py` are runtime dependencies of
+   generated part scripts and `blocks/hardware.py` respectively (the `cq_warehouse`
+   compat shim); `freshness.py` is a runtime dependency of `build_template.py` itself
+   (the accepted-orientation staleness check) -- omitting any of these breaks the
+   standalone project's own `build/build.py` re-run and its mypy check on a fresh
+   machine with no `$SKILL_DIR` to fall back on. `build.py` adds `../lib` (relative to
+   its own location) to `sys.path` itself, so no further wiring is needed. Re-running
+   the skill overwrites `lib/` with the current `src/` versions.
 
 3. **Scaffold the uv project files** at the working-directory root: copy
    `$SKILL_DIR/src/project_template/pyproject.toml` to `pyproject.toml` and
@@ -671,7 +679,7 @@ Five steps:
 # POSIX
 cp "$SKILL_DIR/src/build_template.py" build/build.py
 mkdir -p lib
-for m in mesh_io.py model_export.py print_orientation.py placement.py mate_chain.py units.py cq_verify.py cq_compat.py; do
+for m in mesh_io.py model_export.py print_orientation.py placement.py mate_chain.py units.py freshness.py cq_verify.py cq_compat.py; do
     cp "$SKILL_DIR/src/$m" lib/
 done
 cp -r "$SKILL_DIR/src/exporters" "$SKILL_DIR/src/blocks" lib/
@@ -685,7 +693,7 @@ uv run python build/build.py
 # Windows (PowerShell)
 Copy-Item "$SKILL_DIR/src/build_template.py" build/build.py
 New-Item -ItemType Directory -Force lib | Out-Null
-'mesh_io.py','model_export.py','print_orientation.py','placement.py','mate_chain.py','units.py','cq_verify.py','cq_compat.py' |
+'mesh_io.py','model_export.py','print_orientation.py','placement.py','mate_chain.py','units.py','freshness.py','cq_verify.py','cq_compat.py' |
     ForEach-Object { Copy-Item "$SKILL_DIR/src/$_" lib/ }
 Copy-Item "$SKILL_DIR/src/exporters","$SKILL_DIR/src/blocks" lib/ -Recurse
 Copy-Item "$SKILL_DIR/src/project_template/pyproject.toml" pyproject.toml
@@ -726,6 +734,24 @@ The gate runs entirely in-process (trimesh + numpy geometry and overhang analysi
 If the plan has a `kinematics` array, the gate also runs the **kinematic range check** (`src/kinematic_check.py`) once, after the geometry checks. The sweep is whole-model, so it needs **every union's assembled STL** present in `--stl-dir` (`stl/`) as `<part_id>.stl`. Produce these with the **model export** (`src/model_export.py`), which applies each part's `placement` and writes one assembled STL per union (plus the named-object `model.3mf` and any fused-per-plate STL). The stage degrades to a `check_skipped` warning when a union STL or the `python-fcl`/`scipy` backend is missing. See **Kinematic validation** below.
 
 Whenever any plate carries more than one union (print-in-place), the gate also runs the **plate-clearance check** (`src/plate_clearance_check.py`) once, over the same assembled per-union STLs. For every co-plated union pair it measures the minimum surface-to-surface gap and flags any pair within one layer height (`nozzle_mm * 0.5`) as a `plate_clearance` **error** -- those unions fuse on the bed. The gate runs this automatically (no separate command); it degrades to a `check_skipped` warning when trimesh or the `python-fcl` backend is missing. Measuring on the assembled STLs is valid because a plate fuses as a rigid cluster, so its print-orientation rotation preserves the pairwise gaps.
+
+### Artifact freshness
+
+The kinematic, plate-clearance, and keep-out-zone stages all validate exported STLs against
+a part script they were built from -- but none of them re-derive the STL themselves, so
+none of them can tell on their own whether the export is still current. `model_export.py`
+writes `stl/export_manifest.json` on every run, recording each union's (and keep-out zone's)
+provenance stamp (a hash of its source part script). Each of the three stages compares that
+stamp against the current `build/<part_id>.py` and, on a mismatch, emits a `stale_artifact`
+**error** naming the affected union or zone instead of validating (and possibly passing)
+geometry the project no longer builds. **To clear it:** re-run the model export
+(`src/model_export.py`, or `build/build.py`) so the STL and its manifest entry reflect the
+edited script, then re-run the gate. The same mechanism protects `build/orientations.json`:
+`build_template.resolve_orientations` (what `build/build.py` calls) recomputes an accepted
+orientation whose stamp no longer matches its script, rather than reusing a pose picked for
+superseded geometry, and reports which unions it recomputed in its summary output. A project
+exported before this mechanism existed (no manifest, unstamped orientation entries) degrades
+to a `check_skipped` warning / unconditional reuse -- never a hard failure.
 
 The gate also runs the **edge-treatment check** (`src/edge_treatment_check.py`) once on the part script, enforcing the reference's Chamfer / Fillet rule (horizontal edge -> chamfer, vertical edge -> fillet). It wraps `cq.Workplane.fillet`/`.chamfer` and re-runs the script to record the exact direction of every treated edge, then classifies each **in the print frame** -- the bed-relative frame where the rule matters -- by rotating its authored-frame tangent through the union's print orientation. Supply that orientation (pass `--orientation`, or keep `build/orientations.json` next to the script); a treated union with no available orientation is reported as `check_skipped` rather than judged in the authored frame. A fillet on a horizontal edge or a chamfer on a vertical edge is an advisory `edge_treatment` **warning** (not blocking -- it is a print-quality preference; the harmful case of a bottom-edge fillet is already caught by the overhang check); diagonal edges and tilted round rims are passed silently. Treat these warnings as suggestions and disregard any that fall on an internal or intentionally-treated edge.
 

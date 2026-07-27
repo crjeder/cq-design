@@ -23,6 +23,7 @@ _BUNDLE_MODULES = (
     "placement.py",
     "mate_chain.py",
     "units.py",
+    "freshness.py",
 )
 _BUNDLE_PACKAGES = ("exporters", "blocks")
 
@@ -169,7 +170,8 @@ def test_build_py_reuses_orientations_json(tmp_path, skill_src):
         {"plate": _FLAT},
     )
     # Accepted orientations stand the flat plate up (90 deg about X): the 20 mm
-    # axis becomes vertical, so the deliverable is ~20 mm tall.
+    # axis becomes vertical, so the deliverable is ~20 mm tall. No stamp on the
+    # entry -- an unstamped entry is reused unconditionally.
     (build_dir / "orientations.json").write_text(
         json.dumps({"plate": {"rotate": [{"axis": "X", "angle_deg": 90}]}}),
         encoding="utf-8",
@@ -180,3 +182,63 @@ def test_build_py_reuses_orientations_json(tmp_path, skill_src):
     assert proc.returncode == 0, proc.stderr
     z = float(trimesh.load(build_dir.parent / "model.3mf").extents[2])
     assert z > 18
+
+
+def test_build_py_reuses_orientations_json_with_matching_stamp(tmp_path, skill_src):
+    from freshness import script_hash
+
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [{"id": "plate", "description": "flat plate"}],
+        {"plate": _FLAT},
+    )
+    stamp = script_hash(str(build_dir / "plate.py"))
+    (build_dir / "orientations.json").write_text(
+        json.dumps(
+            {
+                "plate": {
+                    "rotate": [{"axis": "X", "angle_deg": 90}],
+                    "source_script_hash": stamp,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    z = float(trimesh.load(build_dir.parent / "model.3mf").extents[2])
+    assert z > 18
+
+
+def test_build_py_recomputes_stale_orientation(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [{"id": "plate", "description": "flat plate"}],
+        {"plate": _FLAT},
+    )
+    # Stamp is for content that no longer matches plate.py -- the entry is stale, so
+    # the accepted 90-degree-about-X pose must be recomputed rather than reused. The
+    # flat plate's own best-strength/least-support pose keeps it lying flat.
+    (build_dir / "orientations.json").write_text(
+        json.dumps(
+            {
+                "plate": {
+                    "rotate": [{"axis": "X", "angle_deg": 90}],
+                    "source_script_hash": "0" * 64,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    z = float(trimesh.load(build_dir.parent / "model.3mf").extents[2])
+    assert z < 10
+    assert "plate" in proc.stdout
+    assert "recomputed" in proc.stdout
