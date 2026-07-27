@@ -60,6 +60,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.p
 import cadquery as cq
 
 from exporters import _load_result
+from freshness import is_stale, script_hash
 from mesh_io import load_mesh
 from model_export import export_model
 from print_orientation import optimize_orientation
@@ -98,11 +99,17 @@ def _orientation_for(
 
 def resolve_orientations(
     plan: dict, parts_dir: str, orientations_path: str
-) -> tuple[dict[str, dict], dict[str, dict]]:
-    """Return ({part_id: {"rotate": [...]}}, {part_id: full orientation result}).
+) -> tuple[dict[str, dict], dict[str, dict], list[str]]:
+    """Return ({part_id: {"rotate": [...]}}, {part_id: full orientation result}, recomputed).
 
     Reuses the skill's accepted `orientations.json` when it exists (so the plates
-    match the delivered ones); otherwise computes each union's orientation fresh.
+    match the delivered ones); otherwise computes each union's orientation fresh. An
+    accepted entry is checked against its union's current source script via its
+    `source_script_hash` stamp: a mismatch means the part script changed since the
+    entry was accepted, so it is recomputed instead of reused (and the fresh result is
+    stamped); an entry with no stamp is reused unconditionally, matching the behavior
+    before provenance stamping existed. `recomputed` lists the union ids that were
+    recomputed specifically because their accepted entry was stale.
     Raises RuntimeError naming the union when a part script cannot be loaded or
     oriented, so the caller can fail fast with an actionable message.
     """
@@ -115,6 +122,7 @@ def resolve_orientations(
     plan_mode = plan.get("optimize_for", "strength")
     orientations: dict[str, dict] = {}
     summary: dict[str, dict] = {}
+    recomputed: list[str] = []
     for part in plan.get("parts", []):
         pid = part["id"]
         script = os.path.join(parts_dir, f"{pid}.py")
@@ -122,8 +130,10 @@ def resolve_orientations(
         union_ids = [u["id"] for u in part.get("unions", [])] or [pid]
         wp_by_uid: dict[str, cq.Workplane] | None = None  # loaded lazily, once per part
         for uid in union_ids:
-            if uid in accepted:
-                chosen = accepted[uid]
+            entry = accepted.get(uid)
+            stale = entry is not None and is_stale(entry.get("source_script_hash"), script)
+            if entry is not None and not stale:
+                chosen = entry
             else:
                 try:
                     if wp_by_uid is None:
@@ -131,12 +141,15 @@ def resolve_orientations(
                     chosen = _orientation_for(wp_by_uid[uid], part, overhang_deg, optimize_for)
                 except Exception as exc:
                     raise RuntimeError(f"union {uid!r}: {exc}") from exc
+                chosen = {**chosen, "source_script_hash": script_hash(script)}
+                if stale:
+                    recomputed.append(uid)
             orientations[uid] = {"rotate": chosen["rotate"]}
             summary[uid] = chosen
-    return orientations, summary
+    return orientations, summary, recomputed
 
 
-def _print_summary(summary: dict[str, dict], result: dict) -> None:
+def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]) -> None:
     """Print the chosen orientation and output path for each union, then plates."""
     for pid, chosen in summary.items():
         rot = ", ".join(f"{s['axis']}{s['angle_deg']:+g}" for s in chosen["rotate"])
@@ -145,6 +158,8 @@ def _print_summary(summary: dict[str, dict], result: dict) -> None:
     print(f"model.3mf: {result['model_3mf']}")
     for plate, plate_path in result["plate_stls"].items():
         print(f"plate {plate}: {plate_path}")
+    if recomputed:
+        print(f"recomputed (source script changed since accepted): {', '.join(recomputed)}")
 
 
 def main() -> None:
@@ -185,13 +200,15 @@ def main() -> None:
     plan = load_plan(args.plan)
 
     try:
-        orientations, summary = resolve_orientations(plan, args.parts_dir, orientations_path)
+        orientations, summary, recomputed = resolve_orientations(
+            plan, args.parts_dir, orientations_path
+        )
         result = export_model(plan, args.parts_dir, args.out, orientations, stl_dir=args.stl_out)
     except Exception as exc:
         sys.stderr.write(f"build failed: {exc}\n")
         sys.exit(1)
 
-    _print_summary(summary, result)
+    _print_summary(summary, result, recomputed)
     sys.exit(0)
 
 

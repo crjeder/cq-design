@@ -44,6 +44,18 @@ def add_stl_dir_argument(parser: argparse.ArgumentParser, help: str) -> None:
     parser.add_argument("--stl-dir", required=True, help=help)
 
 
+def add_parts_dir_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the optional `--parts-dir` argument shared by the STL-comparing check-stage CLIs,
+    enabling the stale-export freshness check against the current part scripts. Omitting it
+    degrades that check to `check_skipped` rather than blocking the rest of the stage."""
+    parser.add_argument(
+        "--parts-dir",
+        default=None,
+        help="Directory of current <part_id>.py scripts, to detect an exported STL that is "
+        "stale relative to its source script (omit to skip the freshness check)",
+    )
+
+
 def emit_issues(issues: list[dict], *, fail_on_error: bool = True) -> None:
     """Print `{"issues": issues}` and exit. Shared CLI tail for every check stage that
     reports the quality-gate issue contract: exit 1 if any issue is `severity: "error"`
@@ -56,18 +68,19 @@ def emit_issues(issues: list[dict], *, fail_on_error: bool = True) -> None:
 
 
 def run_stl_dir_check_cli(
-    description: str, stl_dir_help: str, check_fn: Callable[[dict, str], list[dict]]
+    description: str, stl_dir_help: str, check_fn: Callable[..., list[dict]]
 ) -> None:
-    """Shared CLI entry point for a check stage taking `--plan`/`--stl-dir` and calling
-    `check_fn(plan, stl_dir)` -- the common shape of `keep_out_check.main` and
-    `plate_clearance_check.main`."""
+    """Shared CLI entry point for a check stage taking `--plan`/`--stl-dir`/`--parts-dir` and
+    calling `check_fn(plan, stl_dir, parts_dir=parts_dir)` -- the common shape of
+    `keep_out_check.main` and `plate_clearance_check.main`."""
     parser = argparse.ArgumentParser(description=description)
     add_plan_argument(parser)
     add_stl_dir_argument(parser, stl_dir_help)
+    add_parts_dir_argument(parser)
     args = parser.parse_args()
 
     plan = load_plan(args.plan)
-    issues = check_fn(plan, args.stl_dir)
+    issues = check_fn(plan, args.stl_dir, parts_dir=args.parts_dir)
     emit_issues(issues)
 
 

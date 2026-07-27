@@ -49,13 +49,18 @@ change lives in that change's `tasks.md`, not here.
         `cradle.py`). Add a "flush-fold hinge placement" recipe (with that derivation
         and the clevis/tongue/standoff vocabulary) to `reference/` so the part prompt
         can get it right the first time instead of via user correction.
-  - [ ] orientation cache staleness: `build/orientations.json` still carries the
+  - [x] orientation cache staleness: `build/orientations.json` still carries the
         round-4 rationale and `build_height_mm: 8.599` for the cradle, whose round-6
         geometry is 16.1mm tall -- `build.py` "reuses orientations.json when present"
         with no invalidation, so deliverables regenerate against stale orientation
         data/scores after geometry edits. Add invalidation: store a hash of the part
         script (or the geometry bbox) alongside each entry and recompute (or at least
-        warn) on mismatch.
+        warn) on mismatch. Fixed by the `build-artifact-freshness` change:
+        `src/freshness.py` stamps a part script's hash on the orientation result and
+        on the export manifest; `build_template.resolve_orientations` recomputes a
+        stale entry instead of reusing it, and the kinematic/plate-clearance/keep-out
+        stages flag a stale exported STL as `stale_artifact` instead of validating
+        superseded geometry.
   - [ ] print-orientation bed-stability term: cradle part_notes records that BOTH
         `strength` and `min_support` modes picked a pose balanced on a single
         0.635mm^2 contact point (would tip instantly); the user had to override to

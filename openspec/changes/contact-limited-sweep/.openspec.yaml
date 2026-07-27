@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-07-27
+goal: Report the achieved range up to the mechanical stop and measure
+  penetration by boolean intersection volume instead of fcl contact depth
