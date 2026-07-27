@@ -233,6 +233,46 @@ def test_per_union_and_fused_plate_stl(tmp_path):
     assert fused.bounds[1][2] > 25  # spans both unions
 
 
+def test_export_writes_provenance_manifest(tmp_path):
+    from freshness import read_manifest, script_hash
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    _write_part(parts_dir, "lid")
+    out = tmp_path / "dist"
+    plan = _plan([{"id": "base"}, {"id": "lid"}])
+
+    result = export_model(plan, str(parts_dir), str(out))
+
+    manifest = read_manifest(str(out))
+    assert manifest is not None
+    assert result["manifest"].endswith("export_manifest.json")
+    assert manifest["unions"]["base"]["part_id"] == "base"
+    assert manifest["unions"]["base"]["source_script_hash"] == script_hash(
+        str(parts_dir / "base.py")
+    )
+    assert manifest["unions"]["lid"]["source_script_hash"] == script_hash(str(parts_dir / "lid.py"))
+    assert "exported_at" in manifest
+
+
+def test_export_manifest_covers_keep_out_zones(tmp_path):
+    from freshness import read_manifest, script_hash
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part_with_zone(parts_dir, "enclosure")
+    out = tmp_path / "dist"
+    plan = _plan([{"id": "enclosure", "description": "Enclosure"}])
+
+    export_model(plan, str(parts_dir), str(out))
+
+    manifest = read_manifest(str(out))
+    entry = manifest["keep_out_zones"]["enclosure::clearance"]
+    assert entry["part_id"] == "enclosure"
+    assert entry["source_script_hash"] == script_hash(str(parts_dir / "enclosure.py"))
+
+
 def test_single_union_plate_has_no_fused_stl(tmp_path):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()

@@ -113,11 +113,115 @@ def test_backend_missing_degrades_to_warning(tmp_path, monkeypatch):
 def test_missing_foreign_stl_degrades_to_warning(tmp_path):
     _box_stl(tmp_path / "a.stl", (0, 0, 0))
     _zone_stl(tmp_path, "a", "clearance", (0, 0, 0))
-    # "b" is a declared part but its STL was never exported.
+    # "b" is a declared part but its STL was never exported. Without --parts-dir the
+    # freshness check also degrades, so both warnings are present.
     issues = run_keep_out_check(_plan(["a", "b"]), str(tmp_path))
-    assert len(issues) == 1
-    assert issues[0]["type"] == "check_skipped"
-    assert issues[0]["severity"] == "warning"
+    assert {i["type"] for i in issues} == {"check_skipped"}
+    assert all(i["severity"] == "warning" for i in issues)
+    assert any("assembled union STL not found" in i["message"] for i in issues)
+
+
+# ---- freshness: stale exported STL ---------------------------------------------
+
+
+def _write_manifest(tmp_path, unions=None, keep_out_zones=None):
+    from freshness import MANIFEST_FILENAME
+
+    manifest = {
+        "exported_at": "2026-01-01T00:00:00+00:00",
+        "unions": unions or {},
+        "keep_out_zones": keep_out_zones or {},
+    }
+    (tmp_path / MANIFEST_FILENAME).write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def test_stale_foreign_union_flagged_and_excluded(tmp_path):
+    from freshness import script_hash
+
+    # Foreign union "b" intrudes on a's zone; if b's STL were validated it would flag.
+    _box_stl(tmp_path / "a.stl", (0, 0, 0))
+    _box_stl(tmp_path / "b.stl", (12, 0, 0))
+    _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    (parts_dir / "a.py").write_text("result = 1\n", encoding="utf-8")
+    (parts_dir / "b.py").write_text("result = 2\n", encoding="utf-8")
+    _write_manifest(
+        tmp_path,
+        unions={
+            "a": {"part_id": "a", "source_script_hash": script_hash(str(parts_dir / "a.py"))},
+            "b": {"part_id": "b", "source_script_hash": "0" * 64},  # stale
+        },
+    )
+
+    issues = run_keep_out_check(_plan(["a", "b"]), str(tmp_path), parts_dir=str(parts_dir))
+
+    stale = [i for i in issues if i["type"] == "stale_artifact"]
+    assert len(stale) == 1
+    assert stale[0]["union"] == "b"
+    # b excluded from the intersection check -> no violation reported for it.
+    assert _violations(issues) == []
+
+
+def test_stale_zone_flagged_and_excluded(tmp_path):
+    from freshness import script_hash
+
+    _box_stl(tmp_path / "a.stl", (0, 0, 0))
+    _box_stl(tmp_path / "b.stl", (12, 0, 0))
+    _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    (parts_dir / "a.py").write_text("result = 1\n", encoding="utf-8")
+    (parts_dir / "b.py").write_text("result = 2\n", encoding="utf-8")
+    _write_manifest(
+        tmp_path,
+        unions={
+            "a": {"part_id": "a", "source_script_hash": script_hash(str(parts_dir / "a.py"))},
+            "b": {"part_id": "b", "source_script_hash": script_hash(str(parts_dir / "b.py"))},
+        },
+        keep_out_zones={"a::clearance": {"part_id": "a", "source_script_hash": "0" * 64}},
+    )
+
+    issues = run_keep_out_check(_plan(["a", "b"]), str(tmp_path), parts_dir=str(parts_dir))
+
+    stale = [i for i in issues if i["type"] == "stale_artifact"]
+    assert len(stale) == 1
+    assert stale[0]["zone_name"] == "clearance"
+    assert stale[0]["zone_part"] == "a"
+    assert _violations(issues) == []
+
+
+def test_fresh_manifest_passes_through_unaffected(tmp_path):
+    from freshness import script_hash
+
+    _box_stl(tmp_path / "a.stl", (0, 0, 0))
+    _box_stl(tmp_path / "b.stl", (12, 0, 0))
+    _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    (parts_dir / "a.py").write_text("result = 1\n", encoding="utf-8")
+    (parts_dir / "b.py").write_text("result = 2\n", encoding="utf-8")
+    _write_manifest(
+        tmp_path,
+        unions={
+            "a": {"part_id": "a", "source_script_hash": script_hash(str(parts_dir / "a.py"))},
+            "b": {"part_id": "b", "source_script_hash": script_hash(str(parts_dir / "b.py"))},
+        },
+        keep_out_zones={
+            "a::clearance": {
+                "part_id": "a",
+                "source_script_hash": script_hash(str(parts_dir / "a.py")),
+            }
+        },
+    )
+
+    issues = run_keep_out_check(_plan(["a", "b"]), str(tmp_path), parts_dir=str(parts_dir))
+
+    assert [i for i in issues if i["type"] == "stale_artifact"] == []
+    assert len(_violations(issues)) == 1
 
 
 # ---- gate integration: a violation blocks a clean pass -------------------------

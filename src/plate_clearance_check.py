@@ -28,7 +28,8 @@ import os
 from itertools import combinations
 from typing import cast
 
-from units import make_issue, run_stl_dir_check_cli, stl_path
+from freshness import read_manifest, stale_ids
+from units import iter_unions, make_issue, run_stl_dir_check_cli, stl_path
 
 
 def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
@@ -37,19 +38,23 @@ def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
     Uses the shared `units.iter_unions` expansion so a multi-union part's unions are grouped
     by their own plate, agreeing with the exporter on which unions are co-plated.
     """
-    from units import iter_unions
-
     plates: dict[str, list[str]] = {}
     for _part, uid, plate in iter_unions(plan):
         plates.setdefault(plate, []).append(uid)
     return {plate: ids for plate, ids in plates.items() if len(ids) > 1}
 
 
-def run_plate_clearance_check(plan: dict, stl_dir: str) -> list[dict]:
+def run_plate_clearance_check(
+    plan: dict, stl_dir: str, *, parts_dir: str | None = None
+) -> list[dict]:
     """Check that every pair of co-plated unions keeps a gap above one layer height.
 
     Returns a list of issues. Plates holding a single union are skipped; when no plate
     holds more than one union, returns an empty list without loading the geometry stack.
+    When `parts_dir` is given and an export manifest is present, a union whose exported
+    STL is stale relative to its current source script is flagged as `stale_artifact` and
+    excluded from the pairwise comparison (a plate with fewer than two fresh unions left
+    is skipped, not fused-checked against superseded geometry).
     """
     plates = _plates_with_multiple_unions(plan)
     if not plates:
@@ -74,7 +79,49 @@ def run_plate_clearance_check(plan: dict, stl_dir: str) -> list[dict]:
     threshold = round(nozzle * 0.5, 2)  # one layer height, as in the print recipe
 
     issues: list[dict] = []
+
+    manifest = read_manifest(stl_dir) if parts_dir else None
+    if parts_dir is None or manifest is None:
+        issues.append(
+            make_issue(
+                "geometry",
+                "warning",
+                "check_skipped",
+                "Export manifest not available; cannot verify exported STLs are current.",
+                "Run the model export (writes export_manifest.json) and pass --parts-dir "
+                "to enable staleness detection.",
+            )
+        )
+        stale: set[str] = set()
+    else:
+        plated_ids = {uid for ids in plates.values() for uid in ids}
+        uid_to_script = {
+            uid: os.path.join(parts_dir, f"{part['id']}.py")
+            for part, uid, _plate in iter_unions(plan)
+            if uid in plated_ids
+        }
+        stale = stale_ids(manifest.get("unions", {}), uid_to_script)
+
     for plate, ids in plates.items():
+        for uid in ids:
+            if uid in stale:
+                issues.append(
+                    make_issue(
+                        "geometry",
+                        "error",
+                        "stale_artifact",
+                        f"Union '{uid}' on plate '{plate}': exported STL is stale -- its "
+                        "source script changed since the model was last exported.",
+                        "Re-run the model export so this union's STL reflects the current "
+                        "script, then re-run the quality gate.",
+                        plate=plate,
+                        union=uid,
+                    )
+                )
+        ids = [uid for uid in ids if uid not in stale]
+        if len(ids) < 2:
+            continue
+
         missing = [uid for uid in ids if not os.path.exists(stl_path(stl_dir, uid))]
         if missing:
             issues.append(
