@@ -12,7 +12,7 @@ blocks/inventory.json (34 blocks), TODO.md, occ-error.md.
 | 2 | Part archetype templates | DONE |
 | 3 | Geometry contract before code | DONE |
 | 4 | Move user review earlier / review policy | DONE |
-| 5 | Engineering knowledge elicitation | OPEN |
+| 5 | Engineering knowledge elicitation | PARTIAL |
 | 6 | Fix flaky export crash | DONE |
 | 7 | Static pre-flight lint | DONE |
 | 8 | Failure telemetry + eval harness | DONE |
@@ -157,11 +157,20 @@ instead of a rebuild:
 - Files: SKILL.md part loop (Step 0 stub + build-mode gate replaced by
   `review_policy`), `src/build_plan_schema.json` (one field), planning.md rule.
 
-### 5. Engineering knowledge: elicit it, don't just paste it — OPEN
+### 5. Engineering knowledge: elicit it, don't just paste it — PARTIAL
 
-No `reference/Engineering Design Rules.md`, no engineering-rationale block
-requirement in `prompts/part.md`, no numbers-demanding rows added to the
-Visual Review Checklist. Not started.
+Implemented (2026-07-27) via `openspec/changes/engineering-knowledge/` sections
+1-3: `prompts/part.md` requires an `ENGINEERING RATIONALE` comment block
+between PARAMETERS and MODEL (full three-line form — load path, worst-case
+stress location, a check computed from the script's own parameter names
+against a stated allowable — triggered by a declared `load` or a load-bearing
+`blocks_needed`/archetype; one-line form otherwise); new
+`reference/Engineering Design Rules.md` (material constants, snap-fit strain
+formula, rib/boss/gusset ratios) wired into the Phase 3 substitution table;
+new "Engineering rows" added to `reference/Visual Review Checklist.md`.
+Section 4 (eval-corpus A/B run comparing hooks on vs. off, and the
+`IMPROVEMENT_PLAN.md` status update this A/B result would justify) is not
+done — status stays PARTIAL until that measurement lands.
 
 The model already knows cantilever snap-fit strain formulas, rib-to-wall ratios, and
 boss design rules from training; the failure is elicitation reliability. A large
@@ -397,10 +406,12 @@ Week 2–3: items 1 and 2 (the sourcing ladder + archetype core), 5, 9, 6.
 After that: 3, 4, 10, 14, then 15 once archetypes + condensed references make a
 cheaper coder viable — tuned against the eval harness.
 
-## Remaining work (as of 2026-07-22)
+## Remaining work (as of 2026-07-27)
 
-Items 8, 7, 12, 13, 11, 1, 2, 6, 3, 4 are done. Still open, roughly in original
-priority order: **5** (engineering-rationale elicitation), **9**
+Items 8, 7, 12, 13, 11, 1, 2, 6, 3, 4 are done. **5** (engineering-rationale
+elicitation) landed its prompt/reference/checklist hooks 2026-07-27; only its
+A/B verification (section 4) remains. Still open, roughly in original
+priority order: that **5** A/B, **9**
 (split `occ_exception` into real typed errors — telemetry now exists to prove
 which signatures matter), **10** (gate report-only by default), **14**
 (condense references — also unblocked by telemetry), **15** (finish model
