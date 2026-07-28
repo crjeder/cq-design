@@ -4,17 +4,28 @@ Execute the part loop inline. You are the orchestrator.
 
 ## Request log
 
-Whenever the user gives a clarification or correction during this phase (a hint in
-**Escalation**, a change request at the **Design approval checkpoint**, a change request
-during a **Progressive build** stage, or a load correction you announce during
-print-orientation optimization), append one entry to `BUILD_PLAN.json`'s `request_log`
-array before continuing: `{"ts": "<current UTC ISO-8601>", "kind": "clarification" |
-"correction", "text": "<the user's wording, verbatim>"}` — `clarification` for an answer
-to a question you asked, `correction` for the user correcting something on their own
-initiative. Append only — never edit, reorder, or remove an existing entry, even the
-`initial` one. If `request_log` is absent from an older plan, skip this (do not
-retroactively invent an `initial` entry); if a re-plan regenerates the file, the planner
-carries the existing log forward per `prompts/planning.md` rule 14.
+**Appending.** Whenever the user gives a clarification or correction during this phase
+(a hint in **Escalation**, a change request at the **Design approval checkpoint**, a
+change request during a **Progressive build** stage, or a load correction you announce
+during print-orientation optimization), append one entry to `BUILD_PLAN.json`'s
+`request_log` array before continuing: `{"ts": "<current UTC ISO-8601>", "kind":
+"clarification" | "correction", "text": "<the user's wording, verbatim>"}` —
+`clarification` for an answer to a question you asked, `correction` for the user
+correcting something on their own initiative. Append only — never edit, reorder, or
+remove an existing entry, even the `initial` one. If `request_log` is absent from an
+older plan, skip this (do not retroactively invent an `initial` entry); if a re-plan
+regenerates the file, the planner carries the existing log forward per
+`prompts/planning.md` rule 14. When a correction changes a part's design, update that
+part's `part_notes` to reflect only the new current state — delete content the
+correction supersedes rather than appending a dated round entry or a "SUPERSEDED by
+round N" annotation; the round-by-round history lives in `request_log`, not in
+`part_notes`.
+
+**Searching.** When you need prior context on a specific decision or feature during
+Escalation or a correction round — e.g. recalling why a dimension was corrected earlier
+in the build — run `python src/request_log_search.py BUILD_PLAN.json --query <keyword>`
+(add `--kind correction`/`--kind clarification` to narrow further) instead of re-reading
+`BUILD_PLAN.json`'s full `request_log` array into context.
 
 ## Vocabulary
 
