@@ -448,6 +448,33 @@ def test_top_level_entry_with_no_children_is_unaffected(plan_file):
     assert errors == []
 
 
+# ---- blockless-kinematics (directly-declared, no inventory block) ------------
+
+
+def test_blockless_entry_validates_with_no_contract_error(plan_file):
+    # No `block`: contract arms (type/axis/coaxiality) are out of scope by construction.
+    plan = _plan_with_joint()
+    del plan["kinematics"][0]["block"]
+    errors = validate_plan(plan_file(plan))
+    assert not any("Kinematics 'j1'" in e for e in errors)
+
+
+def test_blockless_entry_with_bad_moving_union_still_fails(plan_file):
+    # The union-id check is unconditional even without a block.
+    plan = _plan_with_joint(moving_union="no_such_union")
+    del plan["kinematics"][0]["block"]
+    errors = validate_plan(plan_file(plan))
+    assert any("is not a union id" in e for e in errors)
+
+
+def test_blockbacked_entry_contract_checks_still_apply(plan_file):
+    # Regression: a block-backed entry keeps the full contract (unaffected by the
+    # block-less branch added alongside it).
+    plan = _plan_with_joint(axis_dir="Z")  # pin_hinge's dof axis is +Y; Z is not parallel
+    errors = validate_plan(plan_file(plan))
+    assert any("not parallel" in e for e in errors)
+
+
 # ---- joint-mate-entity (cross-part matched-pair joints) -----------------------
 
 
