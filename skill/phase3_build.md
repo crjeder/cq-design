@@ -191,6 +191,15 @@ known-good template for this part's shape:
    (added/removed features) -- preserving the template's existing `cq_verify` guards
    rather than stripping them. This replaces Step 2's from-scratch authoring for this part;
    Steps 2.5 onward (lint, validate, review) run unchanged against the resulting script.
+
+   **Add the ENGINEERING RATIONALE block.** A copied template has no rationale
+   section of its own (it was written once, generically, for no specific part's
+   parameters) -- the archetype path does not render `prompts/part.md`, so nothing
+   else inserts one. Apply the same trigger as `prompts/part.md`'s Engineering
+   rationale section (declared plan `load`, or `blocks_needed`/`archetype` in the
+   load-bearing set) to decide full vs. one-line form, then insert the section
+   between PARAMETERS and the geometry, evaluating the check against the
+   just-edited PARAMETERS values -- not the template's original defaults.
 4. **No match.** Fall back to raw authoring (Step 2 below) and state in one line why no
    archetype fit (e.g. "no archetype fits: this is a multi-cavity organizer tray, not a
    single enclosure/lid/bracket shape").
