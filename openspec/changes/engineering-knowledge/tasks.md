@@ -18,6 +18,6 @@
 
 ## 4. Verification and A/B
 
-- [ ] 4.1 Sanity-run one load-bearing eval case (e.g. a snap-lid case) end-to-end and confirm the generated script carries a rationale block whose numbers reference its own parameters
+- [x] 4.1 Sanity-run one load-bearing eval case (e.g. a snap-lid case) end-to-end and confirm the generated script carries a rationale block whose numbers reference its own parameters
 - [ ] 4.2 A/B on the eval corpus: score first-shot rate, attempts-to-pass, and cost per accepted part with hooks on vs. the pre-change prompt (`evals/run_evals.py` scorecards); record the outcome in the change folder
 - [ ] 4.3 Update `IMPROVEMENT_PLAN.md` item 5 status based on the A/B result
