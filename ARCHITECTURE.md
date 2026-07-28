@@ -137,7 +137,8 @@ exactly the per-agent instruction sources this architecture needs, and in the
 agent world the main session never loads Phase 3 detail at all -
 `skill/phase3_build.md` effectively becomes the builder agent's prompt.
 
-Model routing finally gives the telemetry `model` field (currently hardcoded
-`"inline"`) real values, so the eval harness can prove whether the routing pays
-for itself.
+Model routing finally gives the telemetry `model` field real values (the part
+loop now records the executor's actual model per attempt — see
+`skill/phase3_build.md` Step 5), so the eval harness can prove whether the
+routing pays for itself.
 
