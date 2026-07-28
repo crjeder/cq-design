@@ -208,7 +208,12 @@ Before committing to any dimension values, populate `planning_notes` with your r
     re-plan** (this agent runs again against an existing `BUILD_PLAN.json`, e.g. after
     a validation rejection or a correction requiring regeneration): carry every prior
     `request_log` entry forward unchanged, in the same order, and only append the new
-    entry -- never rewrite, reorder, or drop existing entries.
+    entry -- never rewrite, reorder, or drop existing entries. `request_log` is the
+    **exclusive** place for this round-by-round history: `planning_notes` and each
+    part's `part_notes` describe only the CURRENT design state, never a "ROUND N"
+    changelog or a "SUPERSEDED by round N" annotation -- when a correction changes a
+    prior decision, update the note to describe the new state and delete the
+    superseded text rather than appending to it.
 
 15. **Record provenance when the plan derives from a found source.** If this plan
     reuses or converts a source found during Phase 0 sourcing triage (a reused/

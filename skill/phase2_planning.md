@@ -52,8 +52,10 @@ stated directly and what came from web search (the Dimension validation checkpoi
 table above, when that checkpoint ran). This is durable, human-readable provenance,
 separate from each part script's own internal `PARAMETERS` block (which holds resolved/
 derived geometry values, not necessarily the raw sourced ones) -- and separate from
-`planning_notes`, which explains reasoning rather than listing values for reuse. One
-named constant per measurement, each commented with its source:
+`planning_notes`, which explains reasoning rather than listing values for reuse and
+describes only the current design state (never a round-by-round changelog -- that
+history belongs exclusively in `request_log`). One named constant per measurement,
+each commented with its source:
 
 ```python
 """Sourced real-world measurements this design is based on.

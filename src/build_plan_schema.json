@@ -13,7 +13,7 @@
   "properties": {
     "planning_notes": {
       "type": "string",
-      "description": "LLM design reasoning: part decomposition choices, material decisions, dimension sources"
+      "description": "LLM design reasoning: part decomposition choices, material decisions, dimension sources. Describes the CURRENT design state only -- never a round-by-round changelog; that history belongs exclusively in request_log."
     },
     "schema_version": {
       "type": "integer",
@@ -47,13 +47,6 @@
       "type": "string",
       "enum": ["minimal", "checkpoints", "every_stage"],
       "description": "Plan-level review-frequency preference for the Phase 3 part loop. 'every_stage' (default when omitted) builds every part progressively with a stage checkpoint and shows the Step 0 profile-stub checkpoint. 'checkpoints' shows the stub checkpoint and applies the existing interfaces/blocks_needed complexity gate to decide progressive vs. autonomous per part. 'minimal' self-reviews the stub without pausing and builds every part autonomously with no stage checkpoints."
-    },
-    "request_log": {
-      "type": "array",
-      "minItems": 1,
-      "description": "Append-only verbatim log of the user's request history: the initial request, plus every clarification or correction given during planning or the build. Optional; existing plans without it remain valid. When present, entries are never rewritten, reordered, or removed -- only appended.",
-      "items": [{"$ref": "#/definitions/request_log_initial_entry"}],
-      "additionalItems": {"$ref": "#/definitions/request_log_followup_entry"}
     },
     "parts": {
       "type": "array",
@@ -157,7 +150,7 @@
           },
           "part_notes": {
             "type": "string",
-            "description": "LLM reasoning for this part: blocks chosen, geometry written from scratch, unusual decisions"
+            "description": "LLM reasoning for this part: blocks chosen, geometry written from scratch, unusual decisions. Describes the CURRENT design state only -- never a round-by-round changelog; that history belongs exclusively in request_log."
           },
           "archetype": {
             "type": "string",
@@ -246,7 +239,7 @@
     },
     "request_log": {
       "type": "array",
-      "description": "Append-only verbatim request history: the initial request plus every clarification/correction that shaped the plan. Optional; absent plans (including eval-corpus goldens) stay valid. When present, exactly one `initial` entry, first in the array (enforced by plan_validate.py, not expressible cleanly in draft-7).",
+      "description": "Append-only verbatim request history: the initial request plus every clarification/correction that shaped the plan. The exclusive place for round-by-round build history -- planning_notes and part_notes describe only the current design state. Optional; absent plans (including eval-corpus goldens) stay valid. When present, exactly one `initial` entry, first in the array (enforced by plan_validate.py, not expressible cleanly in draft-7).",
       "items": {
         "type": "object",
         "required": ["ts", "kind", "text"],
@@ -323,26 +316,6 @@
     }
   },
   "definitions": {
-    "request_log_initial_entry": {
-      "type": "object",
-      "required": ["ts", "kind", "text"],
-      "additionalProperties": false,
-      "properties": {
-        "ts": {"type": "string", "description": "ISO-8601 UTC timestamp"},
-        "kind": {"const": "initial"},
-        "text": {"type": "string", "minLength": 1, "description": "Verbatim user wording"}
-      }
-    },
-    "request_log_followup_entry": {
-      "type": "object",
-      "required": ["ts", "kind", "text"],
-      "additionalProperties": false,
-      "properties": {
-        "ts": {"type": "string", "description": "ISO-8601 UTC timestamp"},
-        "kind": {"enum": ["clarification", "correction"]},
-        "text": {"type": "string", "minLength": 1, "description": "Verbatim user wording"}
-      }
-    },
     "kinematics_entry": {
       "type": "object",
       "required": ["joint_id", "moving_union", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "step"],
