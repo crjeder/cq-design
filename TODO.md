@@ -21,14 +21,18 @@ change lives in that change's `tasks.md`, not here.
 - [ ] skill improvements from the C5 Phone-Holder retrospective (read 2026-07-25 from
       `D:\3D Druck\C5 Phone-Holder`; 7 correction rounds, plan/scripts/orientations
       inspected). Each sub-item is independent; pick up separately.
-  - [ ] plan bloat: `part_notes` doubled as a full round-by-round changelog (the cradle's
+  - [x] plan bloat: `part_notes` doubled as a full round-by-round changelog (the cradle's
         part_notes alone is ~6KB of ROUND 2..7 narrative, largely duplicating
         `request_log` and the scripts' own comments). This feeds straight into the
         "prompts growing too long" problem above, since the plan is injected into part
-        prompts. Prescribe in SKILL.md/planning.md: `part_notes` describes the CURRENT
-        design state only; per-round history goes to `request_log` (already exists for
-        exactly this) or a `build/CHANGELOG.md`; superseded rounds get deleted, not
-        annotated with "SUPERSEDED by round N below".
+        prompts. DONE via openspec change `searchable-request-log`: `planning_notes`/
+        `part_notes`/generated comments now prescribed as current-state-only (schema
+        descriptions, `prompts/planning.md` rule 14, `prompts/part.md`,
+        `skill/phase2_planning.md`, `skill/phase3_build.md`); `request_log` is the
+        exclusive place for round-by-round history, and superseded content is deleted,
+        not annotated "SUPERSEDED by round N below". Also fixed the schema's duplicate
+        `request_log` property definition and added `src/request_log_search.py` so
+        Phase 3 can search it by keyword/kind instead of re-reading the whole array.
   - [ ] kinematics for custom (block-free) hinges. planning_notes documents why the
         `kinematics` schema entry was OMITTED: the axis contract requires a referenced
         block with a `dof`, but this hinge is raw-primitive clevis/tongue geometry, so

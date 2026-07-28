@@ -29,6 +29,11 @@ Write a complete CadQuery script for the part specified below.
 3. Make aesthetic judgments
 4. Assume GUI operation capabilities
 5. Write OpenSCAD (.scad) — this pipeline requires Python/CadQuery only
+6. Write round-by-round changelog narrative in comments (e.g. "ROUND 2: changed X",
+   "SUPERSEDED by round N") — comments and Design notes describe only the current
+   state of this script; when a correction supersedes prior rationale, delete the
+   stale comment rather than annotating it as superseded. Round-by-round history
+   belongs exclusively in `request_log`, not in this script.
 
 ## Coordinate vocabulary
 
