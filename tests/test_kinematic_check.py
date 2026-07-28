@@ -84,6 +84,41 @@ def test_required_range_exceeds_limit(clear_stls, monkeypatch):
     assert exceed[0]["mechanical_limit"] == [0, 180]
 
 
+# ---- block-less entries (no inventory block) ---------------------------------
+
+
+def test_blockless_entry_with_own_limit_exceeds_it(clear_stls, monkeypatch):
+    monkeypatch.setattr(
+        kinematic_check,
+        "_sweep_collision",
+        lambda *a, **k: pytest.fail("sweep must not run when range exceeds limit"),
+    )
+    entry = _revolute_entry([0, 270], mechanical_limit=[0, 180])
+    del entry["block"]
+    issues = run_kinematic_check(_plan([entry]), str(clear_stls))
+    exceed = [i for i in issues if i["type"] == "range_exceeds_limit"]
+    assert len(exceed) == 1
+    assert exceed[0]["mechanical_limit"] == [0, 180]
+
+
+def test_blockless_entry_within_own_limit_no_issue(clear_stls):
+    entry = _revolute_entry([0, 90], mechanical_limit=[0, 180])
+    del entry["block"]
+    issues = run_kinematic_check(_plan([entry]), str(clear_stls))
+    assert not [i for i in issues if i["type"] == "range_exceeds_limit"]
+
+
+def test_blockless_entry_without_limit_reports_not_applicable_and_still_sweeps(blocking_stls):
+    entry = _revolute_entry([0, 90])
+    del entry["block"]
+    issues = run_kinematic_check(_plan([entry]), str(blocking_stls))
+    not_applicable = [i for i in issues if i["type"] == "range_check_not_applicable"]
+    assert len(not_applicable) == 1
+    assert not_applicable[0]["severity"] == "warning"
+    # sweep still ran despite no mechanical_limit source: blocking_stls collides.
+    assert any(i["type"] == "motion_collision" for i in issues)
+
+
 # ---- collision-free sweep passes ---------------------------------------------
 
 

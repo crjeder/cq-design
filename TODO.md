@@ -38,14 +38,15 @@ change lives in that change's `tasks.md`, not here.
         block with a `dof`, but this hinge is raw-primitive clevis/tongue geometry, so
         declaring it would force a bogus block reference. Result: rounds 4-7 each
         hand-wrote an ad-hoc boolean fold-collision sweep (0.25deg steps, plus a
-        binary search for the minimum notch height Z=16). Two-part fix, now both
-        proposed as openspec changes (2026-07-27, not yet implemented):
-        (a) `openspec/changes/blockless-kinematics/` -- make `block` optional on a
-        `kinematics` entry (a block-less entry declares `axis_origin_mm`/`axis_dir`/
+        binary search for the minimum notch height Z=16). Two-part fix, proposed as
+        openspec changes (2026-07-27):
+        (a) DONE via openspec change `blockless-kinematics`: `block` is now optional on
+        a `kinematics` entry (a block-less entry declares `axis_origin_mm`/`axis_dir`/
         `type`/`required_range`/`step` directly, with an optional `mechanical_limit`
-        for the numeric check), and skip `plan_validate.py`'s joint-contract arms
-        (type match, axis parallelism, coaxiality) for it since there is no block to
-        contract against.
+        for the numeric check, reported as `range_check_not_applicable` when absent
+        rather than silently skipped), and `plan_validate.py`'s joint-contract arms
+        (type match, axis parallelism, coaxiality) are skipped for it since there is no
+        block to contract against.
         (b) `openspec/changes/contact-limited-sweep/` -- promote the ad-hoc sweep into
         a first-class tool: fix the sweep's semantics (report first-contact angle +
         colliding body instead of a range-wide pass/fail, since a joint whose closed
