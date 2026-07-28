@@ -318,12 +318,19 @@
   "definitions": {
     "kinematics_entry": {
       "type": "object",
-      "required": ["joint_id", "moving_union", "block", "axis_origin_mm", "axis_dir", "type", "required_range", "step"],
+      "required": ["joint_id", "moving_union", "axis_origin_mm", "axis_dir", "type", "required_range", "step"],
       "additionalProperties": false,
       "properties": {
         "joint_id": {"type": "string", "description": "Unique identifier for this joint"},
         "moving_union": {"type": "string", "description": "Union (part id) that moves"},
-        "block": {"type": "string", "description": "Joint block name from inventory.json (must carry a dof)"},
+        "block": {"type": "string", "description": "Joint block name from inventory.json (must carry a dof). Omit for a block-less (directly-declared) joint built from raw primitives; axis_origin_mm/axis_dir/type/required_range/step fully specify the motion in that case."},
+        "mechanical_limit": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Nominal range bound [lo, hi] for a block-less entry, same shape as a block's dof.mechanical_limit. Meaningful only when block is absent; ignored when block is present, since the block's dof remains authoritative."
+        },
         "axis_origin_mm": {
           "type": "array",
           "items": {"type": "number"},
