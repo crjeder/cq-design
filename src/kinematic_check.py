@@ -6,8 +6,12 @@ joints mounted on it). For each entry in the tree, at every nesting depth, verif
 joint achieves its author-declared range of motion:
 
   1. Numeric check (no mesh): the declared `required_range` (relative to the union's
-     authored pose, so it may be negative or straddle zero) lies within the joint
-     block's nominal `dof.mechanical_limit` from the inventory.
+     authored pose, so it may be negative or straddle zero) lies within a nominal
+     mechanical limit -- the joint block's `dof.mechanical_limit` when the entry names a
+     `block`, otherwise the entry's own `mechanical_limit` when declared. A block-less
+     entry with no `mechanical_limit` reports the numeric arm as not applicable
+     (`range_check_not_applicable`) rather than skipping silently, and still proceeds to
+     the sweep below.
   2. Whole-model collision sweep (trimesh + fcl): step the entry's swept subtree --
      its own moving union plus every union nested under its `children`, carried along
      rigidly by the same per-step transform -- through the required range against
@@ -167,7 +171,10 @@ def run_kinematic_check(
     """Validate every `kinematics` entry in the plan, at every nesting depth. Returns a
     list of issues. When `parts_dir` is given and an export manifest is present, a union
     whose exported STL is stale relative to its current source script is flagged as
-    `stale_artifact` and excluded from the sweep for any entry that references it."""
+    `stale_artifact` and excluded from the sweep for any entry that references it. An
+    entry with no `block` sources its mechanical limit from its own `mechanical_limit`
+    field instead, or reports the numeric check as not applicable when neither is
+    present; the sweep runs identically either way."""
     kinematics = plan.get("kinematics", [])
     if not kinematics:
         return []
@@ -224,12 +231,13 @@ def run_kinematic_check(
         unit = _unit_for(entry.get("type"))
         lo, hi = entry["required_range"]
         moving_id = entry["moving_union"]
-        block = get_block(entry["block"], inventory_path)
+        block = get_block(entry["block"], inventory_path) if entry.get("block") else None
         dof = (block or {}).get("dof")
+        limit = dof["mechanical_limit"] if dof is not None else entry.get("mechanical_limit")
 
         # ---- numeric check (no mesh, no collision backend) ----
-        if dof is not None:
-            mlo, mhi = dof["mechanical_limit"]
+        if limit is not None:
+            mlo, mhi = limit
             if lo < mlo - 1e-9 or hi > mhi + 1e-9:
                 issues.append(
                     make_issue(
@@ -237,7 +245,7 @@ def run_kinematic_check(
                         "error",
                         "range_exceeds_limit",
                         f"Joint '{jid}' required range [{lo}, {hi}] {unit} exceeds "
-                        f"block mechanical limit [{mlo}, {mhi}] {unit}",
+                        f"mechanical limit [{mlo}, {mhi}] {unit}",
                         "Reduce the required range or choose a joint with a larger "
                         "mechanical limit.",
                         joint_id=jid,
@@ -248,6 +256,19 @@ def run_kinematic_check(
                 )
                 # Mechanically impossible: do not load a mesh or sweep this joint.
                 continue
+        else:
+            issues.append(
+                make_issue(
+                    "kinematics",
+                    "warning",
+                    "range_check_not_applicable",
+                    f"Joint '{jid}' has no mechanical_limit source (block-less entry "
+                    "with none declared); numeric range check skipped, collision sweep "
+                    "still runs.",
+                    "Declare 'mechanical_limit' on the entry to enable the numeric check.",
+                    joint_id=jid,
+                )
+            )
 
         # ---- collision sweep (subtree: moving union + everything nested under its
         # children, vs every union outside that subtree) ----

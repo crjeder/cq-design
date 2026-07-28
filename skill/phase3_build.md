@@ -876,12 +876,37 @@ negative or straddle zero (e.g. `[-30, 90]`), and `lo_inclusive`/`hi_inclusive`
 `moving_union` exists, the block exists and carries a `dof`, and `unit` matches the
 block `dof.unit`.
 
-The gate then performs two checks per joint: (1) `required_range` within the block's
-`mechanical_limit` -> `range_exceeds_limit` on failure (no mesh loaded); (2) a
-collision sweep of the moving union against every other union, each added as a
-separately named collision object -> `motion_collision` carrying the binding value
-and the `colliding_union` so the design loop knows what to fix. A print-in-place
-joint (several unions on one plate) is swept the same way -- no special case. Designed
-surface contact at the joint is tolerated (small penetration tolerance); only real
-interference binds. The check reads the assembled per-union STLs from the model export
-(see **Model export** / `model_export.py`).
+The gate then performs two checks per joint: (1) `required_range` within a mechanical
+limit -- the block's `mechanical_limit` when the entry names one, otherwise the
+entry's own `mechanical_limit` when declared -- -> `range_exceeds_limit` on failure
+(no mesh loaded); (2) a collision sweep of the moving union against every other union,
+each added as a separately named collision object -> `motion_collision` carrying the
+binding value and the `colliding_union` so the design loop knows what to fix. A
+print-in-place joint (several unions on one plate) is swept the same way -- no special
+case. Designed surface contact at the joint is tolerated (small penetration
+tolerance); only real interference binds. The check reads the assembled per-union
+STLs from the model export (see **Model export** / `model_export.py`).
+
+**Block-less (directly-declared) joints.** A custom hinge built from raw primitives
+usually has no matching inventory block -- `block` is optional for exactly this case.
+Omit it and declare the axis directly; the sweep needs nothing from a block:
+
+```json
+"kinematics": [{
+  "joint_id": "phone_hinge",
+  "moving_union": "arm",
+  "axis_origin_mm": [0, 0, 4],
+  "axis_dir": "Y",
+  "type": "revolute",
+  "required_range": [0, 90],
+  "mechanical_limit": [0, 180],
+  "step": 5
+}]
+```
+
+`mechanical_limit` is optional too -- declare it for a numeric sanity bound, or omit
+it and get a `range_check_not_applicable` warning (not a silent skip) while the
+collision sweep still runs. Do not omit the whole `kinematics` entry just because no
+block fits: the C5 Phone-Holder retrospective did exactly that for a raw-primitive
+clevis/tongue hinge, and the result was seven rounds of a hand-written, unreliable
+ad-hoc sweep standing in for what `kinematic_check.py` already does.

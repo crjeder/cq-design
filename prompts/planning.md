@@ -142,7 +142,11 @@ Before committing to any dimension values, populate `planning_notes` with your r
    binding (a lid fouling the body). `required_range` is RELATIVE to the union's
    authored pose (zero) and may be negative or straddle zero (e.g. `[-30, 90]`); set
    `lo_inclusive`/`hi_inclusive` to `false` for an open bound that need not be
-   reached. `unit` must match the joint block's `dof.unit`.
+   reached. `unit` must match the joint block's `dof.unit`. A custom joint built
+   from raw primitives with no matching inventory block omits `block` and declares
+   `axis_origin_mm`/`axis_dir`/`type`/`required_range`/`step` directly (optionally
+   `mechanical_limit` for a numeric sanity bound) -- never omit the whole
+   `kinematics` entry just because no block fits; the sweep needs no block at all.
 
 10. **Determine the principal load for every part with `load` -- do not leave it to be
     guessed.** FDM is weakest across layer lines under tension, bending, or shear, so

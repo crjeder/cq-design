@@ -228,14 +228,17 @@ def _point_on_line(p: Any, q: Any, direction: Any) -> bool:
 def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     """Cross-check kinematics entries against parts and inventory dof descriptors.
 
-    Each entry's `moving_union` must reference an existing union id, the `block` must
-    exist and carry a `dof`, and -- the joint contract -- the declared joint `type` and
-    axis must be satisfied by the block's dof: the type must match, and the block's
-    block-coordinate dof axis (pushed through the moving union's placement) must match the
-    plan's assembled-frame axis (revolute coaxial, prismatic parallel). The range arm of
-    the contract is the separate numeric range check in `kinematic_check`. Spherical joints
-    are not contract-checked. Entries nest via `children` into a tree; every entry is
-    checked the same way regardless of nesting depth.
+    Each entry's `moving_union` must reference an existing union id. When the entry
+    names a `block`, it must exist and carry a `dof`, and -- the joint contract -- the
+    declared joint `type` and axis must be satisfied by the block's dof: the type must
+    match, and the block's block-coordinate dof axis (pushed through the moving union's
+    placement) must match the plan's assembled-frame axis (revolute coaxial, prismatic
+    parallel). The range arm of the contract is the separate numeric range check in
+    `kinematic_check`. Spherical joints are not contract-checked. A block-less entry (no
+    `block`) is out of the contract's scope by construction: its axis and range are
+    author-declared with no block `dof` to compare against, so only the `moving_union`
+    check applies. Entries nest via `children` into a tree; every entry is checked the
+    same way regardless of nesting depth.
     """
     kinematics = plan.get("kinematics", [])
     if not kinematics:
@@ -252,7 +255,9 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
         ref = entry["moving_union"]
         if ref not in union_part:
             errors.append(f"Kinematics '{jid}': moving_union '{ref}' is not a union id")
-        block_name = entry["block"]
+        block_name = entry.get("block")
+        if block_name is None:
+            continue  # block-less: axis is author-declared, nothing to contract-check
         block = get_block(block_name, inventory_path)
         if block is None:
             errors.append(f"Kinematics '{jid}': unknown block '{block_name}' (not in inventory)")
