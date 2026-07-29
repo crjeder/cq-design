@@ -16,6 +16,16 @@ pass, symmetric Chamfer distance (mm) against the golden meshes (bbox-center
 aligned, no rotation solving), and estimated cost per accepted part from
 telemetry prompt sizes and `model_prices.json`.
 
+Produced solids are enumerated from the run's `stl/` directory (per
+`model_export`'s naming contract, excluding fused `plate_*.stl` and
+`keep_out__*.stl`) and matched to golden meshes by a one-to-one geometric
+assignment (sorted bbox extents + volume as the cost, solved with
+`scipy.optimize.linear_sum_assignment`) -- not by part id, which the golden
+and produced plans are never required to agree on. Chamfer is then computed
+only for assigned pairs. An unmatched golden part is a miss and fails
+`within_tolerance`; a run with no produced solids is reported as a distinct
+`no_artifacts` case rather than `unavailable`.
+
 Scorecard is written as `scorecard.json` and `scorecard.md` in the run dir.
 Dependencies: trimesh, numpy, rtree (all project deps).
 """
@@ -30,6 +40,7 @@ from pathlib import Path
 
 import numpy as np
 import trimesh
+from scipy.optimize import linear_sum_assignment
 
 EVALS_DIR = Path(__file__).parent
 CASES_DIR = EVALS_DIR / "cases"
@@ -86,12 +97,37 @@ def load_mesh(path: Path) -> trimesh.Trimesh:
     return mesh
 
 
-def find_produced_stl(case_run_dir: Path, part_id: str) -> Path | None:
-    direct = case_run_dir / "stl" / f"{part_id}.stl"
-    if direct.is_file():
-        return direct
-    hits = [p for p in case_run_dir.rglob(f"{part_id}.stl") if "golden" not in p.parts]
-    return hits[0] if hits else None
+def find_produced_stls(case_run_dir: Path) -> list[Path]:
+    """Every produced solid in a case run, per `model_export`'s naming contract.
+
+    Excludes fused `plate_*.stl` duplicates (the constituent unions are already
+    present individually) and `keep_out__*.stl` (declared keep-out zones, never
+    printed geometry). Returns `[]` when `stl/` is absent -- a missing directory
+    is "no artifacts", not an error.
+    """
+    stl_dir = case_run_dir / "stl"
+    if not stl_dir.is_dir():
+        return []
+    return sorted(
+        p
+        for p in stl_dir.glob("*.stl")
+        if not p.name.startswith("plate_") and not p.name.startswith("keep_out__")
+    )
+
+
+def shape_descriptor(mesh: trimesh.Trimesh) -> np.ndarray:
+    """Scale-relative shape descriptor: bbox extents sorted descending, plus volume.
+
+    Sorting the extents makes the descriptor invariant to axis-aligned rotation.
+    """
+    extents = np.sort(mesh.extents)[::-1]
+    return np.append(extents, mesh.volume)
+
+
+def descriptor_cost(a: np.ndarray, b: np.ndarray) -> float:
+    """Sum of relative differences per descriptor term, so large and small parts
+    contribute comparably instead of the large one dominating."""
+    return float(np.sum(np.abs(a - b) / np.maximum(np.maximum(a, b), 1e-9)))
 
 
 def attempt_metrics(attempts: list[dict] | None, prices: dict) -> dict:
@@ -146,34 +182,54 @@ def score_case(case: str, run_dir: Path, prices: dict) -> dict:
 
     result = {"case": case, **attempt_metrics(read_attempts(case_run_dir), prices)}
 
-    chamfers: dict[str, float | None] = {}
-    for part in plan["parts"]:
-        part_id = part["id"]
-        produced = find_produced_stl(case_run_dir, part_id)
-        if produced is None:
-            chamfers[part_id] = None
-            continue
-        golden = load_mesh(case_dir / "golden" / f"{part_id}.stl")
-        chamfers[part_id] = chamfer_mm(load_mesh(produced), golden)
+    golden_ids = [part["id"] for part in plan["parts"]]
+    golden_meshes = [load_mesh(case_dir / "golden" / f"{pid}.stl") for pid in golden_ids]
+    produced_paths = find_produced_stls(case_run_dir)
+    produced_meshes = [load_mesh(p) for p in produced_paths]
+
+    chamfers: dict[str, float | None] = dict.fromkeys(golden_ids)
+    matched_to: dict[str, str | None] = dict.fromkeys(golden_ids)
+
+    if produced_meshes:
+        golden_descs = [shape_descriptor(m) for m in golden_meshes]
+        produced_descs = [shape_descriptor(m) for m in produced_meshes]
+        cost = np.array([[descriptor_cost(pd, gd) for gd in golden_descs] for pd in produced_descs])
+        row_ind, col_ind = linear_sum_assignment(cost)
+        for r, c in zip(row_ind, col_ind, strict=True):
+            gid = golden_ids[c]
+            chamfers[gid] = chamfer_mm(produced_meshes[r], golden_meshes[c])
+            matched_to[gid] = produced_paths[r].name
+
     measured = [c for c in chamfers.values() if c is not None]
+    no_artifacts = len(produced_paths) == 0
+    result["no_artifacts"] = no_artifacts
     result["chamfer_mm"] = chamfers
+    result["matched_to"] = matched_to
     result["mean_chamfer_mm"] = sum(measured) / len(measured) if measured else None
+    result["surplus_produced"] = max(0, len(produced_paths) - meta["expected_parts"])
     result["within_tolerance"] = (
-        all(c <= meta["tolerance_mm"] for c in measured) if measured else None
+        not no_artifacts
+        and all(v is not None for v in chamfers.values())
+        and all(c <= meta["tolerance_mm"] for c in measured)
     )
     return result
 
 
 def aggregate(case_results: list[dict]) -> dict:
+    def vals_of(key):
+        return [r[key] for r in case_results if r.get(key) is not None]
+
     def mean_of(key):
-        vals = [r[key] for r in case_results if r.get(key) is not None]
+        vals = vals_of(key)
         return sum(vals) / len(vals) if vals else None
 
+    chamfer_vals = vals_of("mean_chamfer_mm")
     return {
         "cases_scored": len(case_results),
         "first_shot_rate": mean_of("first_shot_rate"),
         "mean_attempts_to_pass": mean_of("mean_attempts_to_pass"),
-        "mean_chamfer_mm": mean_of("mean_chamfer_mm"),
+        "mean_chamfer_mm": sum(chamfer_vals) / len(chamfer_vals) if chamfer_vals else None,
+        "chamfer_cases": len(chamfer_vals),
         "cost_per_accepted_part_usd": mean_of("cost_per_accepted_part_usd"),
     }
 
@@ -192,10 +248,11 @@ def render_markdown(scorecard: dict) -> str:
         "|---|---|---|---|---|",
     ]
     for r in scorecard["cases"]:
+        chamfer_cell = "no artifacts" if r["no_artifacts"] else _fmt(r["mean_chamfer_mm"])
         lines.append(
             f"| {r['case']} | {_fmt(r['first_shot_rate'], 2)} "
             f"| {_fmt(r['mean_attempts_to_pass'], 2)} "
-            f"| {_fmt(r['mean_chamfer_mm'])} "
+            f"| {chamfer_cell} "
             f"| {_fmt(r['cost_per_accepted_part_usd'], 4)} |"
         )
     agg = scorecard["aggregate"]
@@ -204,7 +261,7 @@ def render_markdown(scorecard: dict) -> str:
         f"**Aggregate** ({agg['cases_scored']} cases): "
         f"first-shot {_fmt(agg['first_shot_rate'], 2)}, "
         f"attempts-to-pass {_fmt(agg['mean_attempts_to_pass'], 2)}, "
-        f"chamfer {_fmt(agg['mean_chamfer_mm'])} mm, "
+        f"chamfer {_fmt(agg['mean_chamfer_mm'])} mm ({agg['chamfer_cases']} cases), "
         f"cost/part {_fmt(agg['cost_per_accepted_part_usd'], 4)} USD",
         "",
     ]
@@ -233,7 +290,10 @@ def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        print(f"  {case}: timed out after {timeout_s}s -- scoring whatever it produced", file=sys.stderr)
+        print(
+            f"  {case}: timed out after {timeout_s}s -- scoring whatever it produced",
+            file=sys.stderr,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:

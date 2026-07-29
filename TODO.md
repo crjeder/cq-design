@@ -3,7 +3,7 @@
 Tasks not tracked in an `openspec/changes/` change. Anything tied to a specific
 change lives in that change's `tasks.md`, not here.
 
-
+- [ ] check if there is a fillets before chamfers rule (improves visual quality)
 - [ ] optimize prompts, they are growing to long
   - [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
       `{{CQ_REFERENCE}}` only for parts that involve text (was concatenated into every
@@ -125,7 +125,15 @@ change lives in that change's `tasks.md`, not here.
       constants, snap-fit strain formula, rib/boss/gusset ratios) wired into Phase 3's
       substitution table, plus new "Engineering rows" in
       `reference/Visual Review Checklist.md`. Section 4 (eval-corpus A/B run,
-      `IMPROVEMENT_PLAN.md` update) still open.
+      `IMPROVEMENT_PLAN.md` update) still open. `eval-geometric-part-matching`
+      (2026-07-29) fixed the scorer's part-correspondence bug so an A/B is finally
+      trustworthy, but the three run directories on disk (`baseline-pre-claude5`,
+      `before-citation`, `after-citation`) are not that A/B -- `before-citation`/
+      `after-citation` predate these hooks entirely (item 13's citation change,
+      2026-07-20/21) and `baseline-pre-claude5` is a pre-Claude-5-migration
+      baseline. Section 4 still needs a fresh hooks-on-vs-off run pair; see
+      `openspec/changes/eval-geometric-part-matching/proposal.md`'s "Re-score
+      Results" section for the re-scored numbers and this caveat in full.
 - [ ] restructure to combat context creep. options:
   - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
   - [ ] python script owns the loop and switches context & models. prompt will be split
