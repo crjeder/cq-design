@@ -3,7 +3,7 @@
 Tasks not tracked in an `openspec/changes/` change. Anything tied to a specific
 change lives in that change's `tasks.md`, not here.
 
-- [ ] check if there is a fillets before chamfers rule (improves visual quality)
+- [x] check if there is a fillets before chamfers rule (improves visual quality) -> implemented
 - [ ] optimize prompts, they are growing to long
   - [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
       `{{CQ_REFERENCE}}` only for parts that involve text (was concatenated into every
