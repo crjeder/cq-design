@@ -171,6 +171,11 @@ new "Engineering rows" added to `reference/Visual Review Checklist.md`.
 Section 4 (eval-corpus A/B run comparing hooks on vs. off, and the
 `IMPROVEMENT_PLAN.md` status update this A/B result would justify) is not
 done — status stays PARTIAL until that measurement lands.
+`openspec/changes/eval-geometric-part-matching/` (2026-07-29) fixed the eval
+scorer so correspondence is geometric rather than by part id, making the
+metric finally comparable run-to-run — but no run pair with the hooks
+toggled has been generated yet, so this item's measurement is still
+outstanding, not blocked.
 
 The model already knows cantilever snap-fit strain formulas, rib-to-wall ratios, and
 boss design rules from training; the failure is elicitation reliability. A large
