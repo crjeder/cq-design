@@ -216,6 +216,29 @@ def _find_shell_after_fillet(tree: ast.AST, parents: dict) -> list[Finding]:
     return findings
 
 
+def _find_fillet_after_chamfer(tree: ast.AST, parents: dict) -> list[Finding]:
+    findings = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "fillet"
+        ):
+            chain = _flatten_chain(node)
+            if any(attr == "chamfer" for attr, _ in chain[:-1]):
+                findings.append(
+                    Finding(
+                        "fillet_after_chamfer",
+                        "`.fillet(...)` called after `.chamfer(...)` in the same chain",
+                        "apply fillets before chamfers in the chain; filleting "
+                        "edges a chamfer already split into two is prone to "
+                        "BREP_API failures or inconsistent results",
+                        node.lineno,
+                    )
+                )
+    return findings
+
+
 def _find_unanchored_features(tree: ast.AST, parents: dict) -> list[Finding]:
     findings = []
     for node in ast.walk(tree):
@@ -361,6 +384,7 @@ def lint_script(path: str) -> list[Finding]:
     findings += _find_submodule_imports(tree)
     findings += _find_direct_export(tree)
     findings += _find_shell_after_fillet(tree, parents)
+    findings += _find_fillet_after_chamfer(tree, parents)
     findings += _find_magic_numbers(tree)
     findings += _find_unanchored_features(tree, parents)
     findings += _find_unguarded_booleans(tree, parents)

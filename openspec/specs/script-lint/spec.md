@@ -24,7 +24,7 @@ any third-party package.
 The linter SHALL detect the following anti-patterns, each with a stable `type`
 identifier: `boolean_in_loop`, `missing_result`, `submodule_import`,
 `direct_export`, `magic_number`, `unanchored_feature`, `unguarded_boolean`,
-`shell_after_fillet`.
+`shell_after_fillet`, `fillet_after_chamfer`.
 
 #### Scenario: Boolean inside a loop
 - **WHEN** a script calls `.cut(...)`, `.union(...)`, or `.intersect(...)` inside a
@@ -49,6 +49,12 @@ identifier: `boolean_in_loop`, `missing_result`, `submodule_import`,
 #### Scenario: Shell after fillet
 - **WHEN** a fluent chain calls `.shell(...)` after `.fillet(...)`
 - **THEN** a `shell_after_fillet` finding is reported
+
+#### Scenario: Fillet after chamfer
+- **WHEN** a fluent chain calls `.fillet(...)` after an earlier `.chamfer(...)`
+  in the same chain
+- **THEN** a `fillet_after_chamfer` finding is reported with a hint to apply
+  fillets before chamfers in the chain
 
 #### Scenario: Clean script produces no findings
 - **WHEN** a script contains none of the cataloged anti-patterns
