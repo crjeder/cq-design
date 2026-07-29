@@ -236,6 +236,36 @@ result = cq.Workplane("XY").box(20, 20, 5).shell(1).fillet(1)
     assert "shell_after_fillet" not in _types(findings)
 
 
+def test_fillet_after_chamfer_positive(tmp_path):
+    source = """
+import cadquery as cq
+
+result = cq.Workplane("XY").box(20, 20, 5).edges("|Z").chamfer(1).edges(">Z").fillet(1)
+"""
+    findings = lint_script(_write(tmp_path, source))
+    assert "fillet_after_chamfer" in _types(findings)
+
+
+def test_fillet_after_chamfer_negative_correct_order(tmp_path):
+    source = """
+import cadquery as cq
+
+result = cq.Workplane("XY").box(20, 20, 5).edges("|Z").fillet(1).edges(">Z").chamfer(1)
+"""
+    findings = lint_script(_write(tmp_path, source))
+    assert "fillet_after_chamfer" not in _types(findings)
+
+
+def test_fillet_after_chamfer_negative_single_call(tmp_path):
+    source = """
+import cadquery as cq
+
+result = cq.Workplane("XY").box(20, 20, 5).edges("|Z").fillet(1)
+"""
+    findings = lint_script(_write(tmp_path, source))
+    assert "fillet_after_chamfer" not in _types(findings)
+
+
 def test_syntax_error(tmp_path):
     source = "result = cq.Workplane('XY'.box(20, 20, 5)\n"
     findings = lint_script(_write(tmp_path, source))
