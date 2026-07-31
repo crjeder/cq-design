@@ -97,7 +97,7 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
                 "source": "wrapper",
                 "severity": severity,
                 "type": err["type"],
-                "message": err["message"],
+                "message": err.get("message", err.get("hint", "")),
                 "hint": err.get("hint", ""),
             }
         )
