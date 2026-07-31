@@ -185,6 +185,16 @@ progressive part's retries stay inline; a part never switches modes mid-build.
 | `{{FDM_GUIDELINES}}` | Sections from `FDM 3D Print Design Guidelines.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always`. **Cold:** inject those sections' full text. **Inline:** cite the same selected sections by name only (the tag-filter computation is unchanged; only whether its output is bodies or names differs by mode). |
 | `{{ENGINEERING_RULES}}` | Sections from `Engineering Design Rules.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always`, plus all load-relevant sections when `part["load"]` is declared (any type). **Cold:** inject those sections' full text. **Inline:** cite the same selected sections by name only. |
 
+**Measuring the render.** Write the fully-substituted prompt text (the same text
+handed to the builder agent in cold mode, or the same text this session is now acting on
+in inline mode) to `build/<part_id>_prompt_attempt<n>.txt` before proceeding. This is
+the source for Step 5's `prompt_chars` field — never type or estimate that number, only
+report a count computed from this file (e.g. `python -c
+"import pathlib;print(len(pathlib.Path('build/<part_id>_prompt_attempt<n>.txt').read_text(encoding='utf-8')))"`).
+A typed guess is not telemetry; a self-reported prompt_chars value from before this
+instrumentation existed is not comparable to one measured this way (see `attempt-telemetry`
+design D7).
+
 **Step 1.5 — Match archetype**
 
 Before authoring from a blank file, check whether `templates/archetypes.json` has a
@@ -235,7 +245,7 @@ hinge), set `result` to a **dict** mapping each declared union id to its `Workpl
 union is then exported, posed, and kinematically/clearance checked as a distinct body. A part
 without a `unions` array keeps the single `result = <wp>` form (one union, id = part id).
 
-On retry attempts: review the error types and hints from the previous attempt, apply targeted fixes. Do not start over blindly — you have full planning context.
+On retry attempts: review the error types and hints from the previous attempt, apply targeted fixes. Do not start over blindly — you have full planning context. Keep the fix inside what the reported error implicates: do not restructure, refactor, or rewrite parts of the script the error does not name, and do not take the retry as an opening to add features or guards the spec did not ask for.
 
 **Rationale survives retries.** A correction prompt never waives the ENGINEERING
 RATIONALE requirement (see `prompts/part.md`). If the fix changes a parameter that
@@ -367,7 +377,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" append build/
     --field 'part_id=<part_id>' --field 'attempt=<n>' --field 'outcome=<pass|fail>' \
     --field 'error_types=["<type>", ...]' \
     --field 'visual_review={"passed": <bool>, "failed_question": "<q or null>"}' \
-    --field 'prompt_chars=<len of the rendered step-1 prompt>' --field 'model=<executing model>'
+    --field 'prompt_chars=<measured character count of build/<part_id>_prompt_attempt<n>.txt>' --field 'model=<executing model>'
 ```
 
 - `outcome=pass` only when step 4 accepted the part on this attempt; everything
@@ -375,6 +385,9 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" append build/
 - `error_types` lists the typed errors from the wrapper/gate JSON (empty on pass).
 - `visual_review` is the JSON `null` when the review did not run for this attempt
   (e.g. geometry failed first).
+- `prompt_chars` is the character count of Step 1's `build/<part_id>_prompt_attempt<n>.txt`,
+  computed by reading the file — never typed from memory or estimated. See Step 1's
+  "Measuring the render" note.
 - `model` names the model that actually executed this attempt — the builder
   agent's own model for an autonomous part, the main session's model for an
   inline (progressive) part. Never write the literal `inline` — read the real

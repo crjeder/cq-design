@@ -116,6 +116,19 @@ The part prompt is the highest-volume surface. Changes:
 Acceptance: eval first-shot rate and attempts-to-pass no worse than C1
 baseline; generated-script token size expected to drop.
 
+**Result (change `de-prescribe-part-prompt`, run `evals/runs/c2-de-prescribed/`):**
+accepted. 10/10 cases scored, first-shot 0.85 (baseline 0.70), attempts-to-pass
+1.15 (baseline 1.30), Chamfer 3.751mm (baseline 3.118mm, not a gating metric).
+Three cases (`two-part-box`, `u-clip`, `wall-hook`) hit transient Anthropic API
+errors (500/529) on the first pass and were regenerated in a second pass before
+scoring — not a quality regression, an infra blip. Token-size reduction is
+**not measured** by this run: `prompt_chars` was still self-reported (round
+numbers, e.g. `8500`) because the eval's `claude -p` subprocess runs the
+installed skill copy, and the render-measurement instrumentation (design D7 of
+`de-prescribe-part-prompt`, `skill/phase3_build.md` Step 1/5) was added to both
+the repo and the installed copy only after this run started. A future eval run
+will produce a real, file-measured `prompt_chars` instead of a guess.
+
 ## C3. prompts/planning.md and phase files (Opus 5, light touch)
 
 Planning is contract-heavy (schema, coordinate frame, request_log rules) - keep
