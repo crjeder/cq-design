@@ -116,18 +116,40 @@ The part prompt is the highest-volume surface. Changes:
 Acceptance: eval first-shot rate and attempts-to-pass no worse than C1
 baseline; generated-script token size expected to drop.
 
-**Result (change `de-prescribe-part-prompt`, run `evals/runs/c2-de-prescribed/`):**
-accepted. 10/10 cases scored, first-shot 0.85 (baseline 0.70), attempts-to-pass
-1.15 (baseline 1.30), Chamfer 3.751mm (baseline 3.118mm, not a gating metric).
-Three cases (`two-part-box`, `u-clip`, `wall-hook`) hit transient Anthropic API
-errors (500/529) on the first pass and were regenerated in a second pass before
-scoring — not a quality regression, an infra blip. Token-size reduction is
-**not measured** by this run: `prompt_chars` was still self-reported (round
-numbers, e.g. `8500`) because the eval's `claude -p` subprocess runs the
-installed skill copy, and the render-measurement instrumentation (design D7 of
-`de-prescribe-part-prompt`, `skill/phase3_build.md` Step 1/5) was added to both
-the repo and the installed copy only after this run started. A future eval run
-will produce a real, file-measured `prompt_chars` instead of a guess.
+**Result (change `de-prescribe-part-prompt`):** accepted, but on a noisier
+basis than the first run suggested — two full 10-case sweeps exist, not one,
+and they disagree.
+
+- `evals/runs/c2-de-prescribed/` (before the D7 render-measurement instrumentation
+  landed): first-shot 0.85, attempts-to-pass 1.15, Chamfer 3.751mm. Three cases
+  (`two-part-box`, `u-clip`, `wall-hook`) hit transient Anthropic API errors
+  (500/529) on the first pass and were regenerated before scoring — infra, not
+  a quality effect.
+- `evals/runs/c2-prompt-chars/` (after the instrumentation landed; same
+  `prompts/part.md`, re-run to get a real `prompt_chars`): first-shot 0.75,
+  attempts-to-pass **1.35** — passes the first acceptance gate (>= 0.70) but
+  misses the second (<= 1.30) by 0.05. Chamfer 3.449mm. Disagrees with the
+  first run per-case on `snap-lid` (1.00 vs 0.00) and `l-bracket` (2 vs 3
+  attempts).
+
+Mean across both: first-shot 0.80, attempts-to-pass 1.25 — both better than
+the C1 baseline (0.70 / 1.30), which is the basis for calling this accepted.
+But the run-to-run spread (0.85/1.15 vs 0.75/1.35) is as large as the entire
+measured effect, so a single sweep against the hard threshold cannot separate
+C2's effect from noise; don't cite "first-shot 0.85 vs 0.70" without the
+second run beside it. Fidelity is flat, not improved: `within_tolerance` is
+5/10 at baseline, 3/10 and 5/10 in the two C2 runs; mean Chamfer 3.118mm ->
+3.751mm / 3.449mm — neither gated, neither supports a quality-gain claim.
+
+**Token size (design D7):** now measured for real. `c2-prompt-chars` is the
+first run with file-measured `prompt_chars` instead of a self-reported guess
+— e.g. `adapter-ring` attempt 1: **162952** characters (vs. the old
+self-reported guesses of ~8500-14000, which undercounted by an order of
+magnitude — they evidently reflected only the visible/typed portion, not the
+full cold-mode reference-doc injection). There is no comparable *before*
+number: the baseline and `c2-de-prescribed` runs never measured the real
+render, only guessed, so no before/after token-size reduction claim can be
+made yet — only that a trustworthy number now exists going forward.
 
 ## C3. prompts/planning.md and phase files (Opus 5, light touch)
 
