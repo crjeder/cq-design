@@ -95,6 +95,14 @@ matches the profile, or when the user asked for a one-time exception.
 - Use compass/up-down terms (North/South/East/West, up/down) for any spatial
   reference, per the coordinate table in `prompts/planning.md`. Use
   left/right/front/back only when directly quoting the user's own words.
+- Describe a partial revolution (a hinge sweep, a dial or screw-pattern angular
+  position) as a clock position on the view whose sight-line is the rotation
+  axis -- above<->Z, South<->Y, West<->X (e.g. "swings to the 90° position in
+  the above view") -- never as "clockwise"/"counterclockwise": right-hand-rule-
+  positive rotation reads clockwise on South/West but counterclockwise on
+  above, so a bare direction word has no axis-independent correct sign. For an
+  axis not aligned to X/Y/Z, name the start and end reference features instead
+  of a clock position.
 - Every part id or interface name the planner coined (rule 2a in
   `prompts/planning.md`) -- i.e. not a word the user themselves used -- must be
   introduced explicitly in the summary below, e.g. "I'm calling the bottom part
