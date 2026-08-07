@@ -896,9 +896,27 @@ entry's own `mechanical_limit` when declared -- -> `range_exceeds_limit` on fail
 each added as a separately named collision object -> `motion_collision` carrying the
 binding value and the `colliding_union` so the design loop knows what to fix. A
 print-in-place joint (several unions on one plate) is swept the same way -- no special
-case. Designed surface contact at the joint is tolerated (small penetration
-tolerance); only real interference binds. The check reads the assembled per-union
+case. Designed surface contact at the joint is tolerated -- interference is measured as
+boolean intersection **volume** against a small `--penetration-tol-mm3` budget, so a
+flush resting face measures ~0 and never binds. The check reads the assembled per-union
 STLs from the model export (see **Model export** / `model_export.py`).
+
+The sweep travels **outward from the authored pose** (zero), so `[-90, 0]` starts at 0
+and moves toward -90, and a range straddling zero is swept as two independent arms. A
+cut-short sweep tells you how far the joint got: `achieved_range` (one bound per
+direction), `min_clearance_mm`, and `overlap_mm3`, with the stop bisected so it is not
+snapped to a `step` sample.
+
+**Contact-limited joints (`stop_on_contact`).** A joint whose travel ENDS by resting
+against another body -- a folding leaf closing onto its plate, a lid onto its rim --
+can never pass a plain range check: the poses past its stop necessarily interpenetrate
+even though the mechanism cannot reach them. Set `stop_on_contact: true` on such an
+entry. First real contact is then reported as the joint's mechanical stop: a
+`contact_limited_stop` **warning** naming the achieved range and what it stopped
+against, not a `motion_collision` error. Declare the ideal travel in `required_range`
+anyway -- the warning states the shortfall so you (or the user) can judge whether the
+natural stop is the intended rest position. If it is, narrow `required_range` to match;
+if not, relieve the contacting feature.
 
 **Block-less (directly-declared) joints.** A custom hinge built from raw primitives
 usually has no matching inventory block -- `block` is optional for exactly this case.
