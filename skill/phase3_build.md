@@ -889,6 +889,13 @@ negative or straddle zero (e.g. `[-30, 90]`), and `lo_inclusive`/`hi_inclusive`
 `moving_union` exists, the block exists and carries a `dof`, and `unit` matches the
 block `dof.unit`.
 
+When describing this range to the user (checkpoint prose, not the JSON), state it as
+a clock position on the view whose sight-line is `axis_dir` -- above<->Z, South<->Y,
+West<->X -- e.g. "swings to the 90° position in the above view". Never say
+"clockwise"/"counterclockwise": right-hand-rule-positive `required_range` reads
+clockwise on South/West but counterclockwise on above, so a bare direction word has
+no axis-independent correct sign (see `feature-vocabulary` spec).
+
 The gate then performs two checks per joint: (1) `required_range` within a mechanical
 limit -- the block's `mechanical_limit` when the entry names one, otherwise the
 entry's own `mechanical_limit` when declared -- -> `range_exceeds_limit` on failure
