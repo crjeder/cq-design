@@ -306,6 +306,11 @@ def main(argv: list[str] | None = None) -> int:
         help="generate each case via `claude -p` before scoring (costs tokens)",
     )
     parser.add_argument("--generate-timeout", type=int, default=3600)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="regenerate cases even if a prior run already produced artifacts",
+    )
     args = parser.parse_args(argv)
 
     run_dir = Path(args.run_dir)
@@ -318,6 +323,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.generate:
         for case in cases:
+            if not args.force and find_produced_stls(run_dir / case):
+                print(f"skipping {case}: already has produced artifacts (use --force to redo)")
+                continue
             print(f"generating {case} ...")
             generate_case(case, run_dir, args.generate_timeout)
 
