@@ -13,7 +13,7 @@ import pytest
 import trimesh
 
 import kinematic_check
-from kinematic_check import _sweep_values, iter_poses, run_kinematic_check
+from kinematic_check import _sweep_values, iter_poses, run_kinematic_check, travel_arms
 from plan_validate import validate_plan
 
 
@@ -244,6 +244,66 @@ def test_pin_hinge_leaf_swept_against_other_leaf(tmp_path):
     assert collisions[0]["colliding_union"] == ["leaf_b"]
 
 
+# ---- achieved range, bisection, and contact-limited stops ---------------------
+
+
+def test_binding_finding_reports_achieved_range(blocking_stls):
+    issues = run_kinematic_check(_plan([_revolute_entry([0, 90])]), str(blocking_stls))
+    collision = next(i for i in issues if i["type"] == "motion_collision")
+    lo, hi = collision["achieved_range"]
+    assert lo == 0 and 0 < hi < 90
+    assert hi == collision["binding_value"]
+    assert collision["overlap_mm3"] > 0
+    assert collision["min_clearance_mm"] >= 0
+
+
+def test_stop_value_refined_below_step_granularity(blocking_stls):
+    # A coarse step must not coarsen the reported stop: bisection puts the fine-step and
+    # coarse-step answers within a fraction of a degree of each other.
+    coarse = run_kinematic_check(_plan([_revolute_entry([0, 90], step=15)]), str(blocking_stls))
+    fine = run_kinematic_check(_plan([_revolute_entry([0, 90], step=1)]), str(blocking_stls))
+    coarse_stop = next(i for i in coarse if i["type"] == "motion_collision")["binding_value"]
+    fine_stop = next(i for i in fine if i["type"] == "motion_collision")["binding_value"]
+    assert coarse_stop == pytest.approx(fine_stop, abs=0.5)
+    assert coarse_stop % 15 != 0  # not snapped to a swept sample
+
+
+def test_contact_limited_stop_warns_instead_of_erroring(blocking_stls):
+    entry = _revolute_entry([0, 90], stop_on_contact=True)
+    issues = run_kinematic_check(_plan([entry]), str(blocking_stls))
+    assert [i for i in issues if i["type"] == "motion_collision"] == []
+    stops = [i for i in issues if i["type"] == "contact_limited_stop"]
+    assert len(stops) == 1
+    assert stops[0]["severity"] == "warning"
+    assert stops[0]["colliding_union"] == ["base"]
+    assert 0 < stops[0]["achieved_range"][1] < 90
+    assert not [i for i in issues if i["severity"] == "error"]
+
+
+def test_same_geometry_without_stop_on_contact_still_errors(blocking_stls):
+    issues = run_kinematic_check(_plan([_revolute_entry([0, 90])]), str(blocking_stls))
+    assert len([i for i in issues if i["type"] == "motion_collision"]) == 1
+    assert [i for i in issues if i["type"] == "contact_limited_stop"] == []
+
+
+def test_contact_limited_joint_clearing_full_range_is_silent(clear_stls):
+    entry = _revolute_entry([0, 90], stop_on_contact=True)
+    issues = run_kinematic_check(_plan([entry]), str(clear_stls))
+    assert [i for i in issues if i["type"] == "contact_limited_stop"] == []
+    assert not [i for i in issues if i["severity"] == "error"]
+
+
+def test_flush_contact_does_not_bind(tmp_path):
+    # Two boxes in exact face contact through the whole sweep: the broadphase reports
+    # contact but the intersection volume is zero. Under depth thresholding this was a
+    # false motion_collision; it must now sweep clean.
+    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
+    _box_stl(tmp_path / "base.stl", (10, 10, 10), (20, 10, 0))  # abuts arm at y=5
+    plan = _plan([_revolute_entry([0, 0])])  # identity pose only: the contact pose
+    issues = run_kinematic_check(plan, str(tmp_path))
+    assert [i for i in issues if i["type"] == "motion_collision"] == []
+
+
 # ---- sweep bounds and inclusivity --------------------------------------------
 
 
@@ -255,8 +315,41 @@ def test_sweep_does_not_exceed_required_range():
 
 def test_sweep_range_straddles_zero():
     values = [v for v, _ in iter_poses(_revolute_entry([-30, 90], step=10))]
-    assert values[0] == -30 and values[-1] == 90
-    assert any(abs(v) < 1e-9 for v in values)  # passes through zero
+    assert set(values) >= {-30, 0, 90}  # both bounds and the authored pose are covered
+    assert min(values) == -30 and max(values) == 90
+
+
+# ---- travel order: outward from the authored pose ------------------------------
+
+
+def test_non_negative_range_travels_up_from_zero():
+    assert travel_arms(_revolute_entry([0, 90], step=30)) == [[0, 30, 60, 90]]
+
+
+def test_negative_range_travels_down_from_zero():
+    # The whole point: a fold declared [-90, 0] must START at 0, not at -90 (which is
+    # past its own mechanical stop and reachable only through it).
+    assert travel_arms(_revolute_entry([-90, 0], step=30)) == [[0, -30, -60, -90]]
+
+
+def test_straddling_range_splits_into_two_arms_from_zero():
+    arms = travel_arms(_revolute_entry([-30, 60], step=30))
+    assert arms == [[0, 30, 60], [0, -30]]
+
+
+def test_straddling_stop_on_one_side_leaves_other_side_reported(tmp_path):
+    # Wall sits in the positive arc only; the negative arc is clear to -30. The stop on
+    # the positive side must not misreport the negative side as unreachable.
+    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
+    _box_stl(tmp_path / "base.stl", (10, 10, 10), (0, 14, 0))
+    # Block-less: pin_hinge's [0, 180] limit would reject a negative bound outright.
+    entry = _revolute_entry([-30, 90], step=5, mechanical_limit=[-90, 90])
+    del entry["block"]
+    issues = run_kinematic_check(_plan([entry]), str(tmp_path))
+    collision = next(i for i in issues if i["type"] == "motion_collision")
+    achieved_lo, achieved_hi = collision["achieved_range"]
+    assert achieved_lo == -30  # negative arm swept clear, keeps its declared bound
+    assert 0 < achieved_hi < 90  # positive arm stopped short
 
 
 # ---- 7.5 bound inclusivity ---------------------------------------------------
@@ -461,6 +554,21 @@ def test_plan_validate_rejects_bad_block(tmp_path, block_name, expected_substrin
     plan_path = _write_plan(tmp_path, [entry])
     errors = validate_plan(plan_path)
     assert any(expected_substring in e for e in errors)
+
+
+def test_plan_validate_accepts_stop_on_contact(tmp_path):
+    # Same otherwise-valid plan as the placement test above, plus the new optional field:
+    # the schema must accept it (`additionalProperties: false` would reject an unknown key).
+    good = {
+        "plate": "shared",
+        "placement": {
+            "rotate": [{"axis": "X", "angle_deg": 90}],
+            "translate_mm": [0, 0, 5],
+        },
+    }
+    entry = _revolute_entry([0, 90], stop_on_contact=True)
+    plan_path = _write_plan(tmp_path, [entry], extra_part=good)
+    assert validate_plan(plan_path) == []
 
 
 def test_plan_validate_rejects_unit_field(tmp_path):

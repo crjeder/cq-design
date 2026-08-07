@@ -350,6 +350,7 @@
         "lo_inclusive": {"type": "boolean", "default": true, "description": "Whether the lower bound must be cleared (closed). False = open: lo need not be reached and a collision exactly at lo is not reported."},
         "hi_inclusive": {"type": "boolean", "default": true, "description": "Whether the upper bound must be cleared (closed). False = open."},
         "step": {"type": "number", "exclusiveMinimum": 0, "description": "Sweep increment in the derived unit (deg for revolute/spherical, mm for prismatic)"},
+        "stop_on_contact": {"type": "boolean", "default": false, "description": "True when the joint's travel ends by resting against another body (a folding leaf closing onto its plate) rather than at a specific value. First real interference is then reported as the mechanical stop -- a contact_limited_stop warning naming how far it got -- instead of a motion_collision error, since the mechanism never reaches the interpenetrating poses beyond that stop. Default false: interference inside required_range is an error."},
         "children": {
           "type": "array",
           "description": "Nested kinematics entries mounted on this entry's moving_union, recursively forming the joint tree. Omitted/empty means nothing else is mounted on this joint. An entry not listed in any other entry's children is itself mounted on the static frame.",
