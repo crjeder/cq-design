@@ -92,6 +92,13 @@ Before committing to any dimension values, populate `planning_notes` with your r
    | sliding         | 0.25 mm           |
    | loose / cover   | 0.5 mm            |
 
+4a. **Decide minor choices yourself; ask only when the answer changes topology, a
+   dimension, or a fit.** A coined part or interface name, a clearance value the
+   fit-type table above already supplies for a stated fit, and plate grouping are
+   minor: pick a reasonable option, record it in `planning_notes`, and move on. This
+   does not weaken rules 1, 4, or 10 above -- an unverifiable dimension, a genuinely
+   unclear fit type, and an undeterminable load remain questions for the user.
+
 5. **The model is assembled declaratively; there is no `assembly` object.** Parts are
    positioned with `placement` (rule 8) and the whole model is treated as one assembly.
    Express the connection method (snap, screw, press, hinge) through the matching

@@ -116,8 +116,6 @@ The output JSON contains `bounding_box_mm`, `flat_faces` (Z heights and radii of
 
 Use `browser_take_screenshot` only when the spec is in an image or the snapshot returns no useful text. Prefer `browser_snapshot` - it is faster and more token-efficient.
 
-**Lookup narration:** Before each lookup, note internally what is being looked up and which source is being consulted (e.g., "Looking up Bosch MUM9 bowl dimensions on bosch-home.com..."). After each lookup, note the value found and the source URL (e.g., "Found bowl diameter: 220 mm -- bosch-home.com/en/product/..."). This narration lives inside the research agent's own reasoning — it has no user channel, so none of it reaches the user directly; the user-visible summary is the Dimension validation checkpoint table main presents after the agent returns.
-
 ## Dimension validation checkpoint
 
 After all dimension lookups are complete and **before generating `BUILD_PLAN.json`**, present a summary table of every looked-up dimension:
