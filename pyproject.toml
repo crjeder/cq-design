@@ -14,6 +14,10 @@ dependencies = [
     "jsonschema>=4,<5",
     "cq-warehouse",
     "python-fcl>=0.7.0.11",
+    # manifold3d: boolean engine behind trimesh.boolean -- the interference primitive
+    # measures overlap as intersection VOLUME (fcl's contact depth is ill-conditioned on
+    # the near-coplanar triangles flat printed faces tessellate into)
+    "manifold3d>=2.3,<4",
     # scipy: required by trimesh's CollisionManager (is_convex) for the kinematic sweep
     "scipy>=1.10,<2",
     # networkx: required by trimesh's scene graph (3MF export path)
@@ -92,6 +96,7 @@ module = [
     "cq_warehouse.*",
     "trimesh.*",
     "fcl",
+    "manifold3d",
     "scipy.*",
     "matplotlib.*",
     "mpl_toolkits.*",

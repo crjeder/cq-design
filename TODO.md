@@ -38,7 +38,7 @@ change lives in that change's `tasks.md`, not here.
         not annotated "SUPERSEDED by round N below". Also fixed the schema's duplicate
         `request_log` property definition and added `src/request_log_search.py` so
         Phase 3 can search it by keyword/kind instead of re-reading the whole array.
-  - [ ] kinematics for custom (block-free) hinges. planning_notes documents why the
+  - [x] kinematics for custom (block-free) hinges. planning_notes documents why the
         `kinematics` schema entry was OMITTED: the axis contract requires a referenced
         block with a `dof`, but this hinge is raw-primitive clevis/tongue geometry, so
         declaring it would force a bogus block reference. Result: rounds 4-7 each
@@ -52,17 +52,25 @@ change lives in that change's `tasks.md`, not here.
         rather than silently skipped), and `plan_validate.py`'s joint-contract arms
         (type match, axis parallelism, coaxiality) are skipped for it since there is no
         block to contract against.
-        (b) `openspec/changes/contact-limited-sweep/` -- promote the ad-hoc sweep into
-        a first-class tool: fix the sweep's semantics (report first-contact angle +
-        colliding body instead of a range-wide pass/fail, since a joint whose closed
-        position IS a contact stop can never pass a range-based check) and its
-        measurement (switch `interference.py` from fcl penetration-depth thresholding,
-        shown ill-conditioned on near-coplanar triangles -- 7.2mm reported for a
-        0.09mm^3 true overlap, non-monotonic with angle -- to `manifold3d` boolean
-        intersection *volume*, which is what the hand-written sweeps used and got
-        right). Both changes reference the C5 Phone-Holder cradle/plate hinge as the
-        worked example (shipped part folds cleanly; ad-hoc sweep reported jamming at
-        -53.5deg to -90deg that the real geometry never reaches).
+        (b) DONE via openspec change `contact-limited-sweep`: `interference.py` now uses
+        fcl only as a broadphase and measures overlap as `manifold3d` boolean
+        intersection *volume* (the measure the hand-written sweeps used and got right);
+        `stop_on_contact` marks a joint whose travel ends against another body, so first
+        contact is reported as its mechanical stop (`contact_limited_stop` warning with
+        the achieved range) instead of a `motion_collision`. Implementing it surfaced a
+        third defect the proposal had missed: the sweep walked `required_range` lo->hi,
+        so a fold declared `[-90, 0]` started at -90 -- maximum interpenetration, a pose
+        reachable only through the joint's own stop -- and reported that first sample as
+        the stop. Fixed by travelling OUTWARD from the authored zero (`travel_arms`),
+        splitting a straddling range into two independent arms. Verified against the C5
+        Phone-Holder cradle/plate hinge: stop reported at -54.0deg (true first contact
+        -53.5deg, offset by the 0.1mm^3 tolerance) with min clearance 0.2mm, the designed
+        value -- previously a range-wide 5557mm^3 collision error on a part that folds
+        cleanly in the hand.
+        STILL OPEN from the original ad-hoc sweeps: the minimal-cutout search ("how tall
+        must the notch be to clear this swing?"), which the phone-holder session answered
+        by hand with a binary search over geometry edits. That is a search loop over
+        edits, not a measurement change -- its own change if wanted.
   - [ ] hinge design-rule reference: rounds 5-6 were both instances of one geometric
         rule the LLM got wrong twice and the user derived: for a flat face to fold
         flush against a target plane at exactly +-90deg, the pivot axis must stand off

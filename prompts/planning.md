@@ -147,6 +147,13 @@ Before committing to any dimension values, populate `planning_notes` with your r
    `axis_origin_mm`/`axis_dir`/`type`/`required_range`/`step` directly (optionally
    `mechanical_limit` for a numeric sanity bound) -- never omit the whole
    `kinematics` entry just because no block fits; the sweep needs no block at all.
+   Set `stop_on_contact: true` when the joint's travel ENDS by resting against
+   another body (a folding leaf closing onto its plate, a lid onto its rim) rather
+   than at a specific value: first contact is then reported as the mechanical stop
+   with the angle actually achieved, instead of as a collision. Without it, such a
+   joint can never pass -- the poses past its stop necessarily interpenetrate even
+   though the mechanism cannot reach them. Declare the ideal travel in
+   `required_range` anyway; the check reports the shortfall for you to judge.
 
 10. **Determine the principal load for every part with `load` -- do not leave it to be
     guessed.** FDM is weakest across layer lines under tension, bending, or shear, so
