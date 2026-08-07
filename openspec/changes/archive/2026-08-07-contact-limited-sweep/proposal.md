@@ -45,8 +45,10 @@ mm³"). The measure that worked by hand is the one the pipeline does not use.
 
 Together these are `TODO.md`'s "kinematics for custom (block-free) hinges" part (b) --
 promoting the ad-hoc sweep into a first-class tool that reports binding angle, colliding body,
-and clearance. This change is that tool. The sibling `blockless-kinematics` change is what
-lets a custom hinge declare the entry that reaches it.
+and clearance. This change is that tool. Part (a) has already shipped (archived change
+`blockless-kinematics`): `block` is optional, so a custom hinge can now *declare* the entry
+that reaches this sweep. That makes part (b) the remaining blocker -- a phone-holder-style
+plan can finally be written, and would immediately hit the pass/fail framing described above.
 
 ## What Changes
 
@@ -124,17 +126,27 @@ None. Both halves modify existing capabilities.
   volume measurement; tolerance parameter renamed and re-unitised.
 - `src/kinematic_check.py` -- `_sweep_collision` returns achieved range + minimum clearance +
   overlap volume; bisection refinement; `stop_on_contact` branch; `--penetration-tol` unit
-  change.
-- `src/keep_out_check.py` -- call-site update only; any-contact semantics preserved.
+  change (its `--help` text still says "penetration depth (mm)"). This lands on top of the
+  already-shipped `blockless-kinematics` and `build-artifact-freshness` work: the entry loop
+  now also resolves `mechanical_limit` from the entry, emits `range_check_not_applicable`, and
+  filters `stale_artifact` unions out of the sweep. None of that changes, but the new
+  achieved-range reporting must compose with it -- in particular a `stale_artifact` entry is
+  skipped before the sweep, so it produces no achieved-range finding.
+- `src/keep_out_check.py` -- call-site update only; any-contact semantics preserved. It and
+  `kinematic_check.py` are the *only* two callers of the primitive (`plate_clearance_check.py`
+  measures minimum surface distance and does not go through `interference.py`), so the
+  tolerance re-unitisation has a blast radius of exactly two call sites.
 - `src/build_plan_schema.json` -- `stop_on_contact` on `kinematics_entry`.
-- `tests/test_interference.py`, `tests/test_kinematic_check.py` -- flush-contact-is-not-binding
-  must become a regression test; the phone-holder fold is the natural fixture (a known-good
-  assembly that today's check fails and the fixed check must report as stopping at -53.5 deg).
+- `tests/test_interference.py`, `tests/test_kinematic_check.py` (both already exist) --
+  flush-contact-is-not-binding must become a regression test; the phone-holder fold is the
+  natural fixture (a known-good assembly that today's check fails and the fixed check must
+  report as stopping at -53.5 deg). A synthetic two-box tangency fixture covers the same
+  property without shipping 300KB of STL, and is the better default.
 - `skill/phase3_build.md`, `prompts/planning.md` -- when to declare `stop_on_contact`, and how
   to read an achieved-range finding.
 - `CLAUDE.md` -- `interference.py` and `kinematic_check.py` rows.
-- `TODO.md` -- part (b) of the "kinematics for custom (block-free) hinges" sub-item; note the
-  minimum-cutout search as still open.
-- Sequencing: independent of `blockless-kinematics` (they touch different code paths and can
-  land in either order), but the two together are what would have let the phone-holder session
-  answer its fold question with a tool instead of seven hand-written sweeps.
+- `TODO.md` -- mark part (b) of the "kinematics for custom (block-free) hinges" sub-item done;
+  note the minimum-cutout search as still open. Part (a) is already marked done there.
+- Sequencing: no dependency left. Part (a) shipped, so this change completes the sub-item and
+  the two together are what would have let the phone-holder session answer its fold question
+  with a tool instead of seven hand-written sweeps.

@@ -162,7 +162,7 @@ def run_keep_out_check(plan: dict, stl_dir: str, *, parts_dir: str | None = None
         zone_mesh = trimesh.load(zone_path, force="mesh")
         others = [(uid, trimesh.load(stl_path(stl_dir, uid), force="mesh")) for _pid, uid in fixed]
 
-        names = check_interference(zone_mesh, others, penetration_tol_mm=None)
+        names = check_interference(zone_mesh, others, penetration_tol_mm3=None)
         if names:
             for uid in sorted(names):
                 issues.append(
