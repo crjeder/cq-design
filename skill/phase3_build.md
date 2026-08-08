@@ -98,7 +98,7 @@ agent.
   (Sonnet-class); a default, not a hard requirement — record whatever actually ran in
   telemetry. The agent's prompt is the Step 1 rendered `prompts/part.md` **plus** the
   Part-loop operating instructions below (Steps 2-5, including the return contract) —
-  the agent owns its own write/lint/validate/render/self-check loop for up to 3 attempts
+  the agent owns its own write/lint/validate/render loop for up to 3 attempts
   and does not interact with the user. Prepend the cross-part pitfall note (see below)
   when this session has already built a prior part. Main never receives rendered image
   content from the agent — only the paths and the structured return described in
@@ -349,21 +349,15 @@ feature they specifically asked about.
 
 **Step 4 — Decide**
 
-Handle geometry errors first. What counts as "done" for this attempt then branches by
-executor — **progressive (inline)** keeps the full visual self-review as the bar;
-**autonomous (builder agent)** keeps only a light self-check, because the real
-acceptance bar for an autonomous part is the **Implementation audit** below, run by a
-fresh-context agent that never saw the script.
+Handle geometry errors first, then decide what this attempt returns.
 
 1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the review for this attempt. Blocking types include `disconnected_body` (a union that split into separate solids — union or bridge the pieces so they fuse into one component).
 2. **`success: true` AND no blocking errors** →
-   - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union) plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not).
-     - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against). Advance to next part.
-     - **Any question answered "no"** AND attempt < 3 → record a `visual_mismatch` finding naming the failed question, the cited view, and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3).
-   - **Autonomous (builder agent):** run a **light self-check** only — scan the rendered tile and any section/detail files for an obviously broken result: a body that is visibly split apart, a declared `interfaces` entry with no corresponding feature anywhere in view, proportions grossly off the plan dimensions. This is a coarse filter to catch a clearly bad render before it reaches the auditor, not the full checklist.
-     - **Nothing obviously broken** → this attempt is accepted pending audit. Record `geometry.bbox` and the preview/section/detail paths, then return the **Builder return contract** (`status: passed`) — the audit below, not this self-check, is what finally accepts the part.
-     - **Something obviously broken** AND attempt < 3 → treat it like a targeted fix: describe the miss, fix the script (step 2), re-validate (step 3).
-3. **Attempt 3 exhausted** with remaining geometry errors or an unresolved self-check/visual-mismatch finding →
+   - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union) plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not). Per the checklist's coverage-first rule, also report any other discrepancy noticed, however low-confidence or minor, as an advisory finding (confidence + severity) — it does not fail a question or consume a retry.
+     - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against), and any advisory findings grouped separately under their own heading, not mixed with the checklist. Advance to next part.
+     - **Any question answered "no"** AND attempt < 3 → record a `visual_mismatch` finding naming the failed question, the cited view, and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3). Advisory findings from this attempt are not folded into the fix.
+   - **Autonomous (builder agent):** this attempt is accepted. Record `geometry.bbox` and the preview/section/detail paths, then return the **Builder return contract** (`status: passed`) without judging the render itself — the **Implementation audit** below, run by a fresh-context agent that never saw the script, is the acceptance bar for an autonomous part.
+3. **Attempt 3 exhausted** with remaining geometry errors or an unresolved visual-mismatch finding →
    - **Progressive (inline):** summarize the remaining errors and any visual mismatch to the user directly. Ask conversationally: provide a hint, accept the part as-is, or skip this part.
    - **Autonomous (builder agent):** return the **Builder return contract** with `status: blocked` and an `error_summary` — do not ask the user; the agent has no user channel. Main handles the ask via **Escalation** below.
 
@@ -426,10 +420,11 @@ ingests any image content, only these fields and the paths inside them:
 }
 ```
 
-`status: passed` means the light self-check found nothing obviously broken — it is
-**not** final acceptance; the part still owes the Implementation audit below.
-`status: blocked` means attempt 3 exhausted with unresolved geometry errors or a
-self-check finding; `error_summary` is what main shows the user in Escalation.
+`status: passed` means the part cleared its deterministic checks (lint, wrapper
+validation, rendering) — it is **not** final acceptance; the part still owes the
+Implementation audit below, which is what actually judges the render. `status: blocked`
+means attempt 3 exhausted with unresolved geometry errors or a visual-mismatch finding;
+`error_summary` is what main shows the user in Escalation.
 
 ## Escalation (blocked builder)
 
@@ -440,7 +435,7 @@ When a builder agent returns `status: blocked`:
 2. **Hint** → **resume the same builder agent** (the one already spawned for this part,
    not a new one) with the hint as its next message. The resumed agent keeps its full
    attempt history and context — a cold respawn would discard exactly the memory the
-   hint is meant to steer. It continues the write/lint/validate/render/self-check loop
+   hint is meant to steer. It continues the write/lint/validate/render loop
    with the hint applied and returns an updated **Builder return contract** when done.
 2. **Accept as-is** → treat the last attempt's render as the final result for this part;
    record it and advance. Skip the Implementation audit for this part (the user already
@@ -451,8 +446,9 @@ When a builder agent returns `status: blocked`:
 ## Implementation audit
 
 Every part a builder agent returns as `status: passed` is judged by a fresh-context
-**auditor agent** before it counts as accepted — this, not the builder's own light
-self-check, is the real acceptance bar for an autonomous part.
+**auditor agent** before it counts as accepted — the deterministic checks the builder
+passed are not a review of the render; this audit is the real acceptance bar for an
+autonomous part.
 
 1. **Spawn** one auditor agent per accepted part. Its prompt contains: the part's full
    `BUILD_PLAN.json` entry (dimensions, interfaces, blocks_needed, unions) and the
@@ -463,6 +459,8 @@ self-check, is the real acceptance bar for an autonomous part.
    Step 4's progressive-mode review would: one question per interface, block, and union,
    plus the universal invariants (single connected body, flat bed face, proportions,
    shape match, authored orientation), each answered against a specific cited view.
+   Per the checklist's coverage-first rule, report every discrepancy observed — not just
+   the ones that fail a question.
 3. **Return contract:**
 
 ```json
@@ -470,20 +468,29 @@ self-check, is the real acceptance bar for an autonomous part.
   "part_id": "<part id>",
   "verdict": "pass | fail",
   "failed_questions": [
-    {"question": "<checklist question>", "view": "<cited file>", "discrepancy": "<what's wrong>"}
+    {"question": "<checklist question>", "view": "<cited file>", "discrepancy": "<what's wrong>", "confidence": "<low|medium|high>", "severity": "blocking"}
+  ],
+  "findings": [
+    {"question": "<checklist question or observation>", "view": "<cited file>", "discrepancy": "<what's wrong>", "confidence": "<low|medium|high>", "severity": "advisory"}
   ]
 }
 ```
 
-4. **Pass** → the part is finally accepted. Advance to the next part.
-5. **Fail** → **resume the same builder agent** (not the auditor, and not a fresh
-   builder) with the named question, cited view, and discrepancy as a targeted
-   `visual_mismatch` fix — the builder still has its attempt history and script in
-   context. The builder re-enters step 2 for that fix, re-validates, and returns an
-   updated contract; re-spawn the auditor on the new preview paths. This does not
-   consume one of the builder's original 3 attempts against a part that already passed
-   its own loop — treat it as a bounded follow-up (one retry) before escalating to the
-   user the same way as **Escalation** above.
+`failed_questions` holds every checklist question answered "no" (`severity: blocking`,
+as before). `findings` holds every other observed discrepancy — low-confidence or minor
+— each carrying its own `confidence` and `severity: advisory`. An advisory finding does
+not fail the audit and is never folded into the fix prompt in step 5 below; it is
+reported to the user alongside the accepted part.
+4. **Pass** (`failed_questions` empty) → the part is finally accepted. Advance to the
+   next part, surfacing any `findings` to the user grouped separately from the review.
+5. **Fail** (`failed_questions` non-empty) → **resume the same builder agent** (not the
+   auditor, and not a fresh builder) with the named question, cited view, and
+   discrepancy as a targeted `visual_mismatch` fix — the builder still has its attempt
+   history and script in context. The builder re-enters step 2 for that fix,
+   re-validates, and returns an updated contract; re-spawn the auditor on the new
+   preview paths. This does not consume one of the builder's original 3 attempts
+   against a part that already passed its own loop — treat it as a bounded follow-up
+   (one retry) before escalating to the user the same way as **Escalation** above.
 
 ## Cross-part pitfall injection
 
@@ -530,9 +537,9 @@ the same bar as the autonomous path. Progressive build does not lower the criter
 
 Once every part in `plan["parts"]` has passed its part loop and, for autonomous parts,
 its Implementation audit (progressive parts pass on their own full Step 4 review), stop
-before optimizing print orientation or exporting anything. Both the builder's self-check
-and the auditor's checklist are Claude checking a render against the plan's own
-checklist — it is not the user checking the render against what they actually pictured.
+before optimizing print orientation or exporting anything. The auditor's checklist is
+Claude checking a render against the plan's own checklist — it is not the user checking
+the render against what they actually pictured.
 A part can pass that checklist and still be wrong in the user's eyes, and nothing
 upstream of this point has asked them to look.
 
@@ -768,7 +775,18 @@ Pass the union's own orientation result (one object split out of
 `flat_bottom_down`. The whole-model kinematic check runs once over the per-union
 assembled STLs produced by the model export.
 
-Parse `build/quality_gate.json` and proceed to Phase 4.
+Parse `build/quality_gate.json`. The gate is report-only (`--fix` is not passed) --
+it never rewrites the script itself. On a `severity: error` finding, re-enter Step 2's
+fix path for the offending part's script, using the finding's `type`, `message`, and
+`hint` as the correction, exactly as with a wrapper error from an earlier attempt --
+this keeps the fix inside the orchestrating session, with the plan, renders, and
+attempt history already in context, instead of a cold `claude -p` subprocess that has
+none of it. Re-run the gate after the fix. Bound gate-driven fix rounds at 2 per part;
+if `severity: error` findings remain after that, stop and summarize them to the user
+rather than retrying further. `severity: warning` findings do not trigger a fix round --
+surface them alongside the print recipe. (`--fix` restores the old cold-context fixer
+for standalone use outside this pipeline; the skill does not pass it.) Once the gate
+passes (or its remaining findings are escalated), proceed to Phase 4.
 
 The gate runs entirely in-process (trimesh + numpy geometry and overhang analysis); it needs no slicer or MCP. Real slicer-based printability validation (e.g. the orca-check MCP) is optional and external, not part of the gate.
 

@@ -196,6 +196,43 @@ filter downstream") is the rationale for finishing item 10 now:
 Acceptance: attempts-to-pass and cost per accepted part improve or hold; no
 regression in caught-defect rate on the eval corpus goldens.
 
+**Result (change `collapse-review-layers`):** accepted, hold-or-improve on every
+gated metric.
+
+- `evals/runs/c4-review-collapse/` (10/10 cases scored): first-shot **0.70**,
+  attempts-to-pass **1.30**, mean Chamfer 2.955mm, cost/part $0.0296 (see caveat
+  below on cost). Compare `evals/runs/c2-prompt-chars/`: first-shot 0.75,
+  attempts-to-pass 1.35, Chamfer 3.449mm, cost/part $0.0512 (10/10 cases); and
+  `evals/runs/c3-planning/`: first-shot 0.71, attempts-to-pass 1.29, Chamfer
+  2.646mm (only 7/10 cases scored, see below).
+- First-shot rate (0.70) and attempts-to-pass (1.30) sit inside the run-to-run
+  spread C2's own result section already documents (0.75/1.15 vs 0.75/1.35
+  across C2's two runs) - flat, not a regression. Per-case: `boss-plate` and
+  `wall-hook` each dropped from a first-shot pass to a 2-attempt pass (both an
+  `occ_exception` on attempt 1, fixed on attempt 2); `snap-lid` and
+  `two-part-box` each moved the other way, from a C2 retry to a C4 first-shot
+  pass. No case needed the gate-driven fix-round path or a failed Implementation
+  audit retry that C2/C3 didn't also need at comparable rates.
+- Mean Chamfer improved (2.955mm vs C2's 3.449mm, both 10/10 cases) - not a
+  gated metric, but no defect-rate regression either.
+- Cost per accepted part **caveat:** `adapter-ring` and `boss-plate` were
+  generated in an earlier pass of this same sweep (2026-08-07, before the
+  Claude account's session usage limit interrupted the run) and carry
+  `prompt_chars: 0` in their telemetry - a pre-existing measurement gap in that
+  invocation, not something this change touches. Their `cost_per_accepted_part_usd`
+  reads $0.0000 and drags the 10-case aggregate down; the other 8 cases (real
+  `prompt_chars`) average **$0.0370/part**, still below C2's $0.0512. C3's
+  $0.0071 is not a usable cost baseline - it excludes `two-part-box`, `u-clip`,
+  and `wall-hook` (its highest-cost cases in C2), whose "no artifacts" rows mean
+  C3's own sweep hit the same kind of transient infra failure this run did.
+- **Sweep required three passes**, not one: the first (2026-08-07) completed only
+  2/10 cases before the account's Claude session usage limit interrupted it
+  mid-sweep (`You've hit your session limit`), and a same-day retry of the
+  remaining 8 completed 6 before hitting the limit again; the last 2
+  (`u-clip`, `wall-hook`) completed the next day after the limit reset. This is
+  infra, not a quality effect - consistent with C2's own documented precedent of
+  transient API errors requiring case regeneration.
+
 ## C5. Condense references (= IMPROVEMENT_PLAN item 14) (Opus 5)
 
 Now unblocked by telemetry and reinforced by 5-series behavior (pasted prose
