@@ -268,22 +268,20 @@ Feed frequencies from item 8's telemetry.
 
 - Files: `src/run_cadquery_model.py` error mapping + SKILL.md error table rows.
 
-### 10. Collapse redundant review layers — OPEN
+### 10. Collapse redundant review layers — DONE
 
-`quality_gate.py` has a `--no-fix` flag (`allow_fix=not args.no_fix`) but the
-fix loop is still **on by default**; report-only is opt-in, not the default.
-The claude -p fix rounds have not been routed back into the inline part-loop
-fix path. Not started.
+Landed via `openspec/changes/collapse-review-layers`. `quality_gate.py`'s
+`run_gate` now defaults `allow_fix=False`; the CLI exposes opt-in `--fix`
+(replacing `--no-fix`). `skill/phase3_build.md`'s Quality gate section routes
+`severity: error` findings back into Step 2's inline fix path (bounded at 2
+rounds per part) instead of the cold `claude -p` subprocess. Also dropped the
+autonomous builder's redundant self-check (the fresh-context Implementation
+audit was already the real acceptance bar) and made the visual review
+coverage-first (every discrepancy reported with confidence/severity; the fix
+decision filters, not the review).
 
-Three overlapping correction loops exist: part-loop visual review (3 attempts), the
-design approval checkpoint, and the quality gate's embedded `claude -p` fix rounds
-(up to 2). The `claude -p` subprocess is the worst of them — it pays a cold context
-to fix findings the orchestrating Claude could fix inline with full planning context.
-Make the gate report-only by default (`--no-fix` behavior as default); route its
-findings back into the same inline part-loop fix path.
-
-- Files: `src/quality_gate.py` default flip, SKILL.md quality-gate section.
-- Also saves tokens (every `claude -p` round is a fresh full-context invocation).
+- Files: `src/quality_gate.py`, `skill/phase3_build.md`, `reference/Visual
+  Review Checklist.md`.
 
 ### 11. Restartability: request log + resume state — DONE
 

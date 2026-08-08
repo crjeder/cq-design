@@ -77,6 +77,13 @@ RATIONALE block states, using its own stated threshold.
 
 ## Rules
 
+- **Coverage-first reporting.** Report every discrepancy you observe, each with a
+  confidence and a severity, even one you are not sure about or judge minor. Do not
+  withhold an observation because it is low-confidence -- the fix decision filters
+  the list afterwards, the review does not filter what it reports. A finding recorded
+  as `advisory` is reported and displayed but does not by itself fail a question or
+  consume a retry attempt; a finding that answers a checklist question "no" is still a
+  blocking `visual_mismatch` exactly as before.
 - Judge against the plan and the user's request, not an idealized version. A
   deliberate design choice recorded in the plan is a pass.
 - Numeric concerns (exact wall thickness, exact bbox, overhang angle) are covered by

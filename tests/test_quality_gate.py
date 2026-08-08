@@ -1,5 +1,7 @@
 """Tests for quality_gate._analyze_stl overhang and geometry analysis."""
 
+import json
+
 import numpy as np
 import pytest
 import trimesh
@@ -135,3 +137,35 @@ def test_trimesh_missing_degrades_to_warning(monkeypatch, tmp_path):
     assert len(issues) == 1
     assert issues[0]["type"] == "check_skipped"
     assert issues[0]["severity"] == "warning"
+
+
+def test_default_run_gate_reports_without_fixing(monkeypatch, tmp_path):
+    # Regression: allow_fix defaults to False, so an erroring script must be left
+    # byte-identical and no fix round should run.
+    script = tmp_path / "part.py"
+    script_bytes = b"# original script\n"
+    script.write_bytes(script_bytes)
+    plan = tmp_path / "BUILD_PLAN.json"
+    plan.write_text(json.dumps({"constraints": {}}))
+
+    error_issue = {
+        "source": "wrapper",
+        "severity": "error",
+        "type": "non_watertight",
+        "message": "not watertight",
+        "hint": "fix it",
+    }
+    monkeypatch.setattr(
+        quality_gate, "_run_wrapper_check", lambda *a, **k: ([error_issue], None, None)
+    )
+
+    def _unexpected_call(*a, **k):
+        raise AssertionError("_call_claude must not run when allow_fix is False")
+
+    monkeypatch.setattr(quality_gate, "_call_claude", _unexpected_call)
+
+    report = quality_gate.run_gate(str(script), str(plan))
+
+    assert report["fix_rounds"] == 0
+    assert report["passed"] is False
+    assert script.read_bytes() == script_bytes
