@@ -12,14 +12,15 @@ Runs these checks against the final model script:
   5. Keep-out zones: no union may intrude on a declared keep-out zone, excluding the
      zone's own declaring part (once, outside the fix loop) via keep_out_check.py
 
-Aggregates issues with severity (error/warning), generates a targeted fix prompt
-if any errors are found, invokes `claude -p` for up to MAX_FIX_ROUNDS, then
-re-runs the gate. On a clean pass emits a print recipe JSON.
+Aggregates issues with severity (error/warning) and emits a report. Report-only by
+default; pass --fix to generate a targeted fix prompt and invoke `claude -p` for up
+to MAX_FIX_ROUNDS (cold-context, no plan/render/attempt history) before re-running
+the gate. On a clean pass emits a print recipe JSON.
 
 Usage:
     python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json
     python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json --stl build/body.stl
-    python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json --no-fix
+    python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json --fix
 """
 
 import argparse
@@ -496,7 +497,7 @@ def run_gate(
     script_path: str,
     plan_path: str,
     stl_path: str | None = None,
-    allow_fix: bool = True,
+    allow_fix: bool = False,
     stl_dir: str | None = None,
     model_3mf_path: str | None = None,
     orientation: dict | None = None,
@@ -632,9 +633,10 @@ def main():
         "recipe's orientation field",
     )
     parser.add_argument(
-        "--no-fix",
+        "--fix",
         action="store_true",
-        help="Report issues only; do not invoke claude for fixes",
+        help="Invoke claude to fix errors (cold-context, no plan/render/attempt history); "
+        "default is report-only",
     )
     args = parser.parse_args()
 
@@ -647,7 +649,7 @@ def main():
         args.script,
         args.plan,
         stl_path=args.stl,
-        allow_fix=not args.no_fix,
+        allow_fix=args.fix,
         stl_dir=args.stl_dir,
         model_3mf_path=args.model_3mf,
         orientation=orientation,
