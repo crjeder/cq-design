@@ -312,6 +312,41 @@ measurably down; sweep completeness is the caveat.
 Acceptance: routing configurable without editing skill files; A/B scorecards
 archived; pick the cheaper configuration that holds first-shot rate.
 
+### C6 result
+
+Config plumbing (skill_config.json, quality_gate.py wiring, subagent cap) landed
+as designed in `openspec/changes/model-routing-config`. The `.claude/agents/*.md`
+step above was dropped from scope during design review (`design.md`'s
+Non-Goals) — the part prompt is already a fully rendered, self-contained
+Agent-tool prompt with a per-call model override, so a second file naming the
+same model would drift from the config.
+
+**A/B run:** budget constraints reduced the sweep from the full 10-case corpus
+to the single case expected to show the largest cost delta —
+`two-part-box` (2 parts, so 2x the authoring calls of every other case),
+run once per arm rather than the originally planned full-corpus sweep. This is
+explicitly a smaller sample than C2's documented run-to-run spread (0.85/1.15
+vs 0.75/1.35) was measured over, so treat the numbers below as directional,
+not a statistically separated result:
+
+| arm | first-shot | attempts-to-pass | chamfer (mm) | cost/part (USD) |
+|---|---|---|---|---|
+| opus-inline (`part_author: inline`, orchestrator on `claude-opus-5`) | 1.00 | 1.00 | 0.436 | 0.0184 |
+| sonnet-agent (`part_author: claude-sonnet-5`, subagent) | 1.00 | 1.00 | 0.535 | 0.0103 |
+
+Both arms passed first-shot on both parts with no retries and both meshes are
+well inside the case's 1.0 mm tolerance. First-shot rate is tied, so it does
+not decide between the arms; sonnet-agent is ~44% cheaper per part. That cost
+gap is directionally consistent with C6's own hypothesis (Opus 5 pays its
+per-token price on every part when run inline; a Sonnet-5 subagent doesn't),
+but n=1 case is not enough to rule out run-to-run noise of that size.
+
+**Decision:** sonnet-agent was already the shipped default before this A/B
+(`src/skill_config.default.json`'s `part_author: claude-sonnet-5`), and it is
+also the arm that came out ahead on this run — no default flip needed. The
+full 10-case sweep from tasks 6.1/6.2 was not run; if a future session wants a
+statistically separated result, re-run both arms across the whole corpus.
+
 ## C7. Re-run the engineering-hooks A/B (= IMPROVEMENT_PLAN item 5 section 4)
 
 On the post-C6 configuration, run the eval corpus with the ENGINEERING

@@ -1,0 +1,8 @@
+{
+  "_comment": "Model per LLM role. 'inline' = run in the calling session (no spawn, no --model). Fable 5 is 2x Opus 5 price and targets long-horizon work, not one-shot planning - measure before setting planner to claude-fable-5.",
+  "models": {
+    "planner": "claude-opus-5",
+    "part_author": "claude-sonnet-5",
+    "fix_loop": "inline"
+  }
+}

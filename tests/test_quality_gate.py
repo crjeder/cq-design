@@ -139,6 +139,64 @@ def test_trimesh_missing_degrades_to_warning(monkeypatch, tmp_path):
     assert issues[0]["severity"] == "warning"
 
 
+def test_fix_loop_model_missing_config_is_none(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    assert quality_gate._fix_loop_model() is None
+
+
+def test_fix_loop_model_inline_is_none(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "skill_config.json").write_text(json.dumps({"models": {"fix_loop": "inline"}}))
+    assert quality_gate._fix_loop_model() is None
+
+
+def test_fix_loop_model_configured(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "skill_config.json").write_text(
+        json.dumps({"models": {"fix_loop": "claude-sonnet-5"}})
+    )
+    assert quality_gate._fix_loop_model() == "claude-sonnet-5"
+
+
+def test_call_claude_appends_model_flag_when_configured(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "skill_config.json").write_text(
+        json.dumps({"models": {"fix_loop": "claude-sonnet-5"}})
+    )
+    captured = {}
+
+    class _Result:
+        returncode = 0
+        stdout = "```python\nresult = 1\n```"
+        stderr = ""
+
+    def _fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr(quality_gate.subprocess, "run", _fake_run)
+    quality_gate._call_claude("fix this")
+    assert captured["cmd"] == ["claude", "-p", "fix this", "--model", "claude-sonnet-5"]
+
+
+def test_call_claude_no_model_flag_when_inline(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    captured = {}
+
+    class _Result:
+        returncode = 0
+        stdout = "```python\nresult = 1\n```"
+        stderr = ""
+
+    def _fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr(quality_gate.subprocess, "run", _fake_run)
+    quality_gate._call_claude("fix this")
+    assert captured["cmd"] == ["claude", "-p", "fix this"]
+
+
 def test_default_run_gate_reports_without_fixing(monkeypatch, tmp_path):
     # Regression: allow_fix defaults to False, so an erroring script must be left
     # byte-identical and no fix round should run.

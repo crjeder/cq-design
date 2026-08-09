@@ -285,10 +285,25 @@ def _render_fix_prompt(script_path: str, issues: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _fix_loop_model() -> str | None:
+    """Read models.fix_loop from ./skill_config.json; None means no --model flag."""
+    try:
+        with open("skill_config.json", encoding="utf-8") as f:
+            config = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    model = config.get("models", {}).get("fix_loop", "inline")
+    return None if model == "inline" else model
+
+
 def _call_claude(prompt_text: str) -> str:
     """Call claude -p with the prompt text, return generated code."""
+    cmd = ["claude", "-p", prompt_text]
+    model = _fix_loop_model()
+    if model:
+        cmd += ["--model", model]
     result = subprocess.run(
-        ["claude", "-p", prompt_text],
+        cmd,
         capture_output=True,
         text=True,
         timeout=120,

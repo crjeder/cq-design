@@ -81,8 +81,8 @@ gate, orange = main-session user interaction.
 | Agent | Model | Input | Output | Why it is an agent |
 |---|---|---|---|---|
 | Research | default | product names, lookup targets | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
-| Planner | strong (Fable/Opus) | rendered `prompts/planning.md` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
-| Part builder (x N) | cheaper (Sonnet) | rendered `prompts/part.md` (already self-contained by design) | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
+| Planner | `skill_config.json`'s `models.planner` (default strong, e.g. Opus) | rendered `prompts/planning.md` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
+| Part builder (x N) | `skill_config.json`'s `models.part_author` (default mid-tier, e.g. Sonnet; `"inline"` skips the spawn) | rendered `prompts/part.md` (already self-contained by design) | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
 | Implementation auditor | default (vision) | plan part entries + preview/section PNGs, NOT the scripts | per-question pass/fail with cited views | kills self-review bias - the author never grades its own homework |
 
 ## Design rules

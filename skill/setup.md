@@ -92,3 +92,29 @@ when the file is absent. When the seed step runs, tell the user in the same turn
 default profile was created and where to edit it. If validation fails (the file exists but was
 hand-edited into an invalid state), report the errors and fall back to asking the user for the
 affected field(s) in Phase 1, exactly as if no profile existed.
+
+## Model routing config bootstrap (first use per directory)
+
+`skill_config.json` in the working directory names which model runs each LLM role
+(`models.planner`, `models.part_author`, `models.fix_loop`). Seed it the same way as
+the printer profile, immediately after it:
+
+```bash
+if [ ! -f skill_config.json ]; then
+    cp "$SKILL_DIR/src/skill_config.default.json" ./skill_config.json
+    echo "Seeded skill_config.json with default model routing -- edit it to change which model runs each role."
+fi
+```
+
+```powershell
+# Windows (PowerShell)
+if (-not (Test-Path skill_config.json)) {
+    Copy-Item "$SKILL_DIR/src/skill_config.default.json" ./skill_config.json
+    Write-Host "Seeded skill_config.json with default model routing -- edit it to change which model runs each role."
+}
+```
+
+An existing `skill_config.json` is never overwritten, re-seeded, or merged. A missing
+file is not an error -- Phase 2, Phase 3, and the quality gate's `--fix` path each fall
+back to their own documented default (see those sections) when the file or a role key
+is absent.
