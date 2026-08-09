@@ -15,9 +15,11 @@ Build the planning prompt from the template in `prompts/planning.md`. Substitute
 ## Planner agent
 
 Spawn a single agent (Agent tool) whose prompt is the fully rendered `prompts/planning.md`
-from above, model override: the strongest available. A topology or interface-tree error in
-the plan costs a full rebuild of every part downstream of it, which is why this role gets
-the strongest model rather than the builder's mid-tier default. The agent has no user
+from above, model override: read `models.planner` from `skill_config.json` in the working
+directory; if the file or key is absent, fall back to the strongest available model. A
+topology or interface-tree error in the plan costs a full rebuild of every part downstream
+of it, which is why this role defaults to the strongest model rather than the builder's
+mid-tier default. The agent has no user
 channel — everything user-facing (topology clarification, dimension checkpoint approval,
 the plan summary below) already happened in main before this call, or happens in main
 after it returns.
