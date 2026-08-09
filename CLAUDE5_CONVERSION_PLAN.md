@@ -250,6 +250,41 @@ anchors attention and suppresses latent knowledge).
 Acceptance: eval scorecard no worse than post-C4; rendered part-prompt token
 count measurably down (telemetry `prompt size` field).
 
+**Result (change `condense-references`):** accepted, no regression, prompt size
+measurably down; sweep completeness is the caveat.
+
+- `reference/CadQuery Anti-Patterns.md`: 13,118 -> 8,488 bytes (64.7%).
+  `reference/CadQuery Pattern Reference.md`: 23,704 -> 15,396 bytes (64.9%).
+  Every Tier 1/Tier 2 anti-pattern entry and every Common Gotcha (including the
+  numbered #12 cited by `skill/phase3_build.md`) survived condensation; cuts
+  concentrated on the pattern reference's recallable/tutorial half (Basic
+  Shapes, BRep Vocabulary, Table of Contents, Accessing Objects & Debugging,
+  meta-documentation pointer paragraphs) per the evidence-backed retain/cut
+  table in `openspec/changes/condense-references/design.md`.
+- `evals/runs/c5-condensed/`: two sweep attempts, both interrupted by the
+  account's Claude session usage limit before completing all 10 cases (first
+  attempt: 2/10; after the reset, second attempt: 9/10 — `wall-hook` hit the
+  limit again right at the end). This is the same infra pattern C4's result
+  section already documents, not a quality effect. 9/10 was treated as
+  sufficient rather than attempting a third sweep.
+- Comparing the same 9 cases (excluding `wall-hook` from both sides):
+  first-shot rate 7/9 = 0.778 on both C4 and C5-condensed; mean
+  attempts-to-pass 11/9 = 1.222 on both. Identical aggregate, but the failing
+  cases swapped — C4 failed `boss-plate`/`l-bracket` first-shot, C5-condensed
+  failed `l-bracket`/`snap-lid` (`boss-plate` passed first-shot this time).
+  This is the same run-to-run spread C2's result section already documents
+  (0.85/1.15 vs 0.75/1.35 across two identical-prompt runs) — the aggregate
+  holding while individual cases swap is exactly what that spread predicts, not
+  evidence of a per-case regression. No case needed the cuts narrowed.
+- Cold-render `prompt_chars`: thin sample (n=2 of 11 telemetry records exceed
+  the 15,000-char cold/inline split), both from `two-part-box`'s two parts
+  (46,885 and 25,452) — mean **36,168.5**, well below the `c2-prompt-chars`
+  cold-cluster mean of **90,098.9** (n=7, computed fresh from that run's
+  `attempts.jsonl` since C2's own result section never isolated the cold
+  subset). Directionally consistent with the ~35% document-size cut but not a
+  controlled re-run of the same cold-triggering conditions as C2, so treat as
+  supporting evidence, not a matched before/after pair.
+
 ## C6. Model routing with 5-series names (= IMPROVEMENT_PLAN item 15) (Sonnet 5 ok)
 
 1. New `skill_config.json` (seeded like `printer_profile.json`), `models`
