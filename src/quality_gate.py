@@ -292,7 +292,7 @@ def _fix_loop_model() -> str | None:
             config = json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
-    model = config.get("models", {}).get("fix_loop", "inline")
+    model = (config.get("models") or {}).get("fix_loop", "inline")
     return None if model == "inline" else model
 
 
