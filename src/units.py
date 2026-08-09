@@ -17,6 +17,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -206,9 +207,13 @@ def keep_out_stl_name(part_id: str, zone_name: str) -> str:
     (`model_export.export_model`) and the reader (`keep_out_check`).
 
     Prefixed and part-qualified so it is unambiguous in a shared STL directory and never
-    collides with a real union's `<union_id>.stl`.
+    collides with a real union's `<union_id>.stl`. `zone_name` is author-supplied (a dict
+    key from a part script's `result["keep_out"]`), so it is sanitized to a safe filename
+    component before use -- otherwise a path separator or `..` segment could escape
+    `stl_dir`.
     """
-    return f"{KEEP_OUT_KEY}__{part_id}__{zone_name}.stl"
+    safe_zone_name = re.sub(r"[^A-Za-z0-9_-]", "_", zone_name)
+    return f"{KEEP_OUT_KEY}__{part_id}__{safe_zone_name}.stl"
 
 
 def iter_kinematics_entries(kinematics: list[dict]) -> Iterator[dict]:

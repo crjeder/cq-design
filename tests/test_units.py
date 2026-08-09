@@ -65,3 +65,10 @@ def test_resolve_keep_out_non_dict_result_returns_empty():
 def test_keep_out_stl_name_is_part_qualified_and_prefixed():
     name = keep_out_stl_name("enclosure", "screwdriver_clearance")
     assert name == f"{KEEP_OUT_KEY}__enclosure__screwdriver_clearance.stl"
+
+
+def test_keep_out_stl_name_sanitizes_unsafe_zone_name():
+    name = keep_out_stl_name("enclosure", "../../etc/passwd")
+    assert "/" not in name
+    assert ".." not in name
+    assert name == f"{KEEP_OUT_KEY}__enclosure________etc_passwd.stl"

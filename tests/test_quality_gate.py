@@ -150,6 +150,12 @@ def test_fix_loop_model_inline_is_none(monkeypatch, tmp_path):
     assert quality_gate._fix_loop_model() is None
 
 
+def test_fix_loop_model_null_models_is_none(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "skill_config.json").write_text(json.dumps({"models": None}))
+    assert quality_gate._fix_loop_model() is None
+
+
 def test_fix_loop_model_configured(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "skill_config.json").write_text(
