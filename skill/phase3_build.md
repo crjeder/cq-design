@@ -94,15 +94,23 @@ autonomous part, whether the Part loop below runs inline or inside a spawned bui
 agent.
 
 - **Autonomous part → builder agent.** Spawn one Agent-tool call per part, sequentially
-  (never in parallel — see Telemetry append safety below). Model override: mid-tier
-  (Sonnet-class); a default, not a hard requirement — record whatever actually ran in
-  telemetry. The agent's prompt is the Step 1 rendered `prompts/part.md` **plus** the
+  (never in parallel — see Telemetry append safety below). Model override: read
+  `models.part_author` from `skill_config.json` in the working directory; if the file or
+  key is absent, fall back to mid-tier (Sonnet-class) — a default, not a hard
+  requirement — record whatever actually ran in telemetry. If `models.part_author` is
+  `"inline"`, do not spawn a builder agent — run the Part loop below in the main session
+  instead, exactly like a progressive part's authoring but without per-stage checkpoints.
+  The agent's prompt is the Step 1 rendered `prompts/part.md` **plus** the
   Part-loop operating instructions below (Steps 2-5, including the return contract) —
   the agent owns its own write/lint/validate/render loop for up to 3 attempts
   and does not interact with the user. Prepend the cross-part pitfall note (see below)
   when this session has already built a prior part. Main never receives rendered image
   content from the agent — only the paths and the structured return described in
-  **Builder return contract**.
+  **Builder return contract**. A part gets at most one builder agent: no additional
+  agent is spawned to review, verify, double-check, or re-run its work — the fresh-context
+  implementation auditor (below) is the single review agent, and the deterministic checks
+  are programs, not agents. A failed attempt or an escalation with a user hint resumes the
+  same builder agent rather than spawning a second one for that part.
 - **Progressive part → inline, unchanged.** Runs in the main session exactly as
   documented in **Progressive build** below, with its per-stage user checkpoints. Not
   agentified — those checkpoints are user dialog by definition.

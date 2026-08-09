@@ -125,7 +125,7 @@ run real CadQuery scripts (a few seconds each).
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
-    quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes
+    quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes (model from skill_config.json's models.fix_loop)
     plan_validate.py         # BUILD_PLAN.json schema + inventory cross-check
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
     printer_profile_validate.py # printer_profile.json schema validation + field write-back
@@ -149,6 +149,7 @@ run real CadQuery scripts (a few seconds each).
     build_plan_schema.json   # JSON Schema draft-7 for BUILD_PLAN.json
     printer_profile_schema.json  # JSON Schema draft-7 for printer_profile.json
     printer_profile.default.json # Default printer_profile.json seeded into a fresh directory
+    skill_config.default.json # Default skill_config.json (models.planner/part_author/fix_loop) seeded into a fresh directory
 
     blocks/
       __init__.py            # Re-exports all blocks
