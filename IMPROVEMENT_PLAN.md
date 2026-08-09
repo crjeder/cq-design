@@ -22,7 +22,7 @@ blocks/inventory.json (34 blocks), TODO.md, occ-error.md.
 | 12 | Split SKILL.md | DONE |
 | 13 | Stop re-substituting references | DONE |
 | 14 | Condense references against measured failures | DONE |
-| 15 | Per-phase model routing | PARTIAL |
+| 15 | Per-phase model routing | DONE |
 
 Also in flight, not one of the original 15: `openspec/changes/import-params-from-py/`
 (reconcile a hand-edited script's params back into `BUILD_PLAN.json`) — proposed,
