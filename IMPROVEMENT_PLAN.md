@@ -21,7 +21,7 @@ blocks/inventory.json (34 blocks), TODO.md, occ-error.md.
 | 11 | Restartability: request log + resume | DONE |
 | 12 | Split SKILL.md | DONE |
 | 13 | Stop re-substituting references | DONE |
-| 14 | Condense references against measured failures | OPEN |
+| 14 | Condense references against measured failures | DONE |
 | 15 | Per-phase model routing | PARTIAL |
 
 Also in flight, not one of the original 15: `openspec/changes/import-params-from-py/`
@@ -345,17 +345,19 @@ Exception: any prompt sent to a cold context — a subprocess or a subagent (ite
 - Files: `prompts/part.md`, SKILL.md Step 1 substitution table.
 - Largest single token saving after item 12; zero information loss inline.
 
-### 14. Condense references against measured failures — OPEN
+### 14. Condense references against measured failures — DONE
 
-Reference files unchanged (`reference/CadQuery Pattern Reference.md`,
-`reference/CadQuery Anti-Patterns.md` still full size). Gated on item 8's
-telemetry, which now exists — this item is unblocked but not started.
-
-Once item 8's telemetry shows which reference sections actually correlate with
-avoided (or unavoided) failures, cut dead weight from the 24 KB pattern reference and
-13 KB anti-patterns file. Archetype templates (item 2) carry the common idioms
-implicitly, shrinking what the reference must teach. Target: -40% with no measured
-regression on the eval set.
+Landed via `condense-references` (CLAUDE5_CONVERSION_PLAN.md C5). Both reference
+files cut to their evidence-backed content: `CadQuery Pattern Reference.md`
+23,704 -> 15,396 bytes (64.9%), `CadQuery Anti-Patterns.md` 13,118 -> 8,488 bytes
+(64.7%) — short of the original -40% target (65% vs 60%) but every retained
+section is justified against `build/attempts.jsonl` error-type evidence or a
+non-recallable signature/table/contract; no Tier 1/Tier 2 anti-pattern entry or
+Common Gotcha was cut. Eval sweep held first-shot rate and attempts-to-pass
+against the post-C4 baseline (aggregate identical on the matched 9/10-case
+subset; the sweep never completed a clean 10/10 due to Claude session usage
+limits, see C5's result block for the honest accounting) and showed lower
+cold-render `prompt_chars` on the cases that triggered a cold render.
 
 ### 15. Per-phase model routing (premium planner, cheaper coder) — PARTIAL
 
