@@ -14,11 +14,24 @@ change lives in that change's `tasks.md`, not here.
       shipped via openspec change `add-early-write-journal`: `build/journal.md` append-only
       milestone log + `skill/resume.md` resume procedure; `parameters.py` write moved to the
       Phase 1 dimension checkpoint.
-- [ ] Improve cross section selection. The renders do not show anything useful.
+- [x] Improve cross section selection. The renders do not show anything useful.
       User's position (2026-08-11): sections should concentrate on (a) features the
       LLM has clarification questions about, (b) features the human has complained
       about, (c) all other features mentioned in the conversation -- in that priority
-      order. Explored 2026-08-11, findings:
+      order. DONE via openspec change `improve-cross-section-selection`:
+      `skill/phase3_build.md`'s Step 3 `--extra-section` guidance is now an
+      unconditional rule (was a skippable judgement call) -- every named+positioned
+      `interfaces[]` entry is a cut candidate, ranked into 3 tiers by
+      `request_log_search.py <name>` match (clarification > correction > unmatched,
+      most-recent-first within a tier via request_log's append-only order), capped at
+      3 cuts, axis chosen from the interface's `wall` field (or largest-magnitude
+      `position_mm` component as fallback). Bbox-center fallback now only fires when a
+      part has zero named+positioned interfaces. Doc/procedure-only change -- no
+      schema or renderer code touched (the `--extra-section` plumbing and
+      `interfaces[].name` field already shipped). Deliberately deferred to follow-up
+      if usage shows a need: a variable (non-fixed-3) cap, and guaranteeing tier-3
+      ("everything else") always gets at least one cut slot even when tiers 1-2 alone
+      fill the cap. Explored 2026-08-11, findings:
       - The CUTTING machinery is fine; only SELECTION is broken.
         `render_preview._section_cuts` already honors `--extra-section axis=pos`
         (repeatable, and it REPLACES the centerline cuts). The fallback is 3
