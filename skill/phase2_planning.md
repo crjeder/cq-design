@@ -128,13 +128,15 @@ The summary must include:
 
 **Parts**
 
-| # | ID | Description | W x D x H (mm) | Orientation | Load | Blocks |
-|---|-----|-------------|----------------|-------------|------|--------|
-| 1 | ... | ... | ... x ... x ... | ... | ... | ... |
+| # | ID | Description | W x D x H (mm) | Orientation | Load | Pose | Blocks |
+|---|-----|-------------|----------------|-------------|------|------|--------|
+| 1 | ... | ... | ... x ... x ... | ... | ... | ... | ... |
 
 (The `Load` column shows each part's `load.dir` hint (plus `load.type` when it differs
 from the `tension` default, e.g. `compression`), or `inferred` when the part omits it —
-it drives print-orientation strength scoring.)
+it drives print-orientation strength scoring. The `Pose` column shows each part's
+`pose_intent` verbatim, or `(none)` when absent -- never render `rotate`/`translate_mm`
+values here; the part author supplies and writes back `placement` in Phase 3.)
 
 **Print optimization**
 

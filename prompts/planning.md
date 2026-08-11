@@ -126,16 +126,29 @@ Before committing to any dimension values, populate `planning_notes` with your r
    (`[{member, part, dock}, {member, part, dock}]` -- `member` is one of the block's
    two ids, `part` is which part fuses it in, `dock` is that member's pose within its
    own part's authored frame, identity when omitted). Exactly one part is `root_part`,
-   anchored by its own `placement`; every other part reached via a `joints` entry gets
-   its assembled pose DERIVED from the mate chain and MUST NOT declare its own
-   `placement`.
+   anchored by its own author-supplied `placement` (identity when the author writes
+   none); every other part reached via a `joints` entry gets its assembled pose DERIVED
+   from the mate chain and MUST NOT declare its own `placement`.
 
-8. **Place parts in the shared assembled frame with `placement`.** If a part is
-   authored already in its assembled position, omit `placement` (identity). Otherwise
-   give an ordered `rotate` list of `{axis, angle_deg}` (applied in order, about
-   X/Y/Z through the origin) followed by `translate_mm`. Both model export and the
-   kinematic check consume `placement`. A part reached via a `joints` mate chain
-   (rule 7) is the one exception: its pose is derived, not authored.
+8. **Declare each part's goal pose in the shared assembled frame as `pose_intent`, not
+   as a transform.** Do not author `parts[].placement` -- the part author builds the
+   geometry and writes back the transform that carries it into the pose you state here;
+   see `assembled-pose-handback`. State `pose_intent` in terms a reader can check
+   against a render: which way the part faces and where it sits in the model (e.g.
+   "stands upright, outward face toward world -Y, at the tower's NE corner"). Never
+   restate a rotation sequence or translation vector in `pose_intent` -- that structured
+   form is `placement`, and it belongs to the author. Omit `pose_intent` when the part
+   is authored directly in its assembled position, or is reached via a `joints` mate
+   chain (rule 7), whose pose is derived either way. If a plan you are revising already
+   carries a planner-written `placement`, leave it as the author's starting proposal
+   rather than deleting it.
+
+8a. **Never restate a pose transform in prose.** `pose_intent` and the (author-supplied)
+   `placement` are the only two places a part's assembled pose is expressed. Do not
+   describe a rotation sequence or translation vector in `planning_notes` or
+   `part_notes` -- if you find yourself writing "rotated 90 deg about X, translated
+   to (...)", that belongs in `placement`, which you do not author; state the goal in
+   `pose_intent` instead.
 
 9. **Declare moving joints in `kinematics`.** Each entry names the `moving_union`;
    the fixed set is every other union in the model, so the sweep catches in-context
@@ -290,7 +303,7 @@ profile is present above, take these values from what the user stated in Phase 1
       "blocks_needed": [{"name": "hollow_box", "extents_mm": [50, 35, 20]}, "port_cutout"],
       "archetype": "enclosure-body",
       "plate": "body",
-      "placement": {"rotate": [{"axis": "X", "angle_deg": 0}], "translate_mm": [0, 0, 0]},
+      "pose_intent": "sits at the model origin, front face toward world -Y",
       "load": {"dir": [1, 0, 0]},
       "optimize_for": "strength",
       "show_face": {"dir": [0, 0, 1]},
@@ -324,7 +337,8 @@ profile is present above, take these values from what the user stated in Phase 1
 ```
 
 Note: `archetype` is optional -- set it per rule 3a when a part fits an entry in the
-archetype index, omit otherwise. `plate` and `placement` are optional (default: own plate, identity placement).
+archetype index, omit otherwise. `plate` is optional (default: own plate). `pose_intent`
+is optional per rule 8; you do not author `placement` -- the part author writes it back.
 `load` is schema-optional but you SHOULD determine and declare it per rule 10 (omitting
 it makes strength scoring orientation-neutral -- no load axis is guessed -- which is only
 correct when the part truly carries no structural load); `load.type` defaults to
