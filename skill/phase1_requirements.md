@@ -47,6 +47,14 @@ the pit recessed *into* the top face, 6.5mm deep, or a rim standing *proud* of i
 not an open-ended "does this look right?" Wait for the user's confirmation before
 continuing to dimension lookups or the plan.
 
+Once the user confirms, append one line to `build/journal.md` (see `skill/resume.md`):
+
+```
+- phase1/topology_confirmed: <one-line restatement of the confirmed reading>
+```
+
+Skip this line when the request had no topology ambiguity (nothing was asked).
+
 ## Dimension lookup with Playwright
 
 When a real product is mentioned, run the lookup workflow below in a **research agent**
@@ -135,3 +143,41 @@ After all dimension lookups are complete and **before generating `BUILD_PLAN.jso
 **Do not generate `BUILD_PLAN.json` until the user has explicitly approved or corrected the table.** If the user corrects a value (e.g., "the depth is 8.5, not 8.0"), record the correction and use the corrected value in the plan. If any rows are `missing` or `conflict`, ask the user for the correct value before continuing.
 
 Skip this checkpoint entirely if no real-world dimension lookups were performed (i.e., all dimensions were provided directly by the user).
+
+## Provenance write, at approval
+
+As soon as the user approves or corrects the table (same turn, before Phase 2 starts),
+write `parameters.py` at the project root: one module documenting every real-world
+measurement this design is based on -- both what the user stated directly and what came
+from web search (the table above). This is durable, human-readable provenance, separate
+from each part script's own internal `PARAMETERS` block (resolved/derived geometry
+values, not necessarily the raw sourced ones):
+
+```python
+"""Sourced real-world measurements this design is based on.
+
+Not imported by the build -- each part script carries its own resolved PARAMETERS
+block. This file keeps the underlying real-world numbers and their sources visible
+and easy to re-verify or update independent of how a part script used them.
+"""
+
+TV_BASE_WIDTH_MM = 385.0   # user-stated
+IPHONE_15_PRO_WIDTH_MM = 70.6  # apple.com/iphone-15-pro/specs, confirmed vs. gsmarena.com
+USB_C_PORT_MM = (9.0, 3.5)  # USB-IF spec, single-source
+```
+
+Include every dimension from the table regardless of its status (note
+`single-source`/`conflict`/`missing` in the comment as-is), plus any measurement the
+user stated directly that never went through a web lookup. Skip this file only when the
+design has no sourced real-world measurements whatsoever. Phase 2
+(`skill/phase2_planning.md`) updates this same file later only if planning introduces or
+changes a measurement -- it does not write it from scratch.
+
+Then append one line to `build/journal.md` (see `skill/resume.md`):
+
+```
+- phase1/dimensions_approved: parameters.py written, <n> dimensions recorded
+```
+
+If the checkpoint was skipped entirely (no lookups performed), skip this journal line
+too -- Phase 2's plan-approval milestone is the next one recorded.

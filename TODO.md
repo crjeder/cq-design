@@ -9,8 +9,11 @@ change lives in that change's `tasks.md`, not here.
       gaps found in `Block_Sources.md` (cq_gears/cqMore/cqterrain, PartCAD) and `occ-error.md`
       (the OCC deepcopy crash) added below as new items. `market_research.md`'s ideas were
       already fully reflected in the "From market research" section further down.
-- [ ] optimize `CLAUDE.md` it's to heavy
-- [ ] "write early": cheaper resumption after interrupt (e. g. out "Usage limit reached")
+- [x] optimize `CLAUDE.md` it's to heavy
+- [x] "write early": cheaper resumption after interrupt (e. g. out "Usage limit reached") --
+      shipped via openspec change `add-early-write-journal`: `build/journal.md` append-only
+      milestone log + `skill/resume.md` resume procedure; `parameters.py` write moved to the
+      Phase 1 dimension checkpoint.
 - [ ] Improve cross section selection. The renders do not show anything useful.
 - [x] check if there is a fillets before chamfers rule (improves visual quality) --
       was prematurely marked done against the horizontal/vertical Chamfer/Fillet
