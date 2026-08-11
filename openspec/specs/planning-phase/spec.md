@@ -82,7 +82,9 @@ The `BUILD_PLAN.json` schema SHALL include the following top-level fields:
 
 The schema SHALL NOT define an `assembly` object, and SHALL NOT make any field
 conditionally required on the number of parts. Multi-part assembly is expressed through
-each part's `placement`.
+each part's `placement`, which the part author supplies during the build phase (see
+`assembled-pose-handback`); the planner expresses the same relationship as each part's
+`pose_intent`.
 
 Each part object SHALL include:
 - `id` (string, required, unique)
@@ -91,6 +93,8 @@ Each part object SHALL include:
 - `interfaces` (array, may be empty)
 - `blocks_needed` (array of block names from inventory, may be empty)
 - `print_orientation` (string, required)
+- `pose_intent` (string, optional): the part's goal pose in the shared assembled frame,
+  stated as intent rather than as a rotation sequence
 
 Each `interfaces[]` entry SHALL require `type` (string) and MAY carry structured,
 machine-readable placement fields (all optional): `wall` (one of the six face names),
@@ -120,6 +124,28 @@ validates.
 #### Scenario: Multi-part plan needs no assembly object
 - **WHEN** a plan contains two or more parts
 - **THEN** validation passes without an `assembly` field, and the schema rejects an `assembly` property if one is supplied
+
+#### Scenario: Part declares its pose as intent
+- **WHEN** a planner positions a part away from the assembled-frame origin
+- **THEN** the part carries a `pose_intent` string and no planner-written `placement`
+
+#### Scenario: Plan without pose intent still validates
+- **WHEN** a part declares neither `pose_intent` nor `placement`
+- **THEN** validation passes; the part is treated as authored in the assembled frame
+
+---
+
+### Requirement: The plan summary shows each part's pose intent
+
+The human-readable plan summary shown at the Phase 2 review checkpoint SHALL surface
+each part's `pose_intent`, so the user reviews the assembled arrangement in the terms
+the planner stated it. The summary SHALL NOT render rotation sequences or translation
+vectors for parts.
+
+#### Scenario: Summary shows the arrangement
+- **WHEN** a multi-part plan is summarized for review
+- **THEN** each part's row or entry carries its `pose_intent` text, and no `rotate`/
+  `translate_mm` values appear in the summary
 
 ---
 
