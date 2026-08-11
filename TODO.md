@@ -152,12 +152,14 @@ change lives in that change's `tasks.md`, not here.
         minimum-contact floor) to `print_orientation.py` scoring. Cross-ref: memory
         `skill_gap_print_orientation_pathological_poses`, and the Tweaker-3
         reimplementation block below (Tweaker's bottom-contact formulas cover this).
-  - [ ] telemetry not written in real runs: `build/attempts.jsonl` is absent from this
+  - [x] telemetry not written in real runs: `build/attempts.jsonl` is absent from this
         7-round project, so the eval harness's first-shot-rate / attempts-to-pass /
         cost metrics have no data from exactly the kind of session they exist to
-        measure. Verify SKILL.md phase 3 actually prescribes the `telemetry.py append`
-        call per attempt (and per correction round), and make the quality gate warn
-        when the file is missing/empty at delivery.
+        measure. Verified `skill/phase3_build.md` Step 5 already prescribes the
+        `telemetry.py append` call per attempt (and per correction round) unambiguously
+        -- the prescription was not the gap. Shipped: `quality_gate.py` gained a
+        telemetry-presence stage that warns (never blocks) when `attempts.jsonl` is
+        missing/empty/unparseable, reported at delivery in `skill/phase4_deliver.md`.
   - [ ] formalize the `parameters.py` sourced-measurements convention: the project
         grew an ad-hoc root-level `parameters.py` ("sourced real-world measurements...
         not imported by the build") that keeps user-measured numbers + provenance +
