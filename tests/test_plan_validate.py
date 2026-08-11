@@ -112,6 +112,18 @@ def test_valid_show_face(plan_file):
     assert validate_plan(plan_file(plan)) == []
 
 
+def test_valid_pose_intent(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["pose_intent"] = "stands upright, outward face toward world -Y"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_missing_pose_intent_and_placement_is_valid(plan_file):
+    # VALID_PLAN omits both pose_intent and placement; absence must not be an error.
+    errors = validate_plan(plan_file(VALID_PLAN))
+    assert errors == []
+
+
 def _set_optimize_for_speed(p):
     p["optimize_for"] = "speed"
 
@@ -307,6 +319,52 @@ def test_keep_out_reserved_as_part_id_rejected(plan_file):
     assert any("reserved" in e and "keep_out" in e for e in errors)
 
 
+def _plan_with_pin_hinge_kinematics(placement=None):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    if placement is not None:
+        plan["parts"][0]["placement"] = placement
+    plan["kinematics"] = [
+        {
+            "joint_id": "j1",
+            "moving_union": "body",
+            "block": "pin_hinge",
+            "axis_origin_mm": [0, 0, 0],
+            "axis_dir": "Y",
+            "type": "revolute",
+            "required_range": [0, 90],
+            "step": 5,
+        }
+    ]
+    return plan
+
+
+def test_kinematics_no_placement_defers_axis_arm(plan_file):
+    """A moving union whose part has no placement yet: no joint_contract error,
+    and the deferred axis arm shows up as a non-fatal advisory."""
+    from plan_validate import check_deferred_axis_arms
+
+    plan = _plan_with_pin_hinge_kinematics(placement=None)
+    errors = validate_plan(plan_file(plan))
+    assert not any("joint axis_dir" in e or "not coaxial" in e for e in errors)
+
+    findings = check_deferred_axis_arms(plan)
+    assert len(findings) == 1
+    assert "j1" in findings[0]
+    assert "deferred" in findings[0]
+
+
+def test_kinematics_placement_rotating_axis_off_still_errors(plan_file):
+    """With a placement in place, a block axis rotated away from axis_dir still
+    produces the joint_contract error (D5: authoritative once placement exists)."""
+    plan = _plan_with_pin_hinge_kinematics(placement={"rotate": [{"axis": "Z", "angle_deg": 90}]})
+    errors = validate_plan(plan_file(plan))
+    assert any("joint axis_dir" in e for e in errors)
+
+    from plan_validate import check_deferred_axis_arms
+
+    assert check_deferred_axis_arms(plan) == []
+
+
 def test_moving_union_may_reference_a_sub_union(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["unions"] = [{"id": "leaf_a"}, {"id": "leaf_b"}]
@@ -353,8 +411,11 @@ def test_contract_type_mismatch_rejected(plan_file):
 
 
 def test_contract_revolute_wrong_axis_rejected(plan_file):
-    # pin_hinge's dof axis is +Y; a Z wish is not parallel.
+    # pin_hinge's dof axis is +Y; a Z wish is not parallel. The axis arm is only
+    # authoritative once the part carries a placement (identity here, so the block
+    # axis is unrotated); see test_kinematics_no_placement_defers_axis_arm.
     plan = _plan_with_joint(axis_dir="Z")
+    plan["parts"][0]["placement"] = {"rotate": [{"axis": "Y", "angle_deg": 0}]}
     errors = validate_plan(plan_file(plan))
     assert any("not parallel" in e for e in errors)
 
@@ -362,6 +423,7 @@ def test_contract_revolute_wrong_axis_rejected(plan_file):
 def test_contract_revolute_parallel_but_off_line_rejected(plan_file):
     # Axis parallel (+Y) but the pivot is off the block's axis line -> not coaxial.
     plan = _plan_with_joint(axis_dir="Y", axis_origin_mm=[5, 0, 0])
+    plan["parts"][0]["placement"] = {"rotate": [{"axis": "Y", "angle_deg": 0}]}
     errors = validate_plan(plan_file(plan))
     assert any("not coaxial" in e for e in errors)
 
@@ -469,8 +531,9 @@ def test_blockless_entry_with_bad_moving_union_still_fails(plan_file):
 
 def test_blockbacked_entry_contract_checks_still_apply(plan_file):
     # Regression: a block-backed entry keeps the full contract (unaffected by the
-    # block-less branch added alongside it).
+    # block-less branch added alongside it), once the part carries a placement.
     plan = _plan_with_joint(axis_dir="Z")  # pin_hinge's dof axis is +Y; Z is not parallel
+    plan["parts"][0]["placement"] = {"rotate": [{"axis": "Y", "angle_deg": 0}]}
     errors = validate_plan(plan_file(plan))
     assert any("not parallel" in e for e in errors)
 

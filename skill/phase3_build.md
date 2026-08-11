@@ -183,6 +183,7 @@ progressive part's retries stay inline; a part never switches modes mid-build.
 | `{{D_MM}}` | `part["dimensions"]["d_mm"]` |
 | `{{H_MM}}` | `part["dimensions"]["h_mm"]` |
 | `{{INTERFACES}}` | `part["interfaces"]` as JSON, or `(none)` |
+| `{{POSE_INTENT}}` | `part["pose_intent"]`, or `(none)` -- present in both cold and inline render modes |
 | `{{PART_NOTES}}` | `part["part_notes"]`, or `(none)` -- for a part with no matching blocks, this is the ONLY place the design intent for its scratch geometry is recorded (see `prompts/planning.md` rule 3); never omit this substitution when the field is present |
 | `{{BLOCK_SPECS}}` | For each block in `part["blocks_needed"]`: look up in inventory, format as `- **name** — use\n  params: k (v), ...`; `(none — use raw CadQuery primitives)` if list is empty |
 | `{{WALL_MIN_MM}}` | `plan["constraints"]["wall_min_mm"]` |
@@ -500,6 +501,22 @@ reported to the user alongside the accepted part.
    against a part that already passed its own loop — treat it as a bounded follow-up
    (one retry) before escalating to the user the same way as **Escalation** above.
 
+## Placement write-back
+
+Once a part is finally accepted — progressive Step 4's "every question yes" path, or the
+Implementation audit's pass verdict for an autonomous part — write back the `placement`
+the author reported (contract rule 6 of `prompts/part.md`) into that part's entry in
+`BUILD_PLAN.json`, replacing any planner-written proposal already there. Same write-back
+principle as the `load` correction above: a corrected understanding belongs in the plan,
+not just in this one script. Two cases need no write:
+- The authored geometry already sits in the pose `pose_intent` describes (or no
+  `pose_intent` was declared) — leave `placement` absent, meaning identity.
+- The part is reached via a `joints` mate chain — it must never carry its own
+  `placement`; its pose is derived.
+
+Announce the write-back to the user only when it replaces a differing proposal (silent
+when it confirms an existing value or leaves absence unchanged).
+
 ## Cross-part pitfall injection
 
 Before spawning the builder agent for part *k* (k > 1 in this session), scan this
@@ -655,6 +672,16 @@ its result (`{"<part_id>": {"rotate": [...], ...}}`). This file feeds the model 
 the quality-gate recipe below.
 
 ## Model export
+
+Before exporting, re-run `plan_validate.py` against `BUILD_PLAN.json` now that every
+part's placement write-back (above) is in the plan. This run is authoritative for any
+check that consumes `placement`, including the joint-contract axis arm (see
+`assembled-pose-handback` design D5) — the Phase 2 run could only report it as a
+deferred advisory, since the placements did not exist yet. A failure blocks the export:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
+```
 
 The model is assembled declaratively from each part's `placement` — there is no
 hand-written fused-assembly script. Run the model export to emit the deliverables. Pass

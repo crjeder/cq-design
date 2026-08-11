@@ -31,6 +31,12 @@ implicate; you have full planning context, so a blind restart discards it.
    non-obvious ordering. A comment never restates what the following line does.
    The ENGINEERING RATIONALE block and the construction-plan `verify_stage` labels
    are required content, not narration, and are exempt from this rule.
+6. Report the assembled-frame transform that carries your authored geometry into the
+   part's stated **Pose intent** below: an ordered `rotate` list (`{axis, angle_deg}`
+   steps, applied in that order) followed by `translate_mm`, in the same shape as the
+   plan's `placement` field. Report nothing when your authored geometry already sits in
+   the stated pose, or when the part specification says this part is mate-chained (its
+   pose is derived, not authored).
 
 ### Do not:
 1. call cq.exporters.export() — the runner handles export
@@ -46,7 +52,13 @@ implicate; you have full planning context, so a blind restart discards it.
 
 ## Coordinate vocabulary
 
-All wall positions and interface locations use this coordinate system:
+You choose the frame you author this part's geometry in -- nothing elsewhere in the
+plan assumes a particular authoring frame, and your part is not incorrect for departing
+from a recommendation below. Whatever frame you build in, report the transform (contract
+rule 6) that carries it into the stated **Pose intent**.
+
+Wall positions and interface locations in the Part specification below use this
+coordinate vocabulary, expressed relative to your own authored frame:
 
 | Direction | Axis | Notes                     |
 |-----------|------|---------------------------|
@@ -55,9 +67,11 @@ All wall positions and interface locations use this coordinate system:
 | South     | -Y   |                           |
 | West      | -X   |                           |
 | Up        | +Z   |                           |
-| Down      | -Z   | Always the print bed face |
+| Down      | -Z   |                           |
 
-The Down face (Z = 0) is the print bed. Use `centered=(True, True, False)` on `.box()` so the bottom is at Z = 0.
+Recommended, not required: author with the part's physical bottom at Z = 0 (the print
+bed in the authored frame) and `centered=(True, True, False)` on `.box()`, unless the
+part's shape or the stated pose intent makes a different authoring frame more natural.
 
 ## Available blocks
 
@@ -71,6 +85,7 @@ Import each block you use with a flat `from blocks import <function>` at the top
 **Description:** {{PART_DESCRIPTION}}
 **Target dimensions:** W={{W_MM}} mm, D={{D_MM}} mm, H={{H_MM}} mm
 **Physical interfaces:** {{INTERFACES}}
+**Pose intent:** {{POSE_INTENT}}
 **Design notes:** {{PART_NOTES}}
 
 ## Print constraints

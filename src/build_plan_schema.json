@@ -227,7 +227,11 @@
           },
           "placement": {
             "allOf": [{"$ref": "#/definitions/placement"}],
-            "description": "Pose of this union in the shared assembled frame. Rotations apply in listed order, then the translation. Omit for identity (union authored directly in the assembled frame). A part reached via a `joints` mate chain (see `joints`) MUST NOT declare its own placement -- its pose is derived."
+            "description": "Pose of this union in the shared assembled frame. Rotations apply in listed order, then the translation. Omit for identity (union authored directly in the assembled frame). Supplied by the part author during the build phase, as a write-back into BUILD_PLAN.json after the part is accepted -- a value present before then (e.g. from a prior plan) is a proposal for the author to confirm or correct, not an error. A part reached via a `joints` mate chain (see `joints`) MUST NOT declare its own placement -- its pose is derived."
+          },
+          "pose_intent": {
+            "type": "string",
+            "description": "The part's goal pose in the shared assembled frame, stated in human-readable terms the author can check against a render (which way it faces, where it sits). Never a restatement of a rotation sequence or translation vector -- that structured form is `placement`, which the part author supplies during the build phase."
           }
         }
       }

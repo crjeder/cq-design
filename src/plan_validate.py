@@ -284,6 +284,13 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
         if part is None:  # moving_union already flagged above
             continue
         placement = part.get("placement")
+        if placement is None:
+            # The part author supplies `placement` during the build phase (see
+            # assembled-pose-handback); on a Phase 2 run it is not there yet, and
+            # treating absence as identity here would silently compare the wrong
+            # frame. Deferred to check_deferred_axis_arms as a non-fatal advisory;
+            # authoritative only on the pre-export re-validation.
+            continue
         block_dir = transform_direction(dof["direction"], placement)
         wish_dir = _WISH_AXIS_VEC[entry["axis_dir"]]
         if not _parallel(block_dir, wish_dir):
@@ -466,6 +473,53 @@ def _check_request_log(plan: dict[str, Any]) -> list[str]:
     return []
 
 
+def check_deferred_axis_arms(
+    plan: dict[str, Any], inventory_path: str = _INVENTORY_PATH
+) -> list[str]:
+    """Advisory: kinematics entries whose axis-arm contract check was deferred.
+
+    `_check_kinematics` skips the axis-arm comparison for any entry whose moving
+    union's part carries no `placement` yet (the part author supplies it during the
+    build phase, see `assembled-pose-handback` design D5). This reports which entries
+    that affected, as a non-fatal advisory alongside `check_block_thinness` -- it does
+    not distinguish "author has not run yet" from "author chose the assembled frame",
+    since absence means identity either way; the pre-export re-validation is what
+    makes the axis arm authoritative again.
+    """
+    kinematics = plan.get("kinematics", [])
+    if not kinematics:
+        return []
+
+    from blocks.validate import get_block
+    from units import iter_kinematics_entries, iter_unions
+
+    union_part = {uid: part for part, uid, _plate in iter_unions(plan)}
+    findings: list[str] = []
+    for entry in iter_kinematics_entries(kinematics):
+        jid = entry.get("joint_id", "(unknown)")
+        block_name = entry.get("block")
+        if block_name is None:
+            continue  # block-less: no dof to compare, nothing deferred
+        block = get_block(block_name, inventory_path)
+        if block is None:
+            continue  # unknown block already flagged as an error
+        dof = block.get("dof")
+        if dof is None or entry.get("type") != dof.get("type"):
+            continue  # missing dof / type mismatch already flagged as an error
+        if dof.get("type") not in ("revolute", "prismatic"):
+            continue  # no axis contract for this type
+        moving_union = entry.get("moving_union")
+        part = union_part.get(moving_union) if moving_union is not None else None
+        if part is not None and part.get("placement") is None:
+            findings.append(
+                f"Kinematics '{jid}': axis arm deferred -- moving_union "
+                f"'{moving_union}' (part '{part.get('id')}') carries no "
+                "placement yet; authoritative only on the pre-export re-validation"
+            )
+
+    return findings
+
+
 def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     """Flag blocks whose smallest declared extent is below the wall minimum.
 
@@ -524,6 +578,12 @@ def main():
     if findings:
         print(f"\nThin-block findings ({len(findings)}):")
         for f in findings:
+            print(f"  - {f}")
+
+    deferred = check_deferred_axis_arms(plan, args.inventory)
+    if deferred:
+        print(f"\nDeferred axis-arm findings ({len(deferred)}):")
+        for f in deferred:
             print(f"  - {f}")
 
 
