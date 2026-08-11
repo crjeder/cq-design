@@ -3,6 +3,15 @@
 Tasks not tracked in an `openspec/changes/` change. Anything tied to a specific
 change lives in that change's `tasks.md`, not here.
 
+- [x] consolidate tasks / ideas from `Block_Sources.md`, `market_research.md`, `occ-error.md`
+      and `README.md` into `TODO.md` (here). DONE: README's `Related projects` table moved to
+      `info/related_projects.md` (status/relevance column dropped -- that tracking lives here);
+      gaps found in `Block_Sources.md` (cq_gears/cqMore/cqterrain, PartCAD) and `occ-error.md`
+      (the OCC deepcopy crash) added below as new items. `market_research.md`'s ideas were
+      already fully reflected in the "From market research" section further down.
+- [ ] optimize `CLAUDE.md` it's to heavy
+- [ ] "write early": cheaper resumption after interrupt (e. g. out "Usage limit reached")
+- [ ] Improve cross section selection. The renders do not show anything useful.
 - [x] check if there is a fillets before chamfers rule (improves visual quality) --
       was prematurely marked done against the horizontal/vertical Chamfer/Fillet
       *type* rule below (which treatment to use where, not call order). The actual
@@ -147,7 +156,7 @@ change lives in that change's `tasks.md`, not here.
       baseline. Section 4 still needs a fresh hooks-on-vs-off run pair; see
       `openspec/changes/eval-geometric-part-matching/proposal.md`'s "Re-score
       Results" section for the re-scored numbers and this caveat in full.
-- [ ] restructure to combat context creep. options:
+- [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
   - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
   - [ ] python script owns the loop and switches context & models. prompt will be split
   - [ ] use sub-agents / workers for each phase
@@ -271,9 +280,9 @@ change lives in that change's `tasks.md`, not here.
       GPL-incompatible, see Prior-art survey below).
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
 - [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
-- [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
 - [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
-      (-> Differential geometry comparison) / "import" mesh files (.stl)
+      (-> Differential geometry comparison) / "import" mesh files (.stl) 
+- [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
 - [x] design error: the llm often places the center of a box where actually a one of the walls  should sit --
       INTRA-PART case DONE via openspec change `intra-part-mating-area` (`verify_backed`
       in `cq_verify.py`: a feature's face, named by a signed axis, must be fully backed
@@ -359,8 +368,6 @@ change lives in that change's `tasks.md`, not here.
             Couldn't express this as a formal top-level joints mate-chain (the schema requires a single-rooted tree; a 4-panel ring produces conflicting/double-anchored paths) — so each wall keeps its own explicit placement, and the dovetail mating is declared through each wall's interfaces instead. Functionally equivalent, just not chained through the schema's joint-tree mechanism."
 - [ ] Plan states that parts are pairwise mirrored. LLM generated two files:
       "wall_a vs wall_b: You're right — I over-built. wall_b.py is geometrically identical to wall_a.py (same width, same tenon, same dovetail parameters, both symmetric). I copied it into a separate file out of habit (BUILD_PLAN.json lists 5 distinct part ids), but a symmetric flat panel mirrored is the same printed part — nothing to design twice. I should delete wall_b.py and just have the export use wall_a's STL for both positions (printed twice). Want me to do that now? It also means correcting BUILD_PLAN.json so wall_b references wall_a's geometry instead of carrying its own script."
-- [ ] "write early": cheaper resumption after interrupt (e. g. out "Usage limit reached")
-- [ ] Improve cross section selection. The renders do not show anything useful.
 - [ ] A minimal deliverable for the parametric part. Just the code needed. Not the full `/lib`
 
 
@@ -420,6 +427,15 @@ direct-reuse candidate; everything else is reference-only or needs hand-porting.
 - `cqparts` (cqparts/cqparts, 148 stars, unmaintained since 2020) -- wrapper
   framework, assembly abstraction conflicts with this skill's direct-Workplane
   block pattern. Not adopted.
+- [ ] `cqMore` and `cqterrain` (`info/Block_Sources.md`, rated High usability) -- no repo
+      link or star count recorded in the source survey; re-find and evaluate before deciding
+      reimplement vs pinned dep.
+- [ ] `partcad/partcad` (`info/related_projects.md`) -- package manager for hardware /
+      manufacturable products across CAD kernels (CadQuery, build123d, OpenSCAD). Adoptable:
+      package-manager framing for versioned part definitions with declared metadata
+      (parallels `blocks/inventory.json`), YAML assembly format tracking BOM/part
+      relationships, caching rendered models to speed iteration. Not evaluated for adoption
+      strategy yet (reimplement / pinned dep / reference-only).
 
 ### Print orientation (Tweaker-3) -- one change -- strategy: reimplement
 Clean-room native port of the orientation formulas. Tweaker-3 is GPL-3.0 and this
@@ -446,6 +462,17 @@ and `prompts/part.md`.
       deliberately excluded -- this pipeline is fluent-only.
 
 ### Independent changes
+- [ ] OCC deepcopy crash on print-orientation rotation (`info/occ-error.md`): rotating
+      certain B-rep solids (seen in `build/plate.py`, an axle bore spanning an open slot,
+      or a pure-45-deg pocket ceiling with no flat cap) crashes inside cq_warehouse's
+      deepcopy-based `Shape.copy()` -> OCC `BinTools` serialization round-trip
+      (`Standard_Failure: BinTools_SurfaceSet::ReadGeometry: UnExpected
+      BRep_PointRepresentation = 42`, sometimes flaky). Currently worked around by avoiding
+      the triggering geometry shapes (documented in `occ-error.md`), root cause not fixed.
+      Leads to investigate: replace cq_warehouse's deepcopy copy with OCC's native
+      `BRepBuilderAPI_Copy`; or make `model_export.py` rotate the trimesh (mesh-based) for
+      print-oriented 3MF objects instead of the B-rep, sidestepping the deepcopy path
+      entirely (the kinematic-check STLs already do this).
 - [x] cross-section preview rendering -- strategy: reimplement (basic centerline
       cuts Y/X/Z now in `preview.py`, wired into SKILL.md whole-part validation).
       Future enhancement: dimensioned slices, feature-specific detail sections.
