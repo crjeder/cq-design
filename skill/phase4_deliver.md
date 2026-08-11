@@ -2,7 +2,10 @@
 
 Report to the user:
 
-1. **Status** - which parts passed, which had remaining warnings or errors
+1. **Status** - which parts passed, which had remaining warnings or errors. If
+   `build/quality_gate.json` carries a `telemetry_missing` warning (`source: "telemetry"`),
+   name the missing `build/attempts.jsonl` and note that this session produced no
+   measurement data
 2. **Preview images** - display any `.png` files from `preview/`
 3. **Print recipe** - show `print_recipe` from `build/quality_gate.json`
 4. **Output files** - list `model.3mf` (project root) and the STLs in `stl/`, and note
