@@ -219,7 +219,13 @@ cryptic OCC error or a failed visual review several steps later.
 | `non_watertight` | Open mesh holes: check unclosed boolean bodies |
 | `disconnected_body` | Union split >1 component: union/bridge into one (`union`, `component_count`) |
 | `dimension_mismatch` | Bbox beyond tolerance: fix the parameter driving that axis |
-| `occ_exception` | OpenCASCADE error: see hint for the exception class |
+| `construction_error` | Boolean bodies don't overlap or faces are coincident (`Standard_ConstructionError`) |
+| `command_not_done` | Boolean op failed: extend inner body >= 0.01mm past outer boundary (`BRep_API`) |
+| `fillet_failure` | Fillet/chamfer left incomplete: radius exceeds an adjacent face (`StdFail_NotDone`) |
+| `null_object` | Referenced a shape that doesn't exist: check selector strings/offsets (`Standard_NullObject`) |
+| `index_out_of_range` | Check `pushPoints` list or loop bounds (`Standard_OutOfRange`) |
+| `type_mismatch` | Wrong shape type for the operation: verify workplane/selector (`Standard_TypeMismatch`) |
+| `occ_exception` | Unmapped OpenCASCADE error class: see hint for the exception class |
 | `silent_boolean` | No-op boolean (`verify_boolean`): reposition tool to intersect body (`label`) |
 | `feature_overflow` | Past base body (`verify_feature_bounds`): constrain/intersect with profile (`label`) |
 | `workplane_drift` | Origin drifted (`check_workplane`): re-anchor with `.workplane(origin=...)` (`label`) |

@@ -139,6 +139,32 @@ def test_trimesh_missing_degrades_to_warning(monkeypatch, tmp_path):
     assert issues[0]["severity"] == "warning"
 
 
+def test_typed_occ_error_classified_as_severity_error(monkeypatch):
+    """A split-out OCC error type (e.g. command_not_done) is still blocking,
+    same as the old undifferentiated occ_exception."""
+
+    class _FakeResult:
+        stdout = json.dumps(
+            {
+                "errors": [
+                    {
+                        "type": "command_not_done",
+                        "occ_class": "BRep_API",
+                        "message": "boolean op failed",
+                        "hint": "ensure overlap",
+                    }
+                ]
+            }
+        )
+        stderr = ""
+
+    monkeypatch.setattr(quality_gate.subprocess, "run", lambda *a, **k: _FakeResult())
+    issues, _, _ = quality_gate._run_wrapper_check("script.py", {})
+    assert len(issues) == 1
+    assert issues[0]["type"] == "command_not_done"
+    assert issues[0]["severity"] == "error"
+
+
 def test_fix_loop_model_missing_config_is_none(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     assert quality_gate._fix_loop_model() is None
