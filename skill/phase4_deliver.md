@@ -20,3 +20,10 @@ Report to the user:
    - The directory layout (mirror the tree in **Model export** in `skill/phase3_build.md`)
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually or re-run the gate with `--no-fix` to get a clean report.
+
+Once delivery is reported and `README.md` is written, append one line to
+`build/journal.md` (see `skill/resume.md`):
+
+```
+- phase4/delivered: README.md written
+```

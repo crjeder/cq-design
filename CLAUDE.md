@@ -151,6 +151,8 @@ or calling any script.
     model_export.py          # Model-level export: named 3MF + per-union/plate/keep-out-zone STL
     build_template.py        # build.py template copied to build/; regenerates plates in print orientation
     telemetry.py             # Append-only per-attempt log -> build/attempts.jsonl
+                              # (build/journal.md is a milestone log the orchestrator appends to
+                              # directly per skill/resume.md -- no dedicated script)
     request_log_search.py    # Search BUILD_PLAN.json's request_log by keyword/kind
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer
@@ -195,7 +197,7 @@ or calling any script.
     hook.py, clip.py, stand.py    # Known-good, pre-verified whole-part templates,
                                     # one per archetype (Phase 3 Step 1.5 match source)
 
-  skill/                 # Per-phase SKILL.md detail (setup, phase1-4), read on demand
+  skill/                 # Per-phase SKILL.md detail (setup, phase0-4, resume), read on demand
   reference/             # Injected design references (CadQuery patterns, FDM DFM, hardware_dims)
   openspec/              # OpenSpec specs and change history
 
