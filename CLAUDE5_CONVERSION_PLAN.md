@@ -429,6 +429,17 @@ guidance in `skill/phase3_build.md`:
 These are near-verbatim from the Fable/Opus 5 guidance for long-running agents
 and directly protect `build/attempts.jsonl` integrity.
 
+### C8 result
+
+Done. Added an **Autonomous run discipline (`minimal`)** section to
+`skill/phase3_build.md` (between Build mode and the Agent routing gate) carrying both
+instructions: grounded progress (cite the wrapper JSON / check output before recording
+an outcome or reporting a pass) and no mid-part permission questions (proceed on
+reversible decisions, record them, surface at the next checkpoint; Escalation stays a
+user ask). Prompt-guidance only, no code change and no eval sweep — the two
+instructions constrain reporting honesty and dialog, neither of which the geometric
+scorecard measures.
+
 ## Suggested order and sizing
 
 | Phase | Model | Size | Depends on |
