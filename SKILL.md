@@ -52,6 +52,10 @@ writes to the working directory, not `$SKILL_DIR`.
 permission bootstrap, printer-profile bootstrap). Skip straight to Phase 1 if already
 seeded (`.claude/settings.local.json` has the patterns, `printer_profile.json` exists).
 
+**If `build/journal.md` already exists in the working directory, read `skill/resume.md`
+in full before Phase 0** — it may be an interrupted run; resuming without re-asking the
+user or re-running finished phases is cheaper than restarting cold.
+
 ## Phase 0: Sourcing triage
 
 Before designing from scratch, search for a usable existing model (parametric source,
@@ -247,7 +251,9 @@ part whose `blocks_needed` includes a fastener block** — never guess these dim
 | `src/model_export.py` | Assembles unions into model.3mf + per-union/plate STL |
 | `src/blocks/inventory.json` / `validate.py --search <kw>` | Block descriptors; lookup |
 | `templates/archetypes.json` / `templates/*.py` | Known-good whole-part templates matched in Phase 3 Step 1.5 |
+| `build/journal.md` | Append-only milestone log for resuming an interrupted run (see `skill/resume.md`) |
 | `skill/*.md` | Setup and per-phase detail (see phase sections above) |
+| `skill/resume.md` | Journal contract and interrupted-run resume procedure |
 | `reference/hardware_dims.md` | Fastener sizing tables (block-gated, see above) |
 | `reference/CadQuery Pattern Reference.md` / `Anti-Patterns.md` | Idioms + mistakes, every part |
 | `reference/emboss_text.md` / `servo_splines.md` | Read only when needed |
