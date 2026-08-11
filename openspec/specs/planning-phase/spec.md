@@ -97,13 +97,17 @@ Each part object SHALL include:
   stated as intent rather than as a rotation sequence
 
 Each `interfaces[]` entry SHALL require `type` (string) and MAY carry structured,
-machine-readable placement fields (all optional): `wall` (one of the six face names),
-`position_mm` (`[x, y, z]`, the feature's intended center in the part's authored frame),
-and a size field (`diameter_mm` for round features, or `size_mm` as `[w, h]` for
-rectangular). These fields SHALL be defined in the schema (not free-form
-`additionalProperties`), so a declared placement is machine-readable; they remain optional
-so an interface may declare only its `type`, and an empty `interfaces` array still
-validates.
+machine-readable placement fields (all optional): `name` (the agreed vocabulary word for
+the feature), `wall` (one of the six face names), `position_mm` (`[x, y, z]`, the
+feature's intended center in the part's authored frame), and a size field
+(`diameter_mm` for round features, or `size_mm` as `[w, h]` for rectangular). These
+fields SHALL be defined in the schema (not free-form `additionalProperties`), so a
+declared placement is machine-readable; they remain optional so an interface may declare
+only its `type`, and an empty `interfaces` array still validates.
+
+The `name` field SHALL be constrained to the same normalized snake_case form as a part
+`id` (`^[a-z][a-z0-9_]*$`), so that the mechanical normalization promised by the
+user-noun naming rule is enforced by the schema rather than left to the planner.
 
 #### Scenario: Part with physical interface
 - **WHEN** a part has a USB-C port cutout
@@ -113,8 +117,16 @@ validates.
 - **WHEN** an interface entry declares `position_mm` and a size field
 - **THEN** the schema validates them as structured fields (an array of numbers for `position_mm`, a number or `[w, h]` for the size), rejecting a malformed placement
 
+#### Scenario: Named interface validates
+- **WHEN** an interface entry declares `name: "inner_lip"` alongside its `type`
+- **THEN** validation passes and the name is available to downstream consumers as a structured field
+
+#### Scenario: Non-normalized interface name is rejected
+- **WHEN** an interface entry declares `name: "Inner Lip"` or `name: "inner-lip"`
+- **THEN** validation fails with a schema error naming the offending field, rather than silently accepting an unnormalized vocabulary word
+
 #### Scenario: Interface with only a type still validates
-- **WHEN** an interface entry declares `type` but no `wall`, `position_mm`, or size
+- **WHEN** an interface entry declares `type` but no `name`, `wall`, `position_mm`, or size
 - **THEN** validation passes (the placement fields are optional)
 
 #### Scenario: Part with no interfaces
@@ -132,6 +144,29 @@ validates.
 #### Scenario: Plan without pose intent still validates
 - **WHEN** a part declares neither `pose_intent` nor `placement`
 - **THEN** validation passes; the part is treated as authored in the assembled frame
+
+---
+
+### Requirement: Interface names are unique within a part
+`plan_validate.py` SHALL reject a plan in which two `interfaces[]` entries of the same
+part declare the same `name`, mirroring the existing union-id uniqueness cross-check.
+The error SHALL name the part and the duplicated name. Because callout badges are
+numbered by supply order and the legend echoes names verbatim, a duplicate name within
+one part would produce two indistinguishable legend lines and an ambiguous conversational
+reference. Names SHALL be permitted to repeat across different parts, where the part id
+disambiguates them.
+
+#### Scenario: Duplicate name within one part is rejected
+- **WHEN** a part declares two interfaces both named `mount_hole`
+- **THEN** validation fails with an error naming that part and the duplicated name
+
+#### Scenario: Same name on two different parts is accepted
+- **WHEN** two different parts each declare an interface named `mount_hole`
+- **THEN** validation passes
+
+#### Scenario: Unnamed interfaces do not collide
+- **WHEN** a part declares three interfaces, none of which carries a `name`
+- **THEN** validation passes (the uniqueness check considers only declared names)
 
 ---
 

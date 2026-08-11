@@ -88,6 +88,11 @@
                   "description": "Interface category (port_cutout, screw_mount, pcb_mount, snap_fit, etc.)"
                 },
                 "description": {"type": "string"},
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "The agreed vocabulary word for this feature (same normalized snake_case form as a part id), used for callout badges and legends"
+                },
                 "connector": {
                   "type": "string",
                   "description": "Connector or standard name for this interface, e.g. usb_c"

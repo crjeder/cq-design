@@ -312,6 +312,47 @@ def test_keep_out_reserved_as_sub_union_id_rejected(plan_file):
     assert any("reserved" in e and "keep_out" in e for e in errors)
 
 
+def test_named_interface_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"][0]["name"] = "inner_lip"
+    assert validate_plan(plan_file(plan)) == []
+
+
+@pytest.mark.parametrize("bad_name", ["Inner Lip", "inner-lip"])
+def test_non_normalized_interface_name_rejected(plan_file, bad_name):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"][0]["name"] = bad_name
+    errors = validate_plan(plan_file(plan))
+    assert any("name" in e for e in errors)
+
+
+def test_duplicate_interface_name_within_part_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [
+        {"type": "screw_mount", "name": "mount_hole"},
+        {"type": "screw_mount", "name": "mount_hole"},
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert any("interface name 'mount_hole' is declared more than once" in e for e in errors)
+
+
+def test_same_interface_name_on_different_parts_accepted(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN_TWO_PARTS))
+    plan["parts"][0]["interfaces"] = [{"type": "screw_mount", "name": "mount_hole"}]
+    plan["parts"][1]["interfaces"] = [{"type": "screw_mount", "name": "mount_hole"}]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_unnamed_interfaces_do_not_collide(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [
+        {"type": "screw_mount"},
+        {"type": "screw_mount"},
+        {"type": "screw_mount"},
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
 def test_keep_out_reserved_as_part_id_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["id"] = "keep_out"
