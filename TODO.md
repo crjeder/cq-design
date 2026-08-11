@@ -9,7 +9,7 @@ change lives in that change's `tasks.md`, not here.
       call-order rule (fillet before chamfer in the same chain) shipped via openspec
       change `fillet-before-chamfer-order-check`: `script_lint.py`'s new
       `fillet_after_chamfer` finding.
-- [ ] optimize prompts, they are growing to long
+- [x] optimize prompts, they are growing to long
   - [x] Pass 1 done: `emboss_text.md` (text/emboss gotchas) is now appended to
       `{{CQ_REFERENCE}}` only for parts that involve text (was concatenated into every
       part prompt); removed the duplicate fit-clearance row from the FDM "Basic Dimension
@@ -208,8 +208,6 @@ change lives in that change's `tasks.md`, not here.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
-- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
-      (-> Differential geometry comparison)
 - [x] preview: cross-section previews wired into workflow. The `--cross-sections`
       flag now renders a 3x3 grid (6 exterior + 3 interior section views) as the
       default for whole-part validation. Visual Review Checklist extended with
