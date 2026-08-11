@@ -53,7 +53,7 @@ Read into context (once, before the loop):
 - `$SKILL_DIR/reference/Engineering Design Rules.md` — read into context once here, same role for `{{ENGINEERING_RULES}}`; this read is the precondition for a progressive part's inline citation, same as the FDM guide above
 - `$SKILL_DIR/reference/Visual Review Checklist.md` — the visual self-review checklist applied in Step 4
 
-Create the `build/` directory in your current working directory.
+`build/` already exists from `skill/setup.md`'s permission-bootstrap step.
 
 **Precondition for inline citation.** If the part loop starts in a session where these
 setup reads are not visible in context (a resumed or compacted session), re-read the
@@ -81,6 +81,19 @@ is driven by the plan's effective `review_policy` (`plan["review_policy"]`, defa
 "checkpoint as you go") or autonomously (e.g. "just build it", "no checkpoints"), honor
 that for the part or the whole run regardless of `review_policy`. Absent an override,
 `review_policy` decides.
+
+## Autonomous run discipline (`minimal`)
+
+Applies to the orchestrator and to every builder/auditor agent under
+`review_policy: minimal`:
+
+- **Grounded progress.** Before recording an attempt outcome (Step 5) or reporting a
+  part as passing, point to the wrapper JSON or check output that shows it. Never
+  report a state you have not observed in a tool result this session.
+- **No mid-part permission questions.** Proceed on reversible decisions (a coined
+  feature name, a clearance within the table, a plate grouping), record the decision in
+  the part's `part_notes` or the attempt log, and surface it at the next checkpoint
+  rather than pausing to ask. Escalation (a blocked builder) is still a user ask.
 
 ## Agent routing gate
 
@@ -152,6 +165,13 @@ Branch on the plan's effective `review_policy` (see Build mode above):
   the same self-review posture already used for autonomous parts' geometry. Note any
   mismatch as a one-line self-correction and adjust the upcoming full script
   accordingly; do not block on it.
+
+Once the stub is approved (or self-reviewed under `minimal`), append one line to
+`build/journal.md` (see `skill/resume.md`):
+
+```
+- phase3/stub_approved:<part_id>: <one-line profile description>
+```
 
 Then attempt up to **3 times**:
 
@@ -363,7 +383,7 @@ Handle geometry errors first, then decide what this attempt returns.
 1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the review for this attempt. Blocking types include `disconnected_body` (a union that split into separate solids — union or bridge the pieces so they fuse into one component).
 2. **`success: true` AND no blocking errors** →
    - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union) plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not). Per the checklist's coverage-first rule, also report any other discrepancy noticed, however low-confidence or minor, as an advisory finding (confidence + severity) — it does not fail a question or consume a retry.
-     - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against), and any advisory findings grouped separately under their own heading, not mixed with the checklist. Advance to next part.
+     - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against), and any advisory findings grouped separately under their own heading, not mixed with the checklist. Append `- phase3/part_accepted:<part_id>: progressive review passed` to `build/journal.md` (see `skill/resume.md`). Advance to next part.
      - **Any question answered "no"** AND attempt < 3 → record a `visual_mismatch` finding naming the failed question, the cited view, and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3). Advisory findings from this attempt are not folded into the fix.
    - **Autonomous (builder agent):** this attempt is accepted. Record `geometry.bbox` and the preview/section/detail paths, then return the **Builder return contract** (`status: passed`) without judging the render itself — the **Implementation audit** below, run by a fresh-context agent that never saw the script, is the acceptance bar for an autonomous part.
 3. **Attempt 3 exhausted** with remaining geometry errors or an unresolved visual-mismatch finding →
@@ -452,6 +472,13 @@ When a builder agent returns `status: blocked`:
 3. **Skip** → advance to the next part without this part's geometry; note the skip in
    the design-approval checkpoint summary.
 
+Whichever outcome, append one line to `build/journal.md` (see `skill/resume.md`) before
+moving on:
+
+```
+- phase3/escalation:<part_id>: <hint given verbatim | accepted as-is | skipped>
+```
+
 ## Implementation audit
 
 Every part a builder agent returns as `status: passed` is judged by a fresh-context
@@ -490,8 +517,10 @@ as before). `findings` holds every other observed discrepancy — low-confidence
 — each carrying its own `confidence` and `severity: advisory`. An advisory finding does
 not fail the audit and is never folded into the fix prompt in step 5 below; it is
 reported to the user alongside the accepted part.
-4. **Pass** (`failed_questions` empty) → the part is finally accepted. Advance to the
-   next part, surfacing any `findings` to the user grouped separately from the review.
+4. **Pass** (`failed_questions` empty) → the part is finally accepted. Append
+   `- phase3/part_accepted:<part_id>: implementation audit passed` to
+   `build/journal.md` (see `skill/resume.md`). Advance to the next part, surfacing any
+   `findings` to the user grouped separately from the review.
 5. **Fail** (`failed_questions` non-empty) → **resume the same builder agent** (not the
    auditor, and not a fresh builder) with the named question, cited view, and
    discrepancy as a targeted `visual_mismatch` fix — the builder still has its attempt
@@ -589,6 +618,13 @@ run with no checkpoints (see Build mode override above) — in that case still d
 the previews for the record, but proceed straight to print-orientation optimization
 without waiting.
 
+Once approved (or skipped per the override above), append one line to
+`build/journal.md` (see `skill/resume.md`):
+
+```
+- phase3/design_approved: <n> parts
+```
+
 ## Print-orientation optimization
 
 After every union passes the part loop, choose how each one sits on the bed before
@@ -670,6 +706,13 @@ convention), the `strength_score`, `support_score`, `bed_contact_mm2`, `visual_s
 Collect the accepted orientations into `build/orientations.json` mapping each part id to
 its result (`{"<part_id>": {"rotate": [...], ...}}`). This file feeds the model export and
 the quality-gate recipe below.
+
+Once every union has an accepted orientation, append one line to `build/journal.md`
+(see `skill/resume.md`):
+
+```
+- phase3/orientation_chosen: <n> unions, see build/orientations.json
+```
 
 ## Model export
 
@@ -792,6 +835,13 @@ plates match the ones just delivered) and recomputes orientations otherwise. `bu
 own defaults already point at the project root / `stl/` for its output, matching this
 layout, so no extra flags are needed for a normal re-run.
 
+Once `model.3mf` and the STLs are written and the standalone project verified, append
+one line to `build/journal.md` (see `skill/resume.md`):
+
+```
+- phase3/model_exported: model.3mf + <n> STL(s) written
+```
+
 ## Quality gate
 
 ```bash
@@ -821,7 +871,14 @@ if `severity: error` findings remain after that, stop and summarize them to the 
 rather than retrying further. `severity: warning` findings do not trigger a fix round --
 surface them alongside the print recipe. (`--fix` restores the old cold-context fixer
 for standalone use outside this pipeline; the skill does not pass it.) Once the gate
-passes (or its remaining findings are escalated), proceed to Phase 4.
+passes (or its remaining findings are escalated), append one line to
+`build/journal.md` (see `skill/resume.md`):
+
+```
+- phase3/gate_result: <pass|escalated>, <n> remaining findings
+```
+
+Then proceed to Phase 4.
 
 The gate runs entirely in-process (trimesh + numpy geometry and overhang analysis); it needs no slicer or MCP. Real slicer-based printability validation (e.g. the orca-check MCP) is optional and external, not part of the gate.
 

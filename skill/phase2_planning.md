@@ -48,35 +48,27 @@ python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
 
 If the write fails (e.g. the working directory is not writable), surface the error and ask the user to confirm or change the working directory before continuing.
 
-**Write `parameters.py`** at the project root alongside `BUILD_PLAN.json`: one module
-documenting every real-world measurement this design is based on -- both what the user
-stated directly and what came from web search (the Dimension validation checkpoint
-table above, when that checkpoint ran). This is durable, human-readable provenance,
-separate from each part script's own internal `PARAMETERS` block (which holds resolved/
-derived geometry values, not necessarily the raw sourced ones) -- and separate from
-`planning_notes`, which explains reasoning rather than listing values for reuse and
-describes only the current design state (never a round-by-round changelog -- that
-history belongs exclusively in `request_log`). One named constant per measurement,
-each commented with its source:
+Once `plan_validate.py` passes, append one line to `build/journal.md` (see
+`skill/resume.md`):
 
-```python
-"""Sourced real-world measurements this design is based on.
-
-Not imported by the build -- each part script carries its own resolved PARAMETERS
-block. This file keeps the underlying real-world numbers and their sources visible
-and easy to re-verify or update independent of how a part script used them.
-"""
-
-TV_BASE_WIDTH_MM = 385.0   # user-stated
-IPHONE_15_PRO_WIDTH_MM = 70.6  # apple.com/iphone-15-pro/specs, confirmed vs. gsmarena.com
-USB_C_PORT_MM = (9.0, 3.5)  # USB-IF spec, single-source
+```
+- phase2/plan_written: BUILD_PLAN.json validated, <n> parts
 ```
 
-Include every dimension from the Dimension validation checkpoint table regardless of
-its status (note `single-source`/`conflict`/`missing` in the comment as-is), plus any
-measurement the user stated directly that never went through a web lookup at all. Skip
-this file only when the design has no sourced real-world measurements whatsoever (e.g.
-every dimension is an arbitrary design choice with no external reference).
+**Update `parameters.py`** at the project root alongside `BUILD_PLAN.json`, only if
+planning introduced or changed a measurement not already captured when Phase 1's
+Dimension validation checkpoint was approved (`skill/phase1_requirements.md` writes the
+file from scratch at that point, before this phase starts). Add or amend named
+constants the same way, each commented with its source; leave the rest of the file
+untouched. Skip this step entirely when planning added nothing new -- which is the
+common case, since almost every sourced measurement was already captured at the
+checkpoint.
+
+This file is separate from each part script's own internal `PARAMETERS` block (which
+holds resolved/derived geometry values, not necessarily the raw sourced ones) -- and
+separate from `planning_notes`, which explains reasoning rather than listing values for
+reuse and describes only the current design state (never a round-by-round changelog --
+that history belongs exclusively in `request_log`).
 
 **Printer profile write-back:** if the plan's `printer`, `material`, `nozzle_mm`, or any
 `constraints` field differs from `printer_profile.json` and the user did not flag the value as
@@ -188,3 +180,9 @@ Do not let this sit silently inside `planning_notes` where the user won't see it
 it must appear in the chat-visible summary.
 
 After displaying the summary, wait for the user to approve or request edits. If the user edits `BUILD_PLAN.json` on disk before confirming, re-validate from disk before proceeding to Phase 3.
+
+Once approved, append one line to `build/journal.md` (see `skill/resume.md`):
+
+```
+- phase2/plan_approved: <n> parts, review_policy <policy>
+```
