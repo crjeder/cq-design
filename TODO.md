@@ -83,7 +83,7 @@ change lives in that change's `tasks.md`, not here.
         must the notch be to clear this swing?"), which the phone-holder session answered
         by hand with a binary search over geometry edits. That is a search loop over
         edits, not a measurement change -- its own change if wanted.
-  - [ ] hinge design-rule reference: rounds 5-6 were both instances of one geometric
+  - [x] hinge design-rule reference: rounds 5-6 were both instances of one geometric
         rule the LLM got wrong twice and the user derived: for a flat face to fold
         flush against a target plane at exactly +-90deg, the pivot axis must stand off
         the folding face's plane by exactly the axis's perpendicular distance to the
