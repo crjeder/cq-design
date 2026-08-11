@@ -355,6 +355,66 @@ models have stronger latent engineering knowledge, so the hook's value must be
 re-established, not assumed. Update IMPROVEMENT_PLAN item 5 to DONE (or revert
 the hooks) based on the result.
 
+### C7 result
+
+Full 10-case corpus, both arms, generated via `evals/run_evals.py --generate`.
+The hooks-off arm temporarily stripped the ENGINEERING RATIONALE requirement
+from three places -- `prompts/part.md`'s Script structure template (the
+commented block between PARAMETERS and MODEL) and its "## Engineering
+rationale" prose section, plus `skill/phase3_build.md`'s archetype-path
+insertion step and retry-preservation note -- so the archetype-template path
+(Step 1.5) couldn't backfill a hook that the stripped `prompts/part.md` no
+longer required. Both files were restored via `git checkout` immediately after
+the hooks-off sweep finished; the hooks are back in the shipped prompt
+regardless of the finding below.
+
+Both sweeps hit the account's session usage limit repeatedly mid-run (same
+infra pattern C4/C5/C6 already document) and were resumed case-by-case after
+each reported reset; this stretched the two 10-case sweeps across roughly a
+day of wall-clock time, not compute time.
+
+- `evals/runs/c7-hooks-on/`: first-shot 0.80, attempts-to-pass 1.20, mean
+  Chamfer 3.082mm (10/10 cases scored).
+- `evals/runs/c7-hooks-off/`: first-shot 0.80, attempts-to-pass 1.20, mean
+  Chamfer 3.278mm (9/10 cases -- `enclosure-body` scored "no artifacts" for
+  Chamfer despite a successful first-shot pass and real cost data, a scoring
+  gap in that run, not a build failure).
+- Aggregate first-shot and attempts-to-pass are **identical** between arms.
+  Per-case: `adapter-ring` flipped from a hooks-on first-shot pass to a
+  hooks-off 2-attempt pass, and `boss-plate` flipped the opposite direction
+  (hooks-on 2 attempts -> hooks-off first-shot) -- the same swap-while-aggregate-holds
+  pattern C5's result section already documents, not a hook-driven effect.
+  Chamfer delta (3.082mm -> 3.278mm) is within the run-to-run spread C2's
+  result section measured (Chamfer swung from 3.118mm to 3.751mm/3.449mm
+  across identical-prompt runs) -- not a defect-rate signal either way.
+- `two-part-box`'s `cost_per_accepted_part_usd: 0.0000` in the hooks-on
+  scorecard is the same pre-existing `prompt_chars: 0` telemetry gap C4's
+  result section documents, not a quality effect.
+
+**Qualitative check (the geometric metric can't see this):** spot-checked the
+three load-bearing hooks-off scripts most likely to need the hook --
+`u-clip`, `l-bracket`, `boss-plate` (clip/bracket/boss, all in the load-bearing
+archetype set) -- plus `wall-hook`. All four still opened with a full,
+correctly-derived `# ENGINEERING RATIONALE` comment block (load path,
+worst-case stress location, a numeric strain/stress check against the
+script's own parameter names) **with no prompt requiring it** -- e.g.
+`evals/runs/c7-hooks-off/wall-hook/build/wall_hook.py`: `stress =
+6*load_F*arm_reach/(width*arm_thickness**2) = 6*20*30/(20*8**2) = 2.81 MPa <=
+50 MPa assumed PLA flexural/tensile allowable`. This confirms IMPROVEMENT_PLAN
+item 5's premise: on the 5-series, the model volunteers the derivation
+unprompted (from the "senior mechanical design engineer" framing and the
+still-cited `reference/Engineering Design Rules.md`), not just when the prompt
+explicitly demands a comment section in a specific format.
+
+**Decision:** the hook is empirically redundant on Sonnet 5 -- self-elicited
+in every load-bearing case checked, with no measured cost to first-shot rate,
+attempts-to-pass, or fidelity either way. Keeping it anyway: it's a
+zero-marginal-cost deterministic backstop (a few lines added to an
+already-large rendered prompt) against the one case this sweep didn't
+exercise -- a load-bearing part the model doesn't recognize as load-bearing
+without being told to check. No prompt change made; IMPROVEMENT_PLAN item 5
+updated to DONE below since the measurement it was blocked on has now landed.
+
 ## C8. Autonomy and honesty instructions for autonomous runs (Opus 5, small)
 
 For `review_policy: minimal` (autonomous) runs, add to the builder/orchestrator
