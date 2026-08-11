@@ -157,7 +157,7 @@ instead of a rebuild:
 - Files: SKILL.md part loop (Step 0 stub + build-mode gate replaced by
   `review_policy`), `src/build_plan_schema.json` (one field), planning.md rule.
 
-### 5. Engineering knowledge: elicit it, don't just paste it — PARTIAL
+### 5. Engineering knowledge: elicit it, don't just paste it — DONE
 
 Implemented (2026-07-27) via `openspec/changes/engineering-knowledge/` sections
 1-3: `prompts/part.md` requires an `ENGINEERING RATIONALE` comment block
@@ -168,14 +168,17 @@ against a stated allowable — triggered by a declared `load` or a load-bearing
 `reference/Engineering Design Rules.md` (material constants, snap-fit strain
 formula, rib/boss/gusset ratios) wired into the Phase 3 substitution table;
 new "Engineering rows" added to `reference/Visual Review Checklist.md`.
-Section 4 (eval-corpus A/B run comparing hooks on vs. off, and the
-`IMPROVEMENT_PLAN.md` status update this A/B result would justify) is not
-done — status stays PARTIAL until that measurement lands.
-`openspec/changes/eval-geometric-part-matching/` (2026-07-29) fixed the eval
-scorer so correspondence is geometric rather than by part id, making the
-metric finally comparable run-to-run — but no run pair with the hooks
-toggled has been generated yet, so this item's measurement is still
-outstanding, not blocked.
+
+Section 4's A/B landed 2026-08-11 (`CLAUDE5_CONVERSION_PLAN.md` C7 result):
+full 10-case corpus, hooks on vs. off. Aggregate first-shot rate and
+attempts-to-pass were identical between arms; Chamfer delta was within
+run-to-run noise. Spot-checking the hooks-off load-bearing scripts
+(`u-clip`, `l-bracket`, `boss-plate`, `wall-hook`) found the model still
+volunteered a correct, fully-derived rationale block unprompted in every
+case — on Sonnet 5 the hook is empirically redundant, not load-bearing for
+output quality. Kept anyway as a zero-marginal-cost deterministic backstop
+against a load-bearing part the model doesn't recognize as such; no prompt
+change made.
 
 The model already knows cantilever snap-fit strain formulas, rib-to-wall ratios, and
 boss design rules from training; the failure is elicitation reliability. A large
