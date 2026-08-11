@@ -16,7 +16,7 @@ blocks/inventory.json (34 blocks), TODO.md, occ-error.md.
 | 6 | Fix flaky export crash | DONE |
 | 7 | Static pre-flight lint | DONE |
 | 8 | Failure telemetry + eval harness | DONE |
-| 9 | Typed OCC error triage | PARTIAL |
+| 9 | Typed OCC error triage | DONE |
 | 10 | Collapse redundant review layers | OPEN |
 | 11 | Restartability: request log + resume | DONE |
 | 12 | Split SKILL.md | DONE |
@@ -254,22 +254,26 @@ reference, or model-routing change.
 - Files: small hook in the SKILL.md part loop (append one JSON line per attempt),
   new `evals/` directory + runner script.
 
-### 9. Typed OCC error triage — PARTIAL
+### 9. Typed OCC error triage — DONE
 
-`run_cadquery_model.py` differentiates hint text per OCC exception class
-(`_OCC_HINTS`) but still emits one generic `"type": "occ_exception"` for all of
-them, rather than the distinct typed errors (e.g. a `fillet_failure` or
-`command_not_done` type) the item calls for, alongside the existing
-`silent_boolean`/`feature_overflow`/`workplane_drift` family. Telemetry (item 8)
-now exists to tell which signatures are worth splitting out first.
+Implemented via `openspec/changes/typed-occ-errors/` (2026-08-11). The six
+`_OCC_HINTS` classes each now emit their own `type` (`construction_error`,
+`command_not_done`, `fillet_failure`, `null_object`, `index_out_of_range`,
+`type_mismatch`) instead of a shared `occ_exception`, matching the existing
+`silent_boolean`/`feature_overflow`/`workplane_drift` family. An unmapped OCC
+class still falls back to `occ_exception`. `quality_gate.py`'s severity table
+and `skill/phase3_build.md`'s blocking-error-types line were updated so the
+new types stay blocking, not silently downgraded to warnings.
 
-`occ_exception` is a catch-all, so its retries are the least targeted. Map the
-recurring OCC signatures (BRepAlgoAPI "command not done", fillet/chamfer failures on
-short edges, zero-thickness results, the BinTools signatures from item 6) to specific
-typed hints in `run_cadquery_model.py`, like the existing `silent_boolean` family.
-Feed frequencies from item 8's telemetry.
+No `build/attempts.jsonl` telemetry exists in this repo (it's per-working-
+directory and gitignored), so this operationalizes the six classes already
+documented rather than ranking new signatures by frequency. Zero-thickness
+results and the BinTools signatures (item 6, already worked around) remain
+unmapped to a distinct type — add them once real attempt data shows they
+recur.
 
-- Files: `src/run_cadquery_model.py` error mapping + SKILL.md error table rows.
+- Files: `src/run_cadquery_model.py`, `src/quality_gate.py`, `SKILL.md`,
+  `skill/phase3_build.md`, `openspec/specs/structured-errors/spec.md`.
 
 ### 10. Collapse redundant review layers — DONE
 
@@ -414,20 +418,11 @@ Week 2–3: items 1 and 2 (the sourcing ladder + archetype core), 5, 9, 6.
 After that: 3, 4, 10, 14, then 15 once archetypes + condensed references make a
 cheaper coder viable — tuned against the eval harness.
 
-## Remaining work (as of 2026-07-27)
+## Remaining work (as of 2026-08-11)
 
-Items 8, 7, 12, 13, 11, 1, 2, 6, 3, 4 are done. **5** (engineering-rationale
-elicitation) landed its prompt/reference/checklist hooks 2026-07-27; only its
-A/B verification (section 4) remains. Still open, roughly in original
-priority order: that **5** A/B, **9**
-(split `occ_exception` into real typed errors — telemetry now exists to prove
-which signatures matter), **10** (gate report-only by default), **14**
-(condense references — also unblocked by telemetry), **15** (finish model
-routing: agent files + `skill_config.json`, now that item 2's archetypes and
-item 13's reference citation reduce the coder's exposure).
+Items 1-14 are done. Only **15** (finish model routing: agent files +
+`skill_config.json`, now that item 2's archetypes and item 13's reference
+citation reduce the coder's exposure) remains open.
 
-Expected end state once the rest lands: scratch parts fail with named stages
-instead of OCC mystery errors; OCC retries carry specific fixes instead of a
-generic hint; the gate stops paying for a cold `claude -p` round by default;
-and per-phase model routing is actually configurable, not just
-architecturally possible.
+Expected end state once it lands: per-phase model routing is actually
+configurable, not just architecturally possible.

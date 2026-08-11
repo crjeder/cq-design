@@ -324,7 +324,7 @@ feature name gets a numbered badge and a legend line, or an explicit "not locate
 listing, so later conversation can reference features by name and badge instead of
 re-describing their location in prose.
 
-Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `disconnected_body`, `dimension_mismatch`, `occ_exception`.
+Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `disconnected_body`, `dimension_mismatch`, `occ_exception`, `construction_error`, `command_not_done`, `fillet_failure`, `null_object`, `index_out_of_range`, `type_mismatch`.
 
 The `--preview` overview is a **2x2 first-angle tile** (Front, Left side, Top,
 Isometric); `--cross-sections` writes the interior sections as **separate files**

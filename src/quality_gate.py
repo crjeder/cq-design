@@ -89,6 +89,12 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
                 "non_manifold_edge",
                 "non_watertight",
                 "occ_exception",
+                "construction_error",
+                "command_not_done",
+                "fillet_failure",
+                "null_object",
+                "index_out_of_range",
+                "type_mismatch",
                 "dimension_mismatch",
             )
             else "warning"
