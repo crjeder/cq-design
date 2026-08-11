@@ -56,25 +56,33 @@ import time
 # ---------------------------------------------------------------------------
 _OCC_HINTS = {
     "Standard_ConstructionError": (
+        "construction_error",
         "geometry construction failed — check that boolean bodies overlap "
-        "and no faces are coincident"
+        "and no faces are coincident",
     ),
     "BRep_API": (
+        "command_not_done",
         "boolean operation failed — ensure the inner body extends at least "
-        "0.01 mm past the outer boundary (use inner height = outer height + 0.02)"
+        "0.01 mm past the outer boundary (use inner height = outer height + 0.02)",
     ),
     "StdFail_NotDone": (
+        "fillet_failure",
         "operation left incomplete — fillet radius may exceed an adjacent face "
-        "dimension; reduce the radius or apply fillets before cutting holes"
+        "dimension; reduce the radius or apply fillets before cutting holes",
     ),
     "Standard_NullObject": (
+        "null_object",
         "referenced a shape that does not exist — check selector strings "
-        "('.faces(\">Z\")', etc.) and workplane offsets"
+        "('.faces(\">Z\")', etc.) and workplane offsets",
     ),
-    "Standard_OutOfRange": ("index out of range — check pushPoints list or loop bounds"),
+    "Standard_OutOfRange": (
+        "index_out_of_range",
+        "index out of range — check pushPoints list or loop bounds",
+    ),
     "Standard_TypeMismatch": (
+        "type_mismatch",
         "wrong shape type for this operation — verify the workplane and "
-        "selector are targeting the correct geometry"
+        "selector are targeting the correct geometry",
     ),
 }
 
@@ -174,14 +182,15 @@ def _translate_stderr(stderr: str) -> list[dict]:
                 exc_message = parts[1].strip() if len(parts) > 1 else ""
 
     if exc_class:
+        err_type = "occ_exception"
         hint = _OCC_HINT_DEFAULT
-        for key, h in _OCC_HINTS.items():
+        for key, (t, h) in _OCC_HINTS.items():
             if key in exc_class or exc_class in key:
-                hint = h
+                err_type, hint = t, h
                 break
         errors.append(
             {
-                "type": "occ_exception",
+                "type": err_type,
                 "occ_class": exc_class,
                 "message": exc_message or exc_class,
                 "hint": hint,

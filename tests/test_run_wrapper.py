@@ -249,15 +249,41 @@ def test_translate_stderr_ignores_plain_capitalized_lines():
 
 
 def test_translate_stderr_detects_real_exceptions():
-    """Genuine Python and OCC exception lines still translate to occ_exception."""
+    """Genuine Python exceptions not in the OCC table translate to occ_exception."""
     from run_cadquery_model import _translate_stderr
 
     py = _translate_stderr("ValueError: bad radius")
     assert len(py) == 1 and py[0]["type"] == "occ_exception"
     assert py[0]["occ_class"] == "ValueError"
 
-    occ = _translate_stderr("StdFail_NotDone: operation incomplete")
-    assert len(occ) == 1 and occ[0]["occ_class"] == "StdFail_NotDone"
+
+def test_translate_stderr_maps_known_occ_classes_to_typed_errors():
+    """Each known OCC class in _OCC_HINTS gets its own error type, not occ_exception."""
+    from run_cadquery_model import _translate_stderr
+
+    for occ_class, expected_type in (
+        ("Standard_ConstructionError", "construction_error"),
+        ("BRep_API", "command_not_done"),
+        ("StdFail_NotDone", "fillet_failure"),
+        ("Standard_NullObject", "null_object"),
+        ("Standard_OutOfRange", "index_out_of_range"),
+        ("Standard_TypeMismatch", "type_mismatch"),
+    ):
+        errs = _translate_stderr(f"{occ_class}: operation incomplete")
+        assert len(errs) == 1
+        assert errs[0]["type"] == expected_type
+        assert errs[0]["occ_class"] == occ_class
+        assert errs[0]["hint"]
+
+
+def test_translate_stderr_unmapped_occ_class_falls_back():
+    """An OCC exception class not in _OCC_HINTS still reports occ_exception."""
+    from run_cadquery_model import _translate_stderr
+
+    errs = _translate_stderr("Standard_DomainError: unmapped class")
+    assert len(errs) == 1
+    assert errs[0]["type"] == "occ_exception"
+    assert errs[0]["occ_class"] == "Standard_DomainError"
 
 
 def test_translate_stderr_classifies_verify_markers():
