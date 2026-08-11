@@ -15,6 +15,47 @@ change lives in that change's `tasks.md`, not here.
       milestone log + `skill/resume.md` resume procedure; `parameters.py` write moved to the
       Phase 1 dimension checkpoint.
 - [ ] Improve cross section selection. The renders do not show anything useful.
+      User's position (2026-08-11): sections should concentrate on (a) features the
+      LLM has clarification questions about, (b) features the human has complained
+      about, (c) all other features mentioned in the conversation -- in that priority
+      order. Explored 2026-08-11, findings:
+      - The CUTTING machinery is fine; only SELECTION is broken.
+        `render_preview._section_cuts` already honors `--extra-section axis=pos`
+        (repeatable, and it REPLACES the centerline cuts). The fallback is 3
+        bbox-centerline cuts -- on a hollow box, the one place guaranteed to show air.
+      - `skill/phase3_build.md:335-345` already tells the author to add
+        `--extra-section` per declared position, but as a CONDITIONAL ("if this part
+        unions a feature into a body that already has a cavity...") -- a judgement
+        call the author skips, so the useless fallback fires. Make it a rule, not a
+        condition.
+      - The three buckets already exist as `request_log`'s `kind` enum:
+        `correction` = (b), `clarification` = (a), `initial`/rest = (c). Chronological
+        append-only order gives recency ranking for free; `src/request_log_search.py`
+        is the existing keyhole reader.
+      - MISSING LINK: `request_log.text` is free prose -- it names no feature and
+        carries no coordinate. Nothing turns "the ear standoff sits too low" into
+        `y=5`. Needs a name<->position table to join against.
+      - BLOCKER RESOLVED via openspec change `add-interface-name-field`: `interfaces[]`
+        now declares an optional `name` field (`^[a-z][a-z0-9_]*$`, unique within a
+        part), so interfaces that carry both `name` and `position_mm` can exist in a
+        schema-valid plan and `skill/phase3_build.md:317-325`'s `--callout` emission can
+        fire. The name<->position join this item needs is now available; the join
+        itself (below) is not yet implemented.
+      - CHEAP VERSION once `name` lands, no new selection logic: sections follow the
+        callouts. "Every feature that earns a callout badge earns a cut through its
+        `position_mm`; order by `request_log` recency, most recent `correction` first;
+        cap at N; centerline cuts only when the list is empty." Text->feature matching
+        can be `request_log_search.py <feature_name>` -- the shared-vocabulary change
+        exists so the human's wording and the geometry use the same token, so grep is
+        a legitimate join.
+      - Open questions for whoever picks this up: (1) who selects -- the part author
+        passing `--extra-section` (needs a rule it will follow) or `render_preview`
+        reading `BUILD_PLAN.json` itself (deterministic, but the tool does not parse
+        the plan today); (2) budget -- 3 cuts today, is 6 useful or noise on a part
+        with 15 mentioned features; (3) axis choice -- a `position_mm` is a point, not
+        a plane, so pick the axis normal to the interface's `wall`, or cut all three;
+        (4) explicit tagging (optional `features: [<name>]` on a `request_log` entry,
+        exact join, planner must maintain it) vs. grep.
 - [x] check if there is a fillets before chamfers rule (improves visual quality) --
       was prematurely marked done against the horizontal/vertical Chamfer/Fillet
       *type* rule below (which treatment to use where, not call order). The actual

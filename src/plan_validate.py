@@ -36,6 +36,12 @@ _ADDITIONAL_PROPS_RE = re.compile(r"'([^']+)'")
 
 def _hint_for_error(err: jsonschema.exceptions.ValidationError) -> str:
     """Extra guidance for a known-legacy additional-property error, else ''."""
+    path = list(err.absolute_path)
+    if err.validator == "pattern" and path[-1:] == ["name"] and "interfaces" in path:
+        return (
+            " (interface names must be normalized snake_case: lowercase, with "
+            "spaces and hyphens replaced by underscores, e.g. 'inner_lip')"
+        )
     if err.validator != "additionalProperties":
         return ""
     names = _ADDITIONAL_PROPS_RE.findall(err.message)
@@ -95,6 +101,7 @@ def validate_plan(
 
     errors.extend(_check_archetypes(plan, archetypes_path))
     errors.extend(_check_unions(plan))
+    errors.extend(_check_interface_names(plan))
     errors.extend(_check_placements(plan))
     errors.extend(_check_nonzero_dir(plan, "load"))
     errors.extend(_check_nonzero_dir(plan, "show_face"))
@@ -150,6 +157,26 @@ def _check_unions(plan: dict[str, Any]) -> list[str]:
                 f"Union id '{uid}' is declared more than once (parts '{seen[uid]}' and '{pid}')"
             )
         seen[uid] = pid
+    return errors
+
+
+def _check_interface_names(plan: dict[str, Any]) -> list[str]:
+    """Interface `name` values must be unique within a part; unnamed interfaces are
+    skipped. Unlike `_check_unions` (model-wide -- union ids share one namespace for
+    files and 3MF objects), this scope is per-part: callout badges are rendered one
+    part at a time, so a duplicate only creates ambiguity within that part's legend.
+    The same name on two different parts is fine -- the part id disambiguates them."""
+    errors = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        seen: set[str] = set()
+        for interface in part.get("interfaces", []):
+            name = interface.get("name")
+            if name is None:
+                continue
+            if name in seen:
+                errors.append(f"Part '{pid}': interface name '{name}' is declared more than once")
+            seen.add(name)
     return errors
 
 
