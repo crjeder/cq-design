@@ -176,7 +176,7 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
         -- the prescription was not the gap. Shipped: `quality_gate.py` gained a
         telemetry-presence stage that warns (never blocks) when `attempts.jsonl` is
         missing/empty/unparseable, reported at delivery in `skill/phase4_deliver.md`.
-  - [ ] formalize the `parameters.py` sourced-measurements convention: the project
+  - [x] formalize the `parameters.py` sourced-measurements convention: the project
         grew an ad-hoc root-level `parameters.py` ("sourced real-world measurements...
         not imported by the build") that keeps user-measured numbers + provenance +
         correction history separate from each script's resolved PARAMETERS block.
@@ -192,7 +192,7 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
         pattern for parts whose assembled frame has the part floating (here bottom at
         Z=-2). Add it to the part prompt / phase-3 guidance as the default convention
         instead of leaving each session to rediscover it.
-  - [ ] correction rounds driven by user sketches: rounds 5-7 were steered by annotated
+  - [x] correction rounds driven by user sketches: rounds 5-7 were steered by annotated
         images (`ear-placement.png`, `hinge-ear.png`, `C5 Aschenbecher-annotated.jpg`)
         that the session preserved in the project root and referenced from
         request_log/part_notes ad hoc. Formalize: request_log entries get an optional
@@ -352,6 +352,7 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
 
 ## Left for past V1.0:
 
+- [ ] read the content of parameters.py on every re-plan and -author
 - [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
   - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
   - [ ] python script owns the loop and switches context & models. prompt will be split
