@@ -332,17 +332,34 @@ Isometric); `--cross-sections` writes the interior sections as **separate files*
 `BUILD_PLAN.json` as `--extra-section` cuts so the review's connectedness and
 interior questions have a section that actually crosses the geometry.
 
-**Sections through declared positions.** With no positions, `--cross-sections` cuts
-X/Y/Z through the bounding-box center only. If this part unions a feature (a boss,
-tab, dovetail, rib) into a body that already has a cavity (pit, pocket, shell)
-elsewhere in the same script, or joins bodies at a junction away from the center, the
-center cuts will not pass through it — and a disconnection or a feature poking into a
-cavity is invisible from every exterior panel (see `CadQuery Pattern Reference.md`
-gotcha 12). Add one `--extra-section axis=value_mm` per such position (repeatable),
-e.g. `--extra-section x=50 --extra-section x=110` for two seam tabs at x=50 and x=110,
-so the Step 4 review has a section crossing each feature/junction to answer against.
-When `--extra-section` positions are given they replace the center cuts (they are the
-declared positions); each is written as its own `<part>_section_<axis>_<pos>mm.png`.
+**Sections through declared positions — a rule, not a judgement call.** With no
+positions, `--cross-sections` cuts X/Y/Z through the bounding-box center only — on a
+hollow box, the one place guaranteed to show air. If this part has ANY named+
+positioned `interfaces[]` entry, add one `--extra-section axis=value_mm` per selected
+entry (repeatable); do not rely on the center-cut fallback. Selection and axis choice:
+
+1. Build the candidate list from the same named+positioned `interfaces[]` entries
+   already used for `--callout` above.
+2. For each candidate's `name`, run
+   `request_log_search.py BUILD_PLAN.json --query "<name>"` and note the
+   highest-priority `kind` among the matches, if any.
+3. Sort into tiers: (1) matched a `kind: clarification` entry, (2) matched a
+   `kind: correction` entry, (3) everything else (no match, or only `kind: initial`).
+   Within a tier, order matched entries by `request_log` array position descending
+   (most recent first); unmatched tier-3 entries keep plan declaration order.
+4. Fill the selection from tier 1, then tier 2, then tier 3, stopping at **3** total —
+   the fixed cap that keeps preview volume reviewable regardless of interface count.
+5. For each selected entry, pick the cut axis normal to its declared `wall` field
+   when present (cuts the feature face-on); otherwise use the axis of
+   `position_mm`'s largest-magnitude component relative to the part bbox center.
+
+E.g. `--extra-section x=50 --extra-section x=110` for two selected seam tabs at
+x=50 and x=110. When `--extra-section` positions are given they replace the center
+cuts; each is written as its own `<part>_section_<axis>_<pos>mm.png`. The
+bbox-center fallback (no `--extra-section` at all) applies only when the part has
+zero named+positioned interfaces — otherwise a disconnection or a feature poking
+into a cavity would be invisible from every exterior panel (see `CadQuery Pattern
+Reference.md` gotcha 12).
 
 **Feature detail previews for small features.** The default overview tile packs the
 four views into a compact 2x2 grid (Front, Left, Top, Isometric, each a few hundred

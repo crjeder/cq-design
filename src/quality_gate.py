@@ -349,6 +349,34 @@ def _run_plan_validation_stage(plan_path: str) -> list[dict]:
     ]
 
 
+def _run_telemetry_stage(attempts_log: str) -> list[dict]:
+    """Warn when the per-attempt telemetry log is absent, empty, or unparseable (once,
+    outside the fix loop; advisory only -- geometry is unaffected either way)."""
+    from units import make_issue
+
+    if os.path.isfile(attempts_log):
+        with open(attempts_log, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    json.loads(line)
+                    return []
+                except json.JSONDecodeError:
+                    continue
+
+    return [
+        make_issue(
+            "telemetry",
+            "warning",
+            "telemetry_missing",
+            f"No attempt telemetry found at {attempts_log}.",
+            "Log each attempt with telemetry.py per skill/phase3_build.md Step 5.",
+        )
+    ]
+
+
 def _run_kinematic_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) -> list[dict]:
     """Run the kinematic range check when the plan declares any joints.
 
@@ -522,6 +550,7 @@ def run_gate(
     stl_dir: str | None = None,
     model_3mf_path: str | None = None,
     orientation: dict | None = None,
+    attempts_log: str | None = None,
 ) -> dict:
     """
     Run all quality checks against script_path.
@@ -587,6 +616,13 @@ def run_gate(
     # ---- 3MF deliverable manifold check (index topology, as a slicer reads it) ----
     if model_3mf_path and os.path.exists(model_3mf_path):
         all_issues += _analyze_3mf(model_3mf_path)
+
+    # ---- telemetry presence check (once, outside the fix loop; runs unconditionally --
+    # even a malformed plan is exactly when telemetry matters) ----
+    resolved_attempts_log = attempts_log or os.path.join(
+        os.path.dirname(os.path.abspath(script_path)), "attempts.jsonl"
+    )
+    all_issues += _run_telemetry_stage(resolved_attempts_log)
 
     # ---- plan validation (once, before any plan-consuming stage) ----
     # The wrapper/geometry stages above read the plan only through defaulted .get
@@ -654,6 +690,11 @@ def main():
         "recipe's orientation field",
     )
     parser.add_argument(
+        "--attempts-log",
+        default=None,
+        help="Path to the per-attempt telemetry log (default: attempts.jsonl alongside --script)",
+    )
+    parser.add_argument(
         "--fix",
         action="store_true",
         help="Invoke claude to fix errors (cold-context, no plan/render/attempt history); "
@@ -674,6 +715,7 @@ def main():
         stl_dir=args.stl_dir,
         model_3mf_path=args.model_3mf,
         orientation=orientation,
+        attempts_log=args.attempts_log,
     )
 
     print(json.dumps(report, indent=2))
