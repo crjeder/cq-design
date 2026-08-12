@@ -771,6 +771,38 @@ def test_well_formed_request_log_validates(plan_file):
     assert validate_plan(plan_file(plan)) == []
 
 
+def test_request_log_entry_with_images_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make an enclosure"},
+        {
+            "ts": "2026-07-19T11:00:00Z",
+            "kind": "correction",
+            "text": "Ear should sit lower, see sketch",
+            "images": ["sketches/ear-placement-2026-07-19T11-00-00Z.png"],
+        },
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_request_log_empty_images_array_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "images": []}
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_request_log_empty_image_path_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "images": [""]}
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
 def test_request_log_unknown_kind_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "bogus", "text": "hi"}]
