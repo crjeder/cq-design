@@ -72,6 +72,11 @@ coordinate vocabulary, expressed relative to your own authored frame:
 Recommended, not required: author with the part's physical bottom at Z = 0 (the print
 bed in the authored frame) and `centered=(True, True, False)` on `.box()`, unless the
 part's shape or the stated pose intent makes a different authoring frame more natural.
+This applies especially when the stated **Pose intent** puts the part's physical bottom
+away from Z = 0 in the assembled frame (a "floating" part, e.g. bottom at Z = -2): author
+bottom-at-Z=0 as above, then report the offset as `translate_mm` in your contract-rule-6
+transform to reach the stated pose -- the same write-back mechanism, just naming the case
+it is for, rather than leaving you to rediscover the pairing by hand.
 
 ## Available blocks
 
