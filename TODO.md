@@ -3,6 +3,9 @@
 Tasks not tracked in an `openspec/changes/` change. Anything tied to a specific
 change lives in that change's `tasks.md`, not here.
 
+## Feature freeze for V1.0
+As of 12.08.2026 only defects will be corrected, no new features introduced.
+
 - [x] consolidate tasks / ideas from `Block_Sources.md`, `market_research.md`, `occ-error.md`
       and `README.md` into `TODO.md` (here). DONE: README's `Related projects` table moved to
       `info/related_projects.md` (status/relevance column dropped -- that tracking lives here);
@@ -215,6 +218,55 @@ change lives in that change's `tasks.md`, not here.
       baseline. Section 4 still needs a fresh hooks-on-vs-off run pair; see
       `openspec/changes/eval-geometric-part-matching/proposal.md`'s "Re-score
       Results" section for the re-scored numbers and this caveat in full.
+- [ ] rationale audit: decide what `planning_notes` is FOR, then bound it.
+      User's position (2026-08-11): keep it as durable design rationale IF that helps
+      a re-plan; the scratchpad role is dropped. (An earlier session recommended the
+      scratchpad, reasoning that the model's working-out had nowhere to live between
+      turns -- extended thinking is that scratchpad now, and it is correctly
+      turn-local. Persisting turn-local reasoning into the artifact is what makes the
+      field unbounded, since nothing can ever be deleted if nothing knew its purpose.)
+      "Helps re-plan" is a hypothesis, not an observed need: a re-plan agent today
+      reads `request_log` (via the keyhole `src/request_log_search.py`) and `parts[]`,
+      and never opens `planning_notes`. THE TEST: take a real correction round from
+      HitsterTower or the C5 Phone-Holder and ask what the re-planner would have got
+      wrong without `planning_notes` that `request_log` + `parts[]` did not already
+      give it. Nothing -> the field is dead weight and the pose-intent item above
+      replaces rather than reforms it. Something -> that list IS the field's schema,
+      and everything outside it gets banned by a rule in `prompts/planning.md`.
+      Precedent for the "keep it but bound it" outcome: `request_log` is the other
+      unbounded append-only prose field, and it was solved not by compressing the text
+      but by giving it a reader that never loads it whole (`request_log_search.py`,
+      `skill/phase3_build.md:26-28`). Copy that shape, not a new compact schema.
+      Likely survivor regardless of the verdict: rule 15's provenance (source URL,
+      license, sourcing rung) is a legal record rather than reasoning, so it may want
+      out of free text into a structured field entirely.
+      Cheap independent win, available before the audit resolves: one rule in
+      `prompts/planning.md` banning prose restatement of `placement` -- the structured
+      field is the single source. Pure deletion, no schema change, and it kills the
+      bulk of the HitsterTower example above on its own. DONE via `author-owned-placement`
+      (`prompts/planning.md` rule 8a).
+      LLM answer:
+      "Concrete gaps, not just "less context":
+
+      **1. Wall adjacency would silently break.** The user's original sketch was a↔c, c↔d, d↔b, b↔a. `request_log` never records that this doesn't close (74.3/74.3/61.4/67.8 don't form a rectangle under that pairing). `parts[]` only shows the *result* (interfaces named `corner_d_a_tails`, `corner_a_c_pins`, etc.) with no signal that this ring order differs from what was asked. A re-planner reading only those two would either reproduce the user's literal (non-closing) adjacency, or re-derive *some* closing order — possibly a different one than a↔c, c↔b, b↔d, d↔a — and never know it needs to justify the deviation to the user. Only `planning_notes`' PLAN NORMALIZATION section says this explicitly.
+
+      **2. It would re-attempt rejected archetypes.** `parts[]` records what was built (scratch geometry), not what was tried and discarded. Nothing in `request_log` mentions `stand` or `plate-boss-pattern`. Without the ARCHETYPES REJECTED note, a re-planner doing archetype matching on wall_d (has a "boss") or base (has "bosses"/pockets) would re-evaluate those same archetypes from scratch — possibly picking one this time, since it has no memory of *why* they were rejected (wrong shape family, not a parameter tweak).
+
+      **3. It would likely add a `joints` array and fail validation.** Four parts each declare a `dovetail_corner` interface — exactly the shape of a matched-pair block the schema wants in a top-level `joints` entry. A re-planner pattern-matching on `parts[]` alone has strong reason to add one. It would then hit the tree-topology constraint (4-cycle, no valid `root_part`) as a validation error with no explanation of why — instead of knowing upfront, as `planning_notes` states, that this is structurally impossible here and the mating is deliberately expressed via `interfaces` + placement instead.
+
+      **4. It wouldn't know the base's sourcing question was already resolved.** Phase 0 triage (search for a reusable existing model before designing from scratch) isn't recorded anywhere in `parts[]`, and `request_log`'s initial entry only says STLs were measured for reference. Without the SOURCE note ("from-scratch rebuild, no third-party model found or reused, no web lookup needed"), a re-planner would either redo that search or not know it's allowed to skip it.
+
+      **5. The authoring-frame convention would need re-deriving per part instead of once.** Each wall's own `part_notes` states its own placement, but not *why* all four share the same flat-authored convention (origin on the west corner, dovetail run in the build plane). That reasoning — tied to a block requirement (tooth-tiling axis must lie in the build plane) — lives only in WALL AUTHORING FRAME / PLACEMENT. A re-planner regenerating one wall in isolation, from that wall's `part_notes` alone, has no cross-part signal that deviating breaks the corner-joint printability property, not just that wall's own printability.
+
+      Everything else in `planning_notes` (DFM cleanup summary, orientation policy rationale) is largely restated per-part in `part_notes`, so it's redundant there — the five above are the ones that are genuinely load-bearing only in `planning_notes`."
+- [x] `interface` third type: `union` (fused into the parent part's body, distinct from
+      mating docks like `face_mount` and kinematic axes like `hinge_axis`) -- DONE.
+- [x] `hinge_axis` interface type is too narrow: generalize the kinematic-axis vocabulary
+      (revolute/prismatic/spherical) rather than the single `hinge_axis` token -- DONE
+      (replaced by motion-agnostic `joint_axis`).
+      
+## Left for past V1.0:
+
 - [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
   - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
   - [ ] python script owns the loop and switches context & models. prompt will be split
@@ -263,11 +315,6 @@ change lives in that change's `tasks.md`, not here.
       membership and the world joint axis automatically (interface naming: keep
       assembly/mating docks conceptually distinct from kinematic axes even though
       both live in the block `interfaces` array)
-- [x] `interface` third type: `union` (fused into the parent part's body, distinct from
-      mating docks like `face_mount` and kinematic axes like `hinge_axis`) -- DONE.
-- [x] `hinge_axis` interface type is too narrow: generalize the kinematic-axis vocabulary
-      (revolute/prismatic/spherical) rather than the single `hinge_axis` token -- DONE
-      (replaced by motion-agnostic `joint_axis`).
 - [ ] preview: z-buffered renderer -- matplotlib mplot3d has no z-buffer and
       depth-sorts whole triangles (painter's algorithm), so flat faces show
       cosmetic triangular shading patches where angled wall/fillet triangles paint
@@ -381,47 +428,7 @@ change lives in that change's `tasks.md`, not here.
       gets its own field (not folded into `description`), and the authoring frame is
       per-part, chosen freely by the author (design D2's plan-level-convention
       alternative was rejected as premature).
-- [ ] rationale audit: decide what `planning_notes` is FOR, then bound it.
-      User's position (2026-08-11): keep it as durable design rationale IF that helps
-      a re-plan; the scratchpad role is dropped. (An earlier session recommended the
-      scratchpad, reasoning that the model's working-out had nowhere to live between
-      turns -- extended thinking is that scratchpad now, and it is correctly
-      turn-local. Persisting turn-local reasoning into the artifact is what makes the
-      field unbounded, since nothing can ever be deleted if nothing knew its purpose.)
-      "Helps re-plan" is a hypothesis, not an observed need: a re-plan agent today
-      reads `request_log` (via the keyhole `src/request_log_search.py`) and `parts[]`,
-      and never opens `planning_notes`. THE TEST: take a real correction round from
-      HitsterTower or the C5 Phone-Holder and ask what the re-planner would have got
-      wrong without `planning_notes` that `request_log` + `parts[]` did not already
-      give it. Nothing -> the field is dead weight and the pose-intent item above
-      replaces rather than reforms it. Something -> that list IS the field's schema,
-      and everything outside it gets banned by a rule in `prompts/planning.md`.
-      Precedent for the "keep it but bound it" outcome: `request_log` is the other
-      unbounded append-only prose field, and it was solved not by compressing the text
-      but by giving it a reader that never loads it whole (`request_log_search.py`,
-      `skill/phase3_build.md:26-28`). Copy that shape, not a new compact schema.
-      Likely survivor regardless of the verdict: rule 15's provenance (source URL,
-      license, sourcing rung) is a legal record rather than reasoning, so it may want
-      out of free text into a structured field entirely.
-      Cheap independent win, available before the audit resolves: one rule in
-      `prompts/planning.md` banning prose restatement of `placement` -- the structured
-      field is the single source. Pure deletion, no schema change, and it kills the
-      bulk of the HitsterTower example above on its own. DONE via `author-owned-placement`
-      (`prompts/planning.md` rule 8a).
-      LLM answer:
-      "Concrete gaps, not just "less context":
 
-      **1. Wall adjacency would silently break.** The user's original sketch was a↔c, c↔d, d↔b, b↔a. `request_log` never records that this doesn't close (74.3/74.3/61.4/67.8 don't form a rectangle under that pairing). `parts[]` only shows the *result* (interfaces named `corner_d_a_tails`, `corner_a_c_pins`, etc.) with no signal that this ring order differs from what was asked. A re-planner reading only those two would either reproduce the user's literal (non-closing) adjacency, or re-derive *some* closing order — possibly a different one than a↔c, c↔b, b↔d, d↔a — and never know it needs to justify the deviation to the user. Only `planning_notes`' PLAN NORMALIZATION section says this explicitly.
-
-      **2. It would re-attempt rejected archetypes.** `parts[]` records what was built (scratch geometry), not what was tried and discarded. Nothing in `request_log` mentions `stand` or `plate-boss-pattern`. Without the ARCHETYPES REJECTED note, a re-planner doing archetype matching on wall_d (has a "boss") or base (has "bosses"/pockets) would re-evaluate those same archetypes from scratch — possibly picking one this time, since it has no memory of *why* they were rejected (wrong shape family, not a parameter tweak).
-
-      **3. It would likely add a `joints` array and fail validation.** Four parts each declare a `dovetail_corner` interface — exactly the shape of a matched-pair block the schema wants in a top-level `joints` entry. A re-planner pattern-matching on `parts[]` alone has strong reason to add one. It would then hit the tree-topology constraint (4-cycle, no valid `root_part`) as a validation error with no explanation of why — instead of knowing upfront, as `planning_notes` states, that this is structurally impossible here and the mating is deliberately expressed via `interfaces` + placement instead.
-
-      **4. It wouldn't know the base's sourcing question was already resolved.** Phase 0 triage (search for a reusable existing model before designing from scratch) isn't recorded anywhere in `parts[]`, and `request_log`'s initial entry only says STLs were measured for reference. Without the SOURCE note ("from-scratch rebuild, no third-party model found or reused, no web lookup needed"), a re-planner would either redo that search or not know it's allowed to skip it.
-
-      **5. The authoring-frame convention would need re-deriving per part instead of once.** Each wall's own `part_notes` states its own placement, but not *why* all four share the same flat-authored convention (origin on the west corner, dovetail run in the build plane). That reasoning — tied to a block requirement (tooth-tiling axis must lie in the build plane) — lives only in WALL AUTHORING FRAME / PLACEMENT. A re-planner regenerating one wall in isolation, from that wall's `part_notes` alone, has no cross-part signal that deviating breaks the corner-joint printability property, not just that wall's own printability.
-
-      Everything else in `planning_notes` (DFM cleanup summary, orientation policy rationale) is largely restated per-part in `part_notes`, so it's redundant there — the five above are the ones that are genuinely load-bearing only in `planning_notes`."
 - [ ] form HitsterTower ("D:\Code\cq-design\info\session-export-1786431095406.zip"):
             "Hinges → dovetail corner joints. All 4 pin_hinge kinematic joints are gone. Each corner is now a dovetail_corner_joint (4 pins/tails per corner, 3mm board thickness, 6mm tooth insertion depth, 0.1mm clearance for separable fit). The tower no longer folds — it fully disassembles at all 4 corners into 4 flat panels + base for storage, and presses back together for use. Polarity: every wall carries pins on its east edge, tails on its west edge, so the ring closes consistently (wall_a→wall_c→wall_b→wall_d→wall_a).
             Couldn't express this as a formal top-level joints mate-chain (the schema requires a single-rooted tree; a 4-panel ring produces conflicting/double-anchored paths) — so each wall keeps its own explicit placement, and the dovetail mating is declared through each wall's interfaces instead. Functionally equivalent, just not chained through the schema's joint-tree mechanism."
