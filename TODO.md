@@ -218,7 +218,13 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
       baseline. Section 4 still needs a fresh hooks-on-vs-off run pair; see
       `openspec/changes/eval-geometric-part-matching/proposal.md`'s "Re-score
       Results" section for the re-scored numbers and this caveat in full.
-- [ ] rationale audit: decide what `planning_notes` is FOR, then bound it.
+- [x] rationale audit: decide what `planning_notes` is FOR, then bound it. DONE via
+      openspec change `bound-planning-notes`: bounded to three categories (decisions
+      against something, cross-part invariants, assembly procedure/hardware), a
+      general no-prose-restatement rule, and a re-plan read-before-rewrite clause.
+      Post-V1.0 follow-ups filed and left open: provenance move to a structured field
+      (rule 15), structured `{considered, rejected_because}` entries for category (a),
+      and the bill of non-printed materials (TODO.md item above).
       User's position (2026-08-11): keep it as durable design rationale IF that helps
       a re-plan; the scratchpad role is dropped. (An earlier session recommended the
       scratchpad, reasoning that the model's working-out had nowhere to live between
@@ -390,6 +396,27 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
       the mating-area footprint (2D where-to-connect) -- this is the 3D keep-clear-
       for-assembly volume. The gate should flag real geometry that violates a
       declared placeholder. Distinct from the model's own clearance gaps.
+- [ ] bill of non-printed materials. Surfaced by the `planning_notes` audit's C5
+      cross-check (2026-08-12): the plan and the delivery summary have NO field and NO
+      section naming anything the user must supply. Verified by grep -- no `BOM`,
+      `hardware list`, `required hardware` or `non-printed` anywhere in `src/`,
+      `skill/`, `prompts/`, `SKILL.md`, no such key in `build_plan_schema.json`, and
+      `skill/phase4_deliver.md` mentions no screw, insert, magnet or assembly step. So
+      a user handed an enclosure with `screw_boss`/`pcb_standoff` features is never
+      told which screws to buy, and C5's 1.75 mm filament hinge pin survived only as a
+      sentence buried in `planning_notes`. Scope: screws/nuts/washers, heat-set
+      inserts, magnets, bearings, springs, filament/rod pins, adhesives, and
+      quantities. Partly DERIVABLE, which decides the shape: `blocks_needed` hardware
+      params (`blocks/hardware.py`'s cq_warehouse fasteners, `screw_boss`,
+      `pcb_standoff`) already carry the spec and the count, so the generator can emit
+      most rows and only the non-block items (glue, a raw filament pin, a magnet
+      pressed into a plain pocket) need declaring by hand. Decide: derived-plus-manual-
+      additions (recommended -- keeps the declared surface small) vs. a fully hand-
+      authored top-level `bom` array. Output lands in the Phase 4 delivery summary
+      regardless. Pairs with the assembly-placeholder item above and with category (c)
+      of the `planning_notes` inclusion rule -- (c) records the assembly PROCEDURE, the
+      BOM records the PARTS it consumes; if this ships, (c) keeps the procedure and
+      hands the hardware list over.
 - [ ] joints: side-tagged `face_mount` docks so the planner derives union
       membership and the world joint axis automatically (interface naming: keep
       assembly/mating docks conceptually distinct from kinematic axes even though

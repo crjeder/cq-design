@@ -66,9 +66,11 @@ checkpoint.
 
 This file is separate from each part script's own internal `PARAMETERS` block (which
 holds resolved/derived geometry values, not necessarily the raw sourced ones) -- and
-separate from `planning_notes`, which explains reasoning rather than listing values for
-reuse and describes only the current design state (never a round-by-round changelog --
-that history belongs exclusively in `request_log`).
+separate from `planning_notes`, which is bounded to decisions-against, cross-part
+invariants, and assembly procedure/hardware (`prompts/planning.md` rule above the
+numbered rules) rather than listing values for reuse, and describes only the current
+design state (never a round-by-round changelog -- that history belongs exclusively in
+`request_log`).
 
 **Printer profile write-back:** if the plan's `printer`, `material`, `nozzle_mm`, or any
 `constraints` field differs from `printer_profile.json` and the user did not flag the value as
