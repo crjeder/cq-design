@@ -377,6 +377,37 @@ def _run_telemetry_stage(attempts_log: str) -> list[dict]:
     ]
 
 
+def _run_parameters_presence_stage(project_root: str) -> list[dict]:
+    """Warn when Phase 1's dimension checkpoint recorded that real-world sourcing
+    happened (a `phase1/dimensions_approved` line in build/journal.md) but
+    parameters.py is missing or empty at the project root (advisory only -- geometry
+    is unaffected either way)."""
+    from units import make_issue
+
+    journal_path = os.path.join(project_root, "build", "journal.md")
+    if not os.path.isfile(journal_path):
+        return []
+
+    with open(journal_path, encoding="utf-8") as f:
+        sourced = any(line.startswith("- phase1/dimensions_approved") for line in f)
+    if not sourced:
+        return []
+
+    params_path = os.path.join(project_root, "parameters.py")
+    if os.path.isfile(params_path) and os.path.getsize(params_path) > 0:
+        return []
+
+    return [
+        make_issue(
+            "parameters",
+            "warning",
+            "parameters_missing",
+            f"No sourced-measurement provenance found at {params_path}.",
+            "Write parameters.py per skill/phase1_requirements.md's Provenance write, at approval.",
+        )
+    ]
+
+
 def _run_kinematic_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) -> list[dict]:
     """Run the kinematic range check when the plan declares any joints.
 
@@ -623,6 +654,10 @@ def run_gate(
         os.path.dirname(os.path.abspath(script_path)), "attempts.jsonl"
     )
     all_issues += _run_telemetry_stage(resolved_attempts_log)
+
+    # ---- parameters.py provenance presence check (once, outside the fix loop) ----
+    project_root = os.path.dirname(os.path.abspath(plan_path))
+    all_issues += _run_parameters_presence_stage(project_root)
 
     # ---- plan validation (once, before any plan-consuming stage) ----
     # The wrapper/geometry stages above read the plan only through defaulted .get
