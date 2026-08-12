@@ -21,11 +21,21 @@ correction supersedes rather than appending a dated round entry or a "SUPERSEDED
 round N" annotation; the round-by-round history lives in `request_log`, not in
 `part_notes`.
 
+**Sketches.** If the user attaches an image (a hand-drawn sketch, an annotated
+screenshot) to a clarification or correction, copy it into a `sketches/` directory at
+the project root before appending the entry, named `<slug>-<ts>.<ext>` (a short slug
+from the correction's `text`, or `sketch` if none is obvious; `ts` is the entry's own
+timestamp with `:` replaced by `-`). Set the entry's `images` field to the copied
+repo-relative path (an array, even for one file).
+
 **Searching.** When you need prior context on a specific decision or feature during
 Escalation or a correction round — e.g. recalling why a dimension was corrected earlier
 in the build — run `python src/request_log_search.py BUILD_PLAN.json --query <keyword>`
 (add `--kind correction`/`--kind clarification` to narrow further) instead of re-reading
-`BUILD_PLAN.json`'s full `request_log` array into context.
+`BUILD_PLAN.json`'s full `request_log` array into context. If the matched entry carries
+`images`, read the referenced sketch file(s) before re-authoring the part — the same
+"read the render before re-rendering" discipline applied to a user-supplied sketch
+instead of a generated preview.
 
 ## Vocabulary
 
