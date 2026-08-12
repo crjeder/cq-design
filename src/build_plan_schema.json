@@ -13,7 +13,7 @@
   "properties": {
     "planning_notes": {
       "type": "string",
-      "description": "LLM design reasoning: part decomposition choices, material decisions, dimension sources. Describes the CURRENT design state only -- never a round-by-round changelog; that history belongs exclusively in request_log."
+      "description": "Bounded to three categories only: (a) decisions made against something, with the reason; (b) invariants binding more than one part; (c) the assembly procedure and non-printed hardware it consumes. Not a restatement of any structured field (placement, load, dimensions, etc). Describes the CURRENT design state only -- never a round-by-round changelog; that history belongs exclusively in request_log."
     },
     "schema_version": {
       "type": "integer",
