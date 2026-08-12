@@ -264,6 +264,85 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
 - [x] `hinge_axis` interface type is too narrow: generalize the kinematic-axis vocabulary
       (revolute/prismatic/spherical) rather than the single `hinge_axis` token -- DONE
       (replaced by motion-agnostic `joint_axis`).
+- [x] preview: cross-section previews wired into workflow. The `--cross-sections`
+      flag now renders a 3x3 grid (6 exterior + 3 interior section views) as the
+      default for whole-part validation. Visual Review Checklist extended with
+      items 8-10 (hollow/wall integrity, internal features, unintended voids) to
+      exploit the interior views. (DONE: PR #39).
+- [x] gate: enforce `reference/FDM 3D Print Design Guidelines.md`'s "Chamfer /
+      Fillet" rule (horizontal edges -> chamfer, vertical edges -> fillet). Done via
+      `src/edge_treatment_check.py`: instead of classifying edge treatment from a
+      triangulated mesh (a filleted edge and a round bore share the same triangle
+      signature), it inspects the treatment at apply-time -- wraps `cq.Workplane.fillet`/
+      `.chamfer`, re-runs the part script to record the exact BRep direction of every
+      treated edge (round features never pass through a fillet/chamfer call, so no false
+      positives), then classifies each in the build frame (authored-frame tangents rotated
+      through the union's print orientation via `placement.transform_direction`). A fillet
+      on a horizontal edge and a chamfer on a vertical edge are advisory (`warning`)
+      findings; diagonal edges and tilted rims are passed silently. Wired into
+      `quality_gate.py` as a once-outside-the-fix-loop stage.
+- [x] gate + guide: small up-facing slopes stair-step and look bad (COSMETIC only).
+      DONE via openspec change `cosmetic-slope-gate`: scoped in an explore session to the
+      cosmetic stair-stepping of UP-facing surfaces inclined ~5-45 deg from horizontal (NOT
+      overhang, NOT edge treatment). Shipped `mesh_io.up_facing_incline_area` +
+      a `cosmetic_slope_area_mm2` field on the print-orientation result, surfaced by a
+      visual_quality-only advisory (`warning`) gate stage in `quality_gate.py`, plus a
+      "Cosmetic Slopes" FDM guideline section. The "rotate" remedy already existed
+      (`print_orientation.py` visual_quality mode); the gate just surfaces the residual.
+      Deferred: slope-aware layer-height recipe hint (optional). The Greedy Look-Ahead Filter
+      / chamfer-step transform was split out to the reverse-engineer-mesh item above.
+- [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
+- [x] design error: the llm often places the center of a box where actually a one of the walls  should sit --
+      INTRA-PART case DONE via openspec change `intra-part-mating-area` (`verify_backed`
+      in `cq_verify.py`: a feature's face, named by a signed axis, must be fully backed
+      by a named neighboring feature -- bbox reach + orthogonal-axis containment).
+      Reproduces and fixes the C5 Phone-Holder hinge-knuckle standoff bug
+      **TEST** works in that case, but faces do not need to be always fully backed, only if it's the designers intention
+      (`build/cradle.py` ROUND 5-7 comments: a standoff centered on the pivot coordinate
+      was only half-backed by its leg, which stopped exactly at that coordinate instead
+      of the standoff's far edge). Vocabulary ("mating area", "backed by material")
+      reused from `openspec/changes/archive/2026-07-01-joint-contract/design.md:412-421`.
+      INTER-UNION case NOT implemented -- that archived design covers a block declaring a
+      mating area between the two unions of a multi-body block (e.g. a hinge's two
+      leaves), checked once at the whole-model gate after export. It was captured only as
+      "exploratory capture, NOT ready to implement" and stayed blocked on two open cruxes
+      that `intra-part-mating-area` does not touch: (1) satisfaction algebra -- precisely
+      how a requested joint matches a block instance (axis-alignment semantics, range
+      subset, how plan A/B bind to the block's two unions); (2) sub-body naming
+      convention -- how a multi-union block labels its sub-bodies so `model_export` splits
+      them into distinct unions instead of fusing them into one compound. Both need their
+      own exploration before that half can be built.
+      OPEN CRUX for whoever picks up that archived design next: does `verify_backed`
+      generalize upward into the inter-union check once those cruxes resolve (applied to
+      two unions' exported STLs instead of two in-script solids), or does it stay a
+      separate, narrower mechanism that only shares vocabulary with the block-level one?
+- [x] BuildPlan is very verbose (pose prose in `planning_notes`) -- DONE via the
+      `author-owned-placement` change (`openspec/changes/author-owned-placement/`):
+      the planner declares `pose_intent` (one line, human-readable) instead of
+      authoring `placement`; `placement` is now the part author's write-back. See
+      that change's design.md D1-D6 for the alternatives considered (a transform
+      matrix, deriving everything through `joints`) and why they were rejected.
+- [x] pose-intent field: DONE via `author-owned-placement` (see above) -- `pose_intent`
+      is a per-part optional string (`src/build_plan_schema.json`), planner-written
+      (`prompts/planning.md` rule 8), author-consumed (`prompts/part.md`
+      `{{POSE_INTENT}}` + contract rule 6), with the transform written back into
+      `placement` after the part is accepted (`skill/phase3_build.md` "Placement
+      write-back"). Open questions from this item's exploration were resolved: intent
+      gets its own field (not folded into `description`), and the authoring frame is
+      per-part, chosen freely by the author (design D2's plan-level-convention
+      alternative was rejected as premature).
+- [x] `cq_warehouse` (gumyr/cq_warehouse, 151 stars) -- strategy: pinned dep --
+      already the project's `cq-warehouse` git dependency. No action.
+- [x] cross-section preview rendering -- strategy: reimplement (basic centerline
+      cuts Y/X/Z now in `preview.py`, wired into SKILL.md whole-part validation).
+      Future enhancement: dimensioned slices, feature-specific detail sections.
+- [x] `cq_debug_helpers.py` from thereprocase/cad-skill -- strategy: reimplement
+      (catch silent boolean failures / workplane drift in `run_cadquery_model.py`).
+      DONE via openspec change `runtime-boolean-verify`: reimplemented as `src/cq_verify.py`
+      (`verify_boolean` / `verify_feature_bounds` / `check_workplane`), each raising a marked
+      `RuntimeError` that `run_cadquery_model.py` maps to typed `silent_boolean` /
+      `feature_overflow` / `workplane_drift` errors; prompt + reference guidance on when to
+      wrap. `StepExporter` deliberately left out of scope.
       
 ## Left for past V1.0:
 
@@ -323,11 +402,6 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
       a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
       at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
       avoid by design.
-- [x] preview: cross-section previews wired into workflow. The `--cross-sections`
-      flag now renders a 3x3 grid (6 exterior + 3 interior section views) as the
-      default for whole-part validation. Visual Review Checklist extended with
-      items 8-10 (hollow/wall integrity, internal features, unintended voids) to
-      exploit the interior views. (DONE: PR #39).
 - [ ] preview: render feature detail previews more proactively. The `--detail`
       capability exists (`render_preview.py`/`preview.py` render a high-res zoomed
       view + optional cross-section per named feature; wired in SKILL.md Step 3
@@ -338,28 +412,6 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
       threshold vs. the whole-part bbox) so small features are actually inspectable
       without the user asking, and make SKILL.md prescribe it rather than leave it
       to judgement. (Deferred from the orientation/overhang fix session.)
-- [x] gate: enforce `reference/FDM 3D Print Design Guidelines.md`'s "Chamfer /
-      Fillet" rule (horizontal edges -> chamfer, vertical edges -> fillet). Done via
-      `src/edge_treatment_check.py`: instead of classifying edge treatment from a
-      triangulated mesh (a filleted edge and a round bore share the same triangle
-      signature), it inspects the treatment at apply-time -- wraps `cq.Workplane.fillet`/
-      `.chamfer`, re-runs the part script to record the exact BRep direction of every
-      treated edge (round features never pass through a fillet/chamfer call, so no false
-      positives), then classifies each in the build frame (authored-frame tangents rotated
-      through the union's print orientation via `placement.transform_direction`). A fillet
-      on a horizontal edge and a chamfer on a vertical edge are advisory (`warning`)
-      findings; diagonal edges and tilted rims are passed silently. Wired into
-      `quality_gate.py` as a once-outside-the-fix-loop stage.
-- [x] gate + guide: small up-facing slopes stair-step and look bad (COSMETIC only).
-      DONE via openspec change `cosmetic-slope-gate`: scoped in an explore session to the
-      cosmetic stair-stepping of UP-facing surfaces inclined ~5-45 deg from horizontal (NOT
-      overhang, NOT edge treatment). Shipped `mesh_io.up_facing_incline_area` +
-      a `cosmetic_slope_area_mm2` field on the print-orientation result, surfaced by a
-      visual_quality-only advisory (`warning`) gate stage in `quality_gate.py`, plus a
-      "Cosmetic Slopes" FDM guideline section. The "rotate" remedy already existed
-      (`print_orientation.py` visual_quality mode); the gate just surfaces the residual.
-      Deferred: slope-aware layer-height recipe hint (optional). The Greedy Look-Ahead Filter
-      / chamfer-step transform was split out to the reverse-engineer-mesh item above.
 - [ ] anchors: BOSL2-style attachment/anchor helper for INTRA-part feature placement
       (explored 2026-07-22). BOSL2 attachments (BelfrySCAD/BOSL2 wiki
       Tutorial-Attachment-Overview) place children on named parent anchors (TOP,
@@ -385,50 +437,9 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
       for visual review. Strategy: reimplement (concept only; BOSL2 is OpenSCAD +
       GPL-incompatible, see Prior-art survey below).
 - [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
-- [x] add a 90 deg dove tail joint. and a generalization: the angle is a parameter
 - [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
       (-> Differential geometry comparison) / "import" mesh files (.stl) 
 - [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
-- [x] design error: the llm often places the center of a box where actually a one of the walls  should sit --
-      INTRA-PART case DONE via openspec change `intra-part-mating-area` (`verify_backed`
-      in `cq_verify.py`: a feature's face, named by a signed axis, must be fully backed
-      by a named neighboring feature -- bbox reach + orthogonal-axis containment).
-      Reproduces and fixes the C5 Phone-Holder hinge-knuckle standoff bug
-      **TEST** works in that case, but faces do not need to be always fully backed, only if it's the designers intention
-      (`build/cradle.py` ROUND 5-7 comments: a standoff centered on the pivot coordinate
-      was only half-backed by its leg, which stopped exactly at that coordinate instead
-      of the standoff's far edge). Vocabulary ("mating area", "backed by material")
-      reused from `openspec/changes/archive/2026-07-01-joint-contract/design.md:412-421`.
-      INTER-UNION case NOT implemented -- that archived design covers a block declaring a
-      mating area between the two unions of a multi-body block (e.g. a hinge's two
-      leaves), checked once at the whole-model gate after export. It was captured only as
-      "exploratory capture, NOT ready to implement" and stayed blocked on two open cruxes
-      that `intra-part-mating-area` does not touch: (1) satisfaction algebra -- precisely
-      how a requested joint matches a block instance (axis-alignment semantics, range
-      subset, how plan A/B bind to the block's two unions); (2) sub-body naming
-      convention -- how a multi-union block labels its sub-bodies so `model_export` splits
-      them into distinct unions instead of fusing them into one compound. Both need their
-      own exploration before that half can be built.
-      OPEN CRUX for whoever picks up that archived design next: does `verify_backed`
-      generalize upward into the inter-union check once those cruxes resolve (applied to
-      two unions' exported STLs instead of two in-script solids), or does it stay a
-      separate, narrower mechanism that only shares vocabulary with the block-level one?
-- [x] BuildPlan is very verbose (pose prose in `planning_notes`) -- DONE via the
-      `author-owned-placement` change (`openspec/changes/author-owned-placement/`):
-      the planner declares `pose_intent` (one line, human-readable) instead of
-      authoring `placement`; `placement` is now the part author's write-back. See
-      that change's design.md D1-D6 for the alternatives considered (a transform
-      matrix, deriving everything through `joints`) and why they were rejected.
-- [x] pose-intent field: DONE via `author-owned-placement` (see above) -- `pose_intent`
-      is a per-part optional string (`src/build_plan_schema.json`), planner-written
-      (`prompts/planning.md` rule 8), author-consumed (`prompts/part.md`
-      `{{POSE_INTENT}}` + contract rule 6), with the transform written back into
-      `placement` after the part is accepted (`skill/phase3_build.md` "Placement
-      write-back"). Open questions from this item's exploration were resolved: intent
-      gets its own field (not folded into `description`), and the authoring frame is
-      per-part, chosen freely by the author (design D2's plan-level-convention
-      alternative was rejected as premature).
-
 - [ ] form HitsterTower ("D:\Code\cq-design\info\session-export-1786431095406.zip"):
             "Hinges → dovetail corner joints. All 4 pin_hinge kinematic joints are gone. Each corner is now a dovetail_corner_joint (4 pins/tails per corner, 3mm board thickness, 6mm tooth insertion depth, 0.1mm clearance for separable fit). The tower no longer folds — it fully disassembles at all 4 corners into 4 flat panels + base for storage, and presses back together for use. Polarity: every wall carries pins on its east edge, tails on its west edge, so the ring closes consistently (wall_a→wall_c→wall_b→wall_d→wall_a).
             Couldn't express this as a formal top-level joints mate-chain (the schema requires a single-rooted tree; a 4-panel ring produces conflicting/double-anchored paths) — so each wall keeps its own explicit placement, and the dovetail mating is declared through each wall's interfaces instead. Functionally equivalent, just not chained through the schema's joint-tree mechanism."
@@ -466,8 +477,6 @@ GitHub survey of reusable OpenSCAD/CadQuery/build123d model libraries, rated for
 usability as `src/blocks/` additions. Full ratings table in session history;
 summary below. Confirms `cq_warehouse` (already a pinned dep) is the strongest
 direct-reuse candidate; everything else is reference-only or needs hand-porting.
-- [x] `cq_warehouse` (gumyr/cq_warehouse, 151 stars) -- strategy: pinned dep --
-      already the project's `cq-warehouse` git dependency. No action.
 - [ ] `cq-gridfinity` (michaelgale/cq-gridfinity, 200 stars, active) -- strategy:
       reimplement (blocks) -- pure CadQuery, narrow domain. Teardrop/bridged-hole
       DFM pattern already tracked above under "Print-friendly parameterizations";
@@ -539,16 +548,6 @@ and `prompts/part.md`.
       `BRepBuilderAPI_Copy`; or make `model_export.py` rotate the trimesh (mesh-based) for
       print-oriented 3MF objects instead of the B-rep, sidestepping the deepcopy path
       entirely (the kinematic-check STLs already do this).
-- [x] cross-section preview rendering -- strategy: reimplement (basic centerline
-      cuts Y/X/Z now in `preview.py`, wired into SKILL.md whole-part validation).
-      Future enhancement: dimensioned slices, feature-specific detail sections.
-- [x] `cq_debug_helpers.py` from thereprocase/cad-skill -- strategy: reimplement
-      (catch silent boolean failures / workplane drift in `run_cadquery_model.py`).
-      DONE via openspec change `runtime-boolean-verify`: reimplemented as `src/cq_verify.py`
-      (`verify_boolean` / `verify_feature_bounds` / `check_workplane`), each raising a marked
-      `RuntimeError` that `run_cadquery_model.py` maps to typed `silent_boolean` /
-      `feature_overflow` / `workplane_drift` errors; prompt + reference guidance on when to
-      wrap. `StepExporter` deliberately left out of scope.
 - [ ] cadgate-style gate checks -- strategy: optional external (off the critical
       path; gate runs natively, cadgate augments when present). Differential
       geometry (volume/bbox/wall delta vs base) reimplemented in `quality_gate.py`;
