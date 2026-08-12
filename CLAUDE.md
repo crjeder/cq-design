@@ -93,6 +93,7 @@ or calling any script.
 | `src/telemetry.py` | Append-only per-attempt log -> `build/attempts.jsonl` |
 | `src/request_log_search.py` | Search `BUILD_PLAN.json`'s `request_log` by keyword/kind |
 | `src/print_orientation.py` | Computes bed-relative print orientation by minimizing support/overhang cost |
+| `src/minimal_cutout_search.py` | Bisects a part-script parameter to the minimal value clearing a kinematics entry's required range |
 | `src/convert_build123d.py` | Phase 0 sourcing aid: build123d -> CadQuery conversion |
 | `src/cq_compat.py` | Compatibility shim neutralizing a `cq_warehouse` shape-copy patch |
 | `src/init_permissions.py` | Seeds a working directory's `.claude/settings.local.json` |
@@ -141,6 +142,7 @@ or calling any script.
     printer_profile_validate.py # printer_profile.json schema validation + field write-back
     import_params.py         # Reconcile a part script's PARAMETERS block back into BUILD_PLAN.json
     kinematic_check.py       # Whole-model range-of-motion sweep (trimesh + fcl)
+    minimal_cutout_search.py # Bisects a part-script parameter to the minimal value clearing a kinematics entry
     plate_clearance_check.py # Whole-model co-plated union clearance check (trimesh + fcl)
     keep_out_check.py        # Whole-model keep-out-zone check (trimesh + fcl)
     edge_treatment_check.py  # Per-part chamfer/fillet rule check (apply-time hook + build-frame classify)
@@ -220,6 +222,7 @@ or calling any script.
     test_printer_profile_validate.py # printer_profile.json schema + write-back -- fast, no CadQuery
     test_import_params.py            # import_params.py parse/reconcile/write-back -- fast, no CadQuery
     test_edge_treatment_check.py     # Chamfer/fillet rule check (CadQuery)
+    test_minimal_cutout_search.py    # Parameter bisection search against a kinematics entry (CadQuery)
     test_templates.py                # Archetype index validation + per-template lint/geometry
     fixtures/
 ```
