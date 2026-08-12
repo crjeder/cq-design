@@ -36,7 +36,20 @@ SPATIAL FRAME:
 
 Given the user's description, produce a BUILD_PLAN.json that decomposes the model into CadQuery primitives or building blocks, identifies physical interfaces, and sets print parameters.
 
-Before committing to any dimension values, populate `planning_notes` with your reasoning: why you chose this decomposition, how you derived dimensions, which sources you checked, and any design trade-offs.
+`planning_notes` carries only three categories of content, nothing else: (a) a decision
+made *against* something, with the reason -- a rejected alternative design, a rejected
+archetype, a schema mechanism that cannot express the design, a deviation from the
+user's literal request, a deviation from a `printer_profile.json` default, or an
+optional field deliberately left empty (including an unverifiable dimension, per rule 1)
+-- and, where the rejection forces a compensating measure, the compensation; (b) an
+invariant binding more than one part that no per-part field can hold -- the semantic
+anchors of a shared coordinate frame, a dimension in one part fixed by a feature of
+another, an authoring-frame convention several parts must share, and the reason they
+must agree; (c) the assembly procedure and the non-printed hardware it consumes -- the
+order and direction printed parts go together, any feature that exists only to serve
+assembly access, and anything the user must supply (rod, screw, insert, magnet,
+adhesive). Content that fits none of these three categories does not belong in
+`planning_notes`.
 
 ## Rules
 
@@ -143,12 +156,18 @@ Before committing to any dimension values, populate `planning_notes` with your r
    carries a planner-written `placement`, leave it as the author's starting proposal
    rather than deleting it.
 
-8a. **Never restate a pose transform in prose.** `pose_intent` and the (author-supplied)
-   `placement` are the only two places a part's assembled pose is expressed. Do not
-   describe a rotation sequence or translation vector in `planning_notes` or
-   `part_notes` -- if you find yourself writing "rotated 90 deg about X, translated
-   to (...)", that belongs in `placement`, which you do not author; state the goal in
-   `pose_intent` instead.
+8a. **Never restate a structured field in prose.** Any fact already expressed by a
+   structured field -- `placement`, `pose_intent`, `load`, `dimensions`,
+   `blocks_needed`, `interfaces`, `intent`, `optimize_for` -- must not be narrated
+   again in `planning_notes` or `part_notes`; the structured field is the single
+   source. A cross-part *consequence* of a structured value stays admissible under
+   category (b) above (e.g. "the feet's X centerlines are fixed by the plate's clevis
+   positions" is not a restatement of either part's numbers). The pose transform is
+   the sharpest case: `pose_intent` and the (author-supplied) `placement` are the only
+   two places a part's assembled pose is expressed. Do not describe a rotation
+   sequence or translation vector in `planning_notes` or `part_notes` -- if you find
+   yourself writing "rotated 90 deg about X, translated to (...)", that belongs in
+   `placement`, which you do not author; state the goal in `pose_intent` instead.
 
 9. **Declare moving joints in `kinematics`.** Each entry names the `moving_union`;
    the fixed set is every other union in the model, so the sweep catches in-context
@@ -237,7 +256,12 @@ Before committing to any dimension values, populate `planning_notes` with your r
     part's `part_notes` describe only the CURRENT design state, never a "ROUND N"
     changelog or a "SUPERSEDED by round N" annotation -- when a correction changes a
     prior decision, update the note to describe the new state and delete the
-    superseded text rather than appending to it.
+    superseded text rather than appending to it. **On a re-plan, `planning_notes` is
+    read before rewriting it**: unlike `request_log`, which is carried forward entry
+    by entry and never edited, `planning_notes` is regenerated -- read the existing
+    field, do not silently re-litigate a decision it records (either keep it, or
+    replace the record with the new decision and its reason), and delete superseded
+    content rather than annotating it as superseded.
 
 15. **Record provenance when the plan derives from a found source.** If this plan
     reuses or converts a source found during Phase 0 sourcing triage (a reused/
