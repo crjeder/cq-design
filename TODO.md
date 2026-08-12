@@ -176,15 +176,24 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
         -- the prescription was not the gap. Shipped: `quality_gate.py` gained a
         telemetry-presence stage that warns (never blocks) when `attempts.jsonl` is
         missing/empty/unparseable, reported at delivery in `skill/phase4_deliver.md`.
-  - [ ] formalize the `parameters.py` sourced-measurements convention: the project
+  - [x] formalize the `parameters.py` sourced-measurements convention: the project
         grew an ad-hoc root-level `parameters.py` ("sourced real-world measurements...
         not imported by the build") that keeps user-measured numbers + provenance +
         correction history separate from each script's resolved PARAMETERS block.
-        It proved valuable across rounds (hole 60->55 correction etc.) but is pure
-        convention: nothing generates, validates, or reconciles it. Decide: make it a
-        prescribed Phase 1/4 deliverable (dimension research output lands there), and
-        optionally extend `import_params.py` beyond the w/d/h mapping so edits stay
-        reconciled with the plan.
+        It proved valuable across rounds (hole 60->55 correction etc.) but was pure
+        convention: nothing generated, validated, or reconciled it. The
+        prescribed-deliverable half was already done by `add-early-write-journal`
+        (`skill/phase1_requirements.md` writes it at the Phase 1 checkpoint,
+        `skill/phase2_planning.md` updates it in Phase 2, `dimension-validation-checkpoint`
+        spec covers the procedure). DONE via openspec change
+        `formalize-parameters-sourcing`: closed the remaining verification gap with an
+        advisory `parameters_missing` quality-gate stage (warns when
+        `build/journal.md` records the `phase1/dimensions_approved` milestone but
+        `parameters.py` is missing/empty), surfaced at Phase 4 delivery. Extending
+        `import_params.py` beyond the w/d/h mapping to reconcile `parameters.py` edits
+        was explicitly decided against -- the two files hold different kinds of values
+        (raw sourced measurements vs. resolved/derived geometry) with no observed case
+        of them drifting in a way that mattered; see that change's design.md Non-Goals.
   - [x] prescribe the printable-foundation authoring frame up front: the plate script's
         Z_OFFSET pattern (author the part with its physical bottom at script Z=0, then
         undo via `placement.translate_mm` to land in the shared assembled frame) was
@@ -192,7 +201,7 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
         pattern for parts whose assembled frame has the part floating (here bottom at
         Z=-2). Add it to the part prompt / phase-3 guidance as the default convention
         instead of leaving each session to rediscover it.
-  - [ ] correction rounds driven by user sketches: rounds 5-7 were steered by annotated
+  - [x] correction rounds driven by user sketches: rounds 5-7 were steered by annotated
         images (`ear-placement.png`, `hinge-ear.png`, `C5 Aschenbecher-annotated.jpg`)
         that the session preserved in the project root and referenced from
         request_log/part_notes ad hoc. Formalize: request_log entries get an optional
@@ -352,6 +361,7 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
 
 ## Left for past V1.0:
 
+- [ ] read back parameters on any user initiated planning / authoring round
 - [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
   - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
   - [ ] python script owns the loop and switches context & models. prompt will be split
