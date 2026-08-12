@@ -136,8 +136,8 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
         -53.5deg, offset by the 0.1mm^3 tolerance) with min clearance 0.2mm, the designed
         value -- previously a range-wide 5557mm^3 collision error on a part that folds
         cleanly in the hand.
-  - [ ] STILL OPEN from the original ad-hoc sweeps: the minimal-cutout search ("how tall
-        must the notch be to clear this swing?"), which the phone-holder session answered
+  - [x] the minimal-cutout search ("how must the notch be to clear this swing?"), which 
+        the phone-holder session answered
         by hand with a binary search over geometry edits. That is a search loop over
         edits, not a measurement change -- its own change if wanted.
   - [x] hinge design-rule reference: rounds 5-6 were both instances of one geometric
@@ -185,7 +185,7 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
         prescribed Phase 1/4 deliverable (dimension research output lands there), and
         optionally extend `import_params.py` beyond the w/d/h mapping so edits stay
         reconciled with the plan.
-  - [ ] prescribe the printable-foundation authoring frame up front: the plate script's
+  - [x] prescribe the printable-foundation authoring frame up front: the plate script's
         Z_OFFSET pattern (author the part with its physical bottom at script Z=0, then
         undo via `placement.translate_mm` to land in the shared assembled frame) was
         "discovered/adopted during the build" per planning_notes. It is a good general
@@ -343,7 +343,7 @@ As of 12.08.2026 only defects will be corrected, no new features introduced.
       `RuntimeError` that `run_cadquery_model.py` maps to typed `silent_boolean` /
       `feature_overflow` / `workplane_drift` errors; prompt + reference guidance on when to
       wrap. `StepExporter` deliberately left out of scope.
-      
+
 ## Left for past V1.0:
 
 - [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
