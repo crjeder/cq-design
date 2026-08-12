@@ -154,7 +154,8 @@ PETG +0.1 mm (stringing); TPU +0.2 mm (3.0 mm+ walls, prefer flexible snaps); AB
 
 `BUILD_PLAN.json` may carry an optional `request_log`: an append-only, verbatim record
 of the initial request plus every clarification/correction, each entry `{ts, kind,
-text}` (`kind` one of `initial`/`clarification`/`correction`). The planning prompt
+text, images?}` (`kind` one of `initial`/`clarification`/`correction`; `images` an
+optional array of repo-relative paths to sketches copied into `sketches/`). The planning prompt
 (Phase 2) writes the `initial` entry and any Phase 1/2 clarifications. **Any later
 clarification or correction the user gives mid-build (Phase 3 onward) must be appended
 to `request_log` as a new dated entry — never edit, reorder, or remove existing
