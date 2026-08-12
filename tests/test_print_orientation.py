@@ -17,6 +17,7 @@ from print_orientation import (
     _gentle_incline_fraction,
     _rotation_to_bed,
     _select,
+    _stability_metrics,
     _strength_score,
     _support_metrics,
     _visual_metrics,
@@ -321,6 +322,52 @@ def test_min_build_height_deterministic():
     a = optimize_orientation(bar, overhang_deg=45.0, optimize_for="min_build_height")
     b = optimize_orientation(bar, overhang_deg=45.0, optimize_for="min_build_height")
     assert a == b
+
+
+def test_stability_flat_footprint_is_stable():
+    # A box resting flat: full-face contact, center of mass centered over it.
+    box = trimesh.creation.box([40.0, 40.0, 10.0])
+    assert _stability_metrics(box) is True
+
+
+def test_stability_edge_balance_is_unstable():
+    # Tip the box 45 degrees so it balances on one edge: the contact footprint
+    # degenerates to a line (fewer than 3 distinct XY points) -- can't form a
+    # resting polygon, so it must be unstable regardless of support cost.
+    box = trimesh.creation.box([100.0, 100.0, 10.0])
+    tipped = box.copy()
+    rot = trimesh.transformations.rotation_matrix(np.radians(45.0), [1.0, 0.0, 0.0])
+    tipped.apply_transform(rot)
+    assert _stability_metrics(tipped) is False
+
+
+def test_select_prefers_stable_over_lower_support_unstable_candidate():
+    # Regression for the near-point-balance bug: with strength tied (the
+    # no-load/compression case), an unstable candidate with near-zero support
+    # cost must not beat a stable candidate with a small support cost from a
+    # minor feature.
+    candidates = [
+        {"idx": 0, "strength": 1.0, "support": 3.0, "bed_contact": 1600.0, "stable": True},
+        {"idx": 1, "strength": 1.0, "support": 0.0, "bed_contact": 0.0, "stable": False},
+    ]
+    assert _select(candidates, "strength")["idx"] == 0
+
+
+def test_select_falls_back_to_full_set_when_all_unstable():
+    # No flat resting face exists at all: the gate must not eliminate every
+    # candidate -- fall back to the full set so a recommendation is still made.
+    candidates = [
+        {"idx": 0, "strength": 0.9, "support": 5.0, "bed_contact": 10.0, "stable": False},
+        {"idx": 1, "strength": 0.5, "support": 1.0, "bed_contact": 40.0, "stable": False},
+    ]
+    assert _select(candidates, "strength")["idx"] == 0
+
+
+def test_optimize_orientation_reports_stable_and_no_exclusion_for_plain_box():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    result = optimize_orientation(box, overhang_deg=45.0)
+    assert result["stable"] is True
+    assert "excluded" not in result["rationale"]
 
 
 _PRINT_ORIENTATION_CLI = os.path.join(
