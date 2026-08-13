@@ -5,11 +5,11 @@ change lives in that change's `tasks.md`, not here.
 
 # Feature freeze for V1.0
 As of 12.08.2026 only defects will be corrected, no new features introduced.
-All completed task are now in `info\DONE.md`
+All completed task are now in `documentation\DONE.md`
 
-## from C5 Phone-Holder session `session-export-1786538430013.zip` in `./info`:
-- [ ] investigate "compass language" `.\info\image-1786538590774.png` shows the problem: east should be right. Reason: mixing up "Viewed from South" and "south facing" under observation
-- [ ] the hinge ear shows an old problem: placing primitives with their center aligning to the other parts edge see `.info\image-1786540203166.png`
+## from C5 Phone-Holder session `session-export-1786538430013.zip` in `./debug`:
+- [ ] investigate "compass language" `.\debug\image-1786538590774.png` shows the problem: east should be right. Reason: mixing up "Viewed from South" and "south facing" under observation
+- [ ] the hinge ear shows an old problem: placing primitives with their center aligning to the other parts edge see `.debug\image-1786540203166.png`
 - [ ] the llm totally did not get that making the knuckle stand of the cradles feet more does not mean that the plate's knuckle has to move upward (+ Z). Probable cause: in the authoring pose the inference is correct, but when the cradle is moved into it's assembled pose it's not a problem.
       Investigated (transcript: session `b6ac548d...`, `session-export-1786538430013.zip`):
       the triggering request was "align the hole with the bore hole on the front plate
@@ -31,11 +31,12 @@ All completed task are now in `info\DONE.md`
       the Z-stack-up math on both sides.
 
 ## from Silica Tray `session-export-1786620780455.zip`
-- [ ] Silca Tray: LLM claims "no support needed" despite "support score dropped from 654.1" which might be wrong. test needed
+- [ ] Silca Tray: LLM claims "no support needed" despite "support score 654.1" which might be wrong. test result: small overhangs like this can be printed without support!
 - [ ] "I just re-derived the print orientation and re-exported so the deliverables and BUILD_PLAN.json match your hand-edited dimensions: 6mm triangle pitch, 1mm rib width, 20mm total height)." Works, but is it for granted or just coincidence?
 
-- [ ] split `info` directory
-
+## independet
+- [x] split `info` directory
+- [ ] code quality audit
 
 # Tasks for next version:
 
@@ -167,7 +168,7 @@ All completed task are now in `info\DONE.md`
 - [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
       (-> Differential geometry comparison) / "import" mesh files (.stl) 
 - [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
-- [ ] form HitsterTower ("D:\Code\cq-design\info\session-export-1786431095406.zip"):
+- [ ] form HitsterTower ("D:\Code\cq-design\debug\session-export-1786431095406.zip"):
             "Hinges → dovetail corner joints. All 4 pin_hinge kinematic joints are gone. Each corner is now a dovetail_corner_joint (4 pins/tails per corner, 3mm board thickness, 6mm tooth insertion depth, 0.1mm clearance for separable fit). The tower no longer folds — it fully disassembles at all 4 corners into 4 flat panels + base for storage, and presses back together for use. Polarity: every wall carries pins on its east edge, tails on its west edge, so the ring closes consistently (wall_a→wall_c→wall_b→wall_d→wall_a).
             Couldn't express this as a formal top-level joints mate-chain (the schema requires a single-rooted tree; a 4-panel ring produces conflicting/double-anchored paths) — so each wall keeps its own explicit placement, and the dovetail mating is declared through each wall's interfaces instead. Functionally equivalent, just not chained through the schema's joint-tree mechanism."
 - [ ] Plan states that parts are pairwise mirrored. LLM generated two files:
@@ -229,10 +230,10 @@ direct-reuse candidate; everything else is reference-only or needs hand-porting.
 - `cqparts` (cqparts/cqparts, 148 stars, unmaintained since 2020) -- wrapper
   framework, assembly abstraction conflicts with this skill's direct-Workplane
   block pattern. Not adopted.
-- [ ] `cqMore` and `cqterrain` (`info/Block_Sources.md`, rated High usability) -- no repo
+- [ ] `cqMore` and `cqterrain` (`documentation/Block_Sources.md`, rated High usability) -- no repo
       link or star count recorded in the source survey; re-find and evaluate before deciding
       reimplement vs pinned dep.
-- [ ] `partcad/partcad` (`info/related_projects.md`) -- package manager for hardware /
+- [ ] `partcad/partcad` (`documentation/related_projects.md`) -- package manager for hardware /
       manufacturable products across CAD kernels (CadQuery, build123d, OpenSCAD). Adoptable:
       package-manager framing for versioned part definitions with declared metadata
       (parallels `blocks/inventory.json`), YAML assembly format tracking BOM/part
@@ -264,7 +265,7 @@ and `prompts/part.md`.
       deliberately excluded -- this pipeline is fluent-only.
 
 ### Independent changes
-- [ ] OCC deepcopy crash on print-orientation rotation (`info/occ-error.md`): rotating
+- [ ] OCC deepcopy crash on print-orientation rotation (`debug/occ-error.md`): rotating
       certain B-rep solids (seen in `build/plate.py`, an axle bore spanning an open slot,
       or a pure-45-deg pocket ceiling with no flat cap) crashes inside cq_warehouse's
       deepcopy-based `Shape.copy()` -> OCC `BinTools` serialization round-trip
@@ -284,7 +285,7 @@ and `prompts/part.md`.
 - [ ] DeepCAD evaluation metric: Chamfer distance for golden-mesh regression tests
       -- strategy: reimplement (trimesh already computes it)
 
-### From market research (info/market_research.md)
+### From market research (documentation/market_research.md)
 
 Recent LLM-CAD / parametric / FDM-printability projects surveyed 2023-2026. The
 central finding: LLM-CAD tools stop at "valid geometry" while printability work
