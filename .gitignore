@@ -3,7 +3,6 @@
 !.claude/worktrees/
 .playwright/
 .playwright-mcp/
-info/
 .venv/
 __pycache__/
 *.pyc
@@ -25,3 +24,5 @@ __pycache__/
 evals/runs/
 .codegraph
 .fossil
+
+debug/
