@@ -3,11 +3,11 @@
 Tasks not tracked in an `openspec/changes/` change. Anything tied to a specific
 change lives in that change's `tasks.md`, not here.
 
-## Feature freeze for V1.0
+# Feature freeze for V1.0
 As of 12.08.2026 only defects will be corrected, no new features introduced.
 All completed task are now in `info\DONE.md`
 
-from C5 Phone-Holder session `session-export-1786538430013.zip` in `./info`:
+## from C5 Phone-Holder session `session-export-1786538430013.zip` in `./info`:
 - [ ] investigate "compass language" `.\info\image-1786538590774.png` shows the problem: east should be right. Reason: mixing up "Viewed from South" and "south facing" under observation
 - [ ] the hinge ear shows an old problem: placing primitives with their center aligning to the other parts edge see `.info\image-1786540203166.png`
 - [ ] the llm totally did not get that making the knuckle stand of the cradles feet more does not mean that the plate's knuckle has to move upward (+ Z). Probable cause: in the authoring pose the inference is correct, but when the cradle is moved into it's assembled pose it's not a problem.
@@ -30,8 +30,16 @@ from C5 Phone-Holder session `session-export-1786538430013.zip` in `./info`:
       "the deployed pose sits flat on Z=0" was itself an unverified assumption feeding
       the Z-stack-up math on both sides.
 
-## Tasks for next version:
+## from Silica Tray `session-export-1786620780455.zip`
+- [ ] Silca Tray: LLM claims "no support needed" despite "support score dropped from 654.1" which might be wrong. test needed
+- [ ] "I just re-derived the print orientation and re-exported so the deliverables and BUILD_PLAN.json match your hand-edited dimensions: 6mm triangle pitch, 1mm rib width, 20mm total height)." Works, but is it for granted or just coincidence?
 
+- [ ] split `info` directory
+
+
+# Tasks for next version:
+
+- [ ] ENGINEERING RATIONALE etc. in `BUILD_PLAN.py`? Now it's spread all over the source files.
 - [ ] read back parameters on any user initiated planning / authoring round
 - [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
   - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
