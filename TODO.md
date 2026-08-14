@@ -40,6 +40,7 @@ All completed task are now in `documentation\DONE.md`
 
 # Tasks for next version:
 
+- [ ] Write a prompt which allows the human user to re-generate the whole project from scratch with a new LLM session (improved LLM, new skill, other skill, etc). The prompt must include the latest changes, user intent and all measurements.
 - [ ] ENGINEERING RATIONALE etc. in `BUILD_PLAN.py`? Now it's spread all over the source files.
 - [ ] read back parameters on any user initiated planning / authoring round
 - [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
@@ -174,7 +175,12 @@ All completed task are now in `documentation\DONE.md`
 - [ ] Plan states that parts are pairwise mirrored. LLM generated two files:
       "wall_a vs wall_b: You're right — I over-built. wall_b.py is geometrically identical to wall_a.py (same width, same tenon, same dovetail parameters, both symmetric). I copied it into a separate file out of habit (BUILD_PLAN.json lists 5 distinct part ids), but a symmetric flat panel mirrored is the same printed part — nothing to design twice. I should delete wall_b.py and just have the export use wall_a's STL for both positions (printed twice). Want me to do that now? It also means correcting BUILD_PLAN.json so wall_b references wall_a's geometry instead of carrying its own script."
 - [ ] A minimal deliverable for the parametric part. Just the code needed. Not the full `/lib`
-
+- [ ] intent based prompt reformulation
+- [ ] "activate" all necessary knowledge domains in the LLM
+- [ ] accept Markdown, UTF text with formatting 
+- [ ] multi color / material support
+- [ ] engineering of multi material interfaces and properties 
+- [ ] user intent as invariant over the generation loops
 
 ## Related ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
