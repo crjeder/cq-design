@@ -116,6 +116,13 @@ Projects surveyed for ideas relevant to this skill. Status/adoption tracking liv
 | https://github.com/OzAILabs/Claude-To-Print | multi-color |
 | https://github.com/natgluons/CAD-modeling-app | GUI (or point-and-click) interactions |
 | https://github.com/SmartAI/Chamfer | benchmarks |
+| https://camfer.dev/ | closed source use as benchmark? |
+| https://github.com/ai-cad-labs/ai-cad-example-projects | benchmark |
+| https://github.com/salonibalkondekar/text-to-cad | |
+| https://github.com/zqf3229294/Text23D | use for benchmark |
+| https://github.com/forgent3d/forgent3d-desktop | Assemblies and motion: compose multi-body systems with MJCF, reusable STL meshes, joints, constraints, and optional MuJoCo simulation. |
+
+
 
 
 

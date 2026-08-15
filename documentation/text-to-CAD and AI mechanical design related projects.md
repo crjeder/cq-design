@@ -20,6 +20,7 @@
 | https://mediatum.ub.tum.de/doc/1735613/lzs01scxrh9m12brkxpb03r1l.2402.02136.pdf | LLM data strategies for intent recognition involve using large language models (LLMs) and specialized data techniques to identify what users mean when they interact with AI systems, like chatbots or search tools. |
 | https://github.com/mariyahendriksen/awesome-intent-analysis | intent signals |
 | https://github.com/alphadl/SafeLLM_with_IntentionAnalysis | intent signals |
+| (https://github.com/nyaniv/StepForge) | dataset? |
 
 
 ### **Key Takeaways for Your Own Text-to-CAD LLM Skill**
