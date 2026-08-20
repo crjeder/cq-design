@@ -175,12 +175,14 @@ All completed task are now in `documentation\DONE.md`
 - [ ] Plan states that parts are pairwise mirrored. LLM generated two files:
       "wall_a vs wall_b: You're right — I over-built. wall_b.py is geometrically identical to wall_a.py (same width, same tenon, same dovetail parameters, both symmetric). I copied it into a separate file out of habit (BUILD_PLAN.json lists 5 distinct part ids), but a symmetric flat panel mirrored is the same printed part — nothing to design twice. I should delete wall_b.py and just have the export use wall_a's STL for both positions (printed twice). Want me to do that now? It also means correcting BUILD_PLAN.json so wall_b references wall_a's geometry instead of carrying its own script."
 - [ ] A minimal deliverable for the parametric part. Just the code needed. Not the full `/lib`
-- [ ] intent based prompt reformulation
+- [ ] intent based prompt reformulation (same artifact as the re-generation prompt
+      above -- see `documentation/intent_recognition.md` item 4)
 - [ ] "activate" all necessary knowledge domains in the LLM
 - [ ] accept Markdown, UTF text with formatting 
 - [ ] multi color / material support
 - [ ] engineering of multi material interfaces and properties 
-- [ ] user intent as invariant over the generation loops
+- [ ] user intent as invariant over the generation loops (there is no invariant today,
+      only a log -- see `documentation/intent_recognition.md` gaps 2-3 and items 1/3)
 
 ## Related ideas
 Integration strategy per item avoids the native-vs-MCP false binary. Options, by
@@ -350,3 +352,92 @@ intent-match overlaps the cadgate item above; same optional-external rationale
 (native gate runs without it, augments when present).
 - [ ] (covered by the cadgate-style item under Independent changes)
 
+
+### From intent-recognition research (documentation/intent_recognition.md)
+
+Intent recognition surveyed 2026-08 and split into three capabilities: **elicitation**
+(detect an under-specified request and ask), **scope classification** (what kind of
+change is asked for, and what may it touch), **preservation** (does the delivered
+geometry still satisfy the user's own words). The skill does elicitation narrowly
+(topology + dimensions, Phase 1 only), records intent well (`request_log`), does no
+scope classification, and audits every part against the PLAN rather than the request --
+so a plan that misread the request passes every gate. Items ordered by value/cost;
+item 1 is the precondition that makes 2 and 3 cheap. Prior art: ProCAD (arXiv
+2602.03045) clarify-then-generate for text-to-CadQuery, LLM4CAD-Editor (arXiv
+2606.20607) functional/operation/parameter intent levels, CADDesigner (arXiv
+2508.01031) requirement-analysis stage.
+
+Freeze status (`Feature freeze for V1.0`, 12.08.2026): items 1 and 3 target logged,
+reproduced failures (the C5 cradle ping-pong; the audit being blind to the request) and
+are arguably defect fixes; 2, 4 and 5 are features for the next version. Not decided
+here.
+
+#### Typed request_log entries -- one change -- strategy: reimplement (LLM4CAD-Editor)
+Give each `request_log` entry a `level` (`functional` | `operation` | `parameter`) and
+`targets` (part ids + named features/parameters), assigned at append time. Smallest
+change with the largest reach: it reuses the append-only log, its schema and
+`request_log_search.py`; it makes the C5 cradle failure class expressible as a rule
+("a `parameter` entry targeting one part must not edit a sibling part's literal --
+route a shared value through `joints`/`mate_chain.py`"); and it gives the Step 3
+`--extra-section` tiering a real key instead of keyword matching. Both fields must be
+OPTIONAL -- existing plans carry untyped entries and must stay valid.
+- [ ] `level` + `targets` on `request_log` entries: `src/build_plan_schema.json`
+      (entries are `additionalProperties: false`), the append rule in
+      `skill/phase3_build.md`, `prompts/planning.md` rule 14,
+      `openspec/specs/request-log/`, tests in `tests/test_plan_validate.py`
+- [ ] `request_log_search.py --level` / `--target` filters + tests
+- [ ] the routing rule the label exists for: a `parameter`-level entry may not change
+      another part's independently-typed constant (the label without the rule is
+      decoration)
+- [ ] re-key the Step 3 section-selection tiers off `targets` instead of the
+      `--query <name>` keyword match
+
+#### Spec audit with named ambiguity categories -- one change -- strategy: reimplement (ProCAD)
+Generalize Phase 1's topology-clarification rule (shape ambiguity only) into an audit
+over a fixed category list, and re-run it on mid-build corrections, where ambiguity is
+most expensive because parts already exist. ProCAD's contribution is asking ONLY when
+necessary -- a rule that fires on every request is worse than today's; the question
+budget and the skip-entirely escape hatch (as the dimension checkpoint already has) are
+load-bearing. Category-named prompting beats a bare "ask if unsure" (arXiv 2504.12113).
+- [ ] categories: topology (exists), missing dimension, conflicting constraint,
+      unstated reference frame (the C5 compass-language defect), unstated fit/load,
+      part-vs-assembly scope
+- [ ] one question per ambiguity under a hard budget, keeping the existing named
+      either/or discipline -- extends `skill/phase1_requirements.md`, no new phase
+- [ ] re-audit a mid-build correction before acting on it
+      (`skill/phase3_build.md` correction handling)
+
+#### Request-relative acceptance in the implementation audit -- one change -- strategy: reimplement (cadgate)
+The auditor gets the part's `BUILD_PLAN.json` entry and the renders, deliberately not
+the script -- but also not the `request_log`, so every gate downstream of Phase 2
+measures conformance to the plan, and a Phase 2 misreading becomes the standard the
+pipeline enforces. Closes the gap with no new agent and no new artifact.
+- [ ] feed the `initial` entry + entries whose `targets` name this part into the
+      auditor prompt as a SECOND bar ("does the render satisfy the user's own words?"),
+      findings `severity: advisory` unless they also fail a checklist question --
+      `skill/phase3_build.md`, `reference/Visual Review Checklist.md`,
+      `openspec/specs/subagent-orchestration/`
+- [ ] keep the no-script rule intact; do not promote intent-match findings to blocking
+      without eval evidence (softer judgments than geometry, burns retry budget)
+
+#### Canonical intent restatement artifact -- one change -- strategy: reimplement
+Merges two standing items ("intent based prompt reformulation", "regenerate the whole
+project from scratch with a new LLM session"): a frame-explicit, user-confirmed
+restatement of what is being built, carried forward and updated as corrections land.
+Also the natural input to item 3 and the structural fix for compass-language defects --
+restatement forces the reference frame to be written down instead of assumed.
+- [ ] decide where it lives: a project-root artifact beside `parameters.py`
+      (measurement provenance) and `BUILD_PLAN.json` (structure), or an extension of
+      one of them -- NOT a third free-text field in the plan
+- [ ] give it a bounded role like `planning_notes` (current state only) and
+      `request_log` (history only), or it becomes a changelog
+
+#### Under-specified eval cases -- one change -- strategy: reimplement (gating cost)
+Every case in `evals/cases/` is well-specified, so none of the above can regress and
+the existing scorecard cannot see it. This is the gate on the whole idea, not an
+afterthought.
+- [ ] cases whose `request.md` is deliberately under-specified in each named category,
+      scored on whether the right question was asked
+- [ ] well-specified controls scored on NOT asking -- without them the metric rewards
+      asking about everything
+- [ ] `evals/run_evals.py` scoring + `tests/test_eval_corpus.py`
