@@ -30,7 +30,7 @@ All completed tasks are now in `documentation/DONE.md`.
 ### Independent
 - [x] split `info` directory
 - [ ] code quality audit
-- [ ] sbom: add credit for projects where code came from
+- [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
 
 # Tasks for next version
 
