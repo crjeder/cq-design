@@ -37,6 +37,7 @@ All completed task are now in `documentation\DONE.md`
 ## independet
 - [x] split `info` directory
 - [ ] code quality audit
+- [ ] sbom. add credit for projects where code came frt
 
 # Tasks for next version:
 
