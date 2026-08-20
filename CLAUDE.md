@@ -89,6 +89,7 @@ or calling any script.
 | `src/freshness.py` | Provenance stamp: hash a part script, compare/write the export manifest |
 | `src/interference.py` | Shared static interference primitive (trimesh + fcl + manifold3d) |
 | `src/edge_treatment_check.py` | Per-part chamfer/fillet rule check (apply-time hook + build-frame classify) |
+| `src/gridfinity_check.py` | Per-part Gridfinity conformance check (grid, height, foot profile, mating) |
 | `src/feature_presence_check.py` | Per-part `interfaces[]` position assertion |
 | `src/telemetry.py` | Append-only per-attempt log -> `build/attempts.jsonl` |
 | `src/request_log_search.py` | Search `BUILD_PLAN.json`'s `request_log` by keyword/kind |
@@ -146,6 +147,7 @@ or calling any script.
     plate_clearance_check.py # Whole-model co-plated union clearance check (trimesh + fcl)
     keep_out_check.py        # Whole-model keep-out-zone check (trimesh + fcl)
     edge_treatment_check.py  # Per-part chamfer/fillet rule check (apply-time hook + build-frame classify)
+    gridfinity_check.py      # Per-part Gridfinity conformance check (grid/height/foot profile/mating; auto-scoped gate stage)
     placement.py             # Assembled-frame placement helper (cq + trimesh)
     mate_chain.py            # Derived pose along a `joints` mate chain from root_part
     units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
@@ -172,6 +174,7 @@ or calling any script.
       connectors.py          # port_cutout, cable_slot, vent_grid
       hardware.py            # cq_warehouse-backed fastener geometry
       joints.py              # dovetail_groove / dovetail_tongue sliding joints
+      gridfinity.py          # Gridfinity bins, baseplates, feet, socket cutters (42 mm grid standard)
       inventory.json         # Machine-readable block descriptors
       inventory_schema.json  # JSON Schema for inventory.json
       validate.py            # Inventory loader + validator
@@ -196,7 +199,8 @@ or calling any script.
     archetypes_schema.json  # JSON Schema for archetypes.json
     enclosure_body.py, lid_sliding.py, lid_snap.py, lid_screwed.py,
     adapter_ring_flanged.py, l_bracket_gusset.py, plate_boss_pattern.py,
-    hook.py, clip.py, stand.py    # Known-good, pre-verified whole-part templates,
+    hook.py, clip.py, stand.py,
+    gridfinity_bin.py, gridfinity_baseplate.py   # Known-good, pre-verified whole-part templates,
                                     # one per archetype (Phase 3 Step 1.5 match source)
 
   skill/                 # Per-phase SKILL.md detail (setup, phase0-4, resume), read on demand
@@ -222,6 +226,7 @@ or calling any script.
     test_printer_profile_validate.py # printer_profile.json schema + write-back -- fast, no CadQuery
     test_import_params.py            # import_params.py parse/reconcile/write-back -- fast, no CadQuery
     test_edge_treatment_check.py     # Chamfer/fillet rule check (CadQuery)
+    test_gridfinity.py               # Gridfinity blocks + conformance check (CadQuery)
     test_minimal_cutout_search.py    # Parameter bisection search against a kinematics entry (CadQuery)
     test_templates.py                # Archetype index validation + per-template lint/geometry
     fixtures/

@@ -66,6 +66,12 @@ from the user or `printer_profile.json`. A request with no external product refe
 (pure user-stated dimensions) never spawns this agent — skip straight to the checkpoint
 below with an empty table, or skip the checkpoint entirely per its own rule.
 
+A **Gridfinity** request is dimensioned by the standard, not by a lookup: the grid pitch,
+height unit, foot profile, and hole sizes are in `reference/gridfinity.md`, so never
+research or guess them. Ask only what the standard cannot supply — how many units, how
+tall, and what goes in — and still look up any real object the bin has to hold, whose size
+then picks the unit count via `gridfinity_units_for`.
+
 **Research agent.** Spawn one agent whose task is the full lookup workflow below (web
 search, spec pages, community model pages, STL download + `measure_stl.py`) for every
 dimension this request needs looked up. Model override: session default — this role does
