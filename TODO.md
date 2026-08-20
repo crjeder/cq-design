@@ -34,7 +34,7 @@ All completed tasks are now in `documentation/DONE.md`.
 
 # Tasks for next version
 
-- [ ] Tool to create gridfinity objects
+- [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] Export a project-regeneration prompt for a fresh LLM session -- [details](#project-regeneration-prompt)
 - [ ] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.py` -- [details](#engineering-rationale-consolidation)
@@ -72,7 +72,7 @@ strategies defined in [Details](#integration-strategies).
 - [x] Gear geometry (lwidm/cq_gears) -- DONE -- [details](#gear-geometry)
 
 ### Parametric CAD library survey (2026-07)
-- [ ] `cq-gridfinity` -- [details](#cq-gridfinity)
+- [x] `cq-gridfinity` -- DONE (reimplemented as `blocks/gridfinity.py`; see the gridfinity tool item above) -- [details](#cq-gridfinity)
 - [ ] `vibe-cading` -- [details](#vibe-cading)
 - [ ] `cadqueryhelper` -- [details](#cadqueryhelper)
 - BOSL2 / NopSCADlib / MCAD -- reference only, no action -- [details](#openscad-libraries-reference-only)

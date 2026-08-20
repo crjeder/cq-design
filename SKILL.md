@@ -1,13 +1,13 @@
 ---
 name: cq-design
-description: Design or redesign 3D-printable parts as parametric CadQuery models. Use when the user asks to design, model, fix printability of, or generate an STL/3D-printed part -- mentions like "3D print", "STL", "CadQuery", "enclosure", "bracket", "mount", "case", "holder", "box", "lid", "stand", "print me a", "design a part", "make a part for", "redesign for printability".
+description: Design or redesign 3D-printable parts as parametric CadQuery models. Use when the user asks to design, model, fix printability of, or generate an STL/3D-printed part -- mentions like "3D print", "STL", "CadQuery", "enclosure", "bracket", "mount", "case", "holder", "box", "lid", "stand", "gridfinity", "print me a", "design a part", "make a part for", "redesign for printability".
 ---
 
 # cq-design
 
 ## Trigger
 
-Activate when the user asks to design, model, or generate a 3D-printable part. Trigger phrases: "3D print", "STL", "CadQuery", "enclosure", "bracket", "mount", "case", "holder", "box", "lid", "stand", "print me a", "design a part", "make a part for".
+Activate when the user asks to design, model, or generate a 3D-printable part. Trigger phrases: "3D print", "STL", "CadQuery", "enclosure", "bracket", "mount", "case", "holder", "box", "lid", "stand", "gridfinity", "print me a", "design a part", "make a part for".
 
 Also activate on these explicit slash commands:
 
@@ -246,6 +246,18 @@ Sizing tables for `heat_set_boss`, `counterbore_hole`, `countersink_hole`, and
 `hex_nut_trap` live in `reference/hardware_dims.md`. **Read it before authoring any
 part whose `blocks_needed` includes a fastener block** — never guess these dimensions.
 
+## Gridfinity requests
+
+When the request names Gridfinity (or asks for a part that must fit an existing Gridfinity
+grid), **read `reference/gridfinity.md` before planning** — the 42 mm grid, 7 mm height
+unit, foot profile, stacking lip, and magnet/screw geometry are a published standard, so
+they are never researched, guessed, or hand-modelled. Build on the `gridfinity-bin` /
+`gridfinity-baseplate` archetypes and the `blocks/gridfinity.py` blocks (`gridfinity_bin`,
+`gridfinity_baseplate`, `gridfinity_feet`, `gridfinity_socket_cutter`); use
+`gridfinity_feet` / `gridfinity_socket_cutter` to make any *other* part grid-compatible.
+`src/gridfinity_check.py` verifies conformance and runs automatically in the quality gate
+for parts that use these blocks.
+
 ## Quick reference: key files
 
 | File | Role |
@@ -262,6 +274,8 @@ part whose `blocks_needed` includes a fastener block** — never guess these dim
 | `skill/*.md` | Setup and per-phase detail (see phase sections above) |
 | `skill/resume.md` | Journal contract and interrupted-run resume procedure |
 | `reference/hardware_dims.md` | Fastener sizing tables (block-gated, see above) |
+| `reference/gridfinity.md` | Gridfinity standard: grid, profiles, holes (read on any Gridfinity request) |
+| `src/gridfinity_check.py` | Gridfinity conformance check (auto-run by the gate for Gridfinity parts) |
 | `reference/CadQuery Pattern Reference.md` / `Anti-Patterns.md` | Idioms + mistakes, every part |
 | `reference/emboss_text.md` / `servo_splines.md` | Read only when needed |
 | `reference/FDM 3D Print Design Guidelines.md` | Guidelines for planning + parts |

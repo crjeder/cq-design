@@ -160,5 +160,37 @@
       "slot_depth": "mm how far the slot cuts down into the back section from the top"
     },
     "aliases": ["phone stand", "tablet stand", "device stand"]
+  },
+  {
+    "name": "gridfinity-bin",
+    "file": "gridfinity_bin.py",
+    "use": "A Gridfinity storage bin: feet on the 42 mm grid, walls, cavity, and stacking lip, with optional dividers, label shelf, finger scoop, and magnet/screw pockets. Use for any request naming Gridfinity, or for a drawer/toolbox insert that must interoperate with an existing Gridfinity grid. For custom tool-shaped pockets, call gridfinity_bin(solid=True) and cut the pockets into the blank instead.",
+    "params": {
+      "cols": "count grid units (U) in X, 42 mm each",
+      "rows": "count grid units (U) in Y, 42 mm each",
+      "height_u": "count height units (HU), 7 mm each",
+      "wall": "mm side wall thickness",
+      "divisions_x": "count compartments along X (1 = undivided)",
+      "divisions_y": "count compartments along Y (1 = undivided)",
+      "label_tab": "bool, sloped label shelf on the +Y wall",
+      "scoop": "bool, swept quarter-round at the -Y wall",
+      "magnet_holes": "bool, four 6.5x2.4 mm magnet pockets per cell",
+      "screw_holes": "bool, four M3 screw holes per cell"
+    },
+    "aliases": ["gridfinity", "gridfinity bin", "gridfinity box", "gridfinity tray", "gridfinity insert"]
+  },
+  {
+    "name": "gridfinity-baseplate",
+    "file": "gridfinity_baseplate.py",
+    "use": "A Gridfinity baseplate: a grid of sockets that Gridfinity bins drop into, 42 mm per cell so plates tile edge to edge. Use when the request asks for the grid/base/tray the bins sit in, rather than the bins themselves.",
+    "params": {
+      "cols": "count grid units (U) in X, 42 mm each",
+      "rows": "count grid units (U) in Y, 42 mm each",
+      "plate_h": "mm total plate thickness (>= 7.15 to fit magnet pockets)",
+      "clearance": "mm socket clearance around a bin foot, per side",
+      "magnet_holes": "bool, four 6.5x2.4 mm magnet pockets per cell",
+      "screw_holes": "bool, four M3 through-holes per cell"
+    },
+    "aliases": ["gridfinity base", "gridfinity grid", "gridfinity plate", "baseplate"]
   }
 ]
