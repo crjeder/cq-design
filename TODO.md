@@ -58,7 +58,7 @@ All completed tasks are now in `documentation/DONE.md`.
 - [ ] Intent-based prompt reformulation -- [details](#intent-based-prompt-reformulation)
 - [ ] "Activate" all necessary knowledge domains in the LLM
 - [ ] Accept Markdown / formatted UTF-8 text input
-- [ ] Multi color / material support
+- [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties
 - [ ] User intent as an invariant over generation loops (today only a log exists, no invariant) -- [details](#intent-as-invariant)
 
@@ -144,6 +144,15 @@ results.
 - [ ] 8. Warm kernel process -- needs measurement first -- [details](#warm-kernel-process)
 - [ ] 9. Context-surface audit -- [details](#context-surface-audit)
 - [ ] 10. Eval method: held-out set, pre-registered bars -- [details](#eval-method-held-out-set)
+
+### From related_projects.md high-rated entries (2026-08)
+Survey rows rated `High`/`Medium-High` not yet tracked as TODO items
+(SmartAI/Chamfer, already `High`-adjacent, is fully covered above).
+- [ ] CadAgent: token budget management for the part loop -- [details](#cadagent-token-budget-management)
+- [ ] CadAgent: smart clarification policy (assume + state default, don't always ask) -- [details](#cadagent-smart-clarification-policy)
+- [ ] CadAgent: undo/rollback via automatic snapshots -- [details](#cadagent-undo-rollback-snapshots)
+- [ ] harnesscad: pre-kernel geometry-aware verification -- [details](#harnesscad-pre-kernel-verification)
+- [ ] Text2CAD (MLYengineering): rule-bound repair patches + cross-attempt failure learning -- [details](#text2cad-mlyengineering-repair-and-learning)
 
 ---
 
@@ -1002,3 +1011,76 @@ that v1 met neither bar.
   check over the final message plus the grade -- we have both)
 - write the pass bar into the release checklist before the tuning round,
   not after
+
+### CadAgent token budget management
+CadAgent (github.com/SSSSSia/CadAgent), rated **High** in
+`documentation/related_projects.md` -- an LLM-agent-powered FreeCAD
+workbench. Its token-budget management tracks how much context an agent
+turn is about to consume and trims/summarizes proactively, rather than
+reacting after hitting a limit. Directly relevant to this skill's
+context-heavy part loop (`prompts/part.md`, `skill/phase3_build.md`) --
+overlaps the standing [context creep restructure](#context-creep-restructure)
+item. CadAgent's Progressive Context Injection (loading reference/script
+content incrementally rather than all at once) is the same idea and should
+fold into that restructure decision rather than tracked separately.
+
+### CadAgent smart clarification policy
+CadAgent, same row. Instead of always stopping to ask when a parameter is
+underspecified, auto-assume a reasonable default and state the assumption,
+escalating to a question only past some ambiguity threshold. Overlaps
+[Spec audit ambiguity categories](#spec-audit-ambiguity-categories) and
+[Assumption pinning](#assumption-pinning) -- CadAgent's contribution is the
+policy for WHEN to assume vs. ask, which neither of those items currently
+decides.
+
+### CadAgent undo/rollback snapshots
+CadAgent, same row. Automatic snapshots before each agent-driven edit,
+restorable on request -- a simpler cousin of the checkpoint-branching idea
+from ClawSCAD/ClawdCAD (`documentation/related_projects.md` rows). Scope
+for this skill: snapshot a part script (and its `BUILD_PLAN.json` entry)
+before an LLM-initiated correction round, so a bad autonomous edit can be
+reverted without re-running the whole part loop. Lighter-weight than full
+branching -- no alternate-timeline UI, just "restore last known-good".
+
+### harnesscad pre-kernel verification
+ReverseZoom2151/harnesscad, rated **High**. Verifies CAD operations
+symbolically before the kernel runs them -- e.g. catching "fillet radius
+exceeds half the smallest extent" from the operation's own parameters,
+instead of after OCC throws a boolean-failure error. `script_lint.py` is
+AST-level and geometry-unaware (it can't relate a fillet radius to an edge
+length without evaluating expressions), so this is a genuine gap between
+lint and runtime. harnesscad's "measured gate" (certify only when
+independent measurement predicates pass) also matches and could sharpen
+`cq_verify.py`'s existing assertions. Cross-checking against 13 independent
+kernels is explicitly not worth adopting for a single-kernel skill.
+- add named, parameter-level pre-flight predicates (fillet/chamfer radius
+  vs. edge length, boss diameter vs. wall thickness, etc.) that run before
+  the boolean op itself, not just before the whole script -- `cq_verify.py`
+  or a new sibling helper
+
+### Text2CAD MLYengineering repair and learning
+MLYengineering/Text2CAD, rated **Medium-High**. A 7-stage
+Planner/Implementation/Validation/Repair/Execution/Evaluation/Learning
+pipeline over FreeCAD, built on the same "LLMs reason, deterministic tools
+decide" philosophy as this skill. Two adoptable refinements to
+`quality_gate.py`'s fix loop, which today just re-prompts `claude -p` with
+the current error list:
+- Repair Agent: rule-bound, non-rewrite patches -- constrain the fix prompt
+  to emit a scoped diff/patch against the specific failing construct
+  instead of license to rewrite the whole script, cutting regression risk
+  from unrelated changes
+- Learning Agent: cross-attempt failure aggregation -- feed the fix prompt
+  a summary of what already failed on prior attempts for this part (today
+  each `claude -p` fix call sees only the current error, not the attempt
+  history already sitting in `build/attempts.jsonl`), so repeated fixes
+  don't re-try the same wrong correction
+
+### Multi color material support (Claude-To-Print)
+OzAILabs/Claude-To-Print, rated **High** -- concretizes the standing bare
+`Multi color / material support` item above. A close analog skill (Claude
+Code + build123d, same staged design-brief -> parametric-script ->
+deterministic-export -> mesh-QA -> visual-feedback pipeline). Concrete
+mechanism: multi-color/multi-material 3MF export via `lib3mf`, splitting a
+part into named color regions and exporting a pre-colored 3MF for
+AMS-style multi-filament printers. `threemf_multi.py` currently tracks
+named unions/plates but not per-region color -- that's the gap to close.
