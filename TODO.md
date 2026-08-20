@@ -7,6 +7,8 @@ change lives in that change's `tasks.md`, not here.
 As of 12.08.2026 only defects will be corrected, no new features introduced.
 All completed task are now in `documentation\DONE.md`
 
+- [ ] Implement [reqzest_log](TODO.md#typed-request_log-entries----one-change----strategy-reimplement-llm4cad-editor] 
+
 ## from C5 Phone-Holder session `session-export-1786538430013.zip` in `./debug`:
 - [ ] investigate "compass language" `.\debug\image-1786538590774.png` shows the problem: east should be right. Reason: mixing up "Viewed from South" and "south facing" under observation
 - [ ] the hinge ear shows an old problem: placing primitives with their center aligning to the other parts edge see `.debug\image-1786540203166.png`
@@ -434,7 +436,7 @@ reproduced failures (the C5 cradle ping-pong; the audit being blind to the reque
 are arguably defect fixes; 2, 4 and 5 are features for the next version. Not decided
 here.
 
-#### Typed request_log entries -- one change -- strategy: reimplement (LLM4CAD-Editor)
+#### 1. Typed request_log entries -- one change -- strategy: reimplement (LLM4CAD-Editor)
 Give each `request_log` entry a `level` (`functional` | `operation` | `parameter`) and
 `targets` (part ids + named features/parameters), assigned at append time. Smallest
 change with the largest reach: it reuses the append-only log, its schema and
@@ -454,7 +456,7 @@ OPTIONAL -- existing plans carry untyped entries and must stay valid.
 - [ ] re-key the Step 3 section-selection tiers off `targets` instead of the
       `--query <name>` keyword match
 
-#### Spec audit with named ambiguity categories -- one change -- strategy: reimplement (ProCAD)
+#### 2. Spec audit with named ambiguity categories -- one change -- strategy: reimplement (ProCAD)
 Generalize Phase 1's topology-clarification rule (shape ambiguity only) into an audit
 over a fixed category list, and re-run it on mid-build corrections, where ambiguity is
 most expensive because parts already exist. ProCAD's contribution is asking ONLY when
@@ -469,7 +471,7 @@ load-bearing. Category-named prompting beats a bare "ask if unsure" (arXiv 2504.
 - [ ] re-audit a mid-build correction before acting on it
       (`skill/phase3_build.md` correction handling)
 
-#### Request-relative acceptance in the implementation audit -- one change -- strategy: reimplement (cadgate)
+#### 3. Request-relative acceptance in the implementation audit -- one change -- strategy: reimplement (cadgate)
 The auditor gets the part's `BUILD_PLAN.json` entry and the renders, deliberately not
 the script -- but also not the `request_log`, so every gate downstream of Phase 2
 measures conformance to the plan, and a Phase 2 misreading becomes the standard the
@@ -482,7 +484,7 @@ pipeline enforces. Closes the gap with no new agent and no new artifact.
 - [ ] keep the no-script rule intact; do not promote intent-match findings to blocking
       without eval evidence (softer judgments than geometry, burns retry budget)
 
-#### Canonical intent restatement artifact -- one change -- strategy: reimplement
+#### 4. Canonical intent restatement artifact -- one change -- strategy: reimplement
 Merges two standing items ("intent based prompt reformulation", "regenerate the whole
 project from scratch with a new LLM session"): a frame-explicit, user-confirmed
 restatement of what is being built, carried forward and updated as corrections land.
@@ -494,7 +496,7 @@ restatement forces the reference frame to be written down instead of assumed.
 - [ ] give it a bounded role like `planning_notes` (current state only) and
       `request_log` (history only), or it becomes a changelog
 
-#### Under-specified eval cases -- one change -- strategy: reimplement (gating cost)
+#### 5. Under-specified eval cases -- one change -- strategy: reimplement (gating cost)
 Every case in `evals/cases/` is well-specified, so none of the above can regress and
 the existing scorecard cannot see it. This is the gate on the whole idea, not an
 afterthought.
