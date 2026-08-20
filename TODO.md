@@ -499,3 +499,168 @@ afterthought.
 - [ ] well-specified controls scored on NOT asking -- without them the metric rewards
       asking about everything
 - [ ] `evals/run_evals.py` scoring + `tests/test_eval_corpus.py`
+
+### From SmartAI/Chamfer's efficiency study (github.com/SmartAI/Chamfer @ a8f1c59, read 2026-08)
+
+Chamfer is a TypeScript CAD agent over a build123d MCP server. Its `benchmarks/`
+directory is the interesting part: a four-arm head-to-head (Chamfer v0/v1, Claude Code,
+Codex) on a held-out set, same model, same MCP server binary for every arm, graded by a
+geometry oracle on the exported STEP. Result: equal correctness at **5.9x lower cost and
+3.2x lower wall-clock than Claude Code** -- 6.5 vs 9.2 agent turns, 2,232 vs 9,849 output
+tokens, ~53k vs ~433k context tokens read per run.
+
+The gain is explicitly NOT model, kernel, or a cleverer algorithm. Their own decomposition
+(`benchmarks/analysis/v0-weaknesses.md`, 21 graded runs): **~46% of cost is output tokens**
+(on the hardest case 55% of those are hidden reasoning), ~33% cache write, ~21% cache read;
+latency splits ~68% LLM / ~32% tool. So the levers are (a) how much context is read per
+turn, (b) how many output tokens are emitted, (c) how many tool round-trips happen at all --
+in that order. Verification was measured to be **cheap** (~15% of cost) and is not a lever.
+
+Negative results from the same study, worth as much as the positives -- do not repeat them:
+- **Global thinking=low**: <20% cost saving, dropped checks on two cases. Rejected.
+- **"Complexity-scaled" verification** (skip the reconciliation pass on simple parts): worse
+  on cost AND correctness than not doing it -- one case collapsed to 8/15 with an over-claim.
+  Recorded lesson: "verification is not overhead to scale away; on interacting-feature parts
+  it is the cheapest part of the run."
+- Their pattern card (23 mined idioms) was bundled with the two changes above, so its own
+  effect is **unmeasured** -- treat it as untested, not as proven.
+- Standing method rule they adopted after drifting: one intervention at a time, each traced
+  to a weakness observed in real run transcripts, pre-registered metric movement per change.
+
+Items below are ordered by value/cost. Item 1 is the precondition: none of the rest can be
+shown to work without it. (Their STEP geometry-kernel oracle stays not-adopted, per the
+`Benchmark corpora` section above -- `cq_verify.py`/`script_lint.py` already cover that
+failure class.)
+
+#### 1. Per-attempt efficiency telemetry -- one change -- strategy: reimplement
+`build/attempts.jsonl` records `prompt_chars` and `model` and nothing about what the attempt
+actually cost. Chamfer's entire analysis is a decomposition our log cannot produce. This
+supersedes and fills in item 4 of the `Benchmark corpora` metrics list above (raw tool-call
+count + wall-clock); the split below is what made their table actionable.
+- [ ] `telemetry.py`: optional `tokens` (`in`/`out`/`cache_read`/`cache_write`),
+      `cost_usd`, `wall_ms`, `llm_ms` vs `tool_ms`, `tool_calls`, `failed_tool_calls`
+      -- all OPTIONAL, existing logs must stay valid (`tests/test_telemetry.py`)
+- [ ] per-tool table: calls, mean duration, result payload size (chars/image tokens) --
+      their finding was that one tool (`render_view`) was 11.5% of suite wall for zero
+      model changes, which is invisible without payload/duration per tool
+- [ ] failed-call retry cost: time from a failed call to the next successful attempt
+      (they measured ~6% of suite wall lost to 15 failed calls across 52% of runs)
+- [ ] `evals/run_evals.py`: aggregate the above into the scorecard next to
+      `first-shot rate` / `attempts-to-pass` / `chamfer_mm`, so a loop-efficiency
+      regression is visible without correctness moving
+
+#### 2. Failure-mode mining -> an environment-facts block -- one change -- strategy: reimplement
+Their single biggest robustness win was four sentences of environment facts in the system
+prompt, each traced to a counted failure (missing `from build123d import *`; calling MCP tool
+names inside the sandbox; blocked builtins; wrong `expected` schema). That killed 11 of 15
+failed tool calls. Our equivalent facts (what the wrapper injects on `PYTHONPATH`, that
+`result` may be a `dict[str, Workplane]`, what `--deliver` changes about STL paths, which
+`cq_verify` helpers exist) are spread across `prompts/part.md` and `skill/phase3_build.md`.
+- [ ] mine `error_types` frequencies out of accumulated `build/attempts.jsonl` logs and
+      rank them -- interventions must be evidence-led, not guessed
+- [ ] a short "facts about the run environment" block at the top of `prompts/part.md`,
+      one line per counted failure class, replacing scattered prose
+- [ ] check each mined class against `script_lint.py` first: anything the linter can
+      catch deterministically should NOT become a prompt line
+
+#### 3. Fold verification into the build call -- one change -- strategy: reimplement
+Chamfer's `execute` auto-echoes volume/bbox/face count, and `find_holes(part)`/`measure(obj)`
+are callable **inside** the sandbox -- so the measured hole inventory comes back with the
+build, not from a separate round-trip. On the pulley case that was 4 tool calls vs Claude
+Code's 9 turns for the same verified part. `run_cadquery_model.py` already returns
+`geometry` this way; the per-part checks are still separate processes, each paying a fresh
+OCC import.
+- [ ] emit the measured interface/feature inventory (what `feature_presence_check.py`
+      asserts) inside the wrapper's existing JSON contract, as an additive key -- one
+      subprocess produces build + measured evidence
+- [ ] same for `edge_treatment_check.py`'s classify pass where it needs the same shape
+- [ ] keep the standalone CLIs (build-frame reruns, tests); the JSON key is the fast path
+
+#### 4. One reconciliation pass, from measured values -- one change -- strategy: reimplement
+Their v1 rule: verify with measured evidence in ONE pass -- check every requested dimension,
+hole count AND diameter, feature position **from measured coordinates, not from the
+variables you set**, then stop; no further rounds unless a mismatch appears; never claim
+correctness while a discrepancy is open. Two findings behind it: positions were recited from
+input constants in 21/21 runs (nothing numeric ever checked them), and open-ended
+self-verification bloated cost by 21% with no correctness gain.
+- [ ] a single-pass reconciliation rule in `skill/phase3_build.md`, explicitly bounded
+      ("do not loop extra verification rounds unless a mismatch appears")
+- [ ] "measured, not recited": a part's self-report must quote wrapper/check output, never
+      restate its own `PARAMETERS` block
+- [ ] "no completion claim while a discrepancy is open" as an explicit gate line
+
+#### 5. Render economy -- one change -- strategy: reimplement (scoped)
+Their F5: 18 mandatory renders, 5.8 s and ~1,150 image tokens each, and **zero** model
+changes ever followed one -- the largest clean saving they found. Not transferable
+wholesale: our previews also feed user checkpoints and the visual-review agent, which is a
+real signal, not a ritual. The rule applies only to agent-internal self-inspection renders.
+- [ ] make the autonomous part agent's own re-render conditional: render when the part has
+      features a bbox/interface inventory cannot confirm, skip when it repeats what the
+      measured checks already proved -- user-facing checkpoint renders stay mandatory
+- [ ] count renders and their token cost per part in the telemetry of item 1 first;
+      demote nothing until the count is measured here rather than borrowed
+
+#### 6. Output-token economy -- one change -- strategy: reimplement
+Output tokens are ~46% of cost and dominate serial decode time; Claude Code's 4.4x output
+ratio maps almost directly onto the 3.2x wall-clock gap. Their fix is one prompt line:
+the final message is assumptions (if any) + one summary line, no feature-by-feature recap --
+the reconciliation pass already proved the features.
+- [ ] bound the per-part completion report in `prompts/part.md` / `skill/phase3_build.md`
+      (the recap duplicates the plan and the check output)
+- [ ] measure it as its own change -- it is the one v1-eff ingredient not implicated in
+      that arm's correctness regression, but it was never measured alone either
+
+#### 7. Assumption pinning -- one change -- strategy: reimplement
+Zero assumption statements in 21/21 runs, while structurally divergent readings shipped
+silently (bearing bore along X in two reps, along Y in the third, same prompt). Their v1
+line: if a dimension or placement is underdetermined, choose the standard engineering
+reading and state it in one line before building. This is the same defect class as the C5
+compass-language and reference-frame items at the top of this file, and it is far cheaper
+than the elicitation machinery in the intent-recognition section -- it does not ask the
+user anything, it just makes the coin-flip reviewable.
+- [ ] one-line assumption statement before building, wherever a frame/axis/facing/datum is
+      underdetermined -- `prompts/part.md` and the Phase 3 correction path
+- [ ] land it as a `request_log` entry so the assumption survives the session (ties into
+      the typed-`request_log` item above)
+
+#### 8. Warm kernel process -- one change -- strategy: reimplement -- needs measurement first
+Chamfer keeps one MCP server alive per conversation (`lifecycle: "keep-alive"`), so the
+kernel is imported once and a failed step is fixed by re-running only the failing snippet.
+Every `run_cadquery_model.py` invocation pays a fresh interpreter + OCC import. Their tool
+timings put `execute` at 1.3 s against `inspect_part` at 2.1 s and `render_view` at 5.8 s,
+so process startup is a real fraction of tool time, and tool time was ~32% of wall.
+- [ ] measure first: cold OCC import cost per attempt vs. total attempt wall (item 1)
+- [ ] only if it pays: a keep-alive worker that re-executes the whole script in a warm
+      interpreter -- NOT incremental session state. A fresh namespace per run is a
+      correctness property here (the script file is the deliverable and must stand alone);
+      their "re-run only the failing snippet" habit trades that away and is not adopted
+- [ ] the same warm process should serve the trimesh/fcl whole-model checks, which pay
+      their own import cost per invocation
+
+#### 9. Context-surface audit -- folds into the context-creep restructure above
+Their 8x context gap came from tool schemas and general scaffolding read every turn: 6
+curated tools and a one-screen system prompt vs 59 tool schemas. Our analog is not tool
+schemas but phase documents and reference files -- `skill/phase3_build.md` alone is ~1,090
+lines, and `reference/scripts.md` indexes ~30 scripts of which any one part uses a handful.
+This is evidence for the standing "restructure to combat context creep" item, with a
+measurement attached rather than a feeling.
+- [ ] measure context tokens read per phase per part (item 1's telemetry) before choosing
+      between the three restructure options already listed under `Tasks for next version`
+- [ ] per-phase curated script/reference subsets, so a part loop does not carry the
+      planning and export surface
+
+#### 10. Eval method: held-out set, pre-registered bars -- one change -- strategy: reimplement
+Every case in `evals/cases/` is public and readable during skill iteration, so the scorecard
+cannot distinguish "the skill got better" from "the skill got tuned to these cases".
+Chamfer's protocol: a public dev set for iteration, a git-ignored private test set read
+exactly once after a freeze commit, N=3 repetitions, and the success bar written down
+BEFORE tuning (theirs: v1 > v0 on correctness, else >= 25% cost/latency improvement at
+equal correctness). They then reported honestly that v1 met neither bar.
+- [ ] a git-ignored `evals/private/` test set with the same case schema, never read during
+      skill development, run at release freezes
+- [ ] N repetitions per case with per-case variance in the scorecard -- their whole
+      "structural divergence" finding came from comparing reps of one prompt
+- [ ] over-claim as a scored metric: the run claims completion while the quality gate has
+      open findings (their `detectOverClaim` is a five-line check over the final message
+      plus the grade -- we have both)
+- [ ] write the pass bar into the release checklist before the tuning round, not after
