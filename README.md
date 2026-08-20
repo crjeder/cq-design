@@ -165,20 +165,11 @@ tests/
 ```
 
 ## Related projects
-
-Projects surveyed for ideas -- see [`info/related_projects.md`](info/related_projects.md).
+Projects surveyed for ideas -- see [`info/related_projects.md`](documentation/related_projects.md).
 Adoption status/tracking lives in `TODO.md`.
 
-## B-Rep Part Libraries
-
-| Catalog | Format | Re-usability Rating | Best Use Case & CadQuery Integration Notes |
-| --- | --- | --- | --- |
-| TraceParts / GrabCAD Open STEP Archives | `.step`, `.stp` | high | **Standard Hardware Components.** Consuming vendor-neutral ISO 10303 (STEP) files is natively supported by CadQuery's underlying OpenCascade kernel. You lose parametric variation at runtime, but you gain exact, un-triangulated math representations for mates, fillets, and CNC work. |
-| FreeCAD Standard Parts Library (`Macro_PartsLibrary`) | `.fcstd`, `.step` | high | **Fasteners & Bearings.** Because FreeCAD also uses the OpenCascade kernel, its internal geometries map 1:1 to CadQuery. Many FreeCAD catalog macros can either be exported directly to standard STEP or read via raw Python tables to reconstruct parts. |
-| OpenCascade Community Catalogs | `.brep` | high | **Core Geometric Primitives.** Native OpenCascade `.brep` file catalogs are fully open and can be directly loaded into CadQuery without any translations using `cq.Shape.cast(OCC.Core.BRepTools...)`. |
-| Misumi / McMaster-Carr Open Data | `.step`, `.iges` | medium | **Industrial Hardware.** While hosted by commercial entities, their standardized STEP downloads are perfectly formatted. You can build a local cache folder and use a Python dictionary script to match part numbers to `importStep()` paths. |
-| https://github.com/adafruit/Adafruit_CAD_Parts | `.step` | | **Adafruit products** | 
-
+## Part Libraries
+Libraries which could be usefull are in [`Block_Sources.md`](documentation/Block_Sources.md)
 
 ## License
 
