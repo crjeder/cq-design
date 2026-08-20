@@ -34,6 +34,9 @@ All completed task are now in `documentation\DONE.md`
 - [ ] Silca Tray: LLM claims "no support needed" despite "support score 654.1" which might be wrong. test result: small overhangs like this can be printed without support!
 - [ ] "I just re-derived the print orientation and re-exported so the deliverables and BUILD_PLAN.json match your hand-edited dimensions: 6mm triangle pitch, 1mm rib width, 20mm total height)." Works, but is it for granted or just coincidence?
 
+## from Hitstertower
+- [ ] LLM did not get the intent of the opening on the bottom of the tower (finger can reach in to pull card out). Instead insisted on fully spport the south wall. This is not necessary because the load is the mobile phone on top which is hardly more than 200 g. This weight can be supported by a 1 cm support on both sides of the wall.
+
 ## independet
 - [x] split `info` directory
 - [ ] code quality audit
