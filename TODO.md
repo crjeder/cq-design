@@ -40,11 +40,11 @@ All completed task are now in `documentation\DONE.md`
 ## independet
 - [x] split `info` directory
 - [ ] code quality audit
-- [ ] sbom. add credit for projects where code came frt
+- [ ] sbom: add credit for projects where code came from
 
 # Tasks for next version:
 
-- [ ] Write a prompt which allows the human user to re-generate the whole project from scratch with a new LLM session (improved LLM, new skill, other skill, etc). The prompt must include the latest changes, user intent and all measurements.
+- [ ] Export a prompt which allows the human user to re-generate the whole project from scratch with a new LLM session (improved LLM, new skill, other skill, etc). The prompt must include the latest changes, user intent, all user provided measurements, drawings and all other artifacts.
 - [ ] ENGINEERING RATIONALE etc. in `BUILD_PLAN.py`? Now it's spread all over the source files.
 - [ ] read back parameters on any user initiated planning / authoring round
 - [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
