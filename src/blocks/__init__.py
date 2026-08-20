@@ -6,6 +6,7 @@ Usage in model scripts:
     from blocks import port_cutout, vent_grid, teardrop_bore
     from blocks import heat_set_boss, socket_head_cap_screw, hex_head_screw, hex_nut
     from blocks import counterbore_hole, countersink_hole, hex_nut_trap
+    from blocks import gridfinity_bin, gridfinity_baseplate, gridfinity_feet
 """
 
 from blocks.connectors import (
@@ -26,6 +27,14 @@ from blocks.fasteners import (
     servo_spline,
     snap_hook_clip,
     snap_socket_receiver,
+)
+from blocks.gridfinity import (
+    gridfinity_baseplate,
+    gridfinity_bin,
+    gridfinity_dimensions,
+    gridfinity_feet,
+    gridfinity_socket_cutter,
+    gridfinity_units_for,
 )
 from blocks.hardware import (
     heat_set_boss,
@@ -85,4 +94,10 @@ __all__ = [
     "pin_hinge",
     "living_hinge",
     "shadow_gap",
+    "gridfinity_feet",
+    "gridfinity_bin",
+    "gridfinity_baseplate",
+    "gridfinity_socket_cutter",
+    "gridfinity_dimensions",
+    "gridfinity_units_for",
 ]
