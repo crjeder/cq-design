@@ -171,6 +171,10 @@ Adoption status/tracking lives in `TODO.md`.
 ## Part Libraries
 Libraries which could be usefull are in [`Block_Sources.md`](documentation/Block_Sources.md)
 
+## Software Bill of Materials
+Third-party dependencies and credit for code/ideas adapted from other
+projects -- see [`SBOM.md`](documentation/SBOM.md).
+
 ## License
 
 The skill and scripts are licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Free to use, modify, and distribute for noncommercial purposes.
