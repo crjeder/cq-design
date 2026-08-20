@@ -7,7 +7,7 @@ change lives in that change's `tasks.md`, not here.
 As of 12.08.2026 only defects will be corrected, no new features introduced.
 All completed task are now in `documentation\DONE.md`
 
-- [ ] Implement [reqzest_log](TODO.md#typed-request_log-entries----one-change----strategy-reimplement-llm4cad-editor] 
+- [ ] Implement [reqest_log](TODO.md#typed-request_log-entries----one-change----strategy-reimplement-llm4cad-editor])
 
 ## from C5 Phone-Holder session `session-export-1786538430013.zip` in `./debug`:
 - [ ] investigate "compass language" `.\debug\image-1786538590774.png` shows the problem: east should be right. Reason: mixing up "Viewed from South" and "south facing" under observation
