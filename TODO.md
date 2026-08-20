@@ -34,6 +34,8 @@ All completed tasks are now in `documentation/DONE.md`.
 
 # Tasks for next version
 
+- [ ] Tool to create gridfinity objects
+- [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] Export a project-regeneration prompt for a fresh LLM session -- [details](#project-regeneration-prompt)
 - [ ] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.py` -- [details](#engineering-rationale-consolidation)
 - [ ] Read back parameters on any user-initiated planning/authoring round
