@@ -291,8 +291,65 @@ and `prompts/part.md`.
       the LLM intent-match is the part that justifies the optional external path
 - [ ] `get_parameters`: extract customizable params from a script for parametric
       re-runs (CadQuery/cadquery-contrib mcp-server) -- strategy: reimplement (tiny)
-- [ ] DeepCAD evaluation metric: Chamfer distance for golden-mesh regression tests
-      -- strategy: reimplement (trimesh already computes it)
+- [x] DeepCAD evaluation metric: Chamfer distance for golden-mesh regression tests
+      -- strategy: reimplement (trimesh already computes it). Done: `chamfer_mm` in
+      `evals/run_evals.py`, matched to golden parts via `scipy.optimize.linear_sum_assignment`
+      over shape descriptors. See the benchmark-corpus writeup below for what should feed it.
+
+### Benchmark corpora for `evals/` (documentation/related_projects.md text-to-CAD datasets)
+
+Of the ~119 surveyed projects, five are actual prompt-to-result *corpora* (not just
+technique ideas) that could seed `evals/cases/`. Rated for adoption as a benchmark:
+
+- [ ] **Text-to-CadQuery** (arXiv 2505.06507; rows "Text-to-CadQuery (arXiv 2505.06507 +
+      code)" and duplicate "Text-to-CadQuery/Text-to-CadQuery") -- **High**. ~170k
+      text->CadQuery code pairs, native CadQuery format, zero conversion cost -- runs
+      through `run_cadquery_model.py` unmodified. Already the origin of the `chamfer_mm`
+      idea. Gap: nobody has sampled a subset into `evals/cases/` yet. Strategy: reimplement
+      a small corpus-import script that filters the 170k down to this skill's domain
+      (enclosures/brackets/plates/adapters -- not organic/decorative shapes), executes each
+      script to produce `golden/*.stl`, and writes `request.md` from the pair's description.
+- [ ] **WKJBryan/cadquery-library** -- **High, complementary**. 2600+ native CadQuery
+      examples, hand-curated (vs. Text-to-CadQuery's auto-generated 170k) -- better
+      signal-to-noise for a small eval corpus, less coverage. Same import strategy as
+      above; adopt in full given the smaller size.
+- [ ] **SadilKhan/Text2CAD** + duplicate **Text2CAD (DFKI / NeurIPS)** -- **Medium**. Real
+      multi-level (beginner->expert) text-difficulty annotations that this skill's own
+      corpus lacks, but the paired geometry is DeepCAD sketch-extrude JSON, not CadQuery --
+      needs a converter that doesn't exist today (closest analog, `convert_build123d.py`,
+      targets a different kernel). Worth the prompt-difficulty tiers even if the geometry
+      pairs are skipped; blocked on the converter.
+- [ ] **rundiwu/DeepCAD** -- **Low**. Same non-CadQuery format problem as Text2CAD, without
+      even the text pairing -- it's the substrate Text2CAD is built on, not independently
+      useful. No action beyond what Text2CAD covers.
+- [ ] **mehsenazizi/mecagent-test-Mehsen-AZIZI** -- **Low**. Take-home-exercise scope, too
+      small to be a corpus; its IOU eval idea duplicates rawwerks/VibeCAD's (already noted
+      there). No action.
+
+Metrics to add alongside the existing first-shot pass rate / attempts-to-pass /
+`chamfer_mm` / cost-per-part in `evals/run_evals.py`, in priority order:
+
+1. **Executability / syntax pass rate** -- fraction of a corpus's scripts that run without
+   error on attempt 1. This is the metric the Text-to-CadQuery paper itself reports, so
+   it's the natural apples-to-apples number when citing that corpus. Strategy: reimplement
+   (the wrapper's `success`/`errors` fields already carry this per attempt; just aggregate).
+2. **Volumetric IoU / Dice** (rawwerks/VibeCAD row) -- add alongside `chamfer_mm`, not
+   instead of it: Chamfer averages surface distance and can look fine when a small
+   protrusion or hole is simply missing, which IoU catches directly. Strategy: reimplement
+   via `trimesh.boolean` intersection/union on the same centered, matched mesh pairs
+   `run_evals.py` already produces.
+3. **Prompt-difficulty stratification** (SadilKhan/Text2CAD's beginner->expert tiers) --
+   bucket eval cases by description complexity and report pass rate/chamfer per tier
+   instead of one flat scorecard, so degradation on terse vs. detailed requests is visible.
+   Depends on the Text2CAD corpus item above (or hand-tagging the existing/new cases).
+4. **Efficiency: tool-calls / iterations / wall-clock per case** (SmartAI/Chamfer row,
+   sidbalasubramanian007/Aipex-Lab-Research row) -- `attempts-to-pass` already exists in
+   `run_evals.py`; add raw tool-call count and wall-clock alongside cost/part so loop-
+   efficiency regressions (not just correctness regressions) show up in the scorecard.
+
+Explicitly not adopted: SmartAI/Chamfer's STEP geometry-kernel-oracle validity check
+overlaps what `cq_verify.py`/`script_lint.py` already do at construction time, so it
+wouldn't add a new failure class here.
 
 ### From market research (documentation/market_research.md)
 
