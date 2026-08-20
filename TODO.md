@@ -80,6 +80,7 @@ All completed task are now in `documentation\DONE.md`
       (PolyForm-safe; algorithm only). Additional prior art: thereprocase/snuggle-demo
       (https://github.com/thereprocase/snuggle-demo) -- a standalone "stuffing"/nesting
       algorithm demo, worth checking against the bottom-left-fill approach above.
+      **REJECTED** this feature belongs into a slicer
 - [ ] blocks: assembly placeholder geometry. A block may declare PSEUDO geometry
       marking the volume that must stay clear to ASSEMBLE it (e.g. a hinge's pin-
       insertion path / leaf-swing-during-assembly envelope). It is exempt from
