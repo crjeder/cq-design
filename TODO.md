@@ -3,670 +3,1002 @@
 Tasks not tracked in an `openspec/changes/` change. Anything tied to a specific
 change lives in that change's `tasks.md`, not here.
 
+Each item below is a one-line pointer. Rationale, investigation notes, and
+strategy discussion live in [Details](#details) at the end of this document,
+linked from the item.
+
 # Feature freeze for V1.0
 As of 12.08.2026 only defects will be corrected, no new features introduced.
-All completed task are now in `documentation\DONE.md`
+All completed tasks are now in `documentation/DONE.md`.
 
-- [ ] Implement [reqest_log](#typed-request_log-entries----one-change----strategy-reimplement-llm4cad-editor])
+## V1 defects
 
-## from C5 Phone-Holder session `session-export-1786538430013.zip` in `./debug`:
-- [ ] investigate "compass language" `.\debug\image-1786538590774.png` shows the problem: east should be right. Reason: mixing up "Viewed from South" and "south facing" under observation
-- [ ] the hinge ear shows an old problem: placing primitives with their center aligning to the other parts edge see `.debug\image-1786540203166.png`
-- [ ] the llm totally did not get that making the knuckle stand of the cradles feet more does not mean that the plate's knuckle has to move upward (+ Z). Probable cause: in the authoring pose the inference is correct, but when the cradle is moved into it's assembled pose it's not a problem.
-      Investigated (transcript: session `b6ac548d...`, `session-export-1786538430013.zip`):
-      the triggering request was "align the hole with the bore hole on the front plate
-      *when the leg lies flat on the front plate*" -- a folded/mounted-pose constraint --
-      but `cradle.py` and `plate.py` both hardcode `PIVOT_Y`/`PIVOT_Z` as independent
-      literals in the shared car frame (no `joints`/`mate_chain.py` root-derived pose).
-      Raising the cradle's own `EAR_STANDOFF` (intra-part, its own resting/authoring
-      pose) got mirrored into also raising the plate's `PIVOT_Z` (a separate, stationary
-      part whose bore is fixed by its own physical stack) -- treating a shared invariant
-      as something to copy-edit in lockstep, which is why PIVOT_Z ping-ponged between
-      13.5 and 6.0 across rounds 6/8/9. Two contributing causes, not mutually exclusive:
-      (1) hand-duplicated shared pivot constants across sibling part scripts instead of
-      going through `joints`/`mate_chain.py`, so nothing forced the second file's copy to
-      be *derived* rather than independently re-typed; (2) a conceived resting plane at
-      Z=0 (the authoring-pose XY plane) stood in for where the cradle's fold actually
-      bottoms out -- in reality the lower stop is below that plane and not flat (console
-      floor / hardware clearance), an external constraint neither script models, so
-      "the deployed pose sits flat on Z=0" was itself an unverified assumption feeding
-      the Z-stack-up math on both sides.
+- [ ] Implement typed `request_log` entries -- [details](#typed-request_log-entries)
 
-## from Silica Tray `session-export-1786620780455.zip`
-- [ ] Silca Tray: LLM claims "no support needed" despite "support score 654.1" which might be wrong. test result: small overhangs like this can be printed without support!
-- [ ] "I just re-derived the print orientation and re-exported so the deliverables and BUILD_PLAN.json match your hand-edited dimensions: 6mm triangle pitch, 1mm rib width, 20mm total height)." Works, but is it for granted or just coincidence?
+### From C5 Phone-Holder session (`session-export-1786538430013.zip` in `./debug`)
+- [ ] Compass-language mixup in orientation reasoning -- [details](#c5-compass-language)
+- [ ] Hinge ear: primitive placed center-aligned to another part's edge -- [details](#c5-hinge-ear-center-vs-edge)
+- [ ] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- [details](#c5-knuckle-pivot-ping-pong)
 
-## from Hitstertower
-- [ ] LLM did not get the intent of the opening on the bottom of the tower (finger can reach in to pull card out). Instead insisted on fully spport the south wall. This is not necessary because the load is the mobile phone on top which is hardly more than 200 g. This weight can be supported by a 1 cm support on both sides of the wall.
+### From Silica Tray session (`session-export-1786620780455.zip`)
+- [ ] LLM claimed "no support needed" despite a nonzero support score -- [details](#silica-tray-support-claim)
+- [ ] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- [details](#silica-tray-re-export-coincidence)
 
-## independet
+### From Hitstertower
+- [ ] Missed the intent of the bottom finger-access opening; over-supported the south wall -- [details](#hitstertower-oversupport)
+
+### Independent
 - [x] split `info` directory
 - [ ] code quality audit
 - [ ] sbom: add credit for projects where code came from
 
-# Tasks for next version:
+# Tasks for next version
 
-- [ ] Export a prompt which allows the human user to re-generate the whole project from scratch with a new LLM session (improved LLM, new skill, other skill, etc). The prompt must include the latest changes, user intent, all user provided measurements, drawings and all other artifacts.
-- [ ] ENGINEERING RATIONALE etc. in `BUILD_PLAN.py`? Now it's spread all over the source files.
-- [ ] read back parameters on any user initiated planning / authoring round
-- [ ] restructure to combat context creep. reference: `ARCHITEKTURE.md` options:
-  - [ ] like openspec: phases are own commands, user interaction at the end (change, restart). then start new phase.
-  - [ ] python script owns the loop and switches context & models. prompt will be split
-  - [ ] use sub-agents / workers for each phase
-- [ ] kinematic: explore adding one simple ground/seating plane (lid-hits-floor
-      checks); surrounding-geometry questions stay out of scope (external simulation)
-- [ ] kinematic: articulated chains (a moving union carries other unions through
-      the sweep)
-- [ ] joints: multi-DOF / coupled simultaneous movements. A joint is a LIST of
-      single-axis movements (`rotate`/`translate`, each with axis + reference
-      vector + range); independent movements for now. A spherical/ball joint is
-      two coupled `rotate` movements sharing a center -- listing them as two
-      independent entries models a 2-axis gimbal, NOT the ball's coupled cone.
-      Capture coupling (e.g. helical screw pitch, ball cone) as a later field.
-- [ ] export: separate unions into print-plates. Today all unions compile to one
-      "world" result and model_export already writes each as a separately named
-      3MF `<object>` with `plate` metadata. Core 3MF has no native print-plate
-      concept (objects + `<build><item>` only); true multi-plate assignment is a
-      slicer-specific extension (Bambu/Prusa project-3MF). Decide: emit the
-      slicer plate structure, or leave plate split to the operator.
-- [ ] export: automated 2D plate packing / bed nesting. Distinct from the print-plate
-      item above (that is about 3MF plate *structure*); this is about *deciding which
-      part goes on which plate and where*, which today is declared manually in the plan.
-      Prior art: thereprocase/cad-skill Phase 4 -- rasterize each union's XY footprint at
-      0.5mm/px (PIL), precompute 0/90/180/270 rotations, bottom-left-fill largest-area-
-      first, keep uniform spacing via `scipy.ndimage.binary_dilation` on the blocked
-      bitmap, build compound plates with OCC (`BRep_Builder` + `TopoDS_Compound`), export
-      STL+STEP per plate, report bed utilization %. Inputs we already have: per-union
-      assembled/print-oriented STLs, `plate` metadata, bed size (would need to come from
-      `printer_profile.json` -- not currently a field). Decide scope: full nester, or just
-      a utilization report + overflow warning leaving assignment to the operator/slicer.
-      Interacts with print-orientation (footprint depends on chosen orientation) and the
-      plate-clearance check (spacing == the one-layer-height fuse rule). Reimplement
-      (PolyForm-safe; algorithm only). Additional prior art: thereprocase/snuggle-demo
-      (https://github.com/thereprocase/snuggle-demo) -- a standalone "stuffing"/nesting
-      algorithm demo, worth checking against the bottom-left-fill approach above.
-      **REJECTED** this feature belongs into a slicer
-- [ ] blocks: assembly placeholder geometry. A block may declare PSEUDO geometry
-      marking the volume that must stay clear to ASSEMBLE it (e.g. a hinge's pin-
-      insertion path / leaf-swing-during-assembly envelope). It is exempt from
-      export (not printed) and from the kinematic sweep (not a moving body), but
-      other geometry must not intrude into it or assembly is blocked. Pairs with
-      the mating-area footprint (2D where-to-connect) -- this is the 3D keep-clear-
-      for-assembly volume. The gate should flag real geometry that violates a
-      declared placeholder. Distinct from the model's own clearance gaps.
-- [ ] bill of non-printed materials. Surfaced by the `planning_notes` audit's C5
-      cross-check (2026-08-12): the plan and the delivery summary have NO field and NO
-      section naming anything the user must supply. Verified by grep -- no `BOM`,
-      `hardware list`, `required hardware` or `non-printed` anywhere in `src/`,
-      `skill/`, `prompts/`, `SKILL.md`, no such key in `build_plan_schema.json`, and
-      `skill/phase4_deliver.md` mentions no screw, insert, magnet or assembly step. So
-      a user handed an enclosure with `screw_boss`/`pcb_standoff` features is never
-      told which screws to buy, and C5's 1.75 mm filament hinge pin survived only as a
-      sentence buried in `planning_notes`. Scope: screws/nuts/washers, heat-set
-      inserts, magnets, bearings, springs, filament/rod pins, adhesives, and
-      quantities. Partly DERIVABLE, which decides the shape: `blocks_needed` hardware
-      params (`blocks/hardware.py`'s cq_warehouse fasteners, `screw_boss`,
-      `pcb_standoff`) already carry the spec and the count, so the generator can emit
-      most rows and only the non-block items (glue, a raw filament pin, a magnet
-      pressed into a plain pocket) need declaring by hand. Decide: derived-plus-manual-
-      additions (recommended -- keeps the declared surface small) vs. a fully hand-
-      authored top-level `bom` array. Output lands in the Phase 4 delivery summary
-      regardless. Pairs with the assembly-placeholder item above and with category (c)
-      of the `planning_notes` inclusion rule -- (c) records the assembly PROCEDURE, the
-      BOM records the PARTS it consumes; if this ships, (c) keeps the procedure and
-      hands the hardware list over.
-- [ ] joints: side-tagged `face_mount` docks so the planner derives union
-      membership and the world joint axis automatically (interface naming: keep
-      assembly/mating docks conceptually distinct from kinematic axes even though
-      both live in the block `interfaces` array)
-- [ ] preview: z-buffered renderer -- matplotlib mplot3d has no z-buffer and
-      depth-sorts whole triangles (painter's algorithm), so flat faces show
-      cosmetic triangular shading patches where angled wall/fillet triangles paint
-      over coplanar ones. Geometry and normals are correct (STL/3MF watertight +
-      winding-consistent); the artifact is preview-only. Switching `preview.py` to
-      a z-buffered renderer (trimesh + pyrender / `Scene.save_image`) removes it,
-      at the cost of an OpenGL dependency that `preview.py`/`mesh_io.py` currently
-      avoid by design.
-- [ ] preview: render feature detail previews more proactively. The `--detail`
-      capability exists (`render_preview.py`/`preview.py` render a high-res zoomed
-      view + optional cross-section per named feature; wired in SKILL.md Step 3
-      "Feature detail previews"), but in a live run detail previews were not
-      generated for small/critical features by default -- only on explicit request
-      or the complexity-gate path. Decide when the skill should auto-render a detail
-      preview (e.g. every interface/joint feature, or any feature below a size
-      threshold vs. the whole-part bbox) so small features are actually inspectable
-      without the user asking, and make SKILL.md prescribe it rather than leave it
-      to judgement. (Deferred from the orientation/overhang fix session.)
-- [ ] anchors: BOSL2-style attachment/anchor helper for INTRA-part feature placement
-      (explored 2026-07-22). BOSL2 attachments (BelfrySCAD/BOSL2 wiki
-      Tutorial-Attachment-Overview) place children on named parent anchors (TOP,
-      RIGHT+FRONT, ...) instead of hand-computed coordinates. Assessment: the
-      inter-part half is already covered better by `joints` + block docks +
-      `mate_chain.py` (typed anchors, exact composed poses, tree-validated) -- do
-      NOT build a parallel assembly language. The gap is intra-part: part scripts
-      do coordinate arithmetic by hand (`w_mm/2 - wall - boss_od/2`), which is the
-      error class `script_lint` (`magic_number`, `unanchored_feature`), `cq_verify`
-      (`check_workplane`, `verify_feature_bounds`) and `feature_presence_check`
-      exist to police. Proposed narrow form: a `src/cq_anchor.py` helper importable
-      like `cq_verify` (`anchor(body, "TOP+RIGHT", inset=...) -> (x,y,z)` resolved
-      from the body/cavity bbox; maybe `place_at(...)` sugar over the boolean) --
-      lowers to explicit coordinates at runtime so `feature_presence_check` /
-      `import_params` keep working. Plus optionally per-archetype named anchor sets
-      in `templates/` (bbox anchors lie on non-box parts like L-brackets/rings).
-      Cautions: don't add a 4th positioning concept unless it lowers to the
-      existing one; plan `interfaces[].position_mm` stays numeric (symbolic
-      positions in the plan schema = much bigger blast radius, separate decision).
-      Open questions: (1) quantify via `build/attempts.jsonl` whether placement
-      arithmetic is actually the top error class; (2) script-only sugar vs
-      plan-level symbolic positions; (3) archetype anchor sets as shared vocabulary
-      for visual review. Strategy: reimplement (concept only; BOSL2 is OpenSCAD +
-      GPL-incompatible, see Prior-art survey below).
-      Concrete failure instance (C5 Phone-Holder session, cradle.py's hinge knuckle,
-      see line 12 above): a connecting box's edge coordinate was set equal to a
-      circle's CENTER coordinate (reusing the shared pivot variable for both),
-      instead of offset by the circle's radius to its tangent line. Booleans still
-      succeeded (watertight), so nothing caught it -- only a rendered preview crop
-      showed the knuckle as a disc half-buried in a boxy step instead of a
-      free-standing round ear on a slim neck. `anchor()`/`place_at()` should make
-      "offset to this body's tangent/edge, not its center" the default so this
-      class of bug can't be expressed by accident; `script_lint`'s AST-only checks
-      can't catch it since it requires tracing which named constant plays which
-      geometric role (center vs. edge) across two different primitives.
-- [ ] add textures capability https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
-- [ ] feature: reverse engineer 3D mesh / point cloud into primitives. 
-      (-> Differential geometry comparison) / "import" mesh files (.stl) 
-- [ ] capability to import (and integrate) B-Rep files (.step. / stp, fcstd, .brep, .iges)
-- [ ] form HitsterTower ("D:\Code\cq-design\debug\session-export-1786431095406.zip"):
-            "Hinges → dovetail corner joints. All 4 pin_hinge kinematic joints are gone. Each corner is now a dovetail_corner_joint (4 pins/tails per corner, 3mm board thickness, 6mm tooth insertion depth, 0.1mm clearance for separable fit). The tower no longer folds — it fully disassembles at all 4 corners into 4 flat panels + base for storage, and presses back together for use. Polarity: every wall carries pins on its east edge, tails on its west edge, so the ring closes consistently (wall_a→wall_c→wall_b→wall_d→wall_a).
-            Couldn't express this as a formal top-level joints mate-chain (the schema requires a single-rooted tree; a 4-panel ring produces conflicting/double-anchored paths) — so each wall keeps its own explicit placement, and the dovetail mating is declared through each wall's interfaces instead. Functionally equivalent, just not chained through the schema's joint-tree mechanism."
-- [ ] Plan states that parts are pairwise mirrored. LLM generated two files:
-      "wall_a vs wall_b: You're right — I over-built. wall_b.py is geometrically identical to wall_a.py (same width, same tenon, same dovetail parameters, both symmetric). I copied it into a separate file out of habit (BUILD_PLAN.json lists 5 distinct part ids), but a symmetric flat panel mirrored is the same printed part — nothing to design twice. I should delete wall_b.py and just have the export use wall_a's STL for both positions (printed twice). Want me to do that now? It also means correcting BUILD_PLAN.json so wall_b references wall_a's geometry instead of carrying its own script."
-- [ ] A minimal deliverable for the parametric part. Just the code needed. Not the full `/lib`
-- [ ] intent based prompt reformulation (same artifact as the re-generation prompt
-      above -- see `documentation/intent_recognition.md` item 4)
-- [ ] "activate" all necessary knowledge domains in the LLM
-- [ ] accept Markdown, UTF text with formatting 
-- [ ] multi color / material support
-- [ ] engineering of multi material interfaces and properties 
-- [ ] user intent as invariant over the generation loops (there is no invariant today,
-      only a log -- see `documentation/intent_recognition.md` gaps 2-3 and items 1/3)
+- [ ] Export a project-regeneration prompt for a fresh LLM session -- [details](#project-regeneration-prompt)
+- [ ] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.py` -- [details](#engineering-rationale-consolidation)
+- [ ] Read back parameters on any user-initiated planning/authoring round
+- [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
+- [ ] Kinematic: ground/seating-plane check (lid-hits-floor) -- [details](#kinematic-ground-plane)
+- [ ] Kinematic: articulated chains (a moving union carries other unions through the sweep) -- [details](#kinematic-articulated-chains)
+- [ ] Joints: multi-DOF / coupled simultaneous movements -- [details](#joints-multi-dof)
+- [ ] Export: 3MF print-plate structure (slicer-specific extension) -- [details](#export-print-plate-structure)
+- [ ] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](#export-plate-nesting)
+- [ ] Blocks: assembly placeholder / keep-clear-for-assembly geometry -- [details](#blocks-assembly-placeholder)
+- [ ] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](#bill-of-non-printed-materials)
+- [ ] Joints: side-tagged `face_mount` docks for automatic union membership/axis derivation -- [details](#face-mount-docks)
+- [ ] Preview: z-buffered renderer (removes painter's-algorithm shading artifacts) -- [details](#preview-z-buffered-renderer)
+- [ ] Preview: render feature-detail previews more proactively -- [details](#preview-proactive-detail-renders)
+- [ ] Anchors: BOSL2-style attachment helper for intra-part feature placement -- [details](#bosl2-style-anchors)
+- [ ] Add textures capability
+- [ ] Reverse-engineer a 3D mesh / point cloud into primitives; import STL -- [details](#reverse-engineer-mesh)
+- [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
+- [ ] HitsterTower: dovetail-corner-joint disassembly form fell outside the joints schema's single-rooted tree -- [details](#hitstertower-dovetail-form)
+- [ ] Deduplicate pairwise-mirrored parts into one script/STL -- [details](#mirrored-parts-dedup)
+- [ ] A minimal deliverable for a parametric part -- just the code, not the full `/lib`
+- [ ] Intent-based prompt reformulation -- [details](#intent-based-prompt-reformulation)
+- [ ] "Activate" all necessary knowledge domains in the LLM
+- [ ] Accept Markdown / formatted UTF-8 text input
+- [ ] Multi color / material support
+- [ ] Engineering of multi-material interfaces and properties
+- [ ] User intent as an invariant over generation loops (today only a log exists, no invariant) -- [details](#intent-as-invariant)
 
 ## Related ideas
-Integration strategy per item avoids the native-vs-MCP false binary. Options, by
-how much they preserve upstream updates while staying self-contained and inline
-(no MCP):
-- **reimplement** -- own code; no upstream updates; on-design.
-- **pinned dep** -- declare as a uv git/pip dep, call from a thin `src/` adapter;
-  updates via `uv lock --upgrade-package` (same as the existing `cq-warehouse`
-  dep); self-contained via the committed lock.
-- **vendored snapshot** -- copy source into the repo with license + recorded
-  upstream SHA + a documented refresh procedure; manual updates.
-- **optional external** -- native by default, use the external tool if present,
-  degrade with a warning otherwise (same pattern as `kinematic_check.py` without
-  `python-fcl`); off the critical path.
 
-### Gear geometry (lwidm/cq_gears) -- strategy: optional external -- DONE
-Parametric involute spur/helical gear generator for CadQuery. Fails the license test
-for pinned dep / vendored snapshot: upstream declares no license (`license: null`),
-and this project is PolyForm Noncommercial, so bundling isn't safe. No gate check
-applies either (nothing is installed or called natively to degrade), so the
-integration point is the planning prompt: rule 13 in `prompts/planning.md` tells the
-LLM to note in `planning_notes` and point to the repo as a downloadable resource
-when a design needs gears, instead of inventing gear geometry from scratch. Also
-added to the README Prior-art table.
+Survey of external libraries/tools and whether/how to integrate each --
+strategies defined in [Details](#integration-strategies).
 
-### Parametric CAD library survey (2026-07) -- strategy varies per item
-GitHub survey of reusable OpenSCAD/CadQuery/build123d model libraries, rated for
-usability as `src/blocks/` additions. Full ratings table in session history;
-summary below. Confirms `cq_warehouse` (already a pinned dep) is the strongest
-direct-reuse candidate; everything else is reference-only or needs hand-porting.
-- [ ] `cq-gridfinity` (michaelgale/cq-gridfinity, 200 stars, active) -- strategy:
-      reimplement (blocks) -- pure CadQuery, narrow domain. Teardrop/bridged-hole
-      DFM pattern already tracked above under "Print-friendly parameterizations";
-      no separate action beyond that item.
-- [ ] `vibe-cading` (fa-mc/vibe-cading, 5 stars, active) -- strategy: reimplement
-      (blocks) -- CadQuery + LLM-agent-oriented typed-parameter part classes
-      (screws, gears, joints, bearings, heat-set inserts, hinges, standoffs);
-      closest philosophical match to this skill's block pattern. Low stars/
-      immature -- cherry-pick specific parts as reference when adding new blocks,
-      not a dependency.
-- [ ] `cadqueryhelper` (medicationforall/cadqueryhelper, 25 stars, active) --
-      strategy: reimplement (blocks) -- small CadQuery primitive helpers, borrow
-      individual functions if needed.
-- BOSL2 (BelfrySCAD/BOSL2, 2252 stars, very active), NopSCADlib (nophead/
-  NopSCADlib, 1602 stars), MCAD (openscad/MCAD, 681 stars) -- OpenSCAD, not
-  Python; no direct import possible. Reference only for formulas/dimensions
-  (threading, gears, standard-part sizes) when a new block needs a formula
-  `cq_warehouse` doesn't cover. No action.
-- `bd_warehouse` (gumyr/bd_warehouse, 96 stars, active) -- build123d, not
-  CadQuery; the actively-maintained successor to `cq_warehouse` with broader
-  fastener/thread/gear/pipe coverage. Reference only (hand-port on demand) since
-  the kernel wrapper API doesn't match. No action.
-- `cqparts` (cqparts/cqparts, 148 stars, unmaintained since 2020) -- wrapper
-  framework, assembly abstraction conflicts with this skill's direct-Workplane
-  block pattern. Not adopted.
-- [ ] `cqMore` and `cqterrain` (`documentation/Block_Sources.md`, rated High usability) -- no repo
-      link or star count recorded in the source survey; re-find and evaluate before deciding
-      reimplement vs pinned dep.
-- [ ] `partcad/partcad` (`documentation/related_projects.md`) -- package manager for hardware /
-      manufacturable products across CAD kernels (CadQuery, build123d, OpenSCAD). Adoptable:
-      package-manager framing for versioned part definitions with declared metadata
-      (parallels `blocks/inventory.json`), YAML assembly format tracking BOM/part
-      relationships, caching rendered models to speed iteration. Not evaluated for adoption
-      strategy yet (reimplement / pinned dep / reference-only).
+- [x] Gear geometry (lwidm/cq_gears) -- DONE -- [details](#gear-geometry)
 
-### Print orientation (Tweaker-3) -- one change -- strategy: reimplement
-Clean-room native port of the orientation formulas. Tweaker-3 is GPL-3.0 and this
-project is PolyForm Noncommercial; bundling (pinned dep / vendored snapshot) is
-license-incompatible, so we reimplement the algorithm (formulas are not
-copyrightable) and do NOT copy the GPL code or its verbatim tuned constants --
-derive our own. Touches `print_orientation.py` + `mesh_io.overhang_metrics`,
-tested via `test_print_orientation.py`.
+### Parametric CAD library survey (2026-07)
+- [ ] `cq-gridfinity` -- [details](#cq-gridfinity)
+- [ ] `vibe-cading` -- [details](#vibe-cading)
+- [ ] `cadqueryhelper` -- [details](#cadqueryhelper)
+- BOSL2 / NopSCADlib / MCAD -- reference only, no action -- [details](#openscad-libraries-reference-only)
+- `bd_warehouse` -- reference only, no action -- [details](#bd_warehouse-reference-only)
+- `cqparts` -- not adopted -- [details](#cqparts-not-adopted)
+- [ ] `cqMore` and `cqterrain` -- [details](#cqmore-and-cqterrain)
+- [ ] `partcad/partcad` -- [details](#partcad)
+
+### Print orientation (Tweaker-3)
+Clean-room reimplementation (GPL-incompatible upstream) -- see [details](#print-orientation-tweaker-3).
 - [ ] progressive overhang penalty (severity exponent `OV_H`)
 - [ ] area-cumulation candidate generation as a fallback/supplement
 - [ ] `min_build_height` / volume-minimization mode
 - [ ] `FIRST_LAY_H` band for bottom-contact (replaces tight `CONTACT_Z_EPS_MM`)
 
-### CadQuery authoring guidance (jmwright/cadquery-llm-skill) -- one change -- strategy: vendored snapshot
-Doc-only; vendoring a doc snapshot is the upstream-recommended usage, so no design
-conflict. Record the upstream SHA and refresh periodically. Upgrades `reference/`
-and `prompts/part.md`.
-- [x] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly
-      local doc snapshot
-      Done (change `add-cadquery-anti-patterns`): anti-patterns integrated as
-      `reference/CadQuery Anti-Patterns.md` (kernel / stateful-context / API-mechanic
-      tiers, always-injected) plus fluent recipes folded into the pattern reference and
-      three contradictions reconciled. Free Function API (`cadquery.func`) content
-      deliberately excluded -- this pipeline is fluent-only.
+### CadQuery authoring guidance (jmwright/cadquery-llm-skill)
+- [x] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly local doc snapshot -- DONE -- [details](#cadquery-authoring-guidance)
 
 ### Independent changes
-- [ ] OCC deepcopy crash on print-orientation rotation (`debug/occ-error.md`): rotating
-      certain B-rep solids (seen in `build/plate.py`, an axle bore spanning an open slot,
-      or a pure-45-deg pocket ceiling with no flat cap) crashes inside cq_warehouse's
-      deepcopy-based `Shape.copy()` -> OCC `BinTools` serialization round-trip
-      (`Standard_Failure: BinTools_SurfaceSet::ReadGeometry: UnExpected
-      BRep_PointRepresentation = 42`, sometimes flaky). Currently worked around by avoiding
-      the triggering geometry shapes (documented in `occ-error.md`), root cause not fixed.
-      Leads to investigate: replace cq_warehouse's deepcopy copy with OCC's native
-      `BRepBuilderAPI_Copy`; or make `model_export.py` rotate the trimesh (mesh-based) for
-      print-oriented 3MF objects instead of the B-rep, sidestepping the deepcopy path
-      entirely (the kinematic-check STLs already do this).
-- [ ] cadgate-style gate checks -- strategy: optional external (off the critical
-      path; gate runs natively, cadgate augments when present). Differential
-      geometry (volume/bbox/wall delta vs base) reimplemented in `quality_gate.py`;
-      the LLM intent-match is the part that justifies the optional external path
-- [ ] `get_parameters`: extract customizable params from a script for parametric
-      re-runs (CadQuery/cadquery-contrib mcp-server) -- strategy: reimplement (tiny)
-- [x] DeepCAD evaluation metric: Chamfer distance for golden-mesh regression tests
-      -- strategy: reimplement (trimesh already computes it). Done: `chamfer_mm` in
-      `evals/run_evals.py`, matched to golden parts via `scipy.optimize.linear_sum_assignment`
-      over shape descriptors. See the benchmark-corpus writeup below for what should feed it.
+- [ ] OCC deepcopy crash on print-orientation rotation -- [details](#occ-deepcopy-crash)
+- [ ] cadgate-style gate checks (differential geometry + LLM intent-match) -- [details](#cadgate-style-gate-checks)
+- [ ] `get_parameters`: extract customizable params from a script for parametric re-runs -- [details](#get_parameters)
+- [x] DeepCAD Chamfer-distance golden-mesh regression metric -- DONE -- [details](#chamfer-distance-metric)
 
-### Benchmark corpora for `evals/` (documentation/related_projects.md text-to-CAD datasets)
-
-Of the ~119 surveyed projects, five are actual prompt-to-result *corpora* (not just
-technique ideas) that could seed `evals/cases/`. Rated for adoption as a benchmark:
-
-- [ ] **Text-to-CadQuery** (arXiv 2505.06507; rows "Text-to-CadQuery (arXiv 2505.06507 +
-      code)" and duplicate "Text-to-CadQuery/Text-to-CadQuery") -- **High**. ~170k
-      text->CadQuery code pairs, native CadQuery format, zero conversion cost -- runs
-      through `run_cadquery_model.py` unmodified. Already the origin of the `chamfer_mm`
-      idea. Gap: nobody has sampled a subset into `evals/cases/` yet. Strategy: reimplement
-      a small corpus-import script that filters the 170k down to this skill's domain
-      (enclosures/brackets/plates/adapters -- not organic/decorative shapes), executes each
-      script to produce `golden/*.stl`, and writes `request.md` from the pair's description.
-- [ ] **WKJBryan/cadquery-library** -- **High, complementary**. 2600+ native CadQuery
-      examples, hand-curated (vs. Text-to-CadQuery's auto-generated 170k) -- better
-      signal-to-noise for a small eval corpus, less coverage. Same import strategy as
-      above; adopt in full given the smaller size.
-- [ ] **SadilKhan/Text2CAD** + duplicate **Text2CAD (DFKI / NeurIPS)** -- **Medium**. Real
-      multi-level (beginner->expert) text-difficulty annotations that this skill's own
-      corpus lacks, but the paired geometry is DeepCAD sketch-extrude JSON, not CadQuery --
-      needs a converter that doesn't exist today (closest analog, `convert_build123d.py`,
-      targets a different kernel). Worth the prompt-difficulty tiers even if the geometry
-      pairs are skipped; blocked on the converter.
-- [ ] **rundiwu/DeepCAD** -- **Low**. Same non-CadQuery format problem as Text2CAD, without
-      even the text pairing -- it's the substrate Text2CAD is built on, not independently
-      useful. No action beyond what Text2CAD covers.
-- [ ] **mehsenazizi/mecagent-test-Mehsen-AZIZI** -- **Low**. Take-home-exercise scope, too
-      small to be a corpus; its IOU eval idea duplicates rawwerks/VibeCAD's (already noted
-      there). No action.
-
-Metrics to add alongside the existing first-shot pass rate / attempts-to-pass /
-`chamfer_mm` / cost-per-part in `evals/run_evals.py`, in priority order:
-
-1. **Executability / syntax pass rate** -- fraction of a corpus's scripts that run without
-   error on attempt 1. This is the metric the Text-to-CadQuery paper itself reports, so
-   it's the natural apples-to-apples number when citing that corpus. Strategy: reimplement
-   (the wrapper's `success`/`errors` fields already carry this per attempt; just aggregate).
-2. **Volumetric IoU / Dice** (rawwerks/VibeCAD row) -- add alongside `chamfer_mm`, not
-   instead of it: Chamfer averages surface distance and can look fine when a small
-   protrusion or hole is simply missing, which IoU catches directly. Strategy: reimplement
-   via `trimesh.boolean` intersection/union on the same centered, matched mesh pairs
-   `run_evals.py` already produces.
-3. **Prompt-difficulty stratification** (SadilKhan/Text2CAD's beginner->expert tiers) --
-   bucket eval cases by description complexity and report pass rate/chamfer per tier
-   instead of one flat scorecard, so degradation on terse vs. detailed requests is visible.
-   Depends on the Text2CAD corpus item above (or hand-tagging the existing/new cases).
-4. **Efficiency: tool-calls / iterations / wall-clock per case** (SmartAI/Chamfer row,
-   sidbalasubramanian007/Aipex-Lab-Research row) -- `attempts-to-pass` already exists in
-   `run_evals.py`; add raw tool-call count and wall-clock alongside cost/part so loop-
-   efficiency regressions (not just correctness regressions) show up in the scorecard.
-
-Explicitly not adopted: SmartAI/Chamfer's STEP geometry-kernel-oracle validity check
-overlaps what `cq_verify.py`/`script_lint.py` already do at construction time, so it
-wouldn't add a new failure class here.
+### Benchmark corpora for `evals/`
+Survey of prompt-to-result corpora usable to seed `evals/cases/` -- see [details](#benchmark-corpora-survey).
+- [ ] Text-to-CadQuery corpus import (arXiv 2505.06507) -- [details](#text-to-cadquery-corpus)
+- [ ] WKJBryan/cadquery-library import -- [details](#wkjbryancadquery-library)
+- [ ] SadilKhan/Text2CAD (blocked on a DeepCAD-sketch->CadQuery converter) -- [details](#text2cad)
+- rundiwu/DeepCAD -- low priority, no action -- [details](#deepcad-no-action)
+- mehsenazizi/mecagent-test -- low priority, no action -- [details](#mecagent-test-no-action)
+- [ ] Metric: executability / syntax pass rate -- [details](#metric-executability-pass-rate)
+- [ ] Metric: volumetric IoU / Dice (alongside `chamfer_mm`) -- [details](#metric-volumetric-iou)
+- [ ] Metric: prompt-difficulty stratification -- [details](#metric-prompt-difficulty)
+- [ ] Metric: efficiency (tool-calls / iterations / wall-clock) -- [details](#metric-efficiency)
+- Not adopted: SmartAI/Chamfer's STEP geometry-kernel-oracle validity check -- overlaps `cq_verify.py`/`script_lint.py`
 
 ### From market research (documentation/market_research.md)
-
-Recent LLM-CAD / parametric / FDM-printability projects surveyed 2023-2026. The
-central finding: LLM-CAD tools stop at "valid geometry" while printability work
-(support, orientation, self-supporting design) lives in separate pipelines --
-bridging them inline is this skill's clearest opening. Items below are the
-reusable primitives, not whole-tool adoptions.
-
-#### Diagnostics-as-assertions (cad-khana, FreeCAD-AI) -- one change -- strategy: reimplement
-cad-khana (`github.com/cyberchitta/cad-khana`) is a Claude Code skill / build123d
-wrapper that emits a structured `diagnostics.json` (overhangs, wall thickness,
-clearances, interferences) and turns geometric constraints into build-failing
-assertions (`assert_min_wall`, `assert_clearance`, `assert_no_interference`).
-This is the closest analog to our gate; extends `quality_gate.py`.
-- [ ] geometric constraints as build-failing assertions feeding the structured
-      `{source, severity, type, message, hint}` contract the gate already emits
-- [ ] per-project FDM design-rule file (FreeCAD-AI's `AGENTS.md`/`FREECAD_AI.md`
-      pattern, e.g. "min wall 1.2mm, all edges >=0.8mm fillet") consumed by the gate
-
-#### Normalized Support Volume score (SEG / ODPO, arXiv 2511.16434) -- one change -- strategy: reimplement
-NSV = support-material volume / model volume: a scale-invariant printability cost
-(validated against Cura, Pearson r > 0.85 on 50 Thingi10k models). SEG itself is a
-diffusion model with no public code; only the *metric* is reusable. Pairs with the
-Tweaker-3 print-orientation work above (NSV scores a given orientation).
-- [ ] NSV as a quantitative gate score / orientation-selection objective in
-      `print_orientation.py` (support volume from the overhang+bed-projection model)
-
-#### Orientation scoring (orient-stl) -- folds into the Tweaker-3 change -- strategy: reimplement
-`github.com/sameer/orient-stl` finds best FDM orientation via DIRECT global
-optimization (sub-second). Overlaps the existing Tweaker-3 item; the overhang-area +
-slice-count fitness from the build-orientation research (genetic-algorithm,
-connected-components, "Part Orientation Fused Shape Optimization") is the reusable
-scoring function.
-- [ ] overhang-area + slice-count fitness as an alternative/cross-check candidate
-      score alongside the Tweaker-3 formulas
-
-#### Iterative visual-feedback repair (CADReasoner, CADCodeVerify) -- one change -- strategy: reimplement
-CADReasoner (CVPR 2026) and CADCodeVerify (arXiv 2410.05340) close a render ->
-diff -> regenerate loop: render the part, auto-generate validation questions,
-answer them against the render, feed discrepancies back. We already render
-previews (`preview.py`) and run a bounded `claude -p` fix loop in the gate; this
-adds the visual-discrepancy signal to that loop.
-- [ ] feed multi-view preview renders + auto-generated check questions into the
-      gate's correction prompts (currently text-only DFM/geometry findings)
-
-#### Print-friendly parameterizations (cq-gridfinity / Gridfinity practice) -- strategy: reimplement (blocks)
-`github.com/michaelgale/cq-gridfinity` and the wider Gridfinity ecosystem encode
-concrete DFM heuristics: "lite" thin shells for less material, bridge-over (teardrop)
-magnet/screw holes, variable wall thickness. Block-library additions, not a gate change.
-- [ ] teardrop / bridged horizontal holes in `blocks/connectors.py` +
-      `blocks/fasteners.py` so bosses and ports stay self-supporting
-
-#### Verify-against-criteria tool (CadQuery-MCP `verify_cad_query`) -- strategy: optional external
-`github.com/rishigundakaram/cadquery-mcp-server` exposes a `verify_cad_query`
-validator that checks geometry against natural-language criteria. The LLM
-intent-match overlaps the cadgate item above; same optional-external rationale
-(native gate runs without it, augments when present).
-- [ ] (covered by the cadgate-style item under Independent changes)
-
+Central finding: LLM-CAD tools stop at "valid geometry" while printability
+work lives in separate pipelines -- bridging them inline is this skill's
+clearest opening. See [details](#market-research-survey).
+- [ ] Diagnostics-as-assertions (cad-khana, FreeCAD-AI) -- [details](#diagnostics-as-assertions)
+- [ ] Normalized Support Volume (NSV) score -- [details](#nsv-score)
+- [ ] Orientation scoring (orient-stl) as a cross-check -- [details](#orientation-scoring-orient-stl)
+- [ ] Iterative visual-feedback repair loop (CADReasoner, CADCodeVerify) -- [details](#iterative-visual-feedback-repair)
+- [ ] Print-friendly parameterizations: teardrop/bridged holes (Gridfinity) -- [details](#print-friendly-parameterizations)
+- (covered by the cadgate-style item above) Verify-against-criteria tool (CadQuery-MCP)
 
 ### From intent-recognition research (documentation/intent_recognition.md)
-
-Intent recognition surveyed 2026-08 and split into three capabilities: **elicitation**
-(detect an under-specified request and ask), **scope classification** (what kind of
-change is asked for, and what may it touch), **preservation** (does the delivered
-geometry still satisfy the user's own words). The skill does elicitation narrowly
-(topology + dimensions, Phase 1 only), records intent well (`request_log`), does no
-scope classification, and audits every part against the PLAN rather than the request --
-so a plan that misread the request passes every gate. Items ordered by value/cost;
-item 1 is the precondition that makes 2 and 3 cheap. Prior art: ProCAD (arXiv
-2602.03045) clarify-then-generate for text-to-CadQuery, LLM4CAD-Editor (arXiv
-2606.20607) functional/operation/parameter intent levels, CADDesigner (arXiv
-2508.01031) requirement-analysis stage.
-
-Freeze status (`Feature freeze for V1.0`, 12.08.2026): items 1 and 3 target logged,
-reproduced failures (the C5 cradle ping-pong; the audit being blind to the request) and
-are arguably defect fixes; 2, 4 and 5 are features for the next version. Not decided
-here.
-
-#### 1. Typed request_log entries -- one change -- strategy: reimplement (LLM4CAD-Editor)
-Give each `request_log` entry a `level` (`functional` | `operation` | `parameter`) and
-`targets` (part ids + named features/parameters), assigned at append time. Smallest
-change with the largest reach: it reuses the append-only log, its schema and
-`request_log_search.py`; it makes the C5 cradle failure class expressible as a rule
-("a `parameter` entry targeting one part must not edit a sibling part's literal --
-route a shared value through `joints`/`mate_chain.py`"); and it gives the Step 3
-`--extra-section` tiering a real key instead of keyword matching. Both fields must be
-OPTIONAL -- existing plans carry untyped entries and must stay valid.
-- [ ] `level` + `targets` on `request_log` entries: `src/build_plan_schema.json`
-      (entries are `additionalProperties: false`), the append rule in
-      `skill/phase3_build.md`, `prompts/planning.md` rule 14,
-      `openspec/specs/request-log/`, tests in `tests/test_plan_validate.py`
-- [ ] `request_log_search.py --level` / `--target` filters + tests
-- [ ] the routing rule the label exists for: a `parameter`-level entry may not change
-      another part's independently-typed constant (the label without the rule is
-      decoration)
-- [ ] re-key the Step 3 section-selection tiers off `targets` instead of the
-      `--query <name>` keyword match
-
-#### 2. Spec audit with named ambiguity categories -- one change -- strategy: reimplement (ProCAD)
-Generalize Phase 1's topology-clarification rule (shape ambiguity only) into an audit
-over a fixed category list, and re-run it on mid-build corrections, where ambiguity is
-most expensive because parts already exist. ProCAD's contribution is asking ONLY when
-necessary -- a rule that fires on every request is worse than today's; the question
-budget and the skip-entirely escape hatch (as the dimension checkpoint already has) are
-load-bearing. Category-named prompting beats a bare "ask if unsure" (arXiv 2504.12113).
-- [ ] categories: topology (exists), missing dimension, conflicting constraint,
-      unstated reference frame (the C5 compass-language defect), unstated fit/load,
-      part-vs-assembly scope
-- [ ] one question per ambiguity under a hard budget, keeping the existing named
-      either/or discipline -- extends `skill/phase1_requirements.md`, no new phase
-- [ ] re-audit a mid-build correction before acting on it
-      (`skill/phase3_build.md` correction handling)
-
-#### 3. Request-relative acceptance in the implementation audit -- one change -- strategy: reimplement (cadgate)
-The auditor gets the part's `BUILD_PLAN.json` entry and the renders, deliberately not
-the script -- but also not the `request_log`, so every gate downstream of Phase 2
-measures conformance to the plan, and a Phase 2 misreading becomes the standard the
-pipeline enforces. Closes the gap with no new agent and no new artifact.
-- [ ] feed the `initial` entry + entries whose `targets` name this part into the
-      auditor prompt as a SECOND bar ("does the render satisfy the user's own words?"),
-      findings `severity: advisory` unless they also fail a checklist question --
-      `skill/phase3_build.md`, `reference/Visual Review Checklist.md`,
-      `openspec/specs/subagent-orchestration/`
-- [ ] keep the no-script rule intact; do not promote intent-match findings to blocking
-      without eval evidence (softer judgments than geometry, burns retry budget)
-
-#### 4. Canonical intent restatement artifact -- one change -- strategy: reimplement
-Merges two standing items ("intent based prompt reformulation", "regenerate the whole
-project from scratch with a new LLM session"): a frame-explicit, user-confirmed
-restatement of what is being built, carried forward and updated as corrections land.
-Also the natural input to item 3 and the structural fix for compass-language defects --
-restatement forces the reference frame to be written down instead of assumed.
-- [ ] decide where it lives: a project-root artifact beside `parameters.py`
-      (measurement provenance) and `BUILD_PLAN.json` (structure), or an extension of
-      one of them -- NOT a third free-text field in the plan
-- [ ] give it a bounded role like `planning_notes` (current state only) and
-      `request_log` (history only), or it becomes a changelog
-
-#### 5. Under-specified eval cases -- one change -- strategy: reimplement (gating cost)
-Every case in `evals/cases/` is well-specified, so none of the above can regress and
-the existing scorecard cannot see it. This is the gate on the whole idea, not an
-afterthought.
-- [ ] cases whose `request.md` is deliberately under-specified in each named category,
-      scored on whether the right question was asked
-- [ ] well-specified controls scored on NOT asking -- without them the metric rewards
-      asking about everything
-- [ ] `evals/run_evals.py` scoring + `tests/test_eval_corpus.py`
+Three capabilities: elicitation, scope classification, preservation. See
+[details](#intent-recognition-survey) for the full framing and freeze-status
+discussion (items 1 and 3 are arguably V1 defect fixes; not decided).
+- [ ] 1. Typed `request_log` entries (`level` + `targets`) -- [details](#typed-request_log-entries)
+- [ ] 2. Spec audit with named ambiguity categories -- [details](#spec-audit-ambiguity-categories)
+- [ ] 3. Request-relative acceptance in the implementation audit -- [details](#request-relative-acceptance)
+- [ ] 4. Canonical intent restatement artifact -- [details](#canonical-intent-restatement)
+- [ ] 5. Under-specified eval cases -- [details](#under-specified-eval-cases)
 
 ### From SmartAI/Chamfer's efficiency study (github.com/SmartAI/Chamfer @ a8f1c59, read 2026-08)
+Head-to-head study found equal correctness at 5.9x lower cost / 3.2x lower
+wall-clock than Claude Code, purely from context/output/round-trip discipline.
+See [details](#smartaichamfer-study) for the full study summary and negative
+results.
+- [ ] 1. Per-attempt efficiency telemetry -- [details](#efficiency-telemetry)
+- [ ] 2. Failure-mode mining -> environment-facts prompt block -- [details](#failure-mode-mining)
+- [ ] 3. Fold verification into the build call -- [details](#fold-verification-into-build-call)
+- [ ] 4. One reconciliation pass, from measured values -- [details](#one-reconciliation-pass)
+- [ ] 5. Render economy (scoped to agent self-inspection renders) -- [details](#render-economy)
+- [ ] 6. Output-token economy -- [details](#output-token-economy)
+- [ ] 7. Assumption pinning -- [details](#assumption-pinning)
+- [ ] 8. Warm kernel process -- needs measurement first -- [details](#warm-kernel-process)
+- [ ] 9. Context-surface audit -- [details](#context-surface-audit)
+- [ ] 10. Eval method: held-out set, pre-registered bars -- [details](#eval-method-held-out-set)
 
-Chamfer is a TypeScript CAD agent over a build123d MCP server. Its `benchmarks/`
-directory is the interesting part: a four-arm head-to-head (Chamfer v0/v1, Claude Code,
-Codex) on a held-out set, same model, same MCP server binary for every arm, graded by a
-geometry oracle on the exported STEP. Result: equal correctness at **5.9x lower cost and
-3.2x lower wall-clock than Claude Code** -- 6.5 vs 9.2 agent turns, 2,232 vs 9,849 output
-tokens, ~53k vs ~433k context tokens read per run.
+---
 
-The gain is explicitly NOT model, kernel, or a cleverer algorithm. Their own decomposition
-(`benchmarks/analysis/v0-weaknesses.md`, 21 graded runs): **~46% of cost is output tokens**
-(on the hardest case 55% of those are hidden reasoning), ~33% cache write, ~21% cache read;
-latency splits ~68% LLM / ~32% tool. So the levers are (a) how much context is read per
-turn, (b) how many output tokens are emitted, (c) how many tool round-trips happen at all --
-in that order. Verification was measured to be **cheap** (~15% of cost) and is not a lever.
+## Details
 
-Negative results from the same study, worth as much as the positives -- do not repeat them:
-- **Global thinking=low**: <20% cost saving, dropped checks on two cases. Rejected.
-- **"Complexity-scaled" verification** (skip the reconciliation pass on simple parts): worse
-  on cost AND correctness than not doing it -- one case collapsed to 8/15 with an over-claim.
-  Recorded lesson: "verification is not overhead to scale away; on interacting-feature parts
-  it is the cheapest part of the run."
-- Their pattern card (23 mined idioms) was bundled with the two changes above, so its own
-  effect is **unmeasured** -- treat it as untested, not as proven.
-- Standing method rule they adopted after drifting: one intervention at a time, each traced
-  to a weakness observed in real run transcripts, pre-registered metric movement per change.
+### C5 compass language
+Investigate "compass language" `.\debug\image-1786538590774.png` shows the
+problem: east should be right. Reason: mixing up "Viewed from South" and
+"south facing" under observation.
 
-Items below are ordered by value/cost. Item 1 is the precondition: none of the rest can be
-shown to work without it. (Their STEP geometry-kernel oracle stays not-adopted, per the
-`Benchmark corpora` section above -- `cq_verify.py`/`script_lint.py` already cover that
-failure class.)
+### C5 hinge ear center-vs-edge
+The hinge ear shows an old problem: placing primitives with their center
+aligning to the other part's edge -- see `.debug\image-1786540203166.png`.
 
-#### 1. Per-attempt efficiency telemetry -- one change -- strategy: reimplement
-`build/attempts.jsonl` records `prompt_chars` and `model` and nothing about what the attempt
-actually cost. Chamfer's entire analysis is a decomposition our log cannot produce. This
-supersedes and fills in item 4 of the `Benchmark corpora` metrics list above (raw tool-call
-count + wall-clock); the split below is what made their table actionable.
-- [ ] `telemetry.py`: optional `tokens` (`in`/`out`/`cache_read`/`cache_write`),
-      `cost_usd`, `wall_ms`, `llm_ms` vs `tool_ms`, `tool_calls`, `failed_tool_calls`
-      -- all OPTIONAL, existing logs must stay valid (`tests/test_telemetry.py`)
-- [ ] per-tool table: calls, mean duration, result payload size (chars/image tokens) --
-      their finding was that one tool (`render_view`) was 11.5% of suite wall for zero
-      model changes, which is invisible without payload/duration per tool
-- [ ] failed-call retry cost: time from a failed call to the next successful attempt
-      (they measured ~6% of suite wall lost to 15 failed calls across 52% of runs)
-- [ ] `evals/run_evals.py`: aggregate the above into the scorecard next to
-      `first-shot rate` / `attempts-to-pass` / `chamfer_mm`, so a loop-efficiency
-      regression is visible without correctness moving
+### C5 knuckle pivot ping-pong
+The llm totally did not get that making the knuckle stand of the cradle's
+feet more does not mean that the plate's knuckle has to move upward (+Z).
+Probable cause: in the authoring pose the inference is correct, but when the
+cradle is moved into its assembled pose it's not.
 
-#### 2. Failure-mode mining -> an environment-facts block -- one change -- strategy: reimplement
-Their single biggest robustness win was four sentences of environment facts in the system
-prompt, each traced to a counted failure (missing `from build123d import *`; calling MCP tool
-names inside the sandbox; blocked builtins; wrong `expected` schema). That killed 11 of 15
-failed tool calls. Our equivalent facts (what the wrapper injects on `PYTHONPATH`, that
-`result` may be a `dict[str, Workplane]`, what `--deliver` changes about STL paths, which
-`cq_verify` helpers exist) are spread across `prompts/part.md` and `skill/phase3_build.md`.
-- [ ] mine `error_types` frequencies out of accumulated `build/attempts.jsonl` logs and
-      rank them -- interventions must be evidence-led, not guessed
-- [ ] a short "facts about the run environment" block at the top of `prompts/part.md`,
-      one line per counted failure class, replacing scattered prose
-- [ ] check each mined class against `script_lint.py` first: anything the linter can
-      catch deterministically should NOT become a prompt line
+Investigated (transcript: session `b6ac548d...`, `session-export-1786538430013.zip`):
+the triggering request was "align the hole with the bore hole on the front plate
+*when the leg lies flat on the front plate*" -- a folded/mounted-pose constraint --
+but `cradle.py` and `plate.py` both hardcode `PIVOT_Y`/`PIVOT_Z` as independent
+literals in the shared car frame (no `joints`/`mate_chain.py` root-derived pose).
+Raising the cradle's own `EAR_STANDOFF` (intra-part, its own resting/authoring
+pose) got mirrored into also raising the plate's `PIVOT_Z` (a separate, stationary
+part whose bore is fixed by its own physical stack) -- treating a shared invariant
+as something to copy-edit in lockstep, which is why PIVOT_Z ping-ponged between
+13.5 and 6.0 across rounds 6/8/9. Two contributing causes, not mutually exclusive:
+(1) hand-duplicated shared pivot constants across sibling part scripts instead of
+going through `joints`/`mate_chain.py`, so nothing forced the second file's copy to
+be *derived* rather than independently re-typed; (2) a conceived resting plane at
+Z=0 (the authoring-pose XY plane) stood in for where the cradle's fold actually
+bottoms out -- in reality the lower stop is below that plane and not flat (console
+floor / hardware clearance), an external constraint neither script models, so
+"the deployed pose sits flat on Z=0" was itself an unverified assumption feeding
+the Z-stack-up math on both sides.
 
-#### 3. Fold verification into the build call -- one change -- strategy: reimplement
-Chamfer's `execute` auto-echoes volume/bbox/face count, and `find_holes(part)`/`measure(obj)`
-are callable **inside** the sandbox -- so the measured hole inventory comes back with the
-build, not from a separate round-trip. On the pulley case that was 4 tool calls vs Claude
-Code's 9 turns for the same verified part. `run_cadquery_model.py` already returns
-`geometry` this way; the per-part checks are still separate processes, each paying a fresh
-OCC import.
-- [ ] emit the measured interface/feature inventory (what `feature_presence_check.py`
-      asserts) inside the wrapper's existing JSON contract, as an additive key -- one
-      subprocess produces build + measured evidence
-- [ ] same for `edge_treatment_check.py`'s classify pass where it needs the same shape
-- [ ] keep the standalone CLIs (build-frame reruns, tests); the JSON key is the fast path
+### Silica Tray support claim
+LLM claims "no support needed" despite "support score 654.1" which might be
+wrong. Test result: small overhangs like this can be printed without support.
 
-#### 4. One reconciliation pass, from measured values -- one change -- strategy: reimplement
-Their v1 rule: verify with measured evidence in ONE pass -- check every requested dimension,
-hole count AND diameter, feature position **from measured coordinates, not from the
-variables you set**, then stop; no further rounds unless a mismatch appears; never claim
-correctness while a discrepancy is open. Two findings behind it: positions were recited from
-input constants in 21/21 runs (nothing numeric ever checked them), and open-ended
-self-verification bloated cost by 21% with no correctness gain.
-- [ ] a single-pass reconciliation rule in `skill/phase3_build.md`, explicitly bounded
-      ("do not loop extra verification rounds unless a mismatch appears")
-- [ ] "measured, not recited": a part's self-report must quote wrapper/check output, never
-      restate its own `PARAMETERS` block
-- [ ] "no completion claim while a discrepancy is open" as an explicit gate line
+### Silica Tray re-export coincidence
+"I just re-derived the print orientation and re-exported so the deliverables
+and BUILD_PLAN.json match your hand-edited dimensions: 6mm triangle pitch,
+1mm rib width, 20mm total height." Works, but is it by design or just
+coincidence?
 
-#### 5. Render economy -- one change -- strategy: reimplement (scoped)
-Their F5: 18 mandatory renders, 5.8 s and ~1,150 image tokens each, and **zero** model
-changes ever followed one -- the largest clean saving they found. Not transferable
-wholesale: our previews also feed user checkpoints and the visual-review agent, which is a
-real signal, not a ritual. The rule applies only to agent-internal self-inspection renders.
-- [ ] make the autonomous part agent's own re-render conditional: render when the part has
-      features a bbox/interface inventory cannot confirm, skip when it repeats what the
-      measured checks already proved -- user-facing checkpoint renders stay mandatory
-- [ ] count renders and their token cost per part in the telemetry of item 1 first;
-      demote nothing until the count is measured here rather than borrowed
+### Hitstertower oversupport
+LLM did not get the intent of the opening on the bottom of the tower (finger
+can reach in to pull card out). Instead insisted on fully supporting the
+south wall. This is not necessary because the load is the mobile phone on
+top, which is hardly more than 200g. This weight can be supported by a 1cm
+support on both sides of the wall.
 
-#### 6. Output-token economy -- one change -- strategy: reimplement
-Output tokens are ~46% of cost and dominate serial decode time; Claude Code's 4.4x output
-ratio maps almost directly onto the 3.2x wall-clock gap. Their fix is one prompt line:
-the final message is assumptions (if any) + one summary line, no feature-by-feature recap --
-the reconciliation pass already proved the features.
-- [ ] bound the per-part completion report in `prompts/part.md` / `skill/phase3_build.md`
-      (the recap duplicates the plan and the check output)
-- [ ] measure it as its own change -- it is the one v1-eff ingredient not implicated in
-      that arm's correctness regression, but it was never measured alone either
+### Project regeneration prompt
+Export a prompt which allows the human user to re-generate the whole project
+from scratch with a new LLM session (improved LLM, new skill, other skill,
+etc). The prompt must include the latest changes, user intent, all
+user-provided measurements, drawings and all other artifacts.
 
-#### 7. Assumption pinning -- one change -- strategy: reimplement
-Zero assumption statements in 21/21 runs, while structurally divergent readings shipped
-silently (bearing bore along X in two reps, along Y in the third, same prompt). Their v1
-line: if a dimension or placement is underdetermined, choose the standard engineering
-reading and state it in one line before building. This is the same defect class as the C5
-compass-language and reference-frame items at the top of this file, and it is far cheaper
-than the elicitation machinery in the intent-recognition section -- it does not ask the
-user anything, it just makes the coin-flip reviewable.
-- [ ] one-line assumption statement before building, wherever a frame/axis/facing/datum is
-      underdetermined -- `prompts/part.md` and the Phase 3 correction path
-- [ ] land it as a `request_log` entry so the assumption survives the session (ties into
-      the typed-`request_log` item above)
+### Engineering rationale consolidation
+ENGINEERING RATIONALE etc. in `BUILD_PLAN.py`? Now it's spread all over the
+source files.
 
-#### 8. Warm kernel process -- one change -- strategy: reimplement -- needs measurement first
-Chamfer keeps one MCP server alive per conversation (`lifecycle: "keep-alive"`), so the
-kernel is imported once and a failed step is fixed by re-running only the failing snippet.
-Every `run_cadquery_model.py` invocation pays a fresh interpreter + OCC import. Their tool
-timings put `execute` at 1.3 s against `inspect_part` at 2.1 s and `render_view` at 5.8 s,
-so process startup is a real fraction of tool time, and tool time was ~32% of wall.
-- [ ] measure first: cold OCC import cost per attempt vs. total attempt wall (item 1)
-- [ ] only if it pays: a keep-alive worker that re-executes the whole script in a warm
-      interpreter -- NOT incremental session state. A fresh namespace per run is a
-      correctness property here (the script file is the deliverable and must stand alone);
-      their "re-run only the failing snippet" habit trades that away and is not adopted
-- [ ] the same warm process should serve the trimesh/fcl whole-model checks, which pay
-      their own import cost per invocation
+### Context creep restructure
+Restructure to combat context creep. Reference: `ARCHITECTURE.md`. Options:
+- like openspec: phases are own commands, user interaction at the end
+  (change, restart), then start new phase
+- python script owns the loop and switches context & models; prompt will be
+  split
+- use sub-agents / workers for each phase
 
-#### 9. Context-surface audit -- folds into the context-creep restructure above
-Their 8x context gap came from tool schemas and general scaffolding read every turn: 6
-curated tools and a one-screen system prompt vs 59 tool schemas. Our analog is not tool
-schemas but phase documents and reference files -- `skill/phase3_build.md` alone is ~1,090
-lines, and `reference/scripts.md` indexes ~30 scripts of which any one part uses a handful.
-This is evidence for the standing "restructure to combat context creep" item, with a
-measurement attached rather than a feeling.
-- [ ] measure context tokens read per phase per part (item 1's telemetry) before choosing
-      between the three restructure options already listed under `Tasks for next version`
-- [ ] per-phase curated script/reference subsets, so a part loop does not carry the
-      planning and export surface
+### Kinematic ground plane
+Explore adding one simple ground/seating plane (lid-hits-floor checks);
+surrounding-geometry questions stay out of scope (external simulation).
 
-#### 10. Eval method: held-out set, pre-registered bars -- one change -- strategy: reimplement
-Every case in `evals/cases/` is public and readable during skill iteration, so the scorecard
-cannot distinguish "the skill got better" from "the skill got tuned to these cases".
-Chamfer's protocol: a public dev set for iteration, a git-ignored private test set read
-exactly once after a freeze commit, N=3 repetitions, and the success bar written down
-BEFORE tuning (theirs: v1 > v0 on correctness, else >= 25% cost/latency improvement at
-equal correctness). They then reported honestly that v1 met neither bar.
-- [ ] a git-ignored `evals/private/` test set with the same case schema, never read during
-      skill development, run at release freezes
-- [ ] N repetitions per case with per-case variance in the scorecard -- their whole
-      "structural divergence" finding came from comparing reps of one prompt
-- [ ] over-claim as a scored metric: the run claims completion while the quality gate has
-      open findings (their `detectOverClaim` is a five-line check over the final message
-      plus the grade -- we have both)
-- [ ] write the pass bar into the release checklist before the tuning round, not after
+### Kinematic articulated chains
+Articulated chains (a moving union carries other unions through the sweep).
+
+### Joints multi-DOF
+Multi-DOF / coupled simultaneous movements. A joint is a LIST of
+single-axis movements (`rotate`/`translate`, each with axis + reference
+vector + range); independent movements for now. A spherical/ball joint is
+two coupled `rotate` movements sharing a center -- listing them as two
+independent entries models a 2-axis gimbal, NOT the ball's coupled cone.
+Capture coupling (e.g. helical screw pitch, ball cone) as a later field.
+
+### Export print-plate structure
+Separate unions into print-plates. Today all unions compile to one "world"
+result and `model_export` already writes each as a separately named 3MF
+`<object>` with `plate` metadata. Core 3MF has no native print-plate concept
+(objects + `<build><item>` only); true multi-plate assignment is a
+slicer-specific extension (Bambu/Prusa project-3MF). Decide: emit the slicer
+plate structure, or leave plate split to the operator.
+
+### Export plate nesting
+Automated 2D plate packing / bed nesting. Distinct from the print-plate item
+above (that is about 3MF plate *structure*); this is about *deciding which
+part goes on which plate and where*, which today is declared manually in the
+plan. Prior art: thereprocase/cad-skill Phase 4 -- rasterize each union's XY
+footprint at 0.5mm/px (PIL), precompute 0/90/180/270 rotations, bottom-left-
+fill largest-area-first, keep uniform spacing via `scipy.ndimage.binary_dilation`
+on the blocked bitmap, build compound plates with OCC (`BRep_Builder` +
+`TopoDS_Compound`), export STL+STEP per plate, report bed utilization %.
+Inputs we already have: per-union assembled/print-oriented STLs, `plate`
+metadata, bed size (would need to come from `printer_profile.json` -- not
+currently a field). Decide scope: full nester, or just a utilization report +
+overflow warning leaving assignment to the operator/slicer. Interacts with
+print-orientation (footprint depends on chosen orientation) and the
+plate-clearance check (spacing == the one-layer-height fuse rule).
+Reimplement (PolyForm-safe; algorithm only). Additional prior art:
+thereprocase/snuggle-demo (https://github.com/thereprocase/snuggle-demo) -- a
+standalone "stuffing"/nesting algorithm demo, worth checking against the
+bottom-left-fill approach above.
+**REJECTED** -- this feature belongs into a slicer.
+
+### Blocks assembly placeholder
+Assembly placeholder geometry. A block may declare PSEUDO geometry marking
+the volume that must stay clear to ASSEMBLE it (e.g. a hinge's pin-insertion
+path / leaf-swing-during-assembly envelope). It is exempt from export (not
+printed) and from the kinematic sweep (not a moving body), but other geometry
+must not intrude into it or assembly is blocked. Pairs with the mating-area
+footprint (2D where-to-connect) -- this is the 3D keep-clear-for-assembly
+volume. The gate should flag real geometry that violates a declared
+placeholder. Distinct from the model's own clearance gaps.
+
+### Bill of non-printed materials
+Surfaced by the `planning_notes` audit's C5 cross-check (2026-08-12): the
+plan and the delivery summary have NO field and NO section naming anything
+the user must supply. Verified by grep -- no `BOM`, `hardware list`,
+`required hardware` or `non-printed` anywhere in `src/`, `skill/`,
+`prompts/`, `SKILL.md`, no such key in `build_plan_schema.json`, and
+`skill/phase4_deliver.md` mentions no screw, insert, magnet or assembly step.
+So a user handed an enclosure with `screw_boss`/`pcb_standoff` features is
+never told which screws to buy, and C5's 1.75mm filament hinge pin survived
+only as a sentence buried in `planning_notes`. Scope: screws/nuts/washers,
+heat-set inserts, magnets, bearings, springs, filament/rod pins, adhesives,
+and quantities. Partly DERIVABLE, which decides the shape: `blocks_needed`
+hardware params (`blocks/hardware.py`'s cq_warehouse fasteners, `screw_boss`,
+`pcb_standoff`) already carry the spec and the count, so the generator can
+emit most rows and only the non-block items (glue, a raw filament pin, a
+magnet pressed into a plain pocket) need declaring by hand. Decide:
+derived-plus-manual-additions (recommended -- keeps the declared surface
+small) vs. a fully hand-authored top-level `bom` array. Output lands in the
+Phase 4 delivery summary regardless. Pairs with the assembly-placeholder item
+above and with category (c) of the `planning_notes` inclusion rule -- (c)
+records the assembly PROCEDURE, the BOM records the PARTS it consumes; if
+this ships, (c) keeps the procedure and hands the hardware list over.
+
+### Face mount docks
+Side-tagged `face_mount` docks so the planner derives union membership and
+the world joint axis automatically (interface naming: keep assembly/mating
+docks conceptually distinct from kinematic axes even though both live in the
+block `interfaces` array).
+
+### Preview z-buffered renderer
+matplotlib mplot3d has no z-buffer and depth-sorts whole triangles
+(painter's algorithm), so flat faces show cosmetic triangular shading
+patches where angled wall/fillet triangles paint over coplanar ones.
+Geometry and normals are correct (STL/3MF watertight + winding-consistent);
+the artifact is preview-only. Switching `preview.py` to a z-buffered
+renderer (trimesh + pyrender / `Scene.save_image`) removes it, at the cost
+of an OpenGL dependency that `preview.py`/`mesh_io.py` currently avoid by
+design.
+
+### Preview proactive detail renders
+Render feature detail previews more proactively. The `--detail` capability
+exists (`render_preview.py`/`preview.py` render a high-res zoomed view +
+optional cross-section per named feature; wired in SKILL.md Step 3 "Feature
+detail previews"), but in a live run detail previews were not generated for
+small/critical features by default -- only on explicit request or the
+complexity-gate path. Decide when the skill should auto-render a detail
+preview (e.g. every interface/joint feature, or any feature below a size
+threshold vs. the whole-part bbox) so small features are actually
+inspectable without the user asking, and make SKILL.md prescribe it rather
+than leave it to judgement. (Deferred from the orientation/overhang fix
+session.)
+
+### BOSL2-style anchors
+BOSL2-style attachment/anchor helper for INTRA-part feature placement
+(explored 2026-07-22). BOSL2 attachments (BelfrySCAD/BOSL2 wiki
+Tutorial-Attachment-Overview) place children on named parent anchors (TOP,
+RIGHT+FRONT, ...) instead of hand-computed coordinates. Assessment: the
+inter-part half is already covered better by `joints` + block docks +
+`mate_chain.py` (typed anchors, exact composed poses, tree-validated) -- do
+NOT build a parallel assembly language. The gap is intra-part: part scripts
+do coordinate arithmetic by hand (`w_mm/2 - wall - boss_od/2`), which is the
+error class `script_lint` (`magic_number`, `unanchored_feature`), `cq_verify`
+(`check_workplane`, `verify_feature_bounds`) and `feature_presence_check`
+exist to police. Proposed narrow form: a `src/cq_anchor.py` helper importable
+like `cq_verify` (`anchor(body, "TOP+RIGHT", inset=...) -> (x,y,z)` resolved
+from the body/cavity bbox; maybe `place_at(...)` sugar over the boolean) --
+lowers to explicit coordinates at runtime so `feature_presence_check` /
+`import_params` keep working. Plus optionally per-archetype named anchor sets
+in `templates/` (bbox anchors lie on non-box parts like L-brackets/rings).
+Cautions: don't add a 4th positioning concept unless it lowers to the
+existing one; plan `interfaces[].position_mm` stays numeric (symbolic
+positions in the plan schema = much bigger blast radius, separate decision).
+Open questions: (1) quantify via `build/attempts.jsonl` whether placement
+arithmetic is actually the top error class; (2) script-only sugar vs
+plan-level symbolic positions; (3) archetype anchor sets as shared vocabulary
+for visual review. Strategy: reimplement (concept only; BOSL2 is OpenSCAD +
+GPL-incompatible, see [Integration strategies](#integration-strategies)).
+
+Concrete failure instance (C5 Phone-Holder session, cradle.py's hinge
+knuckle, see [C5 hinge ear center-vs-edge](#c5-hinge-ear-center-vs-edge)
+above): a connecting box's edge coordinate was set equal to a circle's
+CENTER coordinate (reusing the shared pivot variable for both), instead of
+offset by the circle's radius to its tangent line. Booleans still succeeded
+(watertight), so nothing caught it -- only a rendered preview crop showed the
+knuckle as a disc half-buried in a boxy step instead of a free-standing round
+ear on a slim neck. `anchor()`/`place_at()` should make "offset to this
+body's tangent/edge, not its center" the default so this class of bug can't
+be expressed by accident; `script_lint`'s AST-only checks can't catch it
+since it requires tracing which named constant plays which geometric role
+(center vs. edge) across two different primitives.
+
+### Reverse-engineer mesh
+Reverse engineer 3D mesh / point cloud into primitives
+(-> differential geometry comparison); "import" mesh files (.stl). See also
+https://github.com/Stone-Age-Sculptor/StoneAgeLib/blob/main/images/DemonstrationTexture.png
+for the related textures capability.
+
+### HitsterTower dovetail form
+From HitsterTower ("D:\Code\cq-design\debug\session-export-1786431095406.zip"):
+"Hinges -> dovetail corner joints. All 4 pin_hinge kinematic joints are gone.
+Each corner is now a dovetail_corner_joint (4 pins/tails per corner, 3mm
+board thickness, 6mm tooth insertion depth, 0.1mm clearance for separable
+fit). The tower no longer folds -- it fully disassembles at all 4 corners
+into 4 flat panels + base for storage, and presses back together for use.
+Polarity: every wall carries pins on its east edge, tails on its west edge,
+so the ring closes consistently (wall_a->wall_c->wall_b->wall_d->wall_a)."
+Couldn't express this as a formal top-level `joints` mate-chain (the schema
+requires a single-rooted tree; a 4-panel ring produces conflicting/
+double-anchored paths) -- so each wall keeps its own explicit placement, and
+the dovetail mating is declared through each wall's `interfaces` instead.
+Functionally equivalent, just not chained through the schema's joint-tree
+mechanism.
+
+### Mirrored parts dedup
+Plan states that parts are pairwise mirrored. LLM generated two files:
+"wall_a vs wall_b: You're right -- I over-built. wall_b.py is geometrically
+identical to wall_a.py (same width, same tenon, same dovetail parameters,
+both symmetric). I copied it into a separate file out of habit
+(BUILD_PLAN.json lists 5 distinct part ids), but a symmetric flat panel
+mirrored is the same printed part -- nothing to design twice. I should
+delete wall_b.py and just have the export use wall_a's STL for both
+positions (printed twice). Want me to do that now? It also means correcting
+BUILD_PLAN.json so wall_b references wall_a's geometry instead of carrying
+its own script."
+
+### Intent-based prompt reformulation
+Same artifact as the re-generation prompt above ([Project regeneration
+prompt](#project-regeneration-prompt)) -- see
+`documentation/intent_recognition.md` item 4
+([Canonical intent restatement](#canonical-intent-restatement)).
+
+### Intent as invariant
+User intent as invariant over the generation loops (there is no invariant
+today, only a log) -- see `documentation/intent_recognition.md` gaps 2-3 and
+items 1/3 ([Typed request_log entries](#typed-request_log-entries),
+[Request-relative acceptance](#request-relative-acceptance)).
+
+### Integration strategies
+Integration strategy per item avoids the native-vs-MCP false binary.
+Options, by how much they preserve upstream updates while staying
+self-contained and inline (no MCP):
+- **reimplement** -- own code; no upstream updates; on-design.
+- **pinned dep** -- declare as a uv git/pip dep, call from a thin `src/`
+  adapter; updates via `uv lock --upgrade-package` (same as the existing
+  `cq-warehouse` dep); self-contained via the committed lock.
+- **vendored snapshot** -- copy source into the repo with license + recorded
+  upstream SHA + a documented refresh procedure; manual updates.
+- **optional external** -- native by default, use the external tool if
+  present, degrade with a warning otherwise (same pattern as
+  `kinematic_check.py` without `python-fcl`); off the critical path.
+
+### Gear geometry
+lwidm/cq_gears -- strategy: optional external -- DONE. Parametric involute
+spur/helical gear generator for CadQuery. Fails the license test for pinned
+dep / vendored snapshot: upstream declares no license (`license: null`), and
+this project is PolyForm Noncommercial, so bundling isn't safe. No gate
+check applies either (nothing is installed or called natively to degrade),
+so the integration point is the planning prompt: rule 13 in
+`prompts/planning.md` tells the LLM to note in `planning_notes` and point to
+the repo as a downloadable resource when a design needs gears, instead of
+inventing gear geometry from scratch. Also added to the README Prior-art
+table.
+
+### Parametric CAD library survey
+GitHub survey of reusable OpenSCAD/CadQuery/build123d model libraries (2026-07),
+rated for usability as `src/blocks/` additions. Full ratings table in
+session history; summary below. Confirms `cq_warehouse` (already a pinned
+dep) is the strongest direct-reuse candidate; everything else is
+reference-only or needs hand-porting.
+
+#### cq-gridfinity
+michaelgale/cq-gridfinity, 200 stars, active -- strategy: reimplement
+(blocks) -- pure CadQuery, narrow domain. Teardrop/bridged-hole DFM pattern
+already tracked under [Print-friendly parameterizations](#print-friendly-parameterizations);
+no separate action beyond that item.
+
+#### vibe-cading
+fa-mc/vibe-cading, 5 stars, active -- strategy: reimplement (blocks) --
+CadQuery + LLM-agent-oriented typed-parameter part classes (screws, gears,
+joints, bearings, heat-set inserts, hinges, standoffs); closest
+philosophical match to this skill's block pattern. Low stars/immature --
+cherry-pick specific parts as reference when adding new blocks, not a
+dependency.
+
+#### cadqueryhelper
+medicationforall/cadqueryhelper, 25 stars, active -- strategy: reimplement
+(blocks) -- small CadQuery primitive helpers, borrow individual functions if
+needed.
+
+#### OpenSCAD libraries (reference only)
+BOSL2 (BelfrySCAD/BOSL2, 2252 stars, very active), NopSCADlib
+(nophead/NopSCADlib, 1602 stars), MCAD (openscad/MCAD, 681 stars) --
+OpenSCAD, not Python; no direct import possible. Reference only for
+formulas/dimensions (threading, gears, standard-part sizes) when a new block
+needs a formula `cq_warehouse` doesn't cover. No action.
+
+#### bd_warehouse (reference only)
+gumyr/bd_warehouse, 96 stars, active -- build123d, not CadQuery; the
+actively-maintained successor to `cq_warehouse` with broader
+fastener/thread/gear/pipe coverage. Reference only (hand-port on demand)
+since the kernel wrapper API doesn't match. No action.
+
+#### cqparts (not adopted)
+cqparts/cqparts, 148 stars, unmaintained since 2020 -- wrapper framework,
+assembly abstraction conflicts with this skill's direct-Workplane block
+pattern. Not adopted.
+
+#### cqMore and cqterrain
+`documentation/Block_Sources.md`, rated High usability -- no repo link or
+star count recorded in the source survey; re-find and evaluate before
+deciding reimplement vs pinned dep.
+
+#### partcad
+`partcad/partcad` (`documentation/related_projects.md`) -- package manager
+for hardware/manufacturable products across CAD kernels (CadQuery,
+build123d, OpenSCAD). Adoptable: package-manager framing for versioned part
+definitions with declared metadata (parallels `blocks/inventory.json`), YAML
+assembly format tracking BOM/part relationships, caching rendered models to
+speed iteration. Not evaluated for adoption strategy yet (reimplement /
+pinned dep / reference-only).
+
+### Print orientation Tweaker-3
+One change -- strategy: reimplement. Clean-room native port of the
+orientation formulas. Tweaker-3 is GPL-3.0 and this project is PolyForm
+Noncommercial; bundling (pinned dep / vendored snapshot) is
+license-incompatible, so we reimplement the algorithm (formulas are not
+copyrightable) and do NOT copy the GPL code or its verbatim tuned constants
+-- derive our own. Touches `print_orientation.py` + `mesh_io.overhang_metrics`,
+tested via `test_print_orientation.py`.
+
+### CadQuery authoring guidance
+jmwright/cadquery-llm-skill, one change -- strategy: vendored snapshot.
+Doc-only; vendoring a doc snapshot is the upstream-recommended usage, so no
+design conflict. Record the upstream SHA and refresh periodically. Upgrades
+`reference/` and `prompts/part.md`.
+
+Done (change `add-cadquery-anti-patterns`): anti-patterns integrated as
+`reference/CadQuery Anti-Patterns.md` (kernel / stateful-context /
+API-mechanic tiers, always-injected) plus fluent recipes folded into the
+pattern reference and three contradictions reconciled. Free Function API
+(`cadquery.func`) content deliberately excluded -- this pipeline is
+fluent-only.
+
+### OCC deepcopy crash
+`debug/occ-error.md`: rotating certain B-rep solids (seen in
+`build/plate.py`, an axle bore spanning an open slot, or a pure-45-deg
+pocket ceiling with no flat cap) crashes inside cq_warehouse's
+deepcopy-based `Shape.copy()` -> OCC `BinTools` serialization round-trip
+(`Standard_Failure: BinTools_SurfaceSet::ReadGeometry: UnExpected
+BRep_PointRepresentation = 42`, sometimes flaky). Currently worked around by
+avoiding the triggering geometry shapes (documented in `occ-error.md`), root
+cause not fixed. Leads to investigate: replace cq_warehouse's deepcopy copy
+with OCC's native `BRepBuilderAPI_Copy`; or make `model_export.py` rotate
+the trimesh (mesh-based) for print-oriented 3MF objects instead of the
+B-rep, sidestepping the deepcopy path entirely (the kinematic-check STLs
+already do this).
+
+### cadgate-style gate checks
+Strategy: optional external (off the critical path; gate runs natively,
+cadgate augments when present). Differential geometry (volume/bbox/wall
+delta vs base) reimplemented in `quality_gate.py`; the LLM intent-match is
+the part that justifies the optional external path.
+
+### get_parameters
+Extract customizable params from a script for parametric re-runs
+(CadQuery/cadquery-contrib mcp-server) -- strategy: reimplement (tiny).
+
+### Chamfer-distance metric
+DeepCAD evaluation metric: Chamfer distance for golden-mesh regression tests
+-- strategy: reimplement (trimesh already computes it). Done: `chamfer_mm`
+in `evals/run_evals.py`, matched to golden parts via
+`scipy.optimize.linear_sum_assignment` over shape descriptors. See the
+[benchmark corpora survey](#benchmark-corpora-survey) for what should feed
+it.
+
+### Benchmark corpora survey
+`documentation/related_projects.md` text-to-CAD datasets. Of the ~119
+surveyed projects, five are actual prompt-to-result *corpora* (not just
+technique ideas) that could seed `evals/cases/`. Rated for adoption as a
+benchmark below.
+
+#### Text-to-CadQuery corpus
+arXiv 2505.06507; rows "Text-to-CadQuery (arXiv 2505.06507 + code)" and
+duplicate "Text-to-CadQuery/Text-to-CadQuery" -- **High**. ~170k
+text->CadQuery code pairs, native CadQuery format, zero conversion cost --
+runs through `run_cadquery_model.py` unmodified. Already the origin of the
+`chamfer_mm` idea. Gap: nobody has sampled a subset into `evals/cases/` yet.
+Strategy: reimplement a small corpus-import script that filters the 170k
+down to this skill's domain (enclosures/brackets/plates/adapters -- not
+organic/decorative shapes), executes each script to produce `golden/*.stl`,
+and writes `request.md` from the pair's description.
+
+#### WKJBryan/cadquery-library
+**High, complementary**. 2600+ native CadQuery examples, hand-curated (vs.
+Text-to-CadQuery's auto-generated 170k) -- better signal-to-noise for a
+small eval corpus, less coverage. Same import strategy as above; adopt in
+full given the smaller size.
+
+#### Text2CAD
+SadilKhan/Text2CAD + duplicate Text2CAD (DFKI / NeurIPS) -- **Medium**. Real
+multi-level (beginner->expert) text-difficulty annotations that this skill's
+own corpus lacks, but the paired geometry is DeepCAD sketch-extrude JSON,
+not CadQuery -- needs a converter that doesn't exist today (closest analog,
+`convert_build123d.py`, targets a different kernel). Worth the
+prompt-difficulty tiers even if the geometry pairs are skipped; blocked on
+the converter.
+
+#### DeepCAD (no action)
+rundiwu/DeepCAD -- **Low**. Same non-CadQuery format problem as Text2CAD,
+without even the text pairing -- it's the substrate Text2CAD is built on,
+not independently useful. No action beyond what Text2CAD covers.
+
+#### mecagent-test (no action)
+mehsenazizi/mecagent-test-Mehsen-AZIZI -- **Low**. Take-home-exercise scope,
+too small to be a corpus; its IOU eval idea duplicates rawwerks/VibeCAD's
+(already noted there). No action.
+
+#### Metrics to add
+Alongside the existing first-shot pass rate / attempts-to-pass /
+`chamfer_mm` / cost-per-part in `evals/run_evals.py`, in priority order:
+
+##### Metric executability pass rate
+Fraction of a corpus's scripts that run without error on attempt 1. This is
+the metric the Text-to-CadQuery paper itself reports, so it's the natural
+apples-to-apples number when citing that corpus. Strategy: reimplement (the
+wrapper's `success`/`errors` fields already carry this per attempt; just
+aggregate).
+
+##### Metric volumetric IoU
+(rawwerks/VibeCAD row) -- add alongside `chamfer_mm`, not instead of it:
+Chamfer averages surface distance and can look fine when a small protrusion
+or hole is simply missing, which IoU catches directly. Strategy: reimplement
+via `trimesh.boolean` intersection/union on the same centered, matched mesh
+pairs `run_evals.py` already produces.
+
+##### Metric prompt difficulty
+Prompt-difficulty stratification (SadilKhan/Text2CAD's beginner->expert
+tiers) -- bucket eval cases by description complexity and report pass
+rate/chamfer per tier instead of one flat scorecard, so degradation on terse
+vs. detailed requests is visible. Depends on the [Text2CAD](#text2cad) corpus
+item above (or hand-tagging the existing/new cases).
+
+##### Metric efficiency
+Tool-calls / iterations / wall-clock per case (SmartAI/Chamfer row,
+sidbalasubramanian007/Aipex-Lab-Research row) -- `attempts-to-pass` already
+exists in `run_evals.py`; add raw tool-call count and wall-clock alongside
+cost/part so loop-efficiency regressions (not just correctness regressions)
+show up in the scorecard. Superseded/expanded by
+[Efficiency telemetry](#efficiency-telemetry) below.
+
+Explicitly not adopted: SmartAI/Chamfer's STEP geometry-kernel-oracle
+validity check overlaps what `cq_verify.py`/`script_lint.py` already do at
+construction time, so it wouldn't add a new failure class here.
+
+### Market research survey
+`documentation/market_research.md`: recent LLM-CAD / parametric /
+FDM-printability projects surveyed 2023-2026. The central finding: LLM-CAD
+tools stop at "valid geometry" while printability work (support,
+orientation, self-supporting design) lives in separate pipelines -- bridging
+them inline is this skill's clearest opening. Items below are the reusable
+primitives, not whole-tool adoptions.
+
+#### Diagnostics-as-assertions
+cad-khana, FreeCAD-AI -- one change -- strategy: reimplement. cad-khana
+(`github.com/cyberchitta/cad-khana`) is a Claude Code skill / build123d
+wrapper that emits a structured `diagnostics.json` (overhangs, wall
+thickness, clearances, interferences) and turns geometric constraints into
+build-failing assertions (`assert_min_wall`, `assert_clearance`,
+`assert_no_interference`). This is the closest analog to our gate; extends
+`quality_gate.py`.
+- geometric constraints as build-failing assertions feeding the structured
+  `{source, severity, type, message, hint}` contract the gate already emits
+- per-project FDM design-rule file (FreeCAD-AI's `AGENTS.md`/`FREECAD_AI.md`
+  pattern, e.g. "min wall 1.2mm, all edges >=0.8mm fillet") consumed by the gate
+
+#### NSV score
+Normalized Support Volume score (SEG / ODPO, arXiv 2511.16434) -- one change
+-- strategy: reimplement. NSV = support-material volume / model volume: a
+scale-invariant printability cost (validated against Cura, Pearson r > 0.85
+on 50 Thingi10k models). SEG itself is a diffusion model with no public
+code; only the *metric* is reusable. Pairs with the Tweaker-3
+print-orientation work ([details](#print-orientation-tweaker-3)) (NSV scores
+a given orientation).
+- NSV as a quantitative gate score / orientation-selection objective in
+  `print_orientation.py` (support volume from the overhang+bed-projection model)
+
+#### Orientation scoring orient-stl
+Folds into the Tweaker-3 change -- strategy: reimplement.
+`github.com/sameer/orient-stl` finds best FDM orientation via DIRECT global
+optimization (sub-second). Overlaps the existing Tweaker-3 item; the
+overhang-area + slice-count fitness from the build-orientation research
+(genetic-algorithm, connected-components, "Part Orientation Fused Shape
+Optimization") is the reusable scoring function.
+- overhang-area + slice-count fitness as an alternative/cross-check
+  candidate score alongside the Tweaker-3 formulas
+
+#### Iterative visual-feedback repair
+CADReasoner, CADCodeVerify -- one change -- strategy: reimplement.
+CADReasoner (CVPR 2026) and CADCodeVerify (arXiv 2410.05340) close a render
+-> diff -> regenerate loop: render the part, auto-generate validation
+questions, answer them against the render, feed discrepancies back. We
+already render previews (`preview.py`) and run a bounded `claude -p` fix
+loop in the gate; this adds the visual-discrepancy signal to that loop.
+- feed multi-view preview renders + auto-generated check questions into the
+  gate's correction prompts (currently text-only DFM/geometry findings)
+
+#### Print-friendly parameterizations
+cq-gridfinity / Gridfinity practice -- strategy: reimplement (blocks).
+`github.com/michaelgale/cq-gridfinity` and the wider Gridfinity ecosystem
+encode concrete DFM heuristics: "lite" thin shells for less material,
+bridge-over (teardrop) magnet/screw holes, variable wall thickness.
+Block-library additions, not a gate change.
+- teardrop / bridged horizontal holes in `blocks/connectors.py` +
+  `blocks/fasteners.py` so bosses and ports stay self-supporting
+
+#### Verify-against-criteria tool
+CadQuery-MCP `verify_cad_query` -- strategy: optional external.
+`github.com/rishigundakaram/cadquery-mcp-server` exposes a `verify_cad_query`
+validator that checks geometry against natural-language criteria. The LLM
+intent-match overlaps the [cadgate-style item](#cadgate-style-gate-checks);
+same optional-external rationale (native gate runs without it, augments when
+present).
+
+### Intent-recognition survey
+`documentation/intent_recognition.md`, surveyed 2026-08, split into three
+capabilities: **elicitation** (detect an under-specified request and ask),
+**scope classification** (what kind of change is asked for, and what may it
+touch), **preservation** (does the delivered geometry still satisfy the
+user's own words). The skill does elicitation narrowly (topology +
+dimensions, Phase 1 only), records intent well (`request_log`), does no
+scope classification, and audits every part against the PLAN rather than the
+request -- so a plan that misread the request passes every gate. Items
+ordered by value/cost; item 1 is the precondition that makes 2 and 3 cheap.
+Prior art: ProCAD (arXiv 2602.03045) clarify-then-generate for
+text-to-CadQuery, LLM4CAD-Editor (arXiv 2606.20607) functional/operation/
+parameter intent levels, CADDesigner (arXiv 2508.01031) requirement-analysis
+stage.
+
+Freeze status (`Feature freeze for V1.0`, 12.08.2026): items 1 and 3 target
+logged, reproduced failures (the C5 cradle ping-pong; the audit being blind
+to the request) and are arguably defect fixes; 2, 4 and 5 are features for
+the next version. Not decided here.
+
+#### Typed request_log entries
+One change -- strategy: reimplement (LLM4CAD-Editor). Give each
+`request_log` entry a `level` (`functional` | `operation` | `parameter`) and
+`targets` (part ids + named features/parameters), assigned at append time.
+Smallest change with the largest reach: it reuses the append-only log, its
+schema and `request_log_search.py`; it makes the C5 cradle failure class
+expressible as a rule ("a `parameter` entry targeting one part must not edit
+a sibling part's literal -- route a shared value through
+`joints`/`mate_chain.py`"); and it gives the Step 3 `--extra-section`
+tiering a real key instead of keyword matching. Both fields must be OPTIONAL
+-- existing plans carry untyped entries and must stay valid.
+- `level` + `targets` on `request_log` entries: `src/build_plan_schema.json`
+  (entries are `additionalProperties: false`), the append rule in
+  `skill/phase3_build.md`, `prompts/planning.md` rule 14,
+  `openspec/specs/request-log/`, tests in `tests/test_plan_validate.py`
+- `request_log_search.py --level` / `--target` filters + tests
+- the routing rule the label exists for: a `parameter`-level entry may not
+  change another part's independently-typed constant (the label without the
+  rule is decoration)
+- re-key the Step 3 section-selection tiers off `targets` instead of the
+  `--query <name>` keyword match
+
+#### Spec audit ambiguity categories
+One change -- strategy: reimplement (ProCAD). Generalize Phase 1's topology-
+clarification rule (shape ambiguity only) into an audit over a fixed
+category list, and re-run it on mid-build corrections, where ambiguity is
+most expensive because parts already exist. ProCAD's contribution is asking
+ONLY when necessary -- a rule that fires on every request is worse than
+today's; the question budget and the skip-entirely escape hatch (as the
+dimension checkpoint already has) are load-bearing. Category-named prompting
+beats a bare "ask if unsure" (arXiv 2504.12113).
+- categories: topology (exists), missing dimension, conflicting constraint,
+  unstated reference frame (the C5 compass-language defect), unstated
+  fit/load, part-vs-assembly scope
+- one question per ambiguity under a hard budget, keeping the existing named
+  either/or discipline -- extends `skill/phase1_requirements.md`, no new phase
+- re-audit a mid-build correction before acting on it
+  (`skill/phase3_build.md` correction handling)
+
+#### Request-relative acceptance
+One change -- strategy: reimplement (cadgate). The auditor gets the part's
+`BUILD_PLAN.json` entry and the renders, deliberately not the script -- but
+also not the `request_log`, so every gate downstream of Phase 2 measures
+conformance to the plan, and a Phase 2 misreading becomes the standard the
+pipeline enforces. Closes the gap with no new agent and no new artifact.
+- feed the `initial` entry + entries whose `targets` name this part into the
+  auditor prompt as a SECOND bar ("does the render satisfy the user's own
+  words?"), findings `severity: advisory` unless they also fail a checklist
+  question -- `skill/phase3_build.md`, `reference/Visual Review Checklist.md`,
+  `openspec/specs/subagent-orchestration/`
+- keep the no-script rule intact; do not promote intent-match findings to
+  blocking without eval evidence (softer judgments than geometry, burns
+  retry budget)
+
+#### Canonical intent restatement
+One change -- strategy: reimplement. Merges two standing items ("intent
+based prompt reformulation", "regenerate the whole project from scratch with
+a new LLM session"): a frame-explicit, user-confirmed restatement of what is
+being built, carried forward and updated as corrections land. Also the
+natural input to [Request-relative acceptance](#request-relative-acceptance)
+and the structural fix for compass-language defects -- restatement forces
+the reference frame to be written down instead of assumed.
+- decide where it lives: a project-root artifact beside `parameters.py`
+  (measurement provenance) and `BUILD_PLAN.json` (structure), or an
+  extension of one of them -- NOT a third free-text field in the plan
+- give it a bounded role like `planning_notes` (current state only) and
+  `request_log` (history only), or it becomes a changelog
+
+#### Under-specified eval cases
+One change -- strategy: reimplement (gating cost). Every case in
+`evals/cases/` is well-specified, so none of the above can regress and the
+existing scorecard cannot see it. This is the gate on the whole idea, not an
+afterthought.
+- cases whose `request.md` is deliberately under-specified in each named
+  category, scored on whether the right question was asked
+- well-specified controls scored on NOT asking -- without them the metric
+  rewards asking about everything
+- `evals/run_evals.py` scoring + `tests/test_eval_corpus.py`
+
+### SmartAI/Chamfer study
+github.com/SmartAI/Chamfer @ a8f1c59, read 2026-08. Chamfer is a TypeScript
+CAD agent over a build123d MCP server. Its `benchmarks/` directory is the
+interesting part: a four-arm head-to-head (Chamfer v0/v1, Claude Code,
+Codex) on a held-out set, same model, same MCP server binary for every arm,
+graded by a geometry oracle on the exported STEP. Result: equal correctness
+at **5.9x lower cost and 3.2x lower wall-clock than Claude Code** -- 6.5 vs
+9.2 agent turns, 2,232 vs 9,849 output tokens, ~53k vs ~433k context tokens
+read per run.
+
+The gain is explicitly NOT model, kernel, or a cleverer algorithm. Their own
+decomposition (`benchmarks/analysis/v0-weaknesses.md`, 21 graded runs):
+**~46% of cost is output tokens** (on the hardest case 55% of those are
+hidden reasoning), ~33% cache write, ~21% cache read; latency splits ~68%
+LLM / ~32% tool. So the levers are (a) how much context is read per turn,
+(b) how many output tokens are emitted, (c) how many tool round-trips happen
+at all -- in that order. Verification was measured to be **cheap** (~15% of
+cost) and is not a lever.
+
+Negative results from the same study, worth as much as the positives -- do
+not repeat them:
+- **Global thinking=low**: <20% cost saving, dropped checks on two cases.
+  Rejected.
+- **"Complexity-scaled" verification** (skip the reconciliation pass on
+  simple parts): worse on cost AND correctness than not doing it -- one case
+  collapsed to 8/15 with an over-claim. Recorded lesson: "verification is
+  not overhead to scale away; on interacting-feature parts it is the
+  cheapest part of the run."
+- Their pattern card (23 mined idioms) was bundled with the two changes
+  above, so its own effect is **unmeasured** -- treat it as untested, not as
+  proven.
+- Standing method rule they adopted after drifting: one intervention at a
+  time, each traced to a weakness observed in real run transcripts,
+  pre-registered metric movement per change.
+
+Items below are ordered by value/cost. Item 1 is the precondition: none of
+the rest can be shown to work without it. (Their STEP geometry-kernel oracle
+stays not-adopted, per the [Benchmark corpora survey](#benchmark-corpora-survey)
+above -- `cq_verify.py`/`script_lint.py` already cover that failure class.)
+
+#### Efficiency telemetry
+One change -- strategy: reimplement. `build/attempts.jsonl` records
+`prompt_chars` and `model` and nothing about what the attempt actually cost.
+Chamfer's entire analysis is a decomposition our log cannot produce. This
+supersedes and fills in [Metric: efficiency](#metric-efficiency) above (raw
+tool-call count + wall-clock); the split below is what made their table
+actionable.
+- `telemetry.py`: optional `tokens` (`in`/`out`/`cache_read`/`cache_write`),
+  `cost_usd`, `wall_ms`, `llm_ms` vs `tool_ms`, `tool_calls`,
+  `failed_tool_calls` -- all OPTIONAL, existing logs must stay valid
+  (`tests/test_telemetry.py`)
+- per-tool table: calls, mean duration, result payload size (chars/image
+  tokens) -- their finding was that one tool (`render_view`) was 11.5% of
+  suite wall for zero model changes, which is invisible without
+  payload/duration per tool
+- failed-call retry cost: time from a failed call to the next successful
+  attempt (they measured ~6% of suite wall lost to 15 failed calls across
+  52% of runs)
+- `evals/run_evals.py`: aggregate the above into the scorecard next to
+  `first-shot rate` / `attempts-to-pass` / `chamfer_mm`, so a loop-efficiency
+  regression is visible without correctness moving
+
+#### Failure-mode mining
+One change -- strategy: reimplement. Their single biggest robustness win was
+four sentences of environment facts in the system prompt, each traced to a
+counted failure (missing `from build123d import *`; calling MCP tool names
+inside the sandbox; blocked builtins; wrong `expected` schema). That killed
+11 of 15 failed tool calls. Our equivalent facts (what the wrapper injects
+on `PYTHONPATH`, that `result` may be a `dict[str, Workplane]`, what
+`--deliver` changes about STL paths, which `cq_verify` helpers exist) are
+spread across `prompts/part.md` and `skill/phase3_build.md`.
+- mine `error_types` frequencies out of accumulated `build/attempts.jsonl`
+  logs and rank them -- interventions must be evidence-led, not guessed
+- a short "facts about the run environment" block at the top of
+  `prompts/part.md`, one line per counted failure class, replacing scattered
+  prose
+- check each mined class against `script_lint.py` first: anything the
+  linter can catch deterministically should NOT become a prompt line
+
+#### Fold verification into build call
+One change -- strategy: reimplement. Chamfer's `execute` auto-echoes
+volume/bbox/face count, and `find_holes(part)`/`measure(obj)` are callable
+**inside** the sandbox -- so the measured hole inventory comes back with the
+build, not from a separate round-trip. On the pulley case that was 4 tool
+calls vs Claude Code's 9 turns for the same verified part.
+`run_cadquery_model.py` already returns `geometry` this way; the per-part
+checks are still separate processes, each paying a fresh OCC import.
+- emit the measured interface/feature inventory (what
+  `feature_presence_check.py` asserts) inside the wrapper's existing JSON
+  contract, as an additive key -- one subprocess produces build + measured
+  evidence
+- same for `edge_treatment_check.py`'s classify pass where it needs the
+  same shape
+- keep the standalone CLIs (build-frame reruns, tests); the JSON key is the
+  fast path
+
+#### One reconciliation pass
+One change -- strategy: reimplement. Their v1 rule: verify with measured
+evidence in ONE pass -- check every requested dimension, hole count AND
+diameter, feature position **from measured coordinates, not from the
+variables you set**, then stop; no further rounds unless a mismatch
+appears; never claim correctness while a discrepancy is open. Two findings
+behind it: positions were recited from input constants in 21/21 runs
+(nothing numeric ever checked them), and open-ended self-verification
+bloated cost by 21% with no correctness gain.
+- a single-pass reconciliation rule in `skill/phase3_build.md`, explicitly
+  bounded ("do not loop extra verification rounds unless a mismatch appears")
+- "measured, not recited": a part's self-report must quote wrapper/check
+  output, never restate its own `PARAMETERS` block
+- "no completion claim while a discrepancy is open" as an explicit gate line
+
+#### Render economy
+One change -- strategy: reimplement (scoped). Their F5: 18 mandatory
+renders, 5.8s and ~1,150 image tokens each, and **zero** model changes ever
+followed one -- the largest clean saving they found. Not transferable
+wholesale: our previews also feed user checkpoints and the visual-review
+agent, which is a real signal, not a ritual. The rule applies only to
+agent-internal self-inspection renders.
+- make the autonomous part agent's own re-render conditional: render when
+  the part has features a bbox/interface inventory cannot confirm, skip when
+  it repeats what the measured checks already proved -- user-facing
+  checkpoint renders stay mandatory
+- count renders and their token cost per part in the
+  [efficiency telemetry](#efficiency-telemetry) first; demote nothing until
+  the count is measured here rather than borrowed
+
+#### Output-token economy
+One change -- strategy: reimplement. Output tokens are ~46% of cost and
+dominate serial decode time; Claude Code's 4.4x output ratio maps almost
+directly onto the 3.2x wall-clock gap. Their fix is one prompt line: the
+final message is assumptions (if any) + one summary line, no
+feature-by-feature recap -- the reconciliation pass already proved the
+features.
+- bound the per-part completion report in `prompts/part.md` /
+  `skill/phase3_build.md` (the recap duplicates the plan and the check
+  output)
+- measure it as its own change -- it is the one v1-eff ingredient not
+  implicated in that arm's correctness regression, but it was never
+  measured alone either
+
+#### Assumption pinning
+One change -- strategy: reimplement. Zero assumption statements in 21/21
+runs, while structurally divergent readings shipped silently (bearing bore
+along X in two reps, along Y in the third, same prompt). Their v1 line: if a
+dimension or placement is underdetermined, choose the standard engineering
+reading and state it in one line before building. This is the same defect
+class as the C5 compass-language and reference-frame items at the top of
+this file, and it is far cheaper than the elicitation machinery in the
+intent-recognition section -- it does not ask the user anything, it just
+makes the coin-flip reviewable.
+- one-line assumption statement before building, wherever a
+  frame/axis/facing/datum is underdetermined -- `prompts/part.md` and the
+  Phase 3 correction path
+- land it as a `request_log` entry so the assumption survives the session
+  (ties into [Typed request_log entries](#typed-request_log-entries) above)
+
+#### Warm kernel process
+One change -- strategy: reimplement -- needs measurement first. Chamfer
+keeps one MCP server alive per conversation (`lifecycle: "keep-alive"`), so
+the kernel is imported once and a failed step is fixed by re-running only
+the failing snippet. Every `run_cadquery_model.py` invocation pays a fresh
+interpreter + OCC import. Their tool timings put `execute` at 1.3s against
+`inspect_part` at 2.1s and `render_view` at 5.8s, so process startup is a
+real fraction of tool time, and tool time was ~32% of wall.
+- measure first: cold OCC import cost per attempt vs. total attempt wall
+  ([efficiency telemetry](#efficiency-telemetry))
+- only if it pays: a keep-alive worker that re-executes the whole script in
+  a warm interpreter -- NOT incremental session state. A fresh namespace per
+  run is a correctness property here (the script file is the deliverable
+  and must stand alone); their "re-run only the failing snippet" habit
+  trades that away and is not adopted
+- the same warm process should serve the trimesh/fcl whole-model checks,
+  which pay their own import cost per invocation
+
+#### Context-surface audit
+Folds into the [context-creep restructure](#context-creep-restructure)
+above. Their 8x context gap came from tool schemas and general scaffolding
+read every turn: 6 curated tools and a one-screen system prompt vs 59 tool
+schemas. Our analog is not tool schemas but phase documents and reference
+files -- `skill/phase3_build.md` alone is ~1,090 lines, and
+`reference/scripts.md` indexes ~30 scripts of which any one part uses a
+handful. This is evidence for the standing context-creep restructure item,
+with a measurement attached rather than a feeling.
+- measure context tokens read per phase per part
+  ([efficiency telemetry](#efficiency-telemetry)) before choosing between
+  the three restructure options already listed under `Tasks for next version`
+- per-phase curated script/reference subsets, so a part loop does not carry
+  the planning and export surface
+
+#### Eval method held-out set
+One change -- strategy: reimplement. Every case in `evals/cases/` is public
+and readable during skill iteration, so the scorecard cannot distinguish
+"the skill got better" from "the skill got tuned to these cases". Chamfer's
+protocol: a public dev set for iteration, a git-ignored private test set
+read exactly once after a freeze commit, N=3 repetitions, and the success
+bar written down BEFORE tuning (theirs: v1 > v0 on correctness, else >= 25%
+cost/latency improvement at equal correctness). They then reported honestly
+that v1 met neither bar.
+- a git-ignored `evals/private/` test set with the same case schema, never
+  read during skill development, run at release freezes
+- N repetitions per case with per-case variance in the scorecard -- their
+  whole "structural divergence" finding came from comparing reps of one
+  prompt
+- over-claim as a scored metric: the run claims completion while the
+  quality gate has open findings (their `detectOverClaim` is a five-line
+  check over the final message plus the grade -- we have both)
+- write the pass bar into the release checklist before the tuning round,
+  not after
