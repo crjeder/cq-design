@@ -63,6 +63,8 @@ All completed tasks are now in `documentation/DONE.md`.
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties
 - [ ] User intent as an invariant over generation loops (today only a log exists, no invariant) -- [details](#intent-as-invariant)
+- [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
+- [ ] tool to produce cable traces where cables are held press fit for enclosure
 
 ## Related ideas
 
