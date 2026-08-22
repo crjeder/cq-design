@@ -13,7 +13,7 @@ All completed tasks are now in `documentation/DONE.md`.
 
 ## V1 Test cases 
 - [ ] Salacia case
-- [ ] SUP Silencer
+- [ ] [SUP Silencer](https://makerworld.com/de/models/2871437-paddleboard-sup-deflation-silencer#profileId-3205902)
 
 ## V1 defects
 
