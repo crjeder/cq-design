@@ -11,6 +11,10 @@ linked from the item.
 As of 12.08.2026 only defects will be corrected, no new features introduced.
 All completed tasks are now in `documentation/DONE.md`.
 
+## V1 Test cases 
+- [ ] Salacia case
+- [ ] SUP Silencer
+
 ## V1 defects
 
 - [ ] Implement typed `request_log` entries -- [details](#typed-request_log-entries)
@@ -195,6 +199,7 @@ bottoms out -- in reality the lower stop is below that plane and not flat (conso
 floor / hardware clearance), an external constraint neither script models, so
 "the deployed pose sits flat on Z=0" was itself an unverified assumption feeding
 the Z-stack-up math on both sides.
+-> Ask clarifying question when parameters have the same value if they are the same or different measures. should they mate or not. e. g. 3 holes have the individually stated diameter of 5 mm. ask " should all holes have the same diameter (one parameters) or may they differ? Or a user asks for a rectangular feature and specifies both dimensions with the same value. ask if it should be constraint to quadratic or not.
 
 ### Silica Tray support claim
 LLM claims "no support needed" despite "support score 654.1" which might be
