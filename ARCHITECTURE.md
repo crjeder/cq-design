@@ -87,8 +87,8 @@ gate, orange = main-session user interaction.
 
 Remarks:
 - Research: lookup targets need to be researched and improved
-- Planner: output is a correct and user validated, complete, consistent and coflict free user intent.
-- Planner, Builder: invariant is the user intent. any new intent starts over the outer loop (at research)
+- Research: output is a correct and user validated, complete, consistent and coflict free user intent.
+- Planner, Builder: invariant is the user intent. any change to the intent starts over the outer loop (at research)
 - Auditor: compare agaist intent
 
 ## Design rules
