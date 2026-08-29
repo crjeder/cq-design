@@ -427,6 +427,7 @@ User intent as invariant over the generation loops (there is no invariant
 today, only a log) -- see `documentation/intent_recognition.md` gaps 2-3 and
 items 1/3 ([Typed request_log entries](#typed-request_log-entries),
 [Request-relative acceptance](#request-relative-acceptance)).
+openspec works like this: user states an intent and thes skill asks enough questions to write a spec. the spec then is used to write the code. can openspec be gute idee?
 
 ### Knowledge domain activation audit
 Audited `documentation/Knowledge Domains.md` (an external survey of what a
