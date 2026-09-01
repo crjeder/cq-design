@@ -1158,6 +1158,15 @@ anyway -- the warning states the shortfall so you (or the user) can judge whethe
 natural stop is the intended rest position. If it is, narrow `required_range` to match;
 if not, relieve the contacting feature.
 
+**Route a knuckle hinge to `blocks.joints.pin_hinge` first.** A print-in-place revolute
+knuckle hinge SHALL be built from `pin_hinge` (it already seats its leaves at the
+knuckle tangent), not hand-rolled from primitives -- hand-roll only when the geometry is
+incompatible with `pin_hinge`'s two-leaf shape. A hand-rolled flat riser/leg seating
+against the round knuckle must then be guarded with `verify_seated(support, boss, axis,
+label)`: it catches the C5 defect where the riser's mating face was placed at the
+knuckle disc's *center* coordinate instead of its tangent (`pivot +/- radius`), leaving
+the disc half-buried. Reported as a typed `boss_swallowed` error.
+
 **Block-less (directly-declared) joints.** A custom hinge built from raw primitives
 usually has no matching inventory block -- `block` is optional for exactly this case.
 Omit it and declare the axis directly; the sweep needs nothing from a block:
