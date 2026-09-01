@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "Snap-on lid: flat plate with two underside snap prongs",
+  "intent": "A snap-on lid for an open-top box: a flat rectangular plate with two flexible snap prongs projecting from the underside that engage the outside of the box walls as a snap fit. Plate prints flat on the bed.",
   "parts": [
     {
       "id": "snap_lid",

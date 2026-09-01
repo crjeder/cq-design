@@ -258,7 +258,8 @@ adhesive). Content that fits none of these three categories does not belong in
     onto a carried-forward entry that lacks them. **On a re-plan** (this agent runs again against an existing `BUILD_PLAN.json`, e.g. after
     a validation rejection or a correction requiring regeneration): carry every prior
     `request_log` entry forward unchanged, in the same order, and only append the new
-    entry -- never rewrite, reorder, or drop existing entries. `request_log` is the
+    entry -- never rewrite, reorder, or drop existing entries. Carry `intent` forward
+    unchanged in the same way (see rule 16). `request_log` is the
     **exclusive** place for this round-by-round history: `planning_notes` and each
     part's `part_notes` describe only the CURRENT design state, never a "ROUND N"
     changelog or a "SUPERSEDED by round N" annotation -- when a correction changes a
@@ -276,6 +277,18 @@ adhesive). Content that fits none of these three categories does not belong in
     partial rebuild), `planning_notes` MUST state the source URL, its license, and the
     sourcing rung under which it was reused. Plans for a from-scratch design (Phase 0
     fell through to rung 5, or was skipped) need no such entry.
+
+16. **Copy the approved `intent`, never author it.** Phase 1 ends with a
+    user-approved reformulation of the request (`skill/phase1_requirements.md` exit
+    checkpoint). Copy that text into `intent` **verbatim** -- do not author it from
+    scratch, paraphrase it, shorten it, or "improve" it. Plan the part decomposition
+    *against* it. On a re-plan, carry the current `intent` forward unchanged, the same
+    way rule 14 carries `request_log` forward -- only an approved correction rewrites
+    `intent`, and that happens in Phase 3, not here. If the decomposition you produce
+    would build something the approved `intent` does not describe, revise the
+    decomposition to match the intent -- never edit `intent` to match the
+    decomposition; raise the contradiction with the user instead if it cannot be
+    reconciled.
 
 ## Block inventory (name and use only)
 
@@ -306,7 +319,7 @@ profile is present above, take these values from what the user stated in Phase 1
 {
   "schema_version": 1,
   "planning_notes": "<design reasoning: decomposition choices, dimension sources, trade-offs>",
-  "intent": "<what is being built and why>",
+  "intent": "<the Phase 1 approved reformulation, copied verbatim -- see rule 16>",
   "printer": "<printer model>",
   "material": "PLA",
   "nozzle_mm": 0.4,

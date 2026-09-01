@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "Open-top rectangular electronics enclosure body with 2 mm walls",
+  "intent": "An open-top rectangular electronics enclosure body: four thin perimeter walls on a solid floor, top left fully open so a separate lid can close it later. Prints floor-down with no supports.",
   "parts": [
     {
       "id": "enclosure_body",

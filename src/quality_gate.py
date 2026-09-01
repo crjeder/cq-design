@@ -408,6 +408,53 @@ def _run_parameters_presence_stage(project_root: str) -> list[dict]:
     ]
 
 
+def _run_parameters_unresolved_stage(project_root: str) -> list[dict]:
+    """Warn when parameters.py assigns the `-1` unresolved-dimension placeholder.
+
+    parameters.py records the Phase 1 dimension table verbatim; a `-1` there means a
+    `missing` row was approved despite the exit gate forbidding it. Advisory only --
+    the geometry was built from some concrete value regardless.
+    """
+    import ast
+
+    from units import make_issue
+
+    params_path = os.path.join(project_root, "parameters.py")
+    if not os.path.isfile(params_path):
+        return []
+
+    try:
+        with open(params_path, encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=params_path)
+    except SyntaxError:
+        return []
+
+    def _is_neg_one(node: ast.expr) -> bool:
+        return (
+            isinstance(node, ast.UnaryOp)
+            and isinstance(node.op, ast.USub)
+            and isinstance(node.operand, ast.Constant)
+            and node.operand.value == 1
+        )
+
+    issues = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and _is_neg_one(node.value):
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            for name in names:
+                issues.append(
+                    make_issue(
+                        "parameters",
+                        "warning",
+                        "parameters_unresolved",
+                        f"parameters.py assigns the -1 unresolved-dimension placeholder to {name}.",
+                        "Resolve the dimension to a sourced value or record it as `assumed` "
+                        "with a concrete value (skill/phase1_requirements.md exit checkpoint).",
+                    )
+                )
+    return issues
+
+
 def _run_kinematic_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) -> list[dict]:
     """Run the kinematic range check when the plan declares any joints.
 
@@ -681,6 +728,7 @@ def run_gate(
     # ---- parameters.py provenance presence check (once, outside the fix loop) ----
     project_root = os.path.dirname(os.path.abspath(plan_path))
     all_issues += _run_parameters_presence_stage(project_root)
+    all_issues += _run_parameters_unresolved_stage(project_root)
 
     # ---- plan validation (once, before any plan-consuming stage) ----
     # The wrapper/geometry stages above read the plan only through defaulted .get

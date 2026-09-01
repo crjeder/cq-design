@@ -30,7 +30,10 @@ def _plan():
     other = {**part, "id": "b"}
     return {
         "schema_version": 1,
-        "intent": "gate freshness fixture",
+        "intent": (
+            "Gate freshness fixture: two identical co-plated parts on one shared plate, "
+            "printed as-is to exercise the provenance-stamp comparison path."
+        ),
         "printer": "Bambu P1S",
         "material": "PLA",
         "nozzle_mm": 0.4,

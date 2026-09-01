@@ -497,7 +497,10 @@ def _write_plan(tmp_path, kinematics, extra_part=None):
         arm_part.update(extra_part)
     plan = {
         "schema_version": 1,
-        "intent": "kinematic validation fixture",
+        "intent": (
+            "Kinematic validation fixture: a base and an arm joined by a revolute joint, "
+            "built as separate bodies so the range-of-motion sweep has something to move."
+        ),
         "printer": "Bambu P1S",
         "material": "PLA",
         "nozzle_mm": 0.4,

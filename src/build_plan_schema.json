@@ -21,8 +21,8 @@
     },
     "intent": {
       "type": "string",
-      "minLength": 5,
-      "description": "Plain-English description of what is being built and why"
+      "minLength": 120,
+      "description": "The user-approved reformulation written at the Phase 1 exit checkpoint (see the approved-intent spec). States what is being built and why, the confirmed reading of any shape the request left ambiguous, the fit type of every mating surface, every assumption Phase 1 made rather than asked about (each with its concrete value), and the repo-relative sketches/ path of every user-supplied image the design is based on. Does not restate values a structured field already carries in full (dimension table -> parameters.py / parts[].dimensions; printer/material/nozzle -> the plan's own fields). Phase 2 copies this text verbatim and does not author it. minLength 120: excludes a bare noun phrase (shortest eval-corpus reformulation is a two-clause sentence) while a genuinely simple one-part request still passes."
     },
     "printer": {
       "type": "string",
