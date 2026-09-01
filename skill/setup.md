@@ -44,9 +44,12 @@ if ($LASTEXITCODE -ne 0) { python "$SKILL_DIR/src/init_permissions.py" . }
 
 The merge is additive and idempotent: it creates `.claude/settings.local.json` if
 absent, appends only missing patterns to `permissions.allow`, and never removes,
-reorders, or duplicates existing entries or other settings keys. The directory
-scaffold is likewise idempotent -- it only creates `build/`/`stl/`/`preview/` if
-missing and never touches existing contents. On a truly fresh directory the very
+reorders, or duplicates existing entries or other settings keys. It also seeds a
+`Stop` hook that runs `src/session_cost.py` to record billed token cost into
+`build/cost.json` after each turn (a no-op until `build/` exists; added only when no
+`session_cost.py` hook is already present) -- the bootstrap output names it alongside
+the pattern count. The directory scaffold is likewise idempotent -- it only creates
+`build/`/`stl/`/`preview/` if missing and never touches existing contents. On a truly fresh directory the very
 first invocation of `init_permissions.py` itself may prompt once; that single
 approval seeds everything else.
 
@@ -56,9 +59,11 @@ the skill), run `python "$SKILL_DIR/src/init_permissions.py" .` unconditionally 
 
 **Fallback when the helper cannot run:** if `init_permissions.py` is unavailable or its
 first run is declined, read `$SKILL_DIR/src/skill_permissions.json` and merge its `allow`
-array into `.claude/settings.local.json` yourself with the Read/Write tools (same
-additive, dedup, order-preserving merge — do not drop existing entries or other keys),
-and create `build/`, `stl/`, `preview/` yourself if they don't already exist.
+array (and its `hooks` block, with `{session_cost_path}` replaced by the absolute path
+to `$SKILL_DIR/src/session_cost.py`) into `.claude/settings.local.json` yourself with
+the Read/Write tools (same additive, dedup, order-preserving merge — do not drop
+existing entries or other keys), and create `build/`, `stl/`, `preview/` yourself if
+they don't already exist.
 
 Known gaps: arbitrary manufacturer `WebFetch` domains and browser MCP tools (whose
 server name is environment-dependent) are not in the seeded set and may still prompt.

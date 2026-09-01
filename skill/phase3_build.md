@@ -858,6 +858,7 @@ tooling, STL, 3MF, previews) lives elsewhere:
     <part_id>.py           # ONLY the part scripts you (Claude) write and edit
     build.py               # re-runnable driver, copied verbatim (not edited)
     orientations.json, *.orientation.json   # build-process bookkeeping
+    attempts.jsonl, cost.json               # session bookkeeping (cost.json: Stop-hook billed cost)
   lib/                     # bundled tooling, copied so the project is skill-free
     mesh_io.py, model_export.py, print_orientation.py, placement.py,
     mate_chain.py, units.py, freshness.py, cq_verify.py, cq_compat.py,
@@ -879,7 +880,9 @@ Five steps:
    `mesh_io.py`, `model_export.py`, `print_orientation.py`, `placement.py`,
    `mate_chain.py`, `units.py`, `freshness.py`, `cq_verify.py`, `cq_compat.py` and the
    packages `exporters/` and `blocks/` (copy the whole directories, including their
-   `*.json` data files). `cq_verify.py` and `cq_compat.py` are runtime dependencies of
+   `*.json` data files). Do **not** copy `build/cost.json` or `build/attempts.jsonl`
+   into `lib/` or anywhere in the deliverable -- they are this session's own bookkeeping,
+   not project tooling. `cq_verify.py` and `cq_compat.py` are runtime dependencies of
    generated part scripts and `blocks/hardware.py` respectively (the `cq_warehouse`
    compat shim); `freshness.py` is a runtime dependency of `build_template.py` itself
    (the accepted-orientation staleness check) -- omitting any of these breaks the

@@ -54,6 +54,32 @@ def load_prices(path: Path = PRICES_PATH) -> dict:
     return {k: v for k, v in prices.items() if not k.startswith("_")}
 
 
+def read_recorded_cost(case_run_dir: Path) -> float | None:
+    """Billed session cost for a case run, or None to fall back to the estimate.
+
+    Prefers `<case>/cost.json` (the `claude -p` result envelope captured at
+    generation), then `<case>/build/cost.json` (the session-cost record's
+    `combined` total).
+    """
+    envelope = case_run_dir / "cost.json"
+    if envelope.is_file():
+        try:
+            data = json.loads(envelope.read_text(encoding="utf-8"))
+            if isinstance(data.get("total_cost_usd"), (int, float)):
+                return float(data["total_cost_usd"])
+        except json.JSONDecodeError:
+            pass
+    record = case_run_dir / "build" / "cost.json"
+    if record.is_file():
+        try:
+            combined = json.loads(record.read_text(encoding="utf-8")).get("combined", {})
+            if isinstance(combined.get("cost_usd"), (int, float)):
+                return float(combined["cost_usd"])
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
 def read_attempts(case_run_dir: Path) -> list[dict] | None:
     """Attempt records for one case's run, or None when telemetry is missing."""
     log = case_run_dir / "build" / "attempts.jsonl"
@@ -130,13 +156,24 @@ def descriptor_cost(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.sum(np.abs(a - b) / np.maximum(np.maximum(a, b), 1e-9)))
 
 
-def attempt_metrics(attempts: list[dict] | None, prices: dict) -> dict:
-    """First-shot rate, attempts-to-pass, and cost from one case's telemetry."""
+def _input_rate(prices: dict, model: str) -> float:
+    return prices.get(model, prices["default"])["input"]
+
+
+def attempt_metrics(
+    attempts: list[dict] | None, prices: dict, recorded_cost: float | None = None
+) -> dict:
+    """First-shot rate, attempts-to-pass, and cost from one case's telemetry.
+
+    `recorded_cost`, when given, is a billed session cost that replaces the
+    `prompt_chars`-derived estimate; `cost_source` reports which was used.
+    """
     if attempts is None:
         return {
             "first_shot_rate": None,
             "mean_attempts_to_pass": None,
             "cost_per_accepted_part_usd": None,
+            "cost_source": "unavailable",
             "telemetry": "unavailable",
         }
     parts: dict[str, list[dict]] = {}
@@ -160,8 +197,14 @@ def attempt_metrics(attempts: list[dict] | None, prices: dict) -> dict:
             unpassed.append(part_id)
             attempts_to_pass.append(max(r["attempt"] for r in recs) + 1)
         for r in recs:
-            rate = prices.get(r.get("model", "default"), prices["default"])
+            rate = _input_rate(prices, r.get("model", "default"))
             total_cost += (r["prompt_chars"] / CHARS_PER_TOKEN) * rate / 1e6
+
+    if recorded_cost is not None:
+        total_cost = recorded_cost
+        cost_source = "recorded"
+    else:
+        cost_source = "estimate"
 
     n = len(parts)
     return {
@@ -170,6 +213,7 @@ def attempt_metrics(attempts: list[dict] | None, prices: dict) -> dict:
         "unpassed_parts": unpassed,
         "cost_per_accepted_part_usd": total_cost / accepted if accepted else None,
         "total_cost_usd": total_cost,
+        "cost_source": cost_source,
         "telemetry": "ok",
     }
 
@@ -180,7 +224,10 @@ def score_case(case: str, run_dir: Path, prices: dict) -> dict:
     meta = json.loads((case_dir / "case.json").read_text(encoding="utf-8"))
     case_run_dir = run_dir / case
 
-    result = {"case": case, **attempt_metrics(read_attempts(case_run_dir), prices)}
+    result = {
+        "case": case,
+        **attempt_metrics(read_attempts(case_run_dir), prices, read_recorded_cost(case_run_dir)),
+    }
 
     golden_ids = [part["id"] for part in plan["parts"]]
     golden_meshes = [load_mesh(case_dir / "golden" / f"{pid}.stl") for pid in golden_ids]
@@ -242,10 +289,11 @@ def render_markdown(scorecard: dict) -> str:
     lines = [
         "# Eval scorecard",
         "",
-        "Cost figures are estimates (tokens ~ prompt_chars / 4).",
+        "Cost is billed when `cost src` is `recorded`, otherwise estimated "
+        "(tokens ~ prompt_chars / 4, input rate only).",
         "",
-        "| case | first-shot | attempts-to-pass | chamfer (mm) | cost/part (USD) |",
-        "|---|---|---|---|---|",
+        "| case | first-shot | attempts-to-pass | chamfer (mm) | cost/part (USD) | cost src |",
+        "|---|---|---|---|---|---|",
     ]
     for r in scorecard["cases"]:
         chamfer_cell = "no artifacts" if r["no_artifacts"] else _fmt(r["mean_chamfer_mm"])
@@ -253,7 +301,8 @@ def render_markdown(scorecard: dict) -> str:
             f"| {r['case']} | {_fmt(r['first_shot_rate'], 2)} "
             f"| {_fmt(r['mean_attempts_to_pass'], 2)} "
             f"| {chamfer_cell} "
-            f"| {_fmt(r['cost_per_accepted_part_usd'], 4)} |"
+            f"| {_fmt(r['cost_per_accepted_part_usd'], 4)} "
+            f"| {r.get('cost_source', 'n/a')} |"
         )
     agg = scorecard["aggregate"]
     lines += [
@@ -283,17 +332,29 @@ def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
         f"{request}"
     )
     try:
-        subprocess.run(
-            ["claude", "-p", prompt, "--dangerously-skip-permissions"],
+        proc = subprocess.run(
+            ["claude", "-p", prompt, "--dangerously-skip-permissions", "--output-format", "json"],
             cwd=case_run_dir,
             timeout=timeout_s,
             check=False,
+            capture_output=True,
+            text=True,
         )
     except subprocess.TimeoutExpired:
         print(
             f"  {case}: timed out after {timeout_s}s -- scoring whatever it produced",
             file=sys.stderr,
         )
+        return
+
+    try:
+        env = json.loads(proc.stdout)
+    except (json.JSONDecodeError, TypeError):
+        print(f"  {case}: unparseable `claude -p` JSON -- no cost.json written", file=sys.stderr)
+        return
+    keys = ("session_id", "num_turns", "duration_ms", "total_cost_usd", "usage")
+    cost = {k: env.get(k) for k in keys}
+    (case_run_dir / "cost.json").write_text(json.dumps(cost, indent=2) + "\n", encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
