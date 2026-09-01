@@ -64,6 +64,13 @@ untouched. Skip this step entirely when planning added nothing new -- which is t
 common case, since almost every sourced measurement was already captured at the
 checkpoint.
 
+**Update `REQUIREMENTS.md`** the same way, in place, only if planning introduced or
+changed a requirement -- a new fit type, a resolved open question, a constraint that
+changed -- not already captured when Phase 1 wrote it
+(`skill/phase1_requirements.md`). Amend the relevant section; do not regenerate the
+file. Skip when Phase 1 already skipped the file entirely, or when planning added
+nothing new to it.
+
 This file is separate from each part script's own internal `PARAMETERS` block (which
 holds resolved/derived geometry values, not necessarily the raw sourced ones) -- and
 separate from `planning_notes`, which is bounded to decisions-against, cross-part

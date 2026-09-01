@@ -66,6 +66,12 @@ from the user or `printer_profile.json`. A request with no external product refe
 (pure user-stated dimensions) never spawns this agent — skip straight to the checkpoint
 below with an empty table, or skip the checkpoint entirely per its own rule.
 
+A **Gridfinity** request is dimensioned by the standard, not by a lookup: the grid pitch,
+height unit, foot profile, and hole sizes are in `reference/gridfinity.md`, so never
+research or guess them. Ask only what the standard cannot supply — how many units, how
+tall, and what goes in — and still look up any real object the bin has to hold, whose size
+then picks the unit count via `gridfinity_units_for`.
+
 **Research agent.** Spawn one agent whose task is the full lookup workflow below (web
 search, spec pages, community model pages, STL download + `measure_stl.py`) for every
 dimension this request needs looked up. Model override: session default — this role does
@@ -181,3 +187,64 @@ Then append one line to `build/journal.md` (see `skill/resume.md`):
 
 If the checkpoint was skipped entirely (no lookups performed), skip this journal line
 too -- Phase 2's plan-approval milestone is the next one recorded.
+
+## Requirements spec write, at approval
+
+Immediately after the provenance write above (same turn), write `REQUIREMENTS.md` at
+the project root: the durable, human-readable spec this design is built from. Where
+`parameters.py` documents the sourced numbers, this file documents everything else
+Phase 1 resolved -- what the part is for, which shape reading was confirmed, what fit
+types apply, and which constraints came from a stated exception vs. the printer
+profile default. It is the reviewable artifact a user (or a later session) can read to
+understand *why* the plan looks the way it does, without replaying the conversation.
+Phase 2 does not parse this file -- it reads `BUILD_PLAN.json` -- so nothing about the
+build pipeline depends on its exact wording; it exists for human review before
+planning commits everything to a schema.
+
+Template:
+
+```markdown
+# Requirements: <request title>
+
+## Intent
+<what the part is for, its primary function>
+
+## Topology
+<confirmed reading of any ambiguous shape, from the topology-clarification step -- or
+"No topology ambiguity in this request.">
+
+## Dimensions
+<the same table shown at the Dimension validation checkpoint, or "All dimensions
+user-stated; no lookups performed.">
+
+## Fit requirements
+<mating surface fit types per interface -- press/snap/sliding/loose -- or "No mating
+surfaces in this request.">
+
+## Printer & DFM constraints
+- Printer: <model>, Material: <material>, Nozzle: <mm>
+- wall_min_mm / overhang_max_deg / dimension_tolerance_mm: <values>, noting whether
+  each came from `printer_profile.json`'s default or a user-stated one-time exception
+
+## Open questions / assumptions
+<anything left as -1, or resolved by assumption rather than explicit confirmation --
+or "None.">
+```
+
+Include every section even when a given section has nothing to report (use the
+placeholder text shown) -- a reader should never have to guess whether a section was
+omitted because it was empty or because it was forgotten.
+
+**Skip this file only** when the request had no topology ambiguity, no real-world
+dimension lookups, and no stated fit type -- i.e., Phase 1 resolved nothing beyond bare
+user-stated numbers already inline in the request. Phase 2
+(`skill/phase2_planning.md`) amends this same file later, in place, only if planning
+introduces or changes a requirement -- it does not write it from scratch.
+
+Then append one line to `build/journal.md`:
+
+```
+- phase1/requirements_written: REQUIREMENTS.md written
+```
+
+Skip this journal line whenever the file itself was skipped.

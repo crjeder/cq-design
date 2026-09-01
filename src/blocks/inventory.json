@@ -1004,5 +1004,158 @@
         ]
       }
     ]
+  },
+  {
+    "name": "gridfinity_feet",
+    "module": "blocks.gridfinity",
+    "function": "gridfinity_feet",
+    "use": "The stepped Gridfinity foot array (42 mm grid, one foot per cell) that docks a part into a Gridfinity baseplate or onto the stacking lip of the bin below. Feet on the bed at Z=0, top face at Z=4.75. Union under any custom body -- a tool holder, a jig, a drawer insert -- to make that body Gridfinity-compatible; the body must start at Z=4.75 and span no more than 42*cols-0.5 by 42*rows-0.5. For a plain storage bin use gridfinity_bin instead.",
+    "params": {
+      "cols": "count grid units (U) in X, 42 mm each",
+      "rows": "count grid units (U) in Y, 42 mm each",
+      "magnet_holes": "bool, cut four 6.5x2.4 mm magnet pockets per cell",
+      "screw_holes": "bool, cut four M3 (3.0 mm) screw holes per cell"
+    },
+    "dimensions": [
+      41.5,
+      41.5,
+      4.75
+    ],
+    "interfaces": [
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "type": "union",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          4.75
+        ]
+      }
+    ]
+  },
+  {
+    "name": "gridfinity_bin",
+    "module": "blocks.gridfinity",
+    "function": "gridfinity_bin",
+    "use": "A complete Gridfinity storage bin: feet, walls, cavity, and stacking lip. Footprint is 42*cols-0.5 by 42*rows-0.5 mm, body height 7*height_u mm plus a 4.4 mm lip. Options cover dividers, a label shelf, a finger scoop, and magnet/screw holes. Pass solid=True for a cavity-free blank to cut custom tool pockets into. Use for any 'gridfinity bin/box/tray/insert' request.",
+    "params": {
+      "cols": "count grid units (U) in X, 42 mm each",
+      "rows": "count grid units (U) in Y, 42 mm each",
+      "height_u": "count height units (HU), 7 mm each; >= 2 for a usable cavity",
+      "wall": "mm side wall thickness (default 1.2)",
+      "floor_z": "mm Z height of the cavity floor (default 7.0, the standard solid base)",
+      "stacking_lip": "bool, build the lip another bin stacks on (default True)",
+      "magnet_holes": "bool, cut four 6.5x2.4 mm magnet pockets per cell",
+      "screw_holes": "bool, cut four M3 screw holes per cell",
+      "divisions_x": "count compartments along X (1 = undivided)",
+      "divisions_y": "count compartments along Y (1 = undivided)",
+      "label_tab": "bool, add a sloped label shelf on the +Y wall",
+      "label_depth": "mm how far the label shelf reaches into the bin",
+      "scoop": "bool, add a swept quarter-round at the -Y wall",
+      "scoop_radius": "mm radius of that quarter-round",
+      "floor_fillet": "mm fillet where the cavity floor meets the walls (0 = sharp)",
+      "solid": "bool, skip the cavity and return a solid blank to cut into"
+    },
+    "dimensions": [
+      41.5,
+      41.5,
+      25.4
+    ],
+    "interfaces": [
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "type": "face_mount",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          21.0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "gridfinity_baseplate",
+    "module": "blocks.gridfinity",
+    "function": "gridfinity_baseplate",
+    "use": "A Gridfinity baseplate: a cols x rows plate of sockets that bins drop into, 42 mm per cell so plates tile edge to edge. The default 4.75 mm thickness is the minimal open-bottom plate; raise plate_h to leave stock for magnets or mounting screws. Use for any 'gridfinity baseplate/grid/tray base' request.",
+    "params": {
+      "cols": "count grid units (U) in X, 42 mm each",
+      "rows": "count grid units (U) in Y, 42 mm each",
+      "plate_h": "mm total plate thickness (default 4.75, the socket depth)",
+      "clearance": "mm socket clearance around a bin foot, per side (default 0.1)",
+      "magnet_holes": "bool, cut four 6.5x2.4 mm magnet pockets per cell (needs plate_h >= 7.15)",
+      "screw_holes": "bool, cut four M3 through-holes per cell"
+    },
+    "dimensions": [
+      42.0,
+      42.0,
+      4.75
+    ],
+    "interfaces": [
+      {
+        "type": "face_mount",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          4.75
+        ]
+      },
+      {
+        "type": "face_mount",
+        "orientation": "-Z",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "gridfinity_socket_cutter",
+    "module": "blocks.gridfinity",
+    "function": "gridfinity_socket_cutter",
+    "use": "The Gridfinity baseplate socket as a subtractive solid: the negative of a bin's feet, one socket per cell, mouths opening at Z=plate_h. Subtract from any plate, drawer bottom, shelf, or tool-wall panel to make it hold Gridfinity bins. For a standalone plate use gridfinity_baseplate instead.",
+    "params": {
+      "cols": "count grid units (U) in X, 42 mm each",
+      "rows": "count grid units (U) in Y, 42 mm each",
+      "plate_h": "mm Z height of the plate's top face, where the socket mouths open",
+      "clearance": "mm extra size around the nominal foot, per side (default 0.1)"
+    },
+    "dimensions": [
+      42.2,
+      42.2,
+      4.75
+    ],
+    "interfaces": [
+      {
+        "type": "socket",
+        "orientation": "+Z",
+        "origin": [
+          0,
+          0,
+          4.75
+        ]
+      }
+    ]
   }
 ]
