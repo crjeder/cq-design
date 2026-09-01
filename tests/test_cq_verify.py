@@ -103,3 +103,33 @@ def test_stage_requires_bbox_or_vol_min():
     body = cq.Workplane("XY").box(20, 20, 20)
     with pytest.raises(ValueError):
         cq_verify.verify_stage(body, "bossed")
+
+
+# verify_seated: C5 hinge-ear geometry -- knuckle disc centered at Z=13.5, r=2.6
+# (spans Z 10.9..16.1); riser box below it. axis "-z" = boss toward support.
+_KNUCKLE = cq.Workplane("YZ").circle(2.6).extrude(10).translate((-5, 5, 13.5))
+
+
+def _riser_topping_at(z_top: float):
+    return cq.Workplane("XY").box(10, 4, 5).translate((0, 3, z_top - 2.5))
+
+
+def test_seated_at_center_raises():
+    riser = _riser_topping_at(13.5)  # top face on the disc's CENTER
+    with pytest.raises(RuntimeError, match=r"boss_swallowed:hinge_ear"):
+        cq_verify.verify_seated(riser, _KNUCKLE, "-z", label="hinge_ear")
+
+
+def test_seated_at_tangent_passes():
+    riser = _riser_topping_at(10.9)  # top face on the disc's tangent
+    assert cq_verify.verify_seated(riser, _KNUCKLE, "-z", label="hinge_ear") is _KNUCKLE
+
+
+def test_seated_deliberate_embed_within_overlap_passes():
+    riser = _riser_topping_at(11.4)  # 0.5 mm embed, under the 1.0 mm default
+    assert cq_verify.verify_seated(riser, _KNUCKLE, "-z", label="hinge_ear") is _KNUCKLE
+
+
+def test_seated_rejects_bad_axis():
+    with pytest.raises(ValueError):
+        cq_verify.verify_seated(_riser_topping_at(10.9), _KNUCKLE, "down")

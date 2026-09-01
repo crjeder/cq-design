@@ -118,6 +118,11 @@ _VERIFY_HINTS = {
         "extend the neighboring feature (or reposition this one) so it fully covers the "
         "mating face, not just the shared centerline/axis coordinate"
     ),
+    "boss_swallowed": (
+        "a flat support body is seated at the round boss's center coordinate, not its "
+        "tangent — offset the support's mating face by the boss radius (pivot ± r), or "
+        "route the join through blocks.joints.pin_hinge which seats at the tangent"
+    ),
 }
 
 
