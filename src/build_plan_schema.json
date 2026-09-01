@@ -248,7 +248,7 @@
     },
     "request_log": {
       "type": "array",
-      "description": "Append-only verbatim request history: the initial request plus every clarification/correction that shaped the plan. The exclusive place for round-by-round build history -- planning_notes and part_notes describe only the current design state. Optional; absent plans (including eval-corpus goldens) stay valid. When present, exactly one `initial` entry, first in the array (enforced by plan_validate.py, not expressible cleanly in draft-7).",
+      "description": "Append-only verbatim request history: the initial request plus every clarification/correction that shaped the plan. The exclusive place for round-by-round build history -- planning_notes and part_notes describe only the current design state. Optional; absent plans (including eval-corpus goldens) stay valid. When present, exactly one `initial` entry, first in the array (enforced by plan_validate.py, not expressible cleanly in draft-7). `level` and `targets` are optional and independent -- entries written before typed request_log carry neither and stay valid; carried-forward entries are never back-filled.",
       "items": {
         "type": "object",
         "required": ["ts", "kind", "text"],
@@ -262,6 +262,17 @@
             "minItems": 1,
             "items": {"type": "string", "minLength": 1},
             "description": "Repo-relative paths to sketch/annotated-image files (copied into sketches/) that motivated this entry"
+          },
+          "level": {
+            "type": "string",
+            "enum": ["functional", "operation", "parameter"],
+            "description": "Intent granularity (LLM4CAD-Editor): functional = adds/removes/reshapes a part or capability; operation = changes how an existing feature is made (a joint, a cut, a pattern); parameter = a dimension/literal change with the design otherwise fixed"
+          },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1},
+            "description": "Affected part ids and/or `part.feature` / parameter names this entry names"
           }
         }
       }

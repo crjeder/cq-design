@@ -860,6 +860,69 @@ def test_request_log_non_first_initial_rejected(plan_file):
     assert len(errors) >= 1
 
 
+def test_request_log_level_and_targets_validate(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make a cradle"},
+        {
+            "ts": "2026-07-19T11:00:00Z",
+            "kind": "correction",
+            "text": "saddle should be 40mm wide",
+            "level": "parameter",
+            "targets": ["cradle", "cradle.saddle_width"],
+        },
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_request_log_mixed_typed_and_untyped_entries_validate(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make a cradle"},
+        {"ts": "2026-07-19T10:30:00Z", "kind": "clarification", "text": "press fit"},
+        {
+            "ts": "2026-07-19T11:00:00Z",
+            "kind": "correction",
+            "text": "add a drain slot",
+            "level": "operation",
+            "targets": ["base"],
+        },
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_request_log_unknown_level_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "level": "bogus"}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
+def test_request_log_empty_targets_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "targets": []}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
+def test_request_log_empty_target_string_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "targets": [""]}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
+def test_request_log_non_array_targets_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "targets": "cradle"}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
 # ---- review_policy --------------------------------------------------------
 
 

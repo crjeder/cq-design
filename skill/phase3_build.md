@@ -9,10 +9,23 @@ Execute the part loop inline. You are the orchestrator.
 change request during a **Progressive build** stage, or a load correction you announce
 during print-orientation optimization), append one entry to `BUILD_PLAN.json`'s
 `request_log` array before continuing: `{"ts": "<current UTC ISO-8601>", "kind":
-"clarification" | "correction", "text": "<the user's wording, verbatim>"}` —
+"clarification" | "correction", "text": "<the user's wording, verbatim>", "level":
+"functional" | "operation" | "parameter", "targets": ["<part id or part.feature>", ...]}` —
 `clarification` for an answer to a question you asked, `correction` for the user
-correcting something on their own initiative. Append only — never edit, reorder, or
-remove an existing entry, even the `initial` one. If `request_log` is absent from an
+correcting something on their own initiative. `level` is `functional` (adds/removes/
+reshapes a part or capability), `operation` (changes how an existing feature is made —
+a joint, a cut, a pattern), or `parameter` (a dimension/literal change with the design
+otherwise fixed); `targets` names every affected part id and, where the wording is
+feature- or parameter-specific, every `part.feature` / parameter name. Append only —
+never edit, reorder, or remove an existing entry, even the `initial` one; never
+back-fill `level`/`targets` onto an older entry that lacks them.
+
+**Parameter-scope routing.** When you act on an entry with `level: "parameter"`, change
+literals only in the part scripts named in that entry's `targets`. A value that must
+agree across parts routes through `joints` / `mate_chain.py` (a derived pose or a shared
+block parameter) — never by hand-editing the same literal into a sibling part the entry
+does not target. (This is the C5 cradle ping-pong: a shared dimension corrected for one
+part and duplicated into another keeps re-diverging every round.) If `request_log` is absent from an
 older plan, skip this (do not retroactively invent an `initial` entry); if a re-plan
 regenerates the file, the planner carries the existing log forward per
 `prompts/planning.md` rule 14. When a correction changes a part's design, update that
@@ -31,7 +44,8 @@ repo-relative path (an array, even for one file).
 **Searching.** When you need prior context on a specific decision or feature during
 Escalation or a correction round — e.g. recalling why a dimension was corrected earlier
 in the build — run `python src/request_log_search.py BUILD_PLAN.json --query <keyword>`
-(add `--kind correction`/`--kind clarification` to narrow further) instead of re-reading
+(add `--kind correction`/`--kind clarification`, `--level parameter`, or
+`--target <part>` to narrow further) instead of re-reading
 `BUILD_PLAN.json`'s full `request_log` array into context. If the matched entry carries
 `images`, read the referenced sketch file(s) before re-authoring the part — the same
 "read the render before re-rendering" discipline applied to a user-supplied sketch
@@ -350,9 +364,11 @@ entry (repeatable); do not rely on the center-cut fallback. Selection and axis c
 
 1. Build the candidate list from the same named+positioned `interfaces[]` entries
    already used for `--callout` above.
-2. For each candidate's `name`, run
-   `request_log_search.py BUILD_PLAN.json --query "<name>"` and note the
-   highest-priority `kind` among the matches, if any.
+2. Match each candidate to a `request_log` entry by `targets` membership: the
+   candidate matches an entry when its `name` (or `<part>.<name>`) appears in that
+   entry's `targets`. For a `request_log` entry that carries no `targets`, fall back
+   to `request_log_search.py BUILD_PLAN.json --query "<name>"` (substring against
+   `text`). Note the highest-priority `kind` among the matched entries, if any.
 3. Sort into tiers: (1) matched a `kind: clarification` entry, (2) matched a
    `kind: correction` entry, (3) everything else (no match, or only `kind: initial`).
    Within a tier, order matched entries by `request_log` array position descending
