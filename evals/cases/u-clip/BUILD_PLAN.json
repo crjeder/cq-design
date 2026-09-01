@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "U-profile spring clip for a 17 mm panel",
+  "intent": "A U-shaped spring clip printed as one part: two parallel arms joined by a curved base, sprung open to grip a flat panel pushed between the arms as a press fit. Prints on its side with the U opening sideways.",
   "parts": [
     {
       "id": "u_clip",

@@ -28,7 +28,10 @@ def minimal_plan(parts: list[dict]) -> dict:
     integration test that only cares about the `parts` list."""
     return {
         "schema_version": 1,
-        "intent": "test fixture",
+        "intent": (
+            "Minimal shared integration-test fixture: the parts list under test, printed "
+            "as-is with default constraints; no fits or assumptions to record here."
+        ),
         "printer": "Bambu P1S",
         "material": "PLA",
         "nozzle_mm": 0.4,

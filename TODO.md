@@ -174,7 +174,43 @@ problem: east should be right. Reason: mixing up "Viewed from South" and
 
 ### C5 hinge ear center-vs-edge
 The hinge ear shows an old problem: placing primitives with their center
-aligning to the other part's edge -- see `.debug\image-1786540203166.png`.
+aligning to the other part's edge -- see `.\debug\image-1786540203166.png`.
+
+Investigated (transcript: session `b6ac548d...`, `session-export-1786538430013.zip`,
+round 9's final `cradle.py`). Exact code:
+
+    EAR_STANDOFF = 5.0
+    PIVOT_Z = BAR_H + EAR_STANDOFF          # 8.5 + 5.0 = 13.5
+    RISER_DEPTH = 4.0
+    riser = car_box(x, TONGUE_WIDTH,
+                    PIVOT_Y - RISER_DEPTH, RISER_DEPTH,   # Y 1.0 .. 5.0
+                    BAR_H, EAR_STANDOFF)                  # Z 8.5 .. 13.5
+    knuckle = ....center(PIVOT_Y, PIVOT_Z).circle(KNUCKLE_R)   # r=2.6 at (5.0, 13.5)
+
+Both of the riser box's far faces land exactly on the disc's CENTER, not on its
+tangent: top face Z=13.5 == PIVOT_Z, +Y face Y=5.0 == PIVOT_Y. The disc spans
+Z 10.9..16.1 and Y 2.4..7.6, so its lower-rear quadrant is swallowed by the riser
+and only the upper-front quarter stands proud -- the "half-buried disc on a boxy
+step" in the render. Bbox Zmax 16.1 in the preview footer confirms this is the
+shipped geometry.
+
+The correct riser tops out at the tangent line: `PIVOT_Z - KNUCKLE_R` (10.9), i.e.
+height `EAR_STANDOFF - KNUCKLE_R` = 2.4, and its Y-band should be centered on
+PIVOT_Y rather than ending there. The error is not a missing constant -- it is
+reusing the pivot literal for a boundary that owes it a +/- radius offset.
+
+Notes for the fix: (1) nothing in the pipeline can see this -- the union is
+watertight, volume/faces/bbox are all plausible, no DFM rule is violated; only
+the rendered preview shows it, which is why it survived to round 9. (2)
+`script_lint`'s AST pass cannot catch it either: `car_box` is a script-local
+helper, so the checker would have to know that args 5+6 form a Z-band and that
+the same name feeds a `circle()` center. (3) The tractable fix is the
+`anchor()`/`place_at()` API in [BOSL2 attachables](#bosl2-attachables) -- make
+"tangent of this body" the only way to express the join, so center-as-edge
+cannot be typed. A cheap partial detector: after a union, flag when an added
+body's overlap with the existing solid exceeds ~20% of its own volume (here the
+knuckle loses ~25%), but that also fires on legitimately embedded pins.
+
 
 ### C5 knuckle pivot ping-pong
 The llm totally did not get that making the knuckle stand of the cradle's

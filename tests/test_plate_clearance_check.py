@@ -215,7 +215,10 @@ def test_gate_surfaces_plate_clearance(tmp_path, good_script):
     plan.update(
         {
             "schema_version": 1,
-            "intent": "plate clearance gate fixture",
+            "intent": (
+                "Plate clearance gate fixture: two parts co-plated on one build plate, "
+                "laid out as planned to exercise the co-plated union clearance check."
+            ),
             "printer": "Bambu P1S",
             "material": "PLA",
             "constraints": {

@@ -14,7 +14,11 @@ from plan_validate import check_block_thinness, validate_plan  # noqa: E402
 
 VALID_PLAN: dict[str, Any] = {
     "schema_version": 1,
-    "intent": "Arduino Nano enclosure",
+    "intent": (
+        "Open-top enclosure for an Arduino Nano, printed as a single body with 1.2 mm "
+        "walls and a USB-C pass-through on the front wall. Board seats on internal "
+        "standoffs (press fit, assumed 0.2 mm clearance -- adjust after a test fit)."
+    ),
     "printer": "Bambu P1S",
     "material": "PLA",
     "nozzle_mm": 0.4,
@@ -67,6 +71,38 @@ def test_valid_single_part(plan_file):
 def test_valid_two_parts(plan_file):
     errors = validate_plan(plan_file(VALID_PLAN_TWO_PARTS))
     assert errors == []
+
+
+def test_token_intent_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = "A laptop stand"
+    errors = validate_plan(plan_file(plan))
+    assert any("intent" in e for e in errors)
+
+
+def test_reformulation_length_intent_passes(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = (
+        "A wedge phone stand printed as one part, back face raked 65 degrees from "
+        "horizontal (assumed -- adjust after a test fit), sized for a phone in landscape."
+    )
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_negative_one_dimension_still_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["dimensions"]["d_mm"] = -1
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_negative_one_in_signed_fields_still_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    plan["parts"][0]["interfaces"] = [
+        {"type": "screw_boss", "position_mm": [-12.5, 0, 4], "diameter_mm": 3.2}
+    ]
+    assert validate_plan(plan_file(plan)) == []
 
 
 def test_valid_load_hint(plan_file):

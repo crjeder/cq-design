@@ -162,6 +162,14 @@ to `request_log` as a new dated entry — never edit, reorder, or remove existin
 entries.** A correction that triggers re-planning carries the existing log forward
 unchanged before the planning prompt appends the new entry.
 
+**`request_log` and `intent` are the asked/approved pair.** `request_log[0]` is the
+user's original opening request, verbatim and append-only -- it is never rewritten even
+after Phase 1 resolves it. `intent` is the user-approved reformulation from the Phase 1
+exit checkpoint: what is being built in resolved terms, every assumption Phase 1 made,
+and the `sketches/` paths the design is based on. `intent` is current-state -- rewritten
+on each approved correction (the same rule that binds `planning_notes` / `part_notes`),
+while `request_log` keeps the round-by-round history.
+
 ## Generated script rules
 
 Every CadQuery script the pipeline produces must: begin with a flat
