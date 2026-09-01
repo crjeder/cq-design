@@ -168,24 +168,70 @@ def test_two_produced_two_golden_assign_one_to_one(tmp_path):
     assert result["within_tolerance"] is True
 
 
+_FLAT_10 = {"default": {"input": 10.0, "output": 10.0}, "inline": {"input": 10.0, "output": 10.0}}
+
+
 def test_cost_sums_all_attempts():
-    prices = {"default": 10.0, "inline": 10.0}
     records = [_record(1, "fail"), _record(2, "fail"), _record(3, "pass")]
-    metrics = run_evals.attempt_metrics(records, prices)
+    metrics = run_evals.attempt_metrics(records, _FLAT_10)
     # 3 attempts x 40000 chars / 4 chars-per-token = 30000 tokens at $10/MTok
     assert abs(metrics["total_cost_usd"] - 0.30) < 1e-9
     assert metrics["cost_per_accepted_part_usd"] == metrics["total_cost_usd"]
+    assert metrics["cost_source"] == "estimate"
     assert metrics["first_shot_rate"] == 0.0
     assert metrics["mean_attempts_to_pass"] == 3.0
 
 
 def test_never_passing_part_counts_attempts_plus_one():
-    prices = {"default": 10.0}
     records = [_record(1, "fail"), _record(2, "fail")]
-    metrics = run_evals.attempt_metrics(records, prices)
+    metrics = run_evals.attempt_metrics(records, _FLAT_10)
     assert metrics["mean_attempts_to_pass"] == 3.0
     assert metrics["unpassed_parts"] == [PART]
     assert metrics["cost_per_accepted_part_usd"] is None
+
+
+def test_recorded_cost_overrides_estimate():
+    records = [_record(1, "pass")]
+    metrics = run_evals.attempt_metrics(records, _FLAT_10, recorded_cost=0.123)
+    assert metrics["total_cost_usd"] == 0.123
+    assert metrics["cost_per_accepted_part_usd"] == 0.123
+    assert metrics["cost_source"] == "recorded"
+
+
+def test_score_case_prefers_envelope_cost(tmp_path):
+    case_run = tmp_path / CASE
+    (case_run / "stl").mkdir(parents=True)
+    shutil.copy(GOLDEN, case_run / "stl" / f"{PART}.stl")
+    _write_attempts(case_run, [_record(1, "pass")])
+    (case_run / "cost.json").write_text(json.dumps({"total_cost_usd": 0.42}), encoding="utf-8")
+
+    result = run_evals.score_case(CASE, tmp_path, run_evals.load_prices())
+    assert result["cost_source"] == "recorded"
+    assert result["cost_per_accepted_part_usd"] == 0.42
+
+
+def test_score_case_falls_back_to_session_record(tmp_path):
+    case_run = tmp_path / CASE
+    (case_run / "stl").mkdir(parents=True)
+    shutil.copy(GOLDEN, case_run / "stl" / f"{PART}.stl")
+    _write_attempts(case_run, [_record(1, "pass")])
+    (case_run / "build" / "cost.json").write_text(
+        json.dumps({"combined": {"cost_usd": 0.07}}), encoding="utf-8"
+    )
+
+    result = run_evals.score_case(CASE, tmp_path, run_evals.load_prices())
+    assert result["cost_source"] == "recorded"
+    assert result["cost_per_accepted_part_usd"] == 0.07
+
+
+def test_score_case_estimate_when_no_record(tmp_path):
+    case_run = tmp_path / CASE
+    (case_run / "stl").mkdir(parents=True)
+    shutil.copy(GOLDEN, case_run / "stl" / f"{PART}.stl")
+    _write_attempts(case_run, [_record(1, "pass")])
+
+    result = run_evals.score_case(CASE, tmp_path, run_evals.load_prices())
+    assert result["cost_source"] == "estimate"
 
 
 def test_aggregate_reports_contributing_case_count():

@@ -32,5 +32,11 @@
     "WebFetch(domain:www.printables.com)",
     "WebFetch(domain:makerworld.com)",
     "WebFetch(domain:www.gsmarena.com)"
-  ]
+  ],
+  "hooks": {
+    "_comment": "Seeded into the working directory's .claude/settings.local.json by init_permissions.py, which substitutes {session_cost_path} with the absolute path to src/session_cost.py at seed time. The Stop hook records billed token cost into build/cost.json after every turn; it is a no-op when build/ is absent and always exits 0.",
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "python \"{session_cost_path}\" --hook" } ] }
+    ]
+  }
 }
