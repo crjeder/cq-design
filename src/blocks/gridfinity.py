@@ -19,6 +19,7 @@ Usage in model scripts:
 
 import contextlib
 import math
+from typing import cast
 
 import cadquery as cq
 
@@ -101,7 +102,7 @@ def _rounded_rect_wire(w: float, d: float, r: float, z: float) -> cq.Wire:
     r = max(r, _MIN_RADIUS_MM)
     hw, hd = w / 2, d / 2
     k = r * math.sqrt(0.5)  # arc midpoint offset from the corner-arc center
-    return (
+    wp = (
         cq.Workplane("XY", origin=(0, 0, z))
         .moveTo(-hw + r, -hd)
         .lineTo(hw - r, -hd)
@@ -114,8 +115,8 @@ def _rounded_rect_wire(w: float, d: float, r: float, z: float) -> cq.Wire:
         .threePointArc((-hw + r - k, -hd + r - k), (-hw + r, -hd))
         .close()
         .wire()
-        .val()
     )
+    return cast(cq.Wire, wp.val())
 
 
 def _lofted(sections: list[tuple[float, float, float, float]]) -> cq.Workplane:
@@ -260,7 +261,7 @@ def gridfinity_feet(
     foot = _lofted(
         _stepped_sections(pad, pad, BASE_TOP_RADIUS_MM, _BASE_STEPS, BASE_PROFILE_HEIGHT_MM)
     )
-    solid = foot.val()
+    solid = cast(cq.Shape, foot.val())
     feet = cq.Workplane("XY").newObject(
         [solid.moved(cq.Location(cq.Vector(x, y, 0))) for x, y in _cell_centers(cols, rows)]
     )
@@ -304,7 +305,7 @@ def gridfinity_socket_cutter(
         .edges("|Z")
         .fillet(radius)
     )
-    solid = socket.val()
+    solid = cast(cq.Shape, socket.val())
     placed = [solid.moved(cq.Location(cq.Vector(x, y, 0))) for x, y in _cell_centers(cols, rows)]
     # Neighboring mouths overlap by twice the clearance, so they are fused rather than
     # left as separate solids in one compound (which OCC booleans handle poorly).

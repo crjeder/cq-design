@@ -247,8 +247,15 @@ adhesive). Content that fits none of these three categories does not belong in
     `kind: "clarification"` entry per clarification gathered in Phase 1/2 (topology
     confirmation, dimension checkpoint corrections, fit-type answers, etc.), each in
     the order it was given. `text` is the user's own wording, verbatim -- never
-    paraphrased or summarized. `ts` is the current UTC time in ISO-8601. **On a
-    re-plan** (this agent runs again against an existing `BUILD_PLAN.json`, e.g. after
+    paraphrased or summarized. `ts` is the current UTC time in ISO-8601. **Type each
+    new entry** with `level` and `targets`: `level` is `functional` (adds/removes/
+    reshapes a part or capability), `operation` (changes how an existing feature is
+    made -- a joint, a cut, a pattern), or `parameter` (a dimension/literal change
+    with the design otherwise fixed); `targets` is an array naming every affected part
+    id and, where the wording is feature- or parameter-specific, every
+    `part.feature` / parameter name. The `initial` entry MAY omit both when the
+    original request is too broad to attribute. Never back-fill `level`/`targets`
+    onto a carried-forward entry that lacks them. **On a re-plan** (this agent runs again against an existing `BUILD_PLAN.json`, e.g. after
     a validation rejection or a correction requiring regeneration): carry every prior
     `request_log` entry forward unchanged, in the same order, and only append the new
     entry -- never rewrite, reorder, or drop existing entries. `request_log` is the
