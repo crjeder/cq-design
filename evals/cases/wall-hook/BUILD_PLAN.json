@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "J-profile wall hook with mounting plate and retaining lip",
+  "intent": "A J-profile wall hook printed as one part: a flat mounting plate that screws to the wall, an arm projecting horizontally from its lower edge, and an upturned retaining lip at the arm's end so hung items cannot slide off. Plate prints flat on the bed.",
   "parts": [
     {
       "id": "wall_hook",

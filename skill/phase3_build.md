@@ -32,14 +32,21 @@ regenerates the file, the planner carries the existing log forward per
 part's `part_notes` to reflect only the new current state — delete content the
 correction supersedes rather than appending a dated round entry or a "SUPERSEDED by
 round N" annotation; the round-by-round history lives in `request_log`, not in
-`part_notes`.
+`part_notes`. The plan's `intent` follows the same current-state rule -- when the
+correction changes the design, rewrite `intent` to the new approved reading in this
+same turn (see **Rewriting `intent`** below).
 
 **Sketches.** If the user attaches an image (a hand-drawn sketch, an annotated
 screenshot) to a clarification or correction, copy it into a `sketches/` directory at
 the project root before appending the entry, named `<slug>-<ts>.<ext>` (a short slug
 from the correction's `text`, or `sketch` if none is obvious; `ts` is the entry's own
 timestamp with `:` replaced by `-`). Set the entry's `images` field to the copied
-repo-relative path (an array, even for one file).
+repo-relative path (an array, even for one file). This is the canonical form of the
+rule; `skill/phase1_requirements.md` applies the same copy-and-reference step to an
+image attached to the opening request (the `initial` entry).
+
+When a correction changes the design, also rewrite `intent` -- see **Rewriting
+`intent`** below.
 
 **Searching.** When you need prior context on a specific decision or feature during
 Escalation or a correction round — e.g. recalling why a dimension was corrected earlier
@@ -54,13 +61,30 @@ instead of a generated preview.
 **Scoping to a part (for the request-conformance review bar).** Both review paths —
 the progressive self-review and the Implementation audit — check the render against
 the user's own words as well as the plan. The scoped request text for a part is:
-always its `initial` `request_log` entry (it holds the global reference frame), plus
-every entry scoped to that part. An entry is scoped to the part when its typed
-`targets` name the part (once typed `request_log` entries exist); absent typed
-targets, run `request_log_search.py BUILD_PLAN.json --query "<term>"` for the part
-id, the part `description`, and each of the part's interface names, and take the
-union of the matches. When the plan has no `request_log`, the bar is skipped
-entirely.
+the plan's approved `intent` (the user-approved reformulation -- it holds the global
+reference frame), plus every `request_log` entry scoped to that part. An entry is
+scoped to the part when its typed `targets` name the part (once typed `request_log`
+entries exist); absent typed targets, run `request_log_search.py BUILD_PLAN.json
+--query "<term>"` for the part id, the part `description`, and each of the part's
+interface names, and take the union of the matches.
+
+When `intent` is too short to be a reformulation (an eval-corpus golden, or a plan
+predating this rule -- schema floor is 120 chars), fall back to the `initial`
+`request_log` entry in its place. When the plan carries neither a reformulated `intent`
+nor a `request_log`, the request-conformance bar is skipped entirely.
+
+**Rewriting `intent`.** `intent` describes the design *as currently approved*, never a
+round-by-round history -- the same current-state rule that binds `planning_notes` and
+`part_notes`. When an approved clarification or correction changes what is being built,
+rewrite `intent` to the new approved reading **in the same turn** you append the
+`request_log` entry: delete the superseded wording (no "previously fixed", no "ROUND 2"
+annotation) -- `request_log` keeps the verbatim history. A correction that changes
+nothing about the design (it only restates something `intent` already says) is appended
+to `request_log` and leaves `intent` unchanged.
+
+**Sketches referenced by `intent`.** When `intent` names one or more `sketches/` paths,
+read those files before authoring or re-authoring any part -- not only when a
+`request_log` entry's `images` field names them.
 
 ## Vocabulary
 
@@ -436,7 +460,7 @@ Handle geometry errors first, then decide what this attempt returns.
 
 1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the review for this attempt. Blocking types include `disconnected_body` (a union that split into separate solids — union or bridge the pieces so they fuse into one component).
 2. **`success: true` AND no blocking errors** →
-   - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union), the request-conformance questions from the scoped `request_log` text (the `initial` entry plus this part's entries — see the Request log section's "Scoping to a part"; skip this class when the plan has no `request_log`), plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not). A request-conformance question answered "no" is an **advisory** finding (cite the contradicted request phrase and the view) that does not fail the review or consume a retry, unless the same discrepancy also answers a plan-derived question or universal invariant "no" — then it is a blocking `visual_mismatch` like any other. Per the checklist's coverage-first rule, also report any other discrepancy noticed, however low-confidence or minor, as an advisory finding (confidence + severity) — it does not fail a question or consume a retry.
+   - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union), the request-conformance questions from the scoped request text (the approved `intent` plus this part's `request_log` entries — see the Request log section's "Scoping to a part"; skip this class when the plan carries neither a reformulated `intent` nor a `request_log`), plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not). A request-conformance question answered "no" is an **advisory** finding (cite the contradicted request phrase and the view) that does not fail the review or consume a retry, unless the same discrepancy also answers a plan-derived question or universal invariant "no" — then it is a blocking `visual_mismatch` like any other. Per the checklist's coverage-first rule, also report any other discrepancy noticed, however low-confidence or minor, as an advisory finding (confidence + severity) — it does not fail a question or consume a retry.
      - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against), and any advisory findings grouped separately under their own heading, not mixed with the checklist. Append `- phase3/part_accepted:<part_id>: progressive review passed` to `build/journal.md` (see `skill/resume.md`). Advance to next part.
      - **Any question answered "no"** AND attempt < 3 → record a `visual_mismatch` finding naming the failed question, the cited view, and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3). Advisory findings from this attempt are not folded into the fix.
    - **Autonomous (builder agent):** this attempt is accepted. Record `geometry.bbox` and the preview/section/detail paths, then return the **Builder return contract** (`status: passed`) without judging the render itself — the **Implementation audit** below, run by a fresh-context agent that never saw the script, is the acceptance bar for an autonomous part.
@@ -543,15 +567,17 @@ autonomous part.
 1. **Spawn** one auditor agent per accepted part. Its prompt contains: the part's full
    `BUILD_PLAN.json` entry (dimensions, interfaces, blocks_needed, unions), the
    preview/section/detail image paths from the Builder return contract, and the
-   **scoped `request_log` text** for the part (the `initial` entry plus the per-part
-   entries — see the Request log section's "Scoping to a part"). It does **not**
+   **scoped request text** for the part (the approved `intent`, plus the per-part
+   `request_log` entries — see the Request log section's "Scoping to a part"; the
+   `initial` entry stands in for `intent` on a legacy/eval plan). It does **not**
    receive the part script — adding the request text does not relax that rule; the
    auditor judges the render against the plan's intent *and the user's own words* with
-   no chance to rationalize from the code that produced it. When the plan has no
-   `request_log`, no request text is passed and the request-conformance bar is skipped.
+   no chance to rationalize from the code that produced it. When the plan carries
+   neither a reformulated `intent` nor a `request_log`, no request text is passed and
+   the request-conformance bar is skipped.
 2. **Checklist.** The auditor applies `reference/Visual Review Checklist.md` exactly as
    Step 4's progressive-mode review would: one question per interface, block, and union,
-   the request-conformance questions generated from the scoped `request_log` text
+   the request-conformance questions generated from the scoped request text
    ("does the render satisfy the user's own words?"), plus the universal invariants
    (single connected body, flat bed face, proportions, shape match, authored
    orientation), each answered against a specific cited view. Per the checklist's
@@ -578,8 +604,9 @@ as before). `findings` holds every other observed discrepancy — low-confidence
 not fail the audit and is never folded into the fix prompt in step 5 below; it is
 reported to the user alongside the accepted part.
 
-A **request-conformance mismatch** (the render contradicts the scoped `request_log`
-text) is an advisory `finding` — cite the contradicted request phrase and the view —
+A **request-conformance mismatch** (the render contradicts the scoped request text --
+the approved `intent`, including a value it records as an explicit assumption, or a
+scoped `request_log` entry) is an advisory `finding` — cite the contradicted request phrase and the view —
 and by itself keeps `verdict: pass`, surfaced to the user without resuming the
 builder. It becomes a blocking `failed_questions` entry **only** when the same
 discrepancy also answers a plan-derived question or universal invariant "no"; in that

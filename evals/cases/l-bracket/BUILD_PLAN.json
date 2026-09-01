@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "L-bracket joining two panels at 90 degrees",
+  "intent": "An L-shaped bracket joining two panels at a right angle: a flat base leg and a vertical upright leg of equal thickness meeting at a sharp internal corner. Printed as one part, base leg flat on the bed.",
   "parts": [
     {
       "id": "l_bracket",
