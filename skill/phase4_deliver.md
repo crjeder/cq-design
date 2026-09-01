@@ -22,8 +22,6 @@ Report to the user:
      holds the editable part scripts and everything else regenerates from them
    - A one-line pointer to `parameters.py` for the sourced real-world measurements this
      design is based on (see Phase 2)
-   - A one-line pointer to `REQUIREMENTS.md`, when present, for the full intent/
-     topology/fit/constraints spec this design is built from (see Phase 1)
    - The directory layout (mirror the tree in **Model export** in `skill/phase3_build.md`)
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually or re-run the gate with `--no-fix` to get a clean report.

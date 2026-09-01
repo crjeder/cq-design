@@ -55,6 +55,29 @@ Once the user confirms, append one line to `build/journal.md` (see `skill/resume
 
 Skip this line when the request had no topology ambiguity (nothing was asked).
 
+This confirm stays a separate, earlier round -- it gates which dimensions are worth
+looking up at all, so it cannot be folded into the Phase 1 exit checkpoint below. The
+exit checkpoint is the *second* stop (and the last); it does not re-ask topology.
+
+## Ask vs. assume
+
+Phase 1 must not leave an ambiguity unresolved when guessing it wrong would cost a
+rebuild. It may leave one resolved by a stated assumption when guessing it wrong costs
+only a parameter edit. This is the same cost axis as "a wrong dimension is a parameter
+edit; a wrong topology is a full rebuild" above, and the same axis as the `request_log`
+`level` enum:
+
+- **Ask the user** when the unknown is `functional` or `operation` level -- whether a
+  part exists at all, what a part's overall shape is, how two parts join, which fit type
+  a mating surface takes.
+- **May assume** when the unknown is `parameter` level -- a dimension or literal with the
+  design otherwise fixed. Pick a concrete value, record it in the approved reformulation
+  as an explicit assumption ("legs 24 mm to start -- assumed, adjust after a test fit"),
+  and let the exit checkpoint be where a wrong assumption is caught.
+
+No dimension may leave Phase 1 as `-1`: a row that could not be sourced is either
+resolved with the user or converted to `assumed` with a concrete value the user accepts.
+
 ## Dimension lookup with Playwright
 
 When a real product is mentioned, run the lookup workflow below in a **research agent**
@@ -132,9 +155,17 @@ Use `browser_take_screenshot` only when the spec is in an image or the snapshot 
 
 **Lookup narration:** Before each lookup, note internally what is being looked up and which source is being consulted (e.g., "Looking up Bosch MUM9 bowl dimensions on bosch-home.com..."). After each lookup, note the value found and the source URL (e.g., "Found bowl diameter: 220 mm -- bosch-home.com/en/product/..."). This narration lives inside the research agent's own reasoning — it has no user channel, so none of it reaches the user directly; the user-visible summary is the Dimension validation checkpoint table main presents after the agent returns.
 
-## Dimension validation checkpoint
+## Phase 1 exit checkpoint
 
-After all dimension lookups are complete and **before generating `BUILD_PLAN.json`**, present a summary table of every looked-up dimension:
+This is the single gate out of Phase 1. It presents two things **in one message** and
+takes **one approval** covering both:
+
+1. A **reformulation of the request** in resolved terms (the content contract is below).
+2. The **dimension table** of every looked-up dimension.
+
+Do not present the reformulation and the table as two separate approval rounds.
+
+### The dimension table
 
 | Item | Value (mm) | Source | Status |
 |------|-----------|--------|--------|
@@ -144,11 +175,53 @@ After all dimension lookups are complete and **before generating `BUILD_PLAN.jso
 - `confirmed` -- found in two sources that agree within 0.5 mm
 - `single-source` -- found in only one source
 - `conflict` -- two sources disagree; show both values
+- `assumed` -- no source; a concrete starting value the skill picked per **Ask vs.
+  assume** (the reformulation names it as an assumption)
 - `missing` -- could not be found; value is `-1`
 
-**Do not generate `BUILD_PLAN.json` until the user has explicitly approved or corrected the table.** If the user corrects a value (e.g., "the depth is 8.5, not 8.0"), record the correction and use the corrected value in the plan. If any rows are `missing` or `conflict`, ask the user for the correct value before continuing.
+If no real-world dimension lookups were performed (all dimensions user-stated), the
+table may be empty or omitted -- but the reformulation is still presented and approved.
 
-Skip this checkpoint entirely if no real-world dimension lookups were performed (i.e., all dimensions were provided directly by the user).
+### The reformulation
+
+Write the reformulation as prose. It **must** state:
+
+- what is being built and why;
+- the confirmed reading of any shape the request left ambiguous (from the
+  topology-clarification step);
+- the fit type of every mating surface (press / snap / sliding / loose);
+- every assumption Phase 1 made rather than asked about, each with its concrete assumed
+  value;
+- the repo-relative `sketches/` path of every user-supplied image the design is based on.
+
+It **must not** restate values a structured field already carries in full -- the
+dimension table (it lives in `parameters.py` and, later, `parts[].dimensions`), or the
+printer / material / nozzle fields.
+
+Worked example:
+
+> Wall-mounted J-hook for a broom handle, printed as a single part. Mounting plate is
+> screwed to the wall through two countersunk holes; the hook curls up from the plate's
+> lower edge with a retaining lip so the handle cannot lift out. Handle diameter assumed
+> 24 mm (no source -- adjust after a test fit). Based on the user's sketch,
+> `sketches/broom-hook-2026-09-01T10-00-00Z.jpg`.
+
+### Approval
+
+**Do not generate `BUILD_PLAN.json` until the user has explicitly approved or corrected
+the checkpoint.** If the user corrects a dimension ("the depth is 8.5, not 8.0"), use
+the corrected value. If the user corrects the reformulation ("the lid snaps on, it
+doesn't screw on"), the corrected reading is what gets written to `intent`, and the
+correction is appended to `request_log` as a `clarification` entry.
+
+**Approval is not accepted while any row reads `-1` / `missing`.** Resolve such a row to
+a sourced value with the user, or convert it to `assumed` with a concrete value the user
+accepts, before proceeding.
+
+The approved reformulation text is written **verbatim** to `BUILD_PLAN.json`'s `intent`
+by the Phase 2 planner (`prompts/planning.md`). `request_log`'s `initial` entry keeps
+the user's original opening wording unchanged -- the resolved reading lives in `intent`,
+never in place of the verbatim entry.
 
 ## Provenance write, at approval
 
@@ -173,11 +246,12 @@ USB_C_PORT_MM = (9.0, 3.5)  # USB-IF spec, single-source
 ```
 
 Include every dimension from the table regardless of its status (note
-`single-source`/`conflict`/`missing` in the comment as-is), plus any measurement the
-user stated directly that never went through a web lookup. Skip this file only when the
-design has no sourced real-world measurements whatsoever. Phase 2
-(`skill/phase2_planning.md`) updates this same file later only if planning introduces or
-changes a measurement -- it does not write it from scratch.
+`single-source`/`conflict`/`assumed`/`missing` in the comment as-is -- an `assumed` row
+is recorded with its concrete value exactly as `single-source` and `conflict` are),
+plus any measurement the user stated directly that never went through a web lookup.
+Skip this file only when the design has no sourced real-world measurements whatsoever.
+Phase 2 (`skill/phase2_planning.md`) updates this same file later only if planning
+introduces or changes a measurement -- it does not write it from scratch.
 
 Then append one line to `build/journal.md` (see `skill/resume.md`):
 
@@ -188,63 +262,14 @@ Then append one line to `build/journal.md` (see `skill/resume.md`):
 If the checkpoint was skipped entirely (no lookups performed), skip this journal line
 too -- Phase 2's plan-approval milestone is the next one recorded.
 
-## Requirements spec write, at approval
+## Sketches attached to the opening request
 
-Immediately after the provenance write above (same turn), write `REQUIREMENTS.md` at
-the project root: the durable, human-readable spec this design is built from. Where
-`parameters.py` documents the sourced numbers, this file documents everything else
-Phase 1 resolved -- what the part is for, which shape reading was confirmed, what fit
-types apply, and which constraints came from a stated exception vs. the printer
-profile default. It is the reviewable artifact a user (or a later session) can read to
-understand *why* the plan looks the way it does, without replaying the conversation.
-Phase 2 does not parse this file -- it reads `BUILD_PLAN.json` -- so nothing about the
-build pipeline depends on its exact wording; it exists for human review before
-planning commits everything to a schema.
-
-Template:
-
-```markdown
-# Requirements: <request title>
-
-## Intent
-<what the part is for, its primary function>
-
-## Topology
-<confirmed reading of any ambiguous shape, from the topology-clarification step -- or
-"No topology ambiguity in this request.">
-
-## Dimensions
-<the same table shown at the Dimension validation checkpoint, or "All dimensions
-user-stated; no lookups performed.">
-
-## Fit requirements
-<mating surface fit types per interface -- press/snap/sliding/loose -- or "No mating
-surfaces in this request.">
-
-## Printer & DFM constraints
-- Printer: <model>, Material: <material>, Nozzle: <mm>
-- wall_min_mm / overhang_max_deg / dimension_tolerance_mm: <values>, noting whether
-  each came from `printer_profile.json`'s default or a user-stated one-time exception
-
-## Open questions / assumptions
-<anything left as -1, or resolved by assumption rather than explicit confirmation --
-or "None.">
-```
-
-Include every section even when a given section has nothing to report (use the
-placeholder text shown) -- a reader should never have to guess whether a section was
-omitted because it was empty or because it was forgotten.
-
-**Skip this file only** when the request had no topology ambiguity, no real-world
-dimension lookups, and no stated fit type -- i.e., Phase 1 resolved nothing beyond bare
-user-stated numbers already inline in the request. Phase 2
-(`skill/phase2_planning.md`) amends this same file later, in place, only if planning
-introduces or changes a requirement -- it does not write it from scratch.
-
-Then append one line to `build/journal.md`:
-
-```
-- phase1/requirements_written: REQUIREMENTS.md written
-```
-
-Skip this journal line whenever the file itself was skipped.
+If the user's opening request (or a Phase 1 clarification) attaches an image -- a
+hand-drawn sketch, a photo of the object to be fitted, an annotated screenshot -- copy
+it into a `sketches/` directory at the project root before the request_log `initial`
+entry is written, named `<slug>-<ts>.<ext>` (a short slug from the request text, or
+`sketch` if none is obvious; `ts` is the entry's timestamp with `:` replaced by `-`).
+The copied repo-relative path goes into that entry's `images` field, and the same path
+is named inline in the approved reformulation. This is the same rule
+`skill/phase3_build.md` applies to an image attached to a mid-build correction -- it
+covers the `initial` entry too.

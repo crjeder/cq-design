@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "Flat mounting plate with four screw bosses on a rectangular pattern",
+  "intent": "A flat rectangular mounting plate with four cylindrical screw bosses standing proud of the top face on a symmetric rectangular pattern, each bored for a machine screw. Plate underside prints flat on the bed.",
   "parts": [
     {
       "id": "boss_plate",

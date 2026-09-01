@@ -64,12 +64,11 @@ untouched. Skip this step entirely when planning added nothing new -- which is t
 common case, since almost every sourced measurement was already captured at the
 checkpoint.
 
-**Update `REQUIREMENTS.md`** the same way, in place, only if planning introduced or
-changed a requirement -- a new fit type, a resolved open question, a constraint that
-changed -- not already captured when Phase 1 wrote it
-(`skill/phase1_requirements.md`). Amend the relevant section; do not regenerate the
-file. Skip when Phase 1 already skipped the file entirely, or when planning added
-nothing new to it.
+**Carry `intent` forward unchanged.** The approved reformulation Phase 1 wrote is
+copied verbatim into the plan's `intent` (`prompts/planning.md` rule 16) and is not
+authored, paraphrased, or amended here. If the decomposition would build something the
+approved `intent` does not describe, revise the decomposition -- never edit `intent` to
+match it. Only an approved correction rewrites `intent`, in Phase 3.
 
 This file is separate from each part script's own internal `PARAMETERS` block (which
 holds resolved/derived geometry values, not necessarily the raw sourced ones) -- and

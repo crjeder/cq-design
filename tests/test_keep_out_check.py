@@ -233,7 +233,10 @@ def test_gate_surfaces_keep_out_violation(tmp_path, good_script):
     _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))
     plan = {
         "schema_version": 1,
-        "intent": "keep-out gate fixture",
+        "intent": (
+            "Keep-out gate fixture: two boxes with a declared clearance zone between them, "
+            "assembled as planned to exercise the whole-model keep-out check."
+        ),
         "printer": "Bambu P1S",
         "material": "PLA",
         "nozzle_mm": 0.4,
