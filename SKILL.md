@@ -175,8 +175,12 @@ while `request_log` keeps the round-by-round history.
 Every CadQuery script the pipeline produces must: begin with a flat
 `from blocks import <function>` per block in `blocks_needed` (never import submodules);
 define all dimensions in a `PARAMETERS` block at the top (no magic numbers); assign the
-final geometry to a top-level `result`; and never call `cq.exporters.export()` (the
-wrapper handles export).
+final geometry to a top-level `result`; never call `cq.exporters.export()` (the
+wrapper handles export); and build a print-in-place revolute knuckle hinge via
+`blocks.joints.pin_hinge` (which seats its leaves at the knuckle tangent) rather than
+hand-rolling knuckle/riser primitives -- hand-roll only when the geometry is
+incompatible with `pin_hinge`'s two-leaf shape, and then declare the join with
+`verify_seated` (below).
 
 **Reconciling hand-edited PARAMETERS.** If a user (or Claude) tweaks a part script's
 `PARAMETERS` block directly after the plan was built, `BUILD_PLAN.json` goes stale --
@@ -198,8 +202,13 @@ mating area with `verify_backed` when a feature (standoff/boss/rib/ear) must be 
 backed by a specific named neighboring feature at one face — catches the recurring
 mistake of reusing a centerline coordinate as a boundary, off by half the neighbor's
 thickness; don't use it for a feature that legitimately overflows its base on other axes.
+Declare a tangent seat with `verify_seated(support, boss, axis, label)` when a
+hand-rolled flat body seats against a round feature (knuckle/boss/cylinder) — catches
+placing the flat body's mating face at the round feature's center coordinate instead of
+its tangent (`pivot +/- radius`); not needed when the join comes from `pin_hinge`.
 A failed assertion crashes the script; the wrapper reports it as a typed `silent_boolean`
-/ `feature_overflow` / `workplane_drift` / `unbacked_mate` error naming the `label`.
+/ `feature_overflow` / `workplane_drift` / `unbacked_mate` / `boss_swallowed` error
+naming the `label`.
 
 **Geometry contract for scratch parts.** A part with no matching archetype and no
 matching block (raw fluent CadQuery) must open with a named construction plan: each
@@ -240,6 +249,7 @@ cryptic OCC error or a failed visual review several steps later.
 | `workplane_drift` | Origin drifted (`check_workplane`): re-anchor with `.workplane(origin=...)` (`label`) |
 | `stage_mismatch` | Construction stage bbox/volume off-plan (`verify_stage`): fix the stage named in `label`, not a later one |
 | `unbacked_mate` | Feature's mating face not fully backed (`verify_backed`): extend the named neighbor to cover the face (`label`) |
+| `boss_swallowed` | Flat support seated at a round boss's center, not its tangent (`verify_seated`): offset the mating face by the boss radius, or route through `pin_hinge` (`label`) |
 | `thin_wall` | Below `wall_min_mm`: increase wall or reduce cutout |
 | `overhang_exceeded` | Exceeds `overhang_max_deg`: chamfer, redesign, or warn |
 | `visual_mismatch` | Checklist question answered "no": name it/the view, fix the parameter/geometry (`skill/phase3_build.md` Step 4) |

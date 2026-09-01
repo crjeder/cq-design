@@ -37,6 +37,11 @@ implicate; you have full planning context, so a blind restart discards it.
    plan's `placement` field. Report nothing when your authored geometry already sits in
    the stated pose, or when the part specification says this part is mate-chained (its
    pose is derived, not authored).
+7. Build a print-in-place revolute knuckle hinge via `blocks.joints.pin_hinge` (it
+   already seats its leaves at the knuckle tangent), not hand-rolled from primitives.
+   Only hand-roll the knuckle when the part's geometry is incompatible with
+   `pin_hinge`'s two-leaf shape -- and then declare the flat-support-to-round-knuckle
+   join with `verify_seated` (see below).
 
 ### Do not:
 1. call cq.exporters.export() — the runner handles export
@@ -172,11 +177,12 @@ surfaces far downstream. Guard the risky ones with `cq_verify` (importable exact
 `blocks`); each call returns its post-operation argument, so it sits inline:
 
 ```python
-from cq_verify import verify_boolean, check_workplane, verify_backed
+from cq_verify import verify_boolean, check_workplane, verify_backed, verify_seated
 
 result = verify_boolean(body, body.cut(slot), "cut", "vent_slot")   # off-center cut
 wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))     # after a .center()
 standoff = verify_backed(leg, standoff, "-z", "standoff_to_leg")    # mating area check
+knuckle = verify_seated(riser, knuckle, "-z", "hinge_ear")          # tangent-seat check
 ```
 
 - **Wrap a boolean** in `verify_boolean(before, after, op, label)` when a silent no-op is
@@ -197,9 +203,18 @@ standoff = verify_backed(leg, standoff, "-z", "standoff_to_leg")    # mating are
   feature must reach -- off by half the first feature's thickness. Do NOT use it for a
   feature that legitimately extends past its base on other axes (e.g. a post rising off
   its base); that overflow is expected, not a mating-area case.
+- **Declare a tangent seat** with `verify_seated(support, boss, axis, label)` when a
+  hand-rolled flat body (a hinge riser, a rib, a leg) seats against a **round** feature
+  (a knuckle, boss, or cylinder) -- `axis` is the signed direction from the round
+  feature toward the flat one. This catches the mistake where the flat body's mating
+  face is placed at the round feature's **center** coordinate (the pivot literal)
+  instead of its **tangent** (`pivot +/- radius`), leaving the boss half-buried. Not
+  needed when the join comes from a block that already seats at the tangent (e.g.
+  `blocks.joints.pin_hinge`).
 
 A failed assertion crashes the script and is reported as a typed `silent_boolean` /
-`feature_overflow` / `workplane_drift` / `unbacked_mate` error naming the `label`.
+`feature_overflow` / `workplane_drift` / `unbacked_mate` / `boss_swallowed` error
+naming the `label`.
 
 ### Construction plan for scratch geometry
 
