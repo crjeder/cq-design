@@ -18,7 +18,7 @@ All completed tasks are now in `documentation/DONE.md`.
 
 ## V1 defects
 
-- [ ] Implement typed `request_log` entries -- [details](#typed-request_log-entries)
+- [x] Implement typed `request_log` entries -- [details](#typed-request_log-entries)
 
 ### From C5 Phone-Holder session (`session-export-1786538430013.zip` in `./debug`)
 - [ ] Compass-language mixup in orientation reasoning -- [details](#c5-compass-language)
@@ -29,19 +29,20 @@ All completed tasks are now in `documentation/DONE.md`.
 - [ ] LLM claimed "no support needed" despite a nonzero support score -- [details](#silica-tray-support-claim)
 - [ ] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- [details](#silica-tray-re-export-coincidence)
 
-### From Hitstertower
+### From Hitster Tower
 - [ ] Missed the intent of the bottom finger-access opening; over-supported the south wall -- [details](#hitstertower-oversupport)
 
 ### Independent
 - [x] split `info` directory
 - [ ] code quality audit
 - [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
+- [ ] Intent-based prompt reformulation -- [details](#intent-based-prompt-reformulation)
+- [ ] Export a project-regeneration prompt for a fresh LLM session -- [details](#project-regeneration-prompt)
 
 # Tasks for next version
 
 - [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
-- [ ] Export a project-regeneration prompt for a fresh LLM session -- [details](#project-regeneration-prompt)
 - [ ] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.py` -- [details](#engineering-rationale-consolidation)
 - [ ] Read back parameters on any user-initiated planning/authoring round
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
@@ -62,7 +63,6 @@ All completed tasks are now in `documentation/DONE.md`.
 - [ ] HitsterTower: dovetail-corner-joint disassembly form fell outside the joints schema's single-rooted tree -- [details](#hitstertower-dovetail-form)
 - [ ] Deduplicate pairwise-mirrored parts into one script/STL -- [details](#mirrored-parts-dedup)
 - [ ] A minimal deliverable for a parametric part -- just the code, not the full `/lib`
-- [ ] Intent-based prompt reformulation -- [details](#intent-based-prompt-reformulation)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
