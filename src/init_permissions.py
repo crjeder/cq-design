@@ -23,6 +23,7 @@ import sys
 from typing import Any
 
 _PERMISSIONS_PATH = os.path.join(os.path.dirname(__file__), "skill_permissions.json")
+_SESSION_COST_PATH = os.path.join(os.path.dirname(__file__), "session_cost.py")
 
 
 def load_canonical() -> dict[str, Any]:
@@ -70,6 +71,59 @@ def scaffold_directories(working_dir: str) -> list[str]:
             os.makedirs(path)
             created.append(name)
     return created
+
+
+def _resolved_hooks() -> dict[str, Any]:
+    """The canonical `hooks` block with `{session_cost_path}` resolved to the
+    absolute session_cost.py path. Keys starting with `_` (comments) are dropped."""
+    hooks = load_canonical().get("hooks", {})
+    resolved: dict[str, Any] = {}
+    for event, groups in hooks.items():
+        if event.startswith("_"):
+            continue
+        out_groups = []
+        for group in groups:
+            out_hooks = [
+                {**h, "command": h["command"].replace("{session_cost_path}", _SESSION_COST_PATH)}
+                if "command" in h
+                else h
+                for h in group.get("hooks", [])
+            ]
+            out_groups.append({**group, "hooks": out_hooks})
+        resolved[event] = out_groups
+    return resolved
+
+
+def merge_hooks(working_dir: str) -> bool:
+    """Seed the session-cost hook into working_dir's settings.local.json.
+
+    Additive and idempotent: an event's existing hook entries are never removed
+    or reordered, and the session-cost command is added only when no equivalent
+    entry (matched loosely on `session_cost.py`) is already present. Returns True
+    only when something was added.
+    """
+    resolved = _resolved_hooks()
+    if not resolved:
+        return False
+    path = settings_path(working_dir)
+    settings = _load_settings(path)
+    hooks = settings.setdefault("hooks", {})
+
+    changed = False
+    for event, groups in resolved.items():
+        existing = hooks.setdefault(event, [])
+        present = " ".join(h.get("command", "") for g in existing for h in g.get("hooks", []))
+        if "session_cost.py" in present:
+            continue
+        existing.extend(groups)
+        changed = True
+
+    if changed:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+            f.write("\n")
+    return changed
 
 
 def merge_permissions(working_dir: str) -> list[str]:
@@ -126,6 +180,9 @@ def main() -> int:
             print(f"  {pattern}")
     else:
         print(f"No changes; all patterns already present in {settings_path(args.dir)}")
+
+    if merge_hooks(args.dir):
+        print(f"Seeded the session-cost Stop hook (build/cost.json) in {settings_path(args.dir)}")
 
     created = scaffold_directories(args.dir)
     if created:
