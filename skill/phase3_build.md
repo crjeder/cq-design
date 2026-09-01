@@ -974,6 +974,34 @@ Select blocks in `blocks_needed` during planning. When generating part scripts, 
 | `dovetail_groove` | Dovetail slot cut into a body top edge for a sliding lid. Subtract from the body. |
 | `dovetail_tongue` | Sliding lid panel that mates with `dovetail_groove`. The tongue IS the lid. |
 
+### Gridfinity (`src/blocks/gridfinity.py`)
+
+**Read `reference/gridfinity.md` in full before authoring any part that uses these** --
+the grid pitch, foot profile, and stacking clearances are a published standard, and a part
+that misses them by a millimetre fits nothing. Never re-derive the profile by hand.
+
+| Block | Use |
+|-------|-----|
+| `gridfinity_bin` | Complete bin: feet, walls, cavity, stacking lip, plus optional dividers, label shelf, scoop, and magnet/screw pockets. `solid=True` gives a blank to cut custom tool pockets into. |
+| `gridfinity_baseplate` | Complete baseplate: a grid of sockets bins drop into, tiling on the 42 mm pitch. |
+| `gridfinity_feet` | Just the feet, to union under a custom body (which starts at Z = 4.75) so that body docks into a grid. |
+| `gridfinity_socket_cutter` | Just the sockets, to cut into a custom plate, drawer bottom, or tool-wall panel. |
+| `gridfinity_dimensions` / `gridfinity_units_for` | The numbers without geometry: a bin's outer size for the plan, or the smallest bin in units that holds an object. |
+
+The `gridfinity-bin` and `gridfinity-baseplate` archetypes (Step 1.5) wrap the first two
+directly; match them for any request naming Gridfinity. A part built on these blocks is
+checked against the standard automatically by the quality gate (`src/gridfinity_check.py`,
+auto-scoped to scripts that use a Gridfinity block); to run it on its own:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/gridfinity_check.py" \
+    --script build/<part_id>.py
+```
+
+Its `gridfinity_footprint` / `gridfinity_height` / `gridfinity_base_profile` /
+`gridfinity_mate` errors name the exact dimension that is off and by how much; treat them
+like the wrapper's typed errors (fix the parameter, re-run).
+
 ## Kinematic validation
 
 For an assembly whose parts are meant to move relative to each other (a hinge that

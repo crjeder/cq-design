@@ -85,6 +85,12 @@ gate, orange = main-session user interaction.
 | Part builder (x N) | `skill_config.json`'s `models.part_author` (default mid-tier, e.g. Sonnet; `"inline"` skips the spawn) | rendered `prompts/part.md` (already self-contained by design) | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
 | Implementation auditor | default (vision) | plan part entries + preview/section PNGs, NOT the scripts | per-question pass/fail with cited views | kills self-review bias - the author never grades its own homework |
 
+Remarks:
+- Research: lookup targets need to be researched and improved
+- Research: output is a correct and user validated, complete, consistent and coflict free user intent.
+- Planner, Builder: invariant is the user intent. any change to the intent starts over the outer loop (at research)
+- Auditor: compare agaist intent
+
 ## Design rules
 
 - **Draft and refine are one agent.** A separate refiner re-pays the whole

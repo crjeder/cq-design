@@ -484,6 +484,29 @@ def _run_feature_presence_stage(plan: dict, script_path: str) -> list[dict]:
     return run_feature_presence_check(plan, script_path)
 
 
+def _run_gridfinity_stage(script_path: str) -> list[dict]:
+    """Check Gridfinity conformance for a part built on the Gridfinity blocks (once,
+    outside the fix loop).
+
+    Auto-scoped: no-op unless the part script actually reaches for a Gridfinity block, so
+    ordinary parts never pay for it and a Gridfinity part cannot silently skip it. Grid,
+    height, foot-profile, and mating findings are blocking -- a part that misses the
+    standard does not fit anything, which no amount of print tuning fixes.
+    """
+    try:
+        with open(script_path, encoding="utf-8") as f:
+            source = f.read()
+    except OSError:
+        return []
+    if "gridfinity" not in source:
+        return []
+
+    from gridfinity_check import run_gridfinity_check
+
+    issues, _ = run_gridfinity_check(script_path)
+    return issues
+
+
 def _run_cosmetic_slope_stage(plan: dict, script_path: str, orientation: dict | None) -> list[dict]:
     """Report up-facing cosmetic stair-step area for a visual_quality part (advisory).
 
@@ -685,6 +708,8 @@ def run_gate(
         all_issues += _run_feature_presence_stage(plan, script_path)
         # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
         all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
+        # ---- Gridfinity conformance (Gridfinity parts only, once, outside the fix loop) ----
+        all_issues += _run_gridfinity_stage(script_path)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
 

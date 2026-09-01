@@ -22,5 +22,11 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | [x0pherl/partomatic](https://github.com/x0pherl/partomatic) | 10 | 2026-05 | **Low** | build123d, generic parametric-config utility rather than a parts catalogue. Low relevance to sourcing actual geometry blocks. |
 | [revarbat/BOSL](https://github.com/revarbat/BOSL) | 687 | 2023-02 | **Very Low** | OpenSCAD, superseded by BOSL2, stale. No reason to use over BOSL2. |
 | [CadQuery/awesome-cadquery](https://github.com/CadQuery/awesome-cadquery) | 181 | 2026-06 | **N/A** (index) | Curated link list, not a library — useful as a discovery starting point (surfaced most of the above), not a source of code. |
-| [phillipthelen/awesome-build123d](https://github.com/phillipthelen/awesome-build123d) | 89 | 2026-05 | **N/A** (index) | Same role for the build123d ecosystem. |
+| [phillipthelen/awesome-build123d](https://github.com/phillipthelen/awesome-build123d) | 89 | 2026-05 | **N/A** (index) | Same role for the build123d ecos
+| TraceParts / GrabCAD Open STEP Archives | | | high | **Standard Hardware Components.** Consuming vendor-neutral ISO 10303 (STEP) files is natively supported by CadQuery's underlying OpenCascade kernel. You lose parametric variation at runtime, but you gain exact, un-triangulated math representations for mates, fillets, and CNC work. |
+| FreeCAD Standard Parts Library (`Macro_PartsLibrary`) | | | high | **Fasteners & Bearings.** Because FreeCAD also uses the OpenCascade kernel, its internal geometries map 1:1 to CadQuery. Many FreeCAD catalog macros can either be exported directly to standard STEP or read via raw Python tables to reconstruct parts. |
+| OpenCascade Community Catalogs | | | high | **Core Geometric Primitives.** Native OpenCascade `.brep` file catalogs are fully open and can be directly loaded into CadQuery without any translations using `cq.Shape.cast(OCC.Core.BRepTools...)`. |
+| Misumi / McMaster-Carr Open Data | | | medium | **Industrial Hardware.** While hosted by commercial entities, their standardized STEP downloads are perfectly formatted. You can build a local cache folder and use a Python dictionary script to match part numbers to `importStep()` paths. |
+| https://github.com/adafruit/Adafruit_CAD_Parts | | | | **Adafruit products** | 
+
 
