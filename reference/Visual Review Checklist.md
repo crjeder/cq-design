@@ -56,6 +56,39 @@ element, each answered against the view that shows it (coordinate system: +Y nor
   screw bores) -- "Does it appear at the planned depth and position?" Answer against a
   section that crosses it; add `--extra-section` at the feature's position if none does.
 
+## Request conformance questions (generate from the scoped request_log)
+
+These check the render against **the user's own words**, not the plan — a plan can
+misread the request, and every other question in this bank measures conformance to
+that plan. The scoped request text is the part's `initial` `request_log` entry plus
+every entry scoped to this part (its typed `targets` name the part once those exist,
+otherwise every entry `request_log_search.py --query` matches for the part id, the
+part `description`, or an interface name). When `BUILD_PLAN.json` carries no
+`request_log`, generate **no** questions in this class and skip straight to the
+engineering rows.
+
+- One yes/no question per concrete placement or form claim in the scoped text —
+  "The request says `<verbatim phrase>`; does the render show that?" Answer against a
+  specific cited view, same view-citation rule as the visual rows.
+- Reference-frame phrases ("viewed from the south", "when the leg lies flat",
+  "the front face") are claims too: check the render honours the frame the user
+  stated, not a frame the plan assumed.
+- Only fault wording the render **visibly contradicts**. Unmet niceties, aesthetic
+  preferences, and anything already covered by a plan-derived question or an
+  engineering row are not request-conformance findings.
+
+**Severity.** A request-conformance question answered "no" is an **advisory**
+finding: reported and displayed to the user, grouped with the other advisories, but
+it does **not** fail the review, consume a retry, or enter a targeted fix prompt —
+UNLESS the same discrepancy also answers a plan-derived question or universal
+invariant "no", in which case it is a blocking `visual_mismatch` exactly as any
+other failed question, and the contradicted request phrase is cited in that finding
+as supporting evidence.
+
+**Promotion.** Making this class blocking-by-default is out of scope until
+`evals/run_evals.py` evidence from deliberately under-specified eval cases shows the
+promotion catches real misreads without a net increase in wasted retries.
+
 ## Engineering rows (generate for load-bearing parts)
 
 Generated from the same trigger as the ENGINEERING RATIONALE requirement

@@ -37,6 +37,17 @@ in the build — run `python src/request_log_search.py BUILD_PLAN.json --query <
 "read the render before re-rendering" discipline applied to a user-supplied sketch
 instead of a generated preview.
 
+**Scoping to a part (for the request-conformance review bar).** Both review paths —
+the progressive self-review and the Implementation audit — check the render against
+the user's own words as well as the plan. The scoped request text for a part is:
+always its `initial` `request_log` entry (it holds the global reference frame), plus
+every entry scoped to that part. An entry is scoped to the part when its typed
+`targets` name the part (once typed `request_log` entries exist); absent typed
+targets, run `request_log_search.py BUILD_PLAN.json --query "<term>"` for the part
+id, the part `description`, and each of the part's interface names, and take the
+union of the matches. When the plan has no `request_log`, the bar is skipped
+entirely.
+
 ## Vocabulary
 
 The same rules as `skill/phase2_planning.md`'s Vocabulary section apply to every
@@ -409,7 +420,7 @@ Handle geometry errors first, then decide what this attempt returns.
 
 1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the review for this attempt. Blocking types include `disconnected_body` (a union that split into separate solids — union or bridge the pieces so they fuse into one component).
 2. **`success: true` AND no blocking errors** →
-   - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union) plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not). Per the checklist's coverage-first rule, also report any other discrepancy noticed, however low-confidence or minor, as an advisory finding (confidence + severity) — it does not fail a question or consume a retry.
+   - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union), the request-conformance questions from the scoped `request_log` text (the `initial` entry plus this part's entries — see the Request log section's "Scoping to a part"; skip this class when the plan has no `request_log`), plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not). A request-conformance question answered "no" is an **advisory** finding (cite the contradicted request phrase and the view) that does not fail the review or consume a retry, unless the same discrepancy also answers a plan-derived question or universal invariant "no" — then it is a blocking `visual_mismatch` like any other. Per the checklist's coverage-first rule, also report any other discrepancy noticed, however low-confidence or minor, as an advisory finding (confidence + severity) — it does not fail a question or consume a retry.
      - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against), and any advisory findings grouped separately under their own heading, not mixed with the checklist. Append `- phase3/part_accepted:<part_id>: progressive review passed` to `build/journal.md` (see `skill/resume.md`). Advance to next part.
      - **Any question answered "no"** AND attempt < 3 → record a `visual_mismatch` finding naming the failed question, the cited view, and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3). Advisory findings from this attempt are not folded into the fix.
    - **Autonomous (builder agent):** this attempt is accepted. Record `geometry.bbox` and the preview/section/detail paths, then return the **Builder return contract** (`status: passed`) without judging the render itself — the **Implementation audit** below, run by a fresh-context agent that never saw the script, is the acceptance bar for an autonomous part.
@@ -514,16 +525,22 @@ passed are not a review of the render; this audit is the real acceptance bar for
 autonomous part.
 
 1. **Spawn** one auditor agent per accepted part. Its prompt contains: the part's full
-   `BUILD_PLAN.json` entry (dimensions, interfaces, blocks_needed, unions) and the
-   preview/section/detail image paths from the Builder return contract. It does **not**
-   receive the part script — the auditor judges the render against the plan's intent
-   with no chance to rationalize from the code that produced it.
+   `BUILD_PLAN.json` entry (dimensions, interfaces, blocks_needed, unions), the
+   preview/section/detail image paths from the Builder return contract, and the
+   **scoped `request_log` text** for the part (the `initial` entry plus the per-part
+   entries — see the Request log section's "Scoping to a part"). It does **not**
+   receive the part script — adding the request text does not relax that rule; the
+   auditor judges the render against the plan's intent *and the user's own words* with
+   no chance to rationalize from the code that produced it. When the plan has no
+   `request_log`, no request text is passed and the request-conformance bar is skipped.
 2. **Checklist.** The auditor applies `reference/Visual Review Checklist.md` exactly as
    Step 4's progressive-mode review would: one question per interface, block, and union,
-   plus the universal invariants (single connected body, flat bed face, proportions,
-   shape match, authored orientation), each answered against a specific cited view.
-   Per the checklist's coverage-first rule, report every discrepancy observed — not just
-   the ones that fail a question.
+   the request-conformance questions generated from the scoped `request_log` text
+   ("does the render satisfy the user's own words?"), plus the universal invariants
+   (single connected body, flat bed face, proportions, shape match, authored
+   orientation), each answered against a specific cited view. Per the checklist's
+   coverage-first rule, report every discrepancy observed — not just the ones that fail
+   a question.
 3. **Return contract:**
 
 ```json
@@ -544,6 +561,14 @@ as before). `findings` holds every other observed discrepancy — low-confidence
 — each carrying its own `confidence` and `severity: advisory`. An advisory finding does
 not fail the audit and is never folded into the fix prompt in step 5 below; it is
 reported to the user alongside the accepted part.
+
+A **request-conformance mismatch** (the render contradicts the scoped `request_log`
+text) is an advisory `finding` — cite the contradicted request phrase and the view —
+and by itself keeps `verdict: pass`, surfaced to the user without resuming the
+builder. It becomes a blocking `failed_questions` entry **only** when the same
+discrepancy also answers a plan-derived question or universal invariant "no"; in that
+case cite the request phrase in that entry as supporting evidence and resume the
+builder as normal.
 4. **Pass** (`failed_questions` empty) → the part is finally accepted. Append
    `- phase3/part_accepted:<part_id>: implementation audit passed` to
    `build/journal.md` (see `skill/resume.md`). Advance to the next part, surfacing any
