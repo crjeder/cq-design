@@ -97,7 +97,8 @@ or calling any script.
 | `src/minimal_cutout_search.py` | Bisects a part-script parameter to the minimal value clearing a kinematics entry's required range |
 | `src/convert_build123d.py` | Phase 0 sourcing aid: build123d -> CadQuery conversion |
 | `src/cq_compat.py` | Compatibility shim neutralizing a `cq_warehouse` shape-copy patch |
-| `src/init_permissions.py` | Seeds a working directory's `.claude/settings.local.json` |
+| `src/init_permissions.py` | Seeds a working directory's `.claude/settings.local.json` (permission patterns + the session-cost `Stop` hook) |
+| `src/session_cost.py` | Records billed token cost from the session transcript -> `build/cost.json` (hook-driven, stdlib only) |
 | `evals/run_evals.py` | Eval harness (score-only by default; `--generate` opt-in) |
 | `src/measure_stl.py` | Geometry feature extractor (trimesh + numpy) |
 | `src/preview.py` | CadQuery tessellation + matplotlib preview renderer |
@@ -129,6 +130,10 @@ or calling any script.
 - **Block imports**: Always import from `blocks` (the package), not from individual
   submodules. Claude writes the `from blocks import ...` lines directly when generating
   part scripts (no automatic import injection).
+- **`build/cost.json`**: written by the `session_cost.py` `Stop` hook (seeded by
+  `init_permissions.py`), not by the pipeline. It is a cumulative billed-cost record
+  keyed by session id, safe to delete, and must not be bundled into `lib/` or a
+  deliverable. The eval scorecard reads it as a cost source; nothing else depends on it.
 
 ## File Layout
 
@@ -157,6 +162,7 @@ or calling any script.
     telemetry.py             # Append-only per-attempt log -> build/attempts.jsonl
                               # (build/journal.md is a milestone log the orchestrator appends to
                               # directly per skill/resume.md -- no dedicated script)
+    session_cost.py          # Session transcript -> billed token cost in build/cost.json (Stop hook)
     request_log_search.py    # Search BUILD_PLAN.json's request_log by keyword/kind
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer

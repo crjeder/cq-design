@@ -47,9 +47,17 @@ The scorecard SHALL report, per case and aggregated: first-shot success rate
 (fraction of parts whose first attempt passed), mean attempts-to-pass,
 symmetric Chamfer distance in mm between each produced mesh and its golden
 mesh (both meshes centered by bounding-box center; no rotation solving), and
-estimated cost per accepted part computed from telemetry `prompt_chars` and a
-`evals/model_prices.json` price table. The scorecard SHALL be emitted as JSON
+cost per accepted part. The scorecard SHALL be emitted as JSON
 and as human-readable markdown.
+
+Cost per case SHALL be a billed token cost when one was recorded, and an
+estimate otherwise. The runner SHALL prefer, in order: `<case>/cost.json` (the
+`claude -p` result envelope captured at generation), then
+`<case>/build/cost.json` (the session-cost record's `combined` total), then an
+estimate computed from telemetry `prompt_chars` and the `evals/model_prices.json`
+price table (input rate only, tokens ~ `prompt_chars / 4`). The scorecard SHALL
+record which source each case's cost came from. The `evals/model_prices.json`
+table SHALL provide an input and an output rate per model.
 
 Correspondence between a produced mesh and a golden mesh SHALL be established
 geometrically, not by part identifier. The runner SHALL enumerate a case's
@@ -121,7 +129,7 @@ appearing as a change in the metric.
 
 #### Scenario: Cost aggregates over all attempts
 - **WHEN** a part passed on attempt 3 with telemetry recording three prompt
-  sizes
+  sizes and no billed cost was recorded
 - **THEN** its cost contribution sums the estimated token cost of all three
   attempts, not only the passing one
 
@@ -129,6 +137,35 @@ appearing as a change in the metric.
 - **WHEN** a run directory lacks `build/attempts.jsonl`
 - **THEN** the runner still reports Chamfer metrics and marks attempt- and
   cost-based metrics as unavailable
+
+#### Scenario: Recorded billed cost is preferred over the estimate
+- **WHEN** a case run directory contains `cost.json` with a `total_cost_usd`
+- **THEN** the scorecard uses that value for the case's cost and marks the
+  case's cost source as recorded, not the `prompt_chars` estimate
+
+#### Scenario: Estimate is used when nothing was recorded
+- **WHEN** a case run directory has telemetry but neither `cost.json` nor
+  `build/cost.json`
+- **THEN** the scorecard falls back to the `prompt_chars` estimate and marks the
+  case's cost source as an estimate
+
+### Requirement: Generation captures the result envelope
+When `run_evals.py` generates a case (`--generate`), it SHALL invoke `claude -p`
+with `--output-format json`, capture the result envelope, and write the case's
+`session_id`, `num_turns`, `duration_ms`, `total_cost_usd`, and token `usage`
+block to `<case>/cost.json`. A generation that times out or whose output cannot
+be parsed SHALL leave `<case>/cost.json` unwritten rather than write a partial or
+guessed record.
+
+#### Scenario: Envelope written on a successful generation
+- **WHEN** a case is generated and `claude -p` returns a JSON result envelope
+- **THEN** `<case>/cost.json` exists and contains `total_cost_usd` and the
+  `usage` token counts from that envelope
+
+#### Scenario: Timed-out generation writes no cost file
+- **WHEN** a case generation times out
+- **THEN** `<case>/cost.json` is not created, and scoring falls back to
+  `build/cost.json` or the estimate
 
 ### Requirement: Eval discipline in the skill
 SKILL.md SHALL instruct that the eval suite be run (score mode over a fresh or
