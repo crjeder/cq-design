@@ -10,7 +10,11 @@ import pytest
 SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
 
-from plan_validate import check_block_thinness, validate_plan  # noqa: E402
+from plan_validate import (  # noqa: E402
+    check_block_thinness,
+    check_shared_interfaces,
+    validate_plan,
+)
 
 VALID_PLAN: dict[str, Any] = {
     "schema_version": 1,
@@ -997,3 +1001,65 @@ def test_unknown_archetype_rejected(plan_file):
 def test_plan_without_archetypes_stays_valid(plan_file):
     # VALID_PLAN carries no `archetype` field on any part.
     assert validate_plan(plan_file(VALID_PLAN)) == []
+
+
+# ---- shared interface names without a joints entry ----------------------------
+
+
+def _bore(pid_plan, pid):
+    """Give part `pid` a named pivot_bore interface."""
+    for part in pid_plan["parts"]:
+        if part["id"] == pid:
+            part["interfaces"] = [{"type": "pin_bore", "name": "pivot_bore"}]
+    return pid_plan
+
+
+def test_shared_interface_name_without_joint_flagged():
+    """The C5 case: one bore named on two parts nothing links."""
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _bore(plan, "door")
+    _bore(plan, "wall")
+    findings = check_shared_interfaces(plan)
+    assert len(findings) == 1
+    assert "pivot_bore" in findings[0]
+    assert "door" in findings[0] and "wall" in findings[0]
+
+
+def test_shared_interface_name_with_joint_not_flagged():
+    plan = _joints_plan()
+    _bore(plan, "door")
+    _bore(plan, "wall")
+    assert check_shared_interfaces(plan) == []
+
+
+def test_single_part_and_unnamed_interfaces_not_flagged():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _bore(plan, "door")
+    plan["parts"][1]["interfaces"] = [{"type": "pin_bore"}]
+    assert check_shared_interfaces(plan) == []
+
+
+def test_third_holder_flagged_when_pair_is_linked():
+    plan = _joints_plan()
+    plan["parts"].append(_part("strut"))
+    for pid in ("door", "wall", "strut"):
+        _bore(plan, pid)
+    findings = check_shared_interfaces(plan)
+    assert len(findings) == 1
+    assert "strut" in findings[0]
+    assert "door" not in findings[0] and "wall" not in findings[0]
+
+
+def test_shared_interface_finding_does_not_invalidate_plan(plan_file):
+    """Advisory only -- it must not reach the gate's plan_invalid path."""
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _bore(plan, "door")
+    _bore(plan, "wall")
+    assert check_shared_interfaces(plan)
+    assert validate_plan(plan_file(plan)) == []
