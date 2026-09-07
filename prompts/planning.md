@@ -141,7 +141,12 @@ adhesive). Content that fits none of these three categories does not belong in
    own part's authored frame, identity when omitted). Exactly one part is `root_part`,
    anchored by its own author-supplied `placement` (identity when the author writes
    none); every other part reached via a `joints` entry gets its assembled pose DERIVED
-   from the mate chain and MUST NOT declare its own `placement`.
+   from the mate chain and MUST NOT declare its own `placement`. Naming one
+   `interfaces[].name` on two parts declares one shared physical feature; with no
+   `joints` entry between those parts, `plan_validate.py` reports a shared-interface
+   finding, because the feature's numbers are then typed independently into each part
+   and re-diverge on every correction round. Route the mate through `joints` so the
+   value has a single source (`joints[].params`) and the mated part's pose is derived.
 
 8. **Declare each part's goal pose in the shared assembled frame as `pose_intent`, not
    as a transform.** Do not author `parts[].placement` -- the part author builds the

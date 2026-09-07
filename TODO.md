@@ -23,7 +23,7 @@ All completed tasks are now in `documentation/DONE.md`.
 ### From C5 Phone-Holder session (`session-export-1786538430013.zip` in `./debug`)
 - [ ] Compass-language mixup in orientation reasoning -- [details](#c5-compass-language)
 - [ ] Hinge ear: primitive placed center-aligned to another part's edge -- [details](#c5-hinge-ear-center-vs-edge)
-- [ ] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- investigated, fix proposed in `openspec/changes/shared-interface-derivation/` -- [details](#c5-knuckle-pivot-ping-pong)
+- [ ] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- investigated; plan-time shared-interface finding implemented (folded-pose assertion still open) -- [details](#c5-knuckle-pivot-ping-pong)
 
 ### From Silica Tray session (`session-export-1786620780455.zip`)
 - [ ] LLM claimed "no support needed" despite a nonzero support score -- [details](#silica-tray-support-claim)
@@ -283,13 +283,13 @@ same physical bore as an `interfaces[]` entry on both parts, `plan_validate.py`
 explicitly permits the same interface `name` on two parts ("the part id
 disambiguates them"), and `feature_presence_check.py` asserts each part's
 `position_mm` only against *its own* authored frame, so two independently-typed
-copies of one bore both pass. Proposed fix:
-`openspec/changes/shared-interface-derivation/` -- a plan-time advisory finding
-(the `check_block_thinness` / `check_deferred_axis_arms` pattern in
-`plan_validate.py`, printed after `BUILD_PLAN OK`, not a hard error) when one
-interface `name` appears on two parts that no `joints` entry links.
+copies of one bore both pass. Fix (implemented,
+`openspec/changes/archive/2026-09-07-shared-interface-derivation/`): a plan-time advisory finding
+(`plan_validate.check_shared_interfaces`, printed after `BUILD_PLAN OK`, not a
+hard error) when one interface `name` appears on two parts that no `joints` entry
+links.
 
-Not proposed, and still open: the folded-pose constraint itself. "when the leg
+Still open: the folded-pose constraint itself. "when the leg
 lies flat on the front plate" is a coincidence assertion (two bores coaxial) at
 a pose that is not any part's authoring pose. `kinematic_check.py` sweeps for
 interference and range, not for feature coincidence at a pose, so the assertion
@@ -298,7 +298,7 @@ transcript ("that requires sin(theta) = 2, which is impossible") and then got
 re-derived differently each round. Cheapest future home for it: an assertion on
 an existing `kinematics` entry evaluated at its `stop_on_contact` pose, reusing
 `kinematic_check.iter_poses`. Deferred -- it depends on the plan carrying a
-`kinematics` entry at all, which is what the proposed advisory nudges toward.
+`kinematics` entry at all, which is what the advisory nudges toward.
 
 ### Silica Tray support claim
 LLM claims "no support needed" despite "support score 654.1" which might be
