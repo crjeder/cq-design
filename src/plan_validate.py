@@ -547,6 +547,55 @@ def check_deferred_axis_arms(
     return findings
 
 
+def check_shared_interfaces(plan: dict[str, Any]) -> list[str]:
+    """Advisory: one `interfaces[].name` held by parts no `joints` entry links.
+
+    Two parts naming one feature with the same agreed vocabulary word are declaring
+    one physical mate. Routed through `joints`, the pair's numbers live once in
+    `joints[].params` and the second part's pose is derived by `mate_chain.py`;
+    declared as two `interfaces[]` entries instead, they are two independently typed
+    literals that agree only by convention -- the C5 cradle/plate `PIVOT_Z`, which
+    re-diverged every correction round (see TODO.md). Advisory, not an error: a
+    shared vocabulary word for two genuinely independent features is legitimate.
+    Unnamed interfaces are skipped.
+    """
+    holders: dict[str, list[str]] = {}
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        for interface in part.get("interfaces", []):
+            name = interface.get("name")
+            if name is not None and pid not in holders.setdefault(name, []):
+                holders[name].append(pid)
+
+    linked = {
+        frozenset(m.get("part") for m in joint.get("members", []))
+        for joint in plan.get("joints", [])
+    }
+
+    findings: list[str] = []
+    for name, parts in holders.items():
+        if len(parts) < 2:
+            continue
+        # Parts this name links to no other holder of it. With a joint covering one
+        # pair, only the remaining holders are still independently typed.
+        unlinked = [
+            pid
+            for pid in parts
+            if not any(frozenset((pid, other)) in linked for other in parts if other != pid)
+        ]
+        if not unlinked:
+            continue
+        reported = parts if len(unlinked) == len(parts) else unlinked
+        findings.append(
+            f"Interface '{name}' is declared on {', '.join(repr(p) for p in reported)} "
+            "with no joints entry linking them; a shared mate belongs in `joints` so "
+            "its value has a single source and the mated part's pose is derived "
+            "(mate_chain.py), instead of the same literal being typed into each part"
+        )
+
+    return findings
+
+
 def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     """Flag blocks whose smallest declared extent is below the wall minimum.
 
@@ -611,6 +660,12 @@ def main():
     if deferred:
         print(f"\nDeferred axis-arm findings ({len(deferred)}):")
         for f in deferred:
+            print(f"  - {f}")
+
+    shared = check_shared_interfaces(plan)
+    if shared:
+        print(f"\nShared-interface findings ({len(shared)}):")
+        for f in shared:
             print(f"  - {f}")
 
 
