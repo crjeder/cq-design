@@ -36,8 +36,8 @@ All completed tasks are now in `documentation/DONE.md`.
 - [x] split `info` directory
 - [ ] code quality audit
 - [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
-- [ ] Intent-based prompt reformulation -- [details](#intent-based-prompt-reformulation)
-- [ ] Export a project-regeneration prompt for a fresh LLM session -- [details](#project-regeneration-prompt)
+- [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](#intent-based-prompt-reformulation)
+- [x] Export a project-regeneration prompt for a fresh LLM session -- DONE: `src/regen_prompt.py` writes `REGENERATE.md` at Phase 4 delivery -- [details](#project-regeneration-prompt)
 
 # Tasks for next version
 
@@ -323,6 +323,15 @@ from scratch with a new LLM session (improved LLM, new skill, other skill,
 etc). The prompt must include the latest changes, user intent, all
 user-provided measurements, drawings and all other artifacts.
 
+DONE. `src/regen_prompt.py` (stdlib only) serializes the approved `intent`,
+the verbatim `request_log` (with each entry's `level`/`targets`/`images`),
+`parameters.py` inlined whole, the `sketches/` file list, the print target,
+and the previous parts/joints decomposition labelled reference-only, into
+`REGENERATE.md`. Phase 4 step 6 runs it on every delivery, so the file always
+reflects the latest corrections (`intent` is rewritten per correction by
+Phase 3's intent-rewrite rule). Images cannot be inlined -- the prompt lists
+their paths and tells the user to re-attach them.
+
 ### Engineering rationale consolidation
 ENGINEERING RATIONALE etc. in `BUILD_PLAN.py`? Now it's spread all over the
 source files.
@@ -519,6 +528,13 @@ Same artifact as the re-generation prompt above ([Project regeneration
 prompt](#project-regeneration-prompt)) -- see
 `documentation/intent_recognition.md` item 4
 ([Canonical intent restatement](#canonical-intent-restatement)).
+
+DONE. The reformulation itself is `BUILD_PLAN.json`'s `intent`: written and
+approved at the Phase 1 exit checkpoint, copied verbatim by Phase 2, rewritten
+in place whenever a Phase 3 correction changes the design, and used as the
+request-conformance bar in review. Delivered by
+`openspec/changes/approved-intent-reformulation/`; the export half is the
+regeneration prompt above.
 
 ### Intent as invariant
 User intent as invariant over the generation loops (there is no invariant

@@ -93,6 +93,7 @@ or calling any script.
 | `src/feature_presence_check.py` | Per-part `interfaces[]` position assertion |
 | `src/telemetry.py` | Append-only per-attempt log -> `build/attempts.jsonl` |
 | `src/request_log_search.py` | Search `BUILD_PLAN.json`'s `request_log` by keyword/kind |
+| `src/regen_prompt.py` | Export `REGENERATE.md`: a self-contained prompt that regenerates the project in a fresh session |
 | `src/print_orientation.py` | Computes bed-relative print orientation by minimizing support/overhang cost |
 | `src/minimal_cutout_search.py` | Bisects a part-script parameter to the minimal value clearing a kinematics entry's required range |
 | `src/convert_build123d.py` | Phase 0 sourcing aid: build123d -> CadQuery conversion |
@@ -164,6 +165,7 @@ or calling any script.
                               # directly per skill/resume.md -- no dedicated script)
     session_cost.py          # Session transcript -> billed token cost in build/cost.json (Stop hook)
     request_log_search.py    # Search BUILD_PLAN.json's request_log by keyword/kind
+    regen_prompt.py          # BUILD_PLAN.json + parameters.py + sketches/ -> REGENERATE.md (Phase 4)
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer
     render_preview.py        # Subprocess entry point for preview.py
@@ -227,6 +229,7 @@ or calling any script.
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
     test_telemetry.py                # Attempt-log helper + CLI -- fast, no CadQuery
     test_request_log_search.py       # request_log filter helper + CLI -- fast, no CadQuery
+    test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # printer_profile.json schema + write-back -- fast, no CadQuery

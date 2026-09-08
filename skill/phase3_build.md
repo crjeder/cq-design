@@ -849,6 +849,7 @@ tooling, STL, 3MF, previews) lives elsewhere:
 ```
 <working directory>/
   README.md              # project overview + build instructions (Phase 4)
+  REGENERATE.md          # prompt to rebuild this design in a fresh session (Phase 4)
   parameters.py           # sourced real-world measurements (Phase 2, see below)
   model.3mf                # deliverable, print-oriented
   BUILD_PLAN.json

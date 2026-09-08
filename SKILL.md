@@ -101,11 +101,12 @@ alone.
 
 ## Phase 4: Deliver
 
-Report status, previews, the print recipe, and output file locations, and write
-`README.md`.
+Report status, previews, the print recipe, and output file locations, write
+`README.md`, and export `REGENERATE.md` (the fresh-session regeneration prompt) with
+`src/regen_prompt.py`.
 
 **Before starting Phase 4, read `skill/phase4_deliver.md` in full** — exact report
-contents and the `README.md` template.
+contents, the `README.md` template, and the `REGENERATE.md` export.
 
 ## /plan command
 
