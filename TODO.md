@@ -35,7 +35,7 @@ All completed tasks are now in `documentation/DONE.md`.
 ### Independent
 - [x] split `info` directory
 - [ ] code quality audit
-- [ ] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- `openspec/changes/consolidate-engineering-rationale/` -- [details](#engineering-rationale-consolidation)
+- [x] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- DONE: rationale now lives in `parts[].engineering_rationale`, written back in Phase 3 and checked by `plan_validate.py --require-rationale` (`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`) -- [details](#engineering-rationale-consolidation)
 - [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
 - [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](#intent-based-prompt-reformulation)
 - [x] Export a project-regeneration prompt for a fresh LLM session -- DONE: `src/regen_prompt.py` writes `REGENERATE.md` at Phase 4 delivery -- [details](#project-regeneration-prompt)
@@ -340,11 +340,10 @@ authoring paths (raw and archetype template) carry their own copy of the inserti
 rule and the load-bearing trigger list, and it is absent from `README.md` /
 `REGENERATE.md`, which are rendered from `BUILD_PLAN.json`.
 
-Promoted to V1 on 2026-09-08: this is the one design-critical artefact with no
-mechanical check, not a new capability. Change:
-`openspec/changes/consolidate-engineering-rationale/` -- the rationale moves to
-`BUILD_PLAN.json`'s `parts[].engineering_rationale`, written back in Phase 3 and
-validated at the pre-export `plan_validate.py` run.
+DONE 2026-09-08: the rationale moves to `BUILD_PLAN.json`'s
+`parts[].engineering_rationale`, written back in Phase 3 and validated at the
+pre-export `plan_validate.py --require-rationale` run. Change:
+`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`.
 
 ### Context creep restructure
 Restructure to combat context creep. Reference: `ARCHITECTURE.md`. Options:
