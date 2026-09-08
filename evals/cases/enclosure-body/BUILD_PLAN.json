@@ -22,7 +22,8 @@
       ],
       "blocks_needed": [
         "hollow_box"
-      ]
+      ],
+      "engineering_rationale": "no load-bearing features (passive enclosure shell, no declared load)"
     }
   ],
   "constraints": {

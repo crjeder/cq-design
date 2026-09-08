@@ -300,15 +300,9 @@ known-good template for this part's shape:
    (added/removed features) -- preserving the template's existing `cq_verify` guards
    rather than stripping them. This replaces Step 2's from-scratch authoring for this part;
    Steps 2.5 onward (lint, validate, review) run unchanged against the resulting script.
-
-   **Add the ENGINEERING RATIONALE block.** A copied template has no rationale
-   section of its own (it was written once, generically, for no specific part's
-   parameters) -- the archetype path does not render `prompts/part.md`, so nothing
-   else inserts one. Apply the same trigger as `prompts/part.md`'s Engineering
-   rationale section (declared plan `load`, or `blocks_needed`/`archetype` in the
-   load-bearing set) to decide full vs. one-line form, then insert the section
-   between PARAMETERS and the geometry, evaluating the check against the
-   just-edited PARAMETERS values -- not the template's original defaults.
+   The engineering-rationale write-back below applies the same way regardless of which
+   path authored the script -- it targets the plan entry, not the script, so the
+   archetype path needs no rationale step of its own.
 4. **No match.** Fall back to raw authoring (Step 2 below) and state in one line why no
    archetype fit (e.g. "no archetype fits: this is a multi-cavity organizer tray, not a
    single enclosure/lid/bracket shape").
@@ -335,11 +329,12 @@ without a `unions` array keeps the single `result = <wp>` form (one union, id = 
 
 On retry attempts: review the error types and hints from the previous attempt, apply targeted fixes. Do not start over blindly — you have full planning context. Keep the fix inside what the reported error implicates: do not restructure, refactor, or rewrite parts of the script the error does not name, and do not take the retry as an opening to add features or guards the spec did not ask for.
 
-**Rationale survives retries.** A correction prompt never waives the ENGINEERING
-RATIONALE requirement (see `prompts/part.md`). If the fix changes a parameter that
-appears in the rationale's computed check, re-evaluate that check with the new value
-in the corrected script — don't leave a stale number that no longer matches the
-parameters it claims to check.
+**Rationale survives retries.** A correction prompt never waives the engineering-rationale
+requirement (see `prompts/part.md`). If the fix changes a parameter that appears in the
+part's `engineering_rationale.check`, re-evaluate that check with the new value and
+write the updated field back to `BUILD_PLAN.json` in the same round as the script fix —
+don't leave a stale number in the plan that no longer matches the parameters it claims
+to check.
 
 **Step 2.5 — Lint before validate**
 
@@ -641,6 +636,15 @@ not just in this one script. Two cases need no write:
 Announce the write-back to the user only when it replaces a differing proposal (silent
 when it confirms an existing value or leaves absence unchanged).
 
+## Engineering-rationale write-back
+
+Once a part is finally accepted (same trigger as the placement write-back above), write
+the rationale the author reported (contract rule 7 of `prompts/part.md`) into that part's
+`engineering_rationale` entry in `BUILD_PLAN.json` -- the object form (`load_path`,
+`worst_case_stress`, `check`) for a part meeting the load-bearing trigger, the string form
+otherwise. This applies identically whether the script came from Step 1.5's archetype
+match or Step 2's from-scratch authoring.
+
 ## Cross-part pitfall injection
 
 Before spawning the builder agent for part *k* (k > 1 in this session), scan this
@@ -812,13 +816,16 @@ Once every union has an accepted orientation, append one line to `build/journal.
 ## Model export
 
 Before exporting, re-run `plan_validate.py` against `BUILD_PLAN.json` now that every
-part's placement write-back (above) is in the plan. This run is authoritative for any
-check that consumes `placement`, including the joint-contract axis arm (see
-`assembled-pose-handback` design D5) — the Phase 2 run could only report it as a
-deferred advisory, since the placements did not exist yet. A failure blocks the export:
+part's placement and engineering-rationale write-backs (above) are in the plan. This run
+is authoritative for any check that consumes `placement`, including the joint-contract
+axis arm (see `assembled-pose-handback` design D5) — the Phase 2 run could only report it
+as a deferred advisory, since the placements did not exist yet. Pass `--require-rationale`
+so a part authored this session with no `engineering_rationale` also blocks the export
+(the Phase 2 run omits the flag, since no part has a rationale yet). A failure blocks the
+export:
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json --require-rationale
 ```
 
 The model is assembled declaratively from each part's `placement` — there is no

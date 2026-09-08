@@ -33,6 +33,26 @@ _LEGACY_FIELD_HINTS = {
 }
 _ADDITIONAL_PROPS_RE = re.compile(r"'([^']+)'")
 
+# Canonical load-bearing trigger set for `engineering_rationale` (see the
+# `engineering-rationale` spec): a part using one of these blocks or archetypes takes
+# the full object form regardless of whether it also declares `load`. Single source of
+# truth -- prompts/part.md and skill/phase3_build.md point here instead of restating it.
+# Names verified against blocks/inventory.json and templates/archetypes.json.
+_LOAD_BEARING_BLOCKS = {
+    "snap_hook_clip",
+    "screw_boss",
+    "pcb_standoff",
+    "living_hinge",
+    "dovetail_groove",
+    "dovetail_tongue",
+    "dovetail_corner_joint",
+}
+_LOAD_BEARING_ARCHETYPES = {
+    "hook",
+    "clip",
+    "l-bracket-gusset",
+}
+
 
 def _hint_for_error(err: jsonschema.exceptions.ValidationError) -> str:
     """Extra guidance for a known-legacy additional-property error, else ''."""
@@ -596,6 +616,48 @@ def check_shared_interfaces(plan: dict[str, Any]) -> list[str]:
     return findings
 
 
+def _is_load_bearing(part: dict[str, Any]) -> bool:
+    """True if `part` meets the engineering-rationale trigger: a declared `load`, or a
+    block/archetype in the canonical load-bearing set."""
+    if part.get("load"):
+        return True
+    if part.get("archetype") in _LOAD_BEARING_ARCHETYPES:
+        return True
+    for block in part.get("blocks_needed", []):
+        name = block if isinstance(block, str) else block.get("name")
+        if name in _LOAD_BEARING_BLOCKS:
+            return True
+    return False
+
+
+def check_engineering_rationale(plan: dict[str, Any]) -> list[str]:
+    """Check each part's `engineering_rationale` against the load-bearing trigger.
+
+    A triggered part must carry the object form; an untriggered part may carry either
+    form; a missing field is always a finding. Advisory by default -- the caller decides
+    whether to treat these as errors (see `--require-rationale`).
+    """
+    findings: list[str] = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        rationale = part.get("engineering_rationale")
+        triggered = _is_load_bearing(part)
+
+        if rationale is None:
+            findings.append(
+                f"Part '{pid}': missing 'engineering_rationale'"
+                + (" (this part is load-bearing)" if triggered else "")
+            )
+        elif triggered and isinstance(rationale, str):
+            findings.append(
+                f"Part '{pid}': declares a load or a load-bearing block/archetype but "
+                f"'engineering_rationale' is the one-line form -- the full "
+                f"load_path/worst_case_stress/check object is required"
+            )
+
+    return findings
+
+
 def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     """Flag blocks whose smallest declared extent is below the wall minimum.
 
@@ -637,6 +699,15 @@ def main():
     parser.add_argument(
         "--archetypes", default=_ARCHETYPES_PATH, help="Path to templates/archetypes.json"
     )
+    parser.add_argument(
+        "--require-rationale",
+        action="store_true",
+        help=(
+            "Treat engineering_rationale findings as errors (exit 1). Use at the Phase 3 "
+            "pre-export run, once every part has been authored; the Phase 2 run omits "
+            "this flag since no part has a rationale yet."
+        ),
+    )
     args = parser.parse_args()
 
     errors = validate_plan(args.plan, args.inventory, args.archetypes)
@@ -667,6 +738,15 @@ def main():
         print(f"\nShared-interface findings ({len(shared)}):")
         for f in shared:
             print(f"  - {f}")
+
+    rationale = check_engineering_rationale(plan)
+    if rationale:
+        label = "error" if args.require_rationale else "advisory"
+        print(f"\nEngineering-rationale findings ({len(rationale)}, {label}):")
+        for f in rationale:
+            print(f"  - {f}")
+        if args.require_rationale:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

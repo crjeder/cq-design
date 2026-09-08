@@ -22,7 +22,20 @@
       "blocks_needed": [
         "counterbore_hole"
       ],
-      "part_notes": "Load is bending at the corner; gusset optional."
+      "part_notes": "Load is bending at the corner; gusset optional.",
+      "engineering_rationale": {
+        "load_path": "screw load on the upright transfers as bending into the internal corner, per part_notes",
+        "worst_case_stress": "internal corner, base-to-upright junction",
+        "check": "corner_wall_mm = 6 mm >= 4 mm min for a 90-degree bend joint under bending load (PLA)"
+      },
+      "load": {
+        "dir": [
+          0,
+          0,
+          -1
+        ],
+        "type": "bending"
+      }
     }
   ],
   "constraints": {

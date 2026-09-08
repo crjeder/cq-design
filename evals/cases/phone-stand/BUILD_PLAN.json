@@ -19,7 +19,8 @@
           "description": "Phone leans on the incline"
         }
       ],
-      "blocks_needed": []
+      "blocks_needed": [],
+      "engineering_rationale": "no load-bearing features (solid wedge, load passes through bulk material, no thin section)"
     }
   ],
   "constraints": {
