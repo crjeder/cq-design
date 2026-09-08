@@ -80,6 +80,32 @@ when your layout differs:
 uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out build
 ```
 
+## Regenerating the project with a fresh session
+
+Alongside the model files, delivery writes `REGENERATE.md` at the project root: a
+self-contained prompt that rebuilds the *design* from scratch, as opposed to `build.py`,
+which rebuilds the *geometry* from the scripts you already have. Paste it into a new
+session -- a better model, a newer version of this skill, a different skill -- when you
+want the design re-derived rather than re-exported.
+
+It carries what the plan's structured fields cannot be re-narrated from memory: the
+approved intent (what is being built, in resolved terms), the verbatim request history
+including every correction, `parameters.py` inlined whole so the measured real-world
+numbers and their provenance travel along, the print target, and the previous parts and
+joints -- labelled reference, so the new session is free to decompose the request
+differently. Images cannot be inlined; the prompt lists the `sketches/` paths and asks you
+to re-attach those files.
+
+The skill rewrites the file on every delivery, so it always reflects the latest
+corrections. To re-export it by hand after editing `BUILD_PLAN.json` (the script is
+stdlib-only -- no `uv sync` needed):
+
+```bash
+python <skill-dir>/src/regen_prompt.py --plan BUILD_PLAN.json --out REGENERATE.md
+```
+
+Omit `--out` to print it to stdout.
+
 ## Files
 
 ```
@@ -109,6 +135,7 @@ src/
   keep_out_check.py         # whole-model keep-out-zone check (trimesh + python-fcl)
   print_orientation.py      # auto-rotation optimizer for print orientation
   build_template.py         # build.py template copied into build/ to regenerate plates
+  regen_prompt.py           # exports REGENERATE.md: a fresh-session prompt to re-derive the design
   cq_compat.py              # CadQuery/cq_warehouse compatibility shims
   init_permissions.py       # seeds .claude/settings.local.json with pipeline permissions
   skill_permissions.json    # permission patterns seeded by init_permissions.py
