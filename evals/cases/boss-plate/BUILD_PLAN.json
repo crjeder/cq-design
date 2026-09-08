@@ -22,7 +22,12 @@
       ],
       "blocks_needed": [
         "screw_boss"
-      ]
+      ],
+      "engineering_rationale": {
+        "load_path": "screw clamps down through the boss into the plate; boss wall resists radial split",
+        "worst_case_stress": "boss wall at its thinnest radial section, around the screw bore",
+        "check": "boss_wall_mm = (boss_od_mm - screw_d_mm)/2 = (8-3.2)/2 = 2.4 mm >= 1.5 mm min wall (PLA)"
+      }
     }
   ],
   "constraints": {
