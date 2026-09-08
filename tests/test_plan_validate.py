@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
 
 from plan_validate import (  # noqa: E402
     check_block_thinness,
+    check_engineering_rationale,
     check_shared_interfaces,
     validate_plan,
 )
@@ -311,6 +312,86 @@ def test_thick_blocks_no_findings():
         "port_cutout",
     ]
     assert check_block_thinness(plan) == []
+
+
+# ---- engineering_rationale schema + trigger check ----
+
+
+def test_rationale_object_form_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    plan["parts"][0]["engineering_rationale"] = {
+        "load_path": "base bears the enclosed board weight",
+        "worst_case_stress": "floor, center span",
+        "check": "deflection = 5*w*L^4/(384*E*I) = 0.02 mm <= 0.1 mm allowable (PLA)",
+    }
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_rationale_string_form_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (static cosmetic part)"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_rationale_string_form_without_reason_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features"
+    errors = validate_plan(plan_file(plan))
+    assert any("engineering_rationale" in e for e in errors)
+
+
+def test_rationale_object_missing_check_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["engineering_rationale"] = {
+        "load_path": "x",
+        "worst_case_stress": "y",
+    }
+    errors = validate_plan(plan_file(plan))
+    assert any("engineering_rationale" in e for e in errors)
+
+
+def test_rationale_missing_field_is_advisory_finding():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    findings = check_engineering_rationale(plan)
+    assert len(findings) == 1
+    assert "body" in findings[0]
+
+
+def test_rationale_load_bearing_part_needs_object_form():
+    """A part declaring `load` but carrying the string form is flagged."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (flat plate)"
+    findings = check_engineering_rationale(plan)
+    assert len(findings) == 1
+    assert "body" in findings[0]
+
+
+def test_rationale_load_bearing_block_without_declared_load_still_triggers():
+    """blocks_needed alone (no `load` field) is enough to require the object form."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["blocks_needed"] = ["hollow_box", "screw_boss"]
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (n/a)"
+    findings = check_engineering_rationale(plan)
+    assert len(findings) == 1
+
+
+def test_rationale_string_form_on_untriggered_part_passes():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (static cosmetic part)"
+    assert check_engineering_rationale(plan) == []
+
+
+def test_rationale_object_form_on_triggered_part_passes():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    plan["parts"][0]["engineering_rationale"] = {
+        "load_path": "base bears the enclosed board weight",
+        "worst_case_stress": "floor, center span",
+        "check": "deflection = 0.02 mm <= 0.1 mm allowable (PLA)",
+    }
+    assert check_engineering_rationale(plan) == []
 
 
 # ---- multi-union parts: union namespace ----

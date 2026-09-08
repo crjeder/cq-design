@@ -27,7 +27,18 @@ _PLAN = {
             "targets": ["hook.throat_mm"],
         },
     ],
-    "parts": [{"id": "hook", "description": "J-hook | plate", "dimensions": {"w_mm": 20}}],
+    "parts": [
+        {
+            "id": "hook",
+            "description": "J-hook | plate",
+            "dimensions": {"w_mm": 20},
+            "engineering_rationale": {
+                "load_path": "hook arm cantilevers from the wall plate",
+                "worst_case_stress": "arm root",
+                "check": "strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)",
+            },
+        }
+    ],
     "joints": [
         {
             "joint_id": "j1",
@@ -59,6 +70,22 @@ def test_render_omits_optional_sections_when_absent():
     assert "Request history" not in out
     assert "Sourced measurements" not in out
     assert "User-supplied drawings" not in out
+    assert "Engineering rationale" not in out
+
+
+def test_render_includes_engineering_rationale_object_form():
+    out = regen_prompt.render(_PLAN)
+    assert "## Engineering rationale" in out
+    assert "hook arm cantilevers from the wall plate" in out
+    assert "arm root" in out
+    assert "strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)" in out
+
+
+def test_render_includes_engineering_rationale_string_form():
+    plan = json.loads(json.dumps(_PLAN))
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (decorative hook)"
+    out = regen_prompt.render(plan)
+    assert "no load-bearing features (decorative hook)" in out
 
 
 def test_render_embeds_parameters_and_sketches():

@@ -35,6 +35,7 @@ All completed tasks are now in `documentation/DONE.md`.
 ### Independent
 - [x] split `info` directory
 - [ ] code quality audit
+- [ ] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- `openspec/changes/consolidate-engineering-rationale/` -- [details](#engineering-rationale-consolidation)
 - [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
 - [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](#intent-based-prompt-reformulation)
 - [x] Export a project-regeneration prompt for a fresh LLM session -- DONE: `src/regen_prompt.py` writes `REGENERATE.md` at Phase 4 delivery -- [details](#project-regeneration-prompt)
@@ -43,7 +44,6 @@ All completed tasks are now in `documentation/DONE.md`.
 
 - [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
-- [ ] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.py` -- [details](#engineering-rationale-consolidation)
 - [ ] Read back parameters on any user-initiated planning/authoring round
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
 - [ ] Kinematic: ground/seating-plane check (lid-hits-floor) -- [details](#kinematic-ground-plane)
@@ -333,8 +333,18 @@ Phase 3's intent-rewrite rule). Images cannot be inlined -- the prompt lists
 their paths and tells the user to re-attach them.
 
 ### Engineering rationale consolidation
-ENGINEERING RATIONALE etc. in `BUILD_PLAN.py`? Now it's spread all over the
-source files.
+The engineering rationale lives only as an `ENGINEERING RATIONALE` comment block in
+each part script, so an N-part model spreads it across N files. Nothing reads it:
+`plan_validate.py`, `script_lint.py` and `quality_gate.py` have no notion of it, both
+authoring paths (raw and archetype template) carry their own copy of the insertion
+rule and the load-bearing trigger list, and it is absent from `README.md` /
+`REGENERATE.md`, which are rendered from `BUILD_PLAN.json`.
+
+Promoted to V1 on 2026-09-08: this is the one design-critical artefact with no
+mechanical check, not a new capability. Change:
+`openspec/changes/consolidate-engineering-rationale/` -- the rationale moves to
+`BUILD_PLAN.json`'s `parts[].engineering_rationale`, written back in Phase 3 and
+validated at the pre-export `plan_validate.py` run.
 
 ### Context creep restructure
 Restructure to combat context creep. Reference: `ARCHITECTURE.md`. Options:

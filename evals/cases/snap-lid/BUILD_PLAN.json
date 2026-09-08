@@ -22,7 +22,12 @@
       ],
       "blocks_needed": [
         "snap_hook_clip"
-      ]
+      ],
+      "engineering_rationale": {
+        "load_path": "snap prong flexes at its root when engaging/disengaging the box wall",
+        "worst_case_stress": "prong root, bending at full deflection",
+        "check": "strain = 1.5*t*d/L^2 = 1.5*1.5*2/15^2 = 2.0% <= 3.0% allowable (PLA)"
+      }
     }
   ],
   "constraints": {

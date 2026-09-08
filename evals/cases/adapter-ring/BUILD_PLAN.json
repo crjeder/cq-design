@@ -20,7 +20,8 @@
           "diameter_mm": 50
         }
       ],
-      "blocks_needed": []
+      "blocks_needed": [],
+      "engineering_rationale": "no load-bearing features (static passive-fit ring, no declared load)"
     }
   ],
   "constraints": {

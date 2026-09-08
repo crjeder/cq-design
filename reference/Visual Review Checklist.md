@@ -91,11 +91,10 @@ promotion catches real misreads without a net increase in wasted retries.
 
 ## Engineering rows (generate for load-bearing parts)
 
-Generated from the same trigger as the ENGINEERING RATIONALE requirement
-(`prompts/part.md`): a declared plan `load`, or `blocks_needed`/`archetype` in the
-load-bearing set (snap hooks, clips, hooks, brackets, screw bosses, pcb standoffs,
-living hinge, dovetail joints). These rows demand a **value and its threshold**, not
-a judgment:
+Generated from the same trigger as the `engineering_rationale` requirement
+(`prompts/part.md`, load-bearing set defined in `src/plan_validate.py`): a declared plan
+`load`, or `blocks_needed`/`archetype` in the load-bearing set. These rows demand a
+**value and its threshold**, not a judgment:
 
 | # | Question | Threshold |
 |---|----------|-----------|
@@ -105,8 +104,8 @@ a judgment:
 | E4 | What is gusset thickness / wall thickness? | <= 0.75 |
 
 Generate only the rows relevant to this part's actual features (e.g. no E1 for a
-part with no ribs). Add a row for any other computed check the script's ENGINEERING
-RATIONALE block states, using its own stated threshold.
+part with no ribs). Add a row for any other computed check the part's
+`engineering_rationale` plan entry states, using its own stated threshold.
 
 ## Rules
 
@@ -128,9 +127,9 @@ RATIONALE block states, using its own stated threshold.
   (render an alternative position) rather than a fail.
 - Every answer cites its view. An uncitable "yes" is not a pass -- render the view.
 - **The view-citation rule applies to visual rows only.** Engineering rows are
-  numeric, not visual: answer by citing the script's `PARAMETERS` values, its
-  ENGINEERING RATIONALE block, or the wrapper's `geometry` JSON -- not a rendered
+  numeric, not visual: answer by citing the script's `PARAMETERS` values, the part's
+  `engineering_rationale` plan entry, or the wrapper's `geometry` JSON -- not a rendered
   view. Re-derive the value from the actual parameters rather than trusting the
-  rationale block's stated result; if the re-derived value contradicts the rationale
+  rationale's stated result; if the re-derived value contradicts the rationale
   or exceeds its threshold, record it as a finding that blocks the pass, exactly like
   a failed visual question.

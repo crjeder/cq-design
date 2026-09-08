@@ -113,8 +113,10 @@ record a constraint, intent, or derivation the code itself cannot show, and SHAL
 instruct that comments do not restate what the following line does. The prompt SHALL NOT
 instruct the model to produce "commented" code as a generic quality goal.
 
-The ENGINEERING RATIONALE block and the construction-plan stage labels are explicitly
-exempt: they are required content governed by their own capabilities, not narration.
+The construction-plan stage labels are explicitly exempt: they are required content
+governed by their own capability, not narration. The engineering rationale is no longer an
+exemption, because it is no longer a comment -- it is written to the part's
+`engineering_rationale` plan entry (see `engineering-rationale`).
 
 #### Scenario: Generic comment instruction is gone
 
@@ -125,9 +127,8 @@ exempt: they are required content governed by their own capabilities, not narrat
 #### Scenario: Required blocks are unaffected
 
 - **WHEN** a part script is authored under the comment rule
-- **THEN** the ENGINEERING RATIONALE section is still present in the form its own
-  capability requires, and `verify_stage` labels are still written where the
-  construction-plan rule applies
+- **THEN** `verify_stage` labels are still written where the construction-plan rule
+  applies, and the part's rationale is present in its plan entry rather than in the script
 
 ### Requirement: The builder holds the specified scope
 
@@ -153,8 +154,9 @@ different structure for the one specified.
 `prompts/part.md` and `skill/phase3_build.md` SHALL instruct that a retry attempt applies
 a targeted fix for the reported error types and hints, and SHALL instruct that a retry
 does not restructure, refactor, or rewrite parts of the script the reported error does not
-implicate. Where a fix changes a parameter that the ENGINEERING RATIONALE's computed check
-references, re-evaluating that check remains required (governed by `engineering-rationale`).
+implicate. Where a fix changes a parameter that the part's `engineering_rationale.check`
+references, re-evaluating that check and writing it back to `BUILD_PLAN.json` remains
+required (governed by `engineering-rationale`).
 
 #### Scenario: Targeted fix on a reported error
 
@@ -172,16 +174,16 @@ references, re-evaluating that check remains required (governed by `engineering-
 
 Uppercase modal language (MUST, SHALL, NEVER, ALWAYS, CRITICAL) in `prompts/part.md` and
 the Phase 3 skill files SHALL be used only for a rule whose violation is detectable -- by
-`src/script_lint.py`, by `run_cadquery_model.py`'s typed errors, by a check stage, or by
-reading the produced script against a stated contract. Style and craft guidance SHALL be
-written as plain statements.
+`src/script_lint.py`, by `run_cadquery_model.py`'s typed errors, by `plan_validate.py`, by
+a check stage, or by reading the produced script against a stated contract. Style and
+craft guidance SHALL be written as plain statements.
 
 #### Scenario: Contract keeps its modal
 
-- **WHEN** the rule states that the ENGINEERING RATIONALE's computed check must reference
-  the script's own parameter names
+- **WHEN** the rule states that the `engineering_rationale.check` must reference the
+  script's own parameter names
 - **THEN** it keeps its modal form, because a check written with free-standing constants
-  is detectable by reading the script
+  is detectable by reading the plan entry against the script
 
 #### Scenario: Guidance drops its modal
 

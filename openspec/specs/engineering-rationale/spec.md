@@ -2,74 +2,135 @@
 
 ## Purpose
 
-Defines requirements for the `ENGINEERING RATIONALE` comment section a generated part
-script must carry: a load path, worst-case stress location, and a computed
-strain/stress-vs-allowable check for load-bearing parts, or a one-line "no
-load-bearing features" statement otherwise. Applicability is derived from the plan,
-and the obligation persists across retries.
+Defines requirements for the engineering-rationale record a load-bearing part must
+carry: a load path, worst-case stress location, and a computed strain/stress-vs-allowable
+check, or a one-line "no load-bearing features" statement otherwise. The record lives in
+the part's `BUILD_PLAN.json` entry, not in the generated script. Applicability is derived
+from the plan via a single trigger set defined in `src/plan_validate.py`, the obligation
+persists across retries, plan validation checks the record against the trigger, and the
+regeneration prompt carries it forward.
 
 ## Requirements
 
-### Requirement: Load-bearing parts carry an engineering-rationale block
+### Requirement: Load-bearing parts carry an engineering-rationale record
 
-The part prompt (`prompts/part.md`) SHALL require every generated part script to
-contain an `ENGINEERING RATIONALE` comment section between the PARAMETERS and MODEL
-sections. For a load-bearing part, the block SHALL state (a) the load path, (b) the
-worst-case stress location, and (c) at least one computed check: a formula evaluated
-with the script's own parameter values, compared against a stated material allowable
-(e.g. "strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)"). The computed check
-SHALL reference the script's parameter names, not free-standing constants. A part
-with no load-bearing features SHALL instead carry the one-line form
-`# ENGINEERING RATIONALE: no load-bearing features (<short reason>)`.
+The engineering rationale SHALL be recorded in `BUILD_PLAN.json` as the part entry's
+`engineering_rationale` field, not as a comment section in the generated part script.
+
+For a load-bearing part the field SHALL be an object stating (a) `load_path`, (b)
+`worst_case_stress`, and (c) `check`: at least one computed check, a formula evaluated
+with the part script's own parameter values, compared against a stated material allowable
+(e.g. "strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)"). The `check` SHALL reference
+the script's parameter names, not free-standing constants. A part with no load-bearing
+features SHALL instead carry the string form `no load-bearing features (<short reason>)`.
+
+`prompts/part.md` SHALL instruct the author to write this field into the part's plan entry
+after authoring the script, and SHALL NOT ask for an `ENGINEERING RATIONALE` comment block
+in the script.
 
 #### Scenario: Snap-fit lid part
 
 - **WHEN** a part whose plan entry uses `snap_hook_clip` is authored
-- **THEN** the script contains an ENGINEERING RATIONALE section stating the load
-  path, the worst-case stress location, and a computed strain-vs-allowable check
-  using the script's arm-thickness/deflection/length parameters
+- **THEN** its `BUILD_PLAN.json` entry carries an `engineering_rationale` object stating
+  the load path, the worst-case stress location, and a computed strain-vs-allowable check
+  using the script's arm-thickness/deflection/length parameter names
 
 #### Scenario: Cosmetic part
 
 - **WHEN** a part with no declared `load` and no load-bearing blocks is authored
-- **THEN** the script contains the one-line rationale stating no load-bearing
-  features, with no invented load calculation
+- **THEN** its plan entry's `engineering_rationale` is the string form stating no
+  load-bearing features, with no invented load calculation
+
+#### Scenario: No rationale block in the script
+
+- **WHEN** any part script is authored, by either the from-scratch or the
+  archetype-template path
+- **THEN** the script contains no `ENGINEERING RATIONALE` comment section, and the
+  rationale for that part is found in exactly one place: its plan entry
 
 #### Scenario: Rationale survives both render modes
 
 - **WHEN** the part prompt is rendered inline or for a cold context (subagent or
   `claude -p`)
-- **THEN** the rationale requirement appears in the rendered prompt in both modes,
-  and the block is part of the script output (the "output only the Python script"
-  contract is unchanged)
+- **THEN** the write-back requirement appears in the rendered prompt in both modes, and
+  the plan edit is separate from the script the prompt returns (the "output only the
+  Python script" contract is unchanged)
 
 ### Requirement: Applicability is determined from the plan
 
-Whether a part takes the full rationale block or the one-line form SHALL be
-determined from its `BUILD_PLAN.json` entry: the full form applies when the entry
-declares a `load`, or when its `blocks_needed` or `archetype` is in the documented
-load-bearing set (snap hooks, clips, hooks, brackets, screw bosses, pcb standoffs,
-living hinge, dovetail joints). The trigger list SHALL be documented in one place in
-the part prompt.
+Whether a part takes the object form or the string form SHALL be determined from its
+`BUILD_PLAN.json` entry: the object form applies when the entry declares a `load`, or when
+its `blocks_needed` or `archetype` is in the load-bearing set (snap hooks, clips, hooks,
+brackets, screw bosses, pcb standoffs, living hinge, dovetail joints). The trigger set
+SHALL be defined once, machine-readably, in `src/plan_validate.py`; `prompts/part.md` and
+`skill/phase3_build.md` SHALL point at it rather than restating it.
 
 #### Scenario: Plan declares a load
 
 - **WHEN** a part's plan entry declares `load` (any type)
-- **THEN** the full rationale block is required regardless of which blocks it uses
+- **THEN** the object form is required regardless of which blocks it uses
 
 #### Scenario: No trigger matches
 
 - **WHEN** a part declares no `load` and none of its blocks or archetype are in the
   load-bearing set
-- **THEN** the one-line form is required and suffices
+- **THEN** the string form is required and suffices
+
+#### Scenario: Trigger set has one definition
+
+- **WHEN** the load-bearing set is consulted by the part prompt, the Phase 3 skill file,
+  or the plan validator
+- **THEN** all three resolve to the single list in `src/plan_validate.py`, and no second
+  enumeration of the set exists in the prompt or skill files
 
 ### Requirement: Retry prompts preserve the rationale obligation
 
-A correction prompt for a failed attempt SHALL NOT waive the rationale requirement:
-the corrected script SHALL carry an ENGINEERING RATIONALE section consistent with its
-(possibly changed) parameter values.
+A correction prompt for a failed attempt SHALL NOT waive the rationale requirement. Where
+a retry changes a parameter that the part's `engineering_rationale.check` references, the
+retry SHALL re-evaluate that check with the new value and write the updated field back to
+`BUILD_PLAN.json` in the same round as the script fix.
 
 #### Scenario: Parameter changed on retry
 
 - **WHEN** a retry changes a parameter that appears in the rationale's computed check
-- **THEN** the corrected script's rationale re-evaluates the check with the new value
+- **THEN** the part's `engineering_rationale.check` in `BUILD_PLAN.json` is re-evaluated
+  with the new value, so no stale number outlives the script it claims to check
+
+### Requirement: Plan validation checks rationale form against the trigger
+
+`src/plan_validate.py` SHALL check every part's `engineering_rationale` against the
+load-bearing trigger: a triggered part carrying the string form, an untriggered part
+carrying neither form, and a missing field SHALL each be a finding. Following the existing
+deferred-advisory pattern, the findings SHALL be advisory on a run without
+`--require-rationale` -- the Phase 2 run, where no part is authored yet -- and errors that
+exit non-zero under `--require-rationale`, which the Phase 3 pre-export run passes.
+
+#### Scenario: Phase 2 plan has no rationales yet
+
+- **WHEN** `plan_validate.py` runs on a freshly planned `BUILD_PLAN.json` with no
+  `engineering_rationale` on any part
+- **THEN** it reports the missing rationales as advisory findings and exits 0
+
+#### Scenario: Pre-export run blocks a missing rationale
+
+- **WHEN** the Phase 3 pre-export run passes `--require-rationale` and a part authored in
+  this session carries no `engineering_rationale`
+- **THEN** validation fails, exits non-zero, and the export is blocked
+
+#### Scenario: Load-bearing part fobbed off with the string form
+
+- **WHEN** a part declares `load` and its `engineering_rationale` is
+  `"no load-bearing features (flat plate)"`
+- **THEN** validation reports that the part's declared load requires the object form
+
+### Requirement: The regeneration prompt carries the rationale
+
+`src/regen_prompt.py` SHALL render each part's `engineering_rationale` into
+`REGENERATE.md`, so a fresh session receives the load reasoning behind the dimensions
+rather than the dimensions alone.
+
+#### Scenario: Load-bearing part in the regeneration prompt
+
+- **WHEN** `REGENERATE.md` is generated for a model with a load-bearing bracket
+- **THEN** the bracket's load path, worst-case stress location, and computed check appear
+  in the rendered prompt
