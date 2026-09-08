@@ -19,7 +19,8 @@
           "description": "Arms spring over a 17 mm panel"
         }
       ],
-      "blocks_needed": []
+      "blocks_needed": [],
+      "engineering_rationale": "no load-bearing features (spring-arm flex not modeled as a load path in this plan; declares no `load` and no clip archetype/block)"
     }
   ],
   "constraints": {

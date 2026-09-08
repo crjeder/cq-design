@@ -77,6 +77,24 @@ def _decomposition(plan: dict) -> list[str]:
     return out
 
 
+def _rationale(plan: dict) -> list[str]:
+    parts = [p for p in (plan.get("parts") or []) if p.get("engineering_rationale")]
+    if not parts:
+        return []
+    out = ["## Engineering rationale", ""]
+    for part in parts:
+        rationale = part["engineering_rationale"]
+        out.append(f"- `{part.get('id')}`:")
+        if isinstance(rationale, str):
+            out.append(f"  {rationale}")
+        else:
+            out.append(f"  - load path: {rationale.get('load_path')}")
+            out.append(f"  - worst-case stress: {rationale.get('worst_case_stress')}")
+            out.append(f"  - check: {rationale.get('check')}")
+    out.append("")
+    return out
+
+
 def render(
     plan: dict, *, parameters_src: str | None = None, sketches: list[str] | None = None
 ) -> str:
@@ -119,6 +137,7 @@ def render(
     lines += ["## Print target", "", *target, ""]
 
     lines += _decomposition(plan)
+    lines += _rationale(plan)
     return "\n".join(lines).rstrip() + "\n"
 
 

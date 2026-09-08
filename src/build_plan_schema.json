@@ -210,6 +210,38 @@
               }
             }
           },
+          "engineering_rationale": {
+            "description": "The part's load reasoning: the single home of the ENGINEERING RATIONALE the part author derives while writing the script, written back into BUILD_PLAN.json after the script is accepted (not authored at plan time). A load-bearing part (declared `load`, or a load-bearing block/archetype -- see the trigger set in plan_validate.py) takes the object form; every other part takes the string form.",
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^no load-bearing features \\(.+\\)$",
+                "description": "One-line form for a part with no load-bearing features, e.g. 'no load-bearing features (static cosmetic part)'."
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["load_path", "worst_case_stress", "check"],
+                "properties": {
+                  "load_path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Where the load enters the part and how it travels through it."
+                  },
+                  "worst_case_stress": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The specific location that sees the highest stress."
+                  },
+                  "check": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A formula evaluated with the script's own parameter names (not free-standing constants), compared against a stated material allowable, e.g. 'strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)'."
+                  }
+                }
+              }
+            ]
+          },
           "optimize_for": {
             "type": "string",
             "enum": ["strength", "min_support", "visual_quality"],
