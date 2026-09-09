@@ -217,6 +217,10 @@ def test_disconnected_body_single_union_reported(tmp_path):
     assert len(disc) == 1
     assert disc[0]["component_count"] == 2
     assert disc[0]["union"] == "split"
+    # Per-body ranges, not extents: the 40 mm X gap between the two boxes has to be
+    # readable off the message, or a misplaced body reads as a fusion failure.
+    assert "x -5.0..5.0" in disc[0]["message"]
+    assert "x 45.0..55.0" in disc[0]["message"]
 
 
 def test_disconnected_body_fails_under_strict(tmp_path):

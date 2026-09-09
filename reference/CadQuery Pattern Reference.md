@@ -8,7 +8,9 @@ assembly placement) -- which two local axes a 2D sketch spans before
 `.extrude()`/`.revolve()` lifts it into 3D:
 
 - `"XY"` -- sketch spans X/Y, extrudes along Z (Z is up); normal = +Z
-- `"XZ"` -- sketch spans X/Z, extrudes along Y (Y is depth); normal = +Y
+- `"XZ"` -- sketch spans X/Z, extrudes along Y (Y is depth); normal = **-Y**, so an
+  uncentered extrude or `.box()` third dimension grows into **negative** Y, not positive
+  (verify with a bbox probe before porting Y coordinates from an `"XY"`-authored body)
 - `"YZ"` -- sketch spans Y/Z, extrudes along X (X is width); normal = +X
 
 Millimeters throughout. A workplane is a local 2D coordinate system: an **origin**
@@ -249,8 +251,9 @@ Never assume the default matches your intent -- on an irregular face
     `.shell()` is fragile.
 11. **Revolved profiles on non-XY workplanes** -- `.transformed(offset=(a,b,c))`
     on XZ/YZ workplanes maps offset to the LOCAL frame, not world coordinates. On
-    XZ, local-Y is world-Z and the normal is world-Y; `offset=(cx, top_z, cy)` on
-    XZ ends up at world `(cx, cy, top_z)`. For revolved chamfer/fillet tools,
+    XZ, local-Y is world-Z and the normal is world **-Y**, so the third component
+    flips sign: `offset=(cx, top_z, cy)` on XZ ends up at world `(cx, -cy, top_z)`.
+    For revolved chamfer/fillet tools,
     prefer building on XY and translating the result, or verify with
     `verify_boolean` that the cut actually changed the geometry.
 12. **A feature unioned in AFTER a cavity cut can poke through the cavity
