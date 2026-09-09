@@ -118,8 +118,18 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
 # ---------------------------------------------------------------------------
 
 
-def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
-    """Analyze STL geometry and overhangs using trimesh. Returns issues."""
+def _analyze_stl(
+    stl_path: str, overhang_deg: float, rotate: list[dict] | None = None
+) -> list[dict]:
+    """Analyze STL geometry and overhangs using trimesh. Returns issues.
+
+    ``rotate`` is the chosen print orientation's `[{axis, angle_deg}, ...]` steps
+    (``print_orientation.py``'s `rotate`, same convention as `placement`). The STL is
+    exported in the part's authored/placement frame, so the overhang test would
+    otherwise judge a face that the optimizer rotated onto the bed (or into a wall)
+    as if it printed in the authored pose -- a false positive whenever the two frames
+    differ. Applying the steps here evaluates overhang at the pose that actually prints.
+    """
     try:
         import trimesh
     except ImportError as exc:
@@ -135,6 +145,10 @@ def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
 
     try:
         tm = trimesh.load(stl_path, force="mesh")
+        if rotate:
+            from placement import to_matrix
+
+            tm.apply_transform(to_matrix({"rotate": rotate}))
     except Exception as exc:
         return [
             {
@@ -681,7 +695,9 @@ def run_gate(
 
         # ---- geometry + overhang ----
         if effective_stl and os.path.exists(effective_stl):
-            geo_issues = _analyze_stl(effective_stl, overhang_deg)
+            geo_issues = _analyze_stl(
+                effective_stl, overhang_deg, (orientation or {}).get("rotate")
+            )
         else:
             geo_issues = [
                 {

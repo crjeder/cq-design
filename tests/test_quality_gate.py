@@ -117,6 +117,40 @@ def test_worst_region_tracks_steepest_face(multi_overhang_stl):
     assert o["location_xyz_mm"] == pytest.approx([3.333, 3.333, 5.0], abs=1e-2)
 
 
+def test_authored_frame_overhang_cleared_by_print_orientation(multi_overhang_stl):
+    # Regression (skill_gap_quality_gate_overhang_authored_frame): the STL is written
+    # in the authored frame. Without the print rotation, the flat -Z face at z=5 reads
+    # as a 90 deg overhang; rotating X+90 turns it into a vertical wall (0 deg), which
+    # is what actually prints.
+    without = _issues_of(
+        quality_gate._analyze_stl(multi_overhang_stl, OVERHANG_DEG), "overhang_exceeded"
+    )
+    assert len(without) == 1 and without[0]["worst_angle_deg"] == pytest.approx(90.0, abs=1e-3)
+
+    rotated = quality_gate._analyze_stl(
+        multi_overhang_stl, OVERHANG_DEG, [{"axis": "X", "angle_deg": 90.0}]
+    )
+    assert _issues_of(rotated, "overhang_exceeded") == []
+
+
+def test_run_gate_threads_orientation_rotate_into_overhang(
+    monkeypatch, tmp_path, multi_overhang_stl
+):
+    plan = tmp_path / "BUILD_PLAN.json"
+    plan.write_text(json.dumps({"constraints": {"overhang_max_deg": OVERHANG_DEG}}))
+    script = tmp_path / "part.py"
+    script.write_text("result = None\n")
+    monkeypatch.setattr(
+        quality_gate, "_run_wrapper_check", lambda *a, **k: ([], multi_overhang_stl, {})
+    )
+    monkeypatch.setattr(quality_gate, "_run_plan_validation_stage", lambda *a, **k: [])
+
+    report = quality_gate.run_gate(
+        str(script), str(plan), orientation={"rotate": [{"axis": "X", "angle_deg": 90.0}]}
+    )
+    assert _issues_of(report["issues"], "overhang_exceeded") == []
+
+
 def test_non_watertight_reports_error(non_watertight_stl):
     issues = quality_gate._analyze_stl(non_watertight_stl, OVERHANG_DEG)
     errors = _issues_of(issues, "non_watertight")
