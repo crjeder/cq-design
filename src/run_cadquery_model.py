@@ -326,12 +326,15 @@ def _disconnected_body_error(tm, uid: str, multi: bool) -> dict | None:
 
     summaries = []
     for i, c in enumerate(components, 1):
-        ext = c.bounding_box.extents
+        lo, hi = c.bounds
         try:
             vol = abs(c.volume) / 1000.0 if c.is_volume else None
         except Exception:
             vol = None
-        s = f"body {i}: bbox {ext[0]:.1f}x{ext[1]:.1f}x{ext[2]:.1f} mm"
+        s = (
+            f"body {i}: x {lo[0]:.1f}..{hi[0]:.1f}, y {lo[1]:.1f}..{hi[1]:.1f}, "
+            f"z {lo[2]:.1f}..{hi[2]:.1f} mm"
+        )
         if vol is not None:
             s += f", {vol:.2f} cm3"
         summaries.append(s)
@@ -345,8 +348,11 @@ def _disconnected_body_error(tm, uid: str, multi: bool) -> dict | None:
         "component_count": len(components),
         "message": msg,
         "hint": (
-            "a part expected to be one body split into separate solids — union or "
-            "bridge the pieces so they overlap and fuse into a single component"
+            "a part expected to be one body split into separate solids — compare the "
+            "per-body ranges above first: if they do not overlap on some axis, a body "
+            "is misplaced (a workplane change moves a box's origin) and must be moved "
+            "back, not merely overlapped; only once the pieces do meet should you add "
+            "overlap so they fuse into a single component"
         ),
     }
 

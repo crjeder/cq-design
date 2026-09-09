@@ -129,8 +129,11 @@ when a union body splits into more than one connected component. Each declared u
 maps to one rigid printed body and is therefore expected to tessellate into a single
 connected component. The emitted `errors` entry SHALL carry `type:
 "disconnected_body"`, the offending `union` id, a
-`component_count`, and a `message` listing each component's bounding box and volume,
-plus a `hint` directing the author to union or bridge the pieces into one body. The
+`component_count`, and a `message` listing each component's per-axis bounding range
+(`min..max` per axis, not extents, so a gap between two bodies is readable off the
+message) and volume, plus a `hint` directing the author to compare those ranges before
+adding overlap: non-overlapping ranges mean a body is misplaced and must be moved back,
+not merely grown until it touches. The
 check SHALL run per union (a single-`Workplane` result is one union with id equal to
 the part id; a `dict` result is checked once per union key) and SHALL exclude the
 reserved keep-out key.
@@ -139,8 +142,14 @@ reserved keep-out key.
 
 - **WHEN** a part's `result` union tessellates into two non-touching solids
 - **THEN** `errors` contains one entry with `type: "disconnected_body"`, the `union`
-  id, `component_count: 2`, per-component bbox/volume in `message`, and a bridging
-  hint; `success` is `false`
+  id, `component_count: 2`, per-component axis ranges and volume in `message`, and a
+  hint that orders the placement check ahead of bridging; `success` is `false`
+
+#### Scenario: Message exposes the gap between two non-touching bodies
+
+- **WHEN** a union splits into two solids separated along one axis
+- **THEN** the `message` gives each body's `min..max` on all three axes, so the
+  separating axis and the size of the gap are readable without a further probe
 
 #### Scenario: Single connected body
 

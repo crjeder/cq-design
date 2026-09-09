@@ -21,9 +21,13 @@ All completed tasks are now in `documentation/DONE.md`.
 - [x] Implement typed `request_log` entries -- [details](#typed-request_log-entries)
 
 ### From C5 Phone-Holder session (`session-export-1786538430013.zip` in `./debug`)
-- [ ] Compass-language mixup in orientation reasoning -- [details](#c5-compass-language)
-- [ ] Hinge ear: primitive placed center-aligned to another part's edge -- [details](#c5-hinge-ear-center-vs-edge)
-- [ ] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- investigated; plan-time shared-interface finding implemented (folded-pose assertion still open) -- [details](#c5-knuckle-pivot-ping-pong)
+All three below had a fix merged (Sep 1 / Sep 7) and **all three reproduced on the
+2026-09-08 re-run** (`debug/session-2026-09-08.md`). The shared reason and the
+retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
+- [ ] Compass-language mixup in orientation reasoning -- fix never landed; needs a per-project frame binding -- [details](#c5-compass-language)
+- [ ] Hinge ear: primitive placed center-aligned to another part's edge -- `verify_seated` merged but is opt-in and absent from the pre-existing script; needs a lint that flags its absence -- [details](#c5-hinge-ear-center-vs-edge)
+- [ ] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- `check_shared_interfaces` merged but keys on a non-null shared `interfaces[].name`, which this plan lacks -- [details](#c5-knuckle-pivot-ping-pong)
+- [x] Quality-gate overhang check judged the authored-frame STL, not the print pose -- false-positive `overhang_exceeded` whenever the optimizer rotates the part -- FIXED 2026-09-08 -- [details](#c5-quality-gate-overhang-authored-frame)
 
 ### From Silica Tray session (`session-export-1786620780455.zip`)
 - [ ] LLM claimed "no support needed" despite a nonzero support score -- [details](#silica-tray-support-claim)
@@ -172,6 +176,45 @@ Investigate "compass language" `.\debug\image-1786538590774.png` shows the
 problem: east should be right. Reason: mixing up "Viewed from South" and
 "south facing" under observation.
 
+**Re-confirmed 2026-09-08** (`debug/session-2026-09-08.md`, round 10). The user
+asked for "fillet on the east side"; the skill had to stop and `AskUserQuestion`
+which end is East, *again* -- the fifth round in this project's history to
+re-litigate it (rounds 8, 9, 10 explicitly). The user's answer: "I am looking at
+plate_preview.png 'Front' which per convention is 'viewing from south': the R8 is
+on the left 'West' side. previously we mixed up the naming conventions."
+
+Root cause, now pinned:
+- `prompts/planning.md:3-14` hardwires **East = +X**, North = +Y, and defines the
+  standard views by compass station.
+- This project's real-world anchor is the *opposite*: `BUILD_PLAN.json`'s
+  `request_log` carries "East = right side of the ashtray.jpg photo = X=0 (near
+  the yellow mark), matching parameters.py convention", and `parameters.py` has
+  `BEZEL_EAST_CORNER_FILLET_MM` commented "East (right/X=0 side)". So in this
+  project East points in **-X**, 180 deg from the skill default.
+- There is **no `BUILD_PLAN.json` field that records a project's resolved
+  axis->compass binding.** The `feature-vocabulary` spec mandates that the skill
+  *use* compass prose and echo ambiguous references back before acting (which the
+  session did), but that is a per-turn patch: nothing persists the resolution, so
+  every new correction round re-derives "East" from either the prompt default or
+  the buried photo note and can land on either end. The `2026-08-07-rotation-clock-vocabulary`
+  change fixed rotation *direction* words (clockwise/counterclockwise), not the
+  base axis<->compass binding.
+- Secondary contributor: "viewed from south" (a camera position) vs "south face"
+  (a face whose outward normal is -Y) are distinct and were conflated in the
+  reasoning. On the South viewing station (+X to the viewer's left) the photo's
+  "right side" maps to -X, which is exactly the project's "East" -- the skill's
+  own convention would call that West.
+
+Fix (proposed): a `coordinate_frame` object in `build_plan_schema.json`, e.g.
+`{"east": "-x", "north": "+y", "up": "+z"}`, written at Phase 1 exit whenever the
+user's frame differs from the `prompts/planning.md` default, defaulting to the
+standard binding when absent. Every checkpoint-prose and review step reads it
+instead of assuming +X. `plan_validate.py` emits an advisory finding (the
+`check_block_thinness` tier) when `planning_notes`/`request_log`/`intent` prose
+contains a compass term and no `coordinate_frame` is recorded. This is prose- and
+review-frame only; it does not touch `placement.rotate` / joint `dof.direction`
+sign conventions, which stay right-hand-rule on the literal axes.
+
 ### C5 hinge ear center-vs-edge
 The hinge ear shows an old problem: placing primitives with their center
 aligning to the other part's edge -- see `.\debug\image-1786540203166.png`.
@@ -210,6 +253,17 @@ the same name feeds a `circle()` center. (3) The tractable fix is the
 cannot be typed. A cheap partial detector: after a union, flag when an added
 body's overlap with the existing solid exceeds ~20% of its own volume (here the
 knuckle loses ~25%), but that also fires on legitimately embedded pins.
+
+**Re-confirmed 2026-09-08** (`debug/session-2026-09-08.md`). `verify_seated` was
+merged Sep 1 (commit 51dc097) as a construction-time guard **the part script must
+call**, plus a `prompts/part.md` rule routing knuckle hinges through
+`blocks.joints.pin_hinge`. The Sep 8 re-run edited `EAR_STANDOFF` 5.0 -> 6.0 in
+the same hand-rolled `cradle.py` and rebuilt clean. `grep -n "verify_\|pin_hinge"
+build/cradle.py build/plate.py` -> zero matches: the script predates the fix, was
+only ever edited in place, and was never regenerated under the new guidance.
+Nothing in `script_lint.py` / `quality_gate.py` fails a script for *lacking* the
+guard, so an old hand-rolled knuckle passes with the same center-vs-tangent bug
+latent. Needs the retrofit lint in [C5 fixes did not take](#c5-fixes-did-not-take-2026-09-08).
 
 
 ### C5 knuckle pivot ping-pong
@@ -299,6 +353,88 @@ re-derived differently each round. Cheapest future home for it: an assertion on
 an existing `kinematics` entry evaluated at its `stop_on_contact` pose, reusing
 `kinematic_check.iter_poses`. Deferred -- it depends on the plan carrying a
 `kinematics` entry at all, which is what the advisory nudges toward.
+
+**Re-confirmed 2026-09-08** (`debug/session-2026-09-08.md`). `check_shared_interfaces`
+was merged Sep 7 (commit 814e329). It keys on **one `interfaces[].name` held by two
+parts that no `joints` entry links**. The C5 plan:
+
+    plate  interfaces = [None, None]      # interfaces[].name is null on every entry
+    cradle interfaces = [None, None]
+    joints = None   root_part = None   kinematics = None
+
+so the check has no non-null name to match on and finds nothing. The Sep 8 re-run
+then raised `cradle.py` `PIVOT_Z` 13.5 -> 14.5 (`EAR_STANDOFF` 5 -> 6) and left
+`plate.py` at 13.5 per the user's explicit "don't touch plate!" -- producing two
+non-coaxial bores for one physical pin, with no gate objection. This is the exact
+class 814e329 was written to stop; it just cannot see an *unnamed* duplicated
+literal. Needs the broadened check in
+[C5 fixes did not take](#c5-fixes-did-not-take-2026-09-08). (Note: the "don't touch
+plate" instruction is itself correct -- the plate bore is fixed by the plate's own
+physical stack. The right resolution is a `joints` entry so the plate pose is
+*derived*, making the second literal impossible, not a hand-mirror.)
+
+### C5 fixes did not take (2026-09-08)
+`debug/session-2026-09-08.md` re-ran the C5 Phone-Holder skill (a small design
+change: east-side fillet + raise the knuckle bore). All three C5 defects above
+reproduced despite each having a merged fix. **One root cause:** every fix is
+*prospective* -- it takes effect only when a part is re-planned or re-authored
+under the new guidance. C5 is a long-lived plan edited incrementally since July;
+its `BUILD_PLAN.json` and both part scripts predate all three fixes, and nothing
+in `plan_validate.py` / `script_lint.py` / `quality_gate.py` fails a project for
+*missing* the new guard. Evidence per fix is in each section above.
+
+Proposed retrofit work (all advisory, `check_block_thinness` tier -- printed after
+`BUILD_PLAN OK`, never a hard `plan_invalid`):
+
+1. **Per-project compass binding.** Add `coordinate_frame` to `build_plan_schema.json`
+   (`{east,north,up}` each one of `+x/-x/+y/-y/+z/-z`, default = the
+   `prompts/planning.md` standard binding). Write it at the Phase 1 exit
+   checkpoint when the user's frame differs. `plan_validate` warns when compass
+   terms appear in `intent`/`planning_notes`/`request_log` and no
+   `coordinate_frame` is recorded. Checkpoint-prose and review steps read it.
+   Prose/review only -- does not touch `placement.rotate` sign conventions.
+
+2. **Hand-rolled-hinge lint.** In `script_lint.py` (or a `quality_gate` stage):
+   when the plan describes a revolute/pin hinge (or two parts hold a round
+   interface at the same world position) and a part script builds a cylinder
+   union without `verify_seated` / `verify_backed` / `pin_hinge`, emit a warning
+   naming `cq_verify.verify_seated` and the `blocks.joints.pin_hinge` route.
+   Makes the opt-in guard's *absence* visible on a pre-existing script.
+
+3. **Unnamed shared-literal detection.** Broaden `plan_validate.check_shared_interfaces`:
+   also flag when two parts declare round interfaces of the same `diameter_mm` at
+   the same world position (after `placement`) with no linking `joints` entry,
+   even when `name` is null. Plus: warn when a multi-part plan whose
+   `intent`/`request_log` describes a hinge/pivot/fold has `joints: null`.
+
+4. **Retrofit prompt.** A `/retrofit` (or Phase 0 sub-step) that, on an existing
+   project, runs 1-3, reports what the current plan/scripts lack, and offers to
+   add the missing `coordinate_frame` / `joints` entry / `verify_*` calls before
+   any correction round proceeds. Cheaper than re-planning from scratch and stops
+   the "fix merged, still broke" loop for every project already in flight.
+
+### C5 quality-gate overhang authored frame
+`quality_gate._analyze_stl` ran `mesh_io.overhang_metrics` on the STL as written
+by `model_export.py` -- the part's authored / `placement` frame -- and never
+applied the chosen print orientation's rotation. `print_orientation.py` (run
+earlier in Phase 3) evaluates overhang at the real print pose; the gate did not.
+So whenever the optimizer rotates a part away from its authored pose, the gate's
+`overhang_exceeded` warning describes a face that is bed-supported (or a vertical
+wall) in the pose that actually prints. Logged in `MEMORY.md`
+(`skill_gap_quality_gate_overhang_authored_frame`) since 2026-07-20, re-confirmed
+six times, including both parts on the 2026-09-08 C5 re-run (plate: "Worst
+overhang 90.0 deg over 466.1 mm2" on the cap underside that becomes a wall in the
+cover-face-down print pose).
+
+**FIXED 2026-09-08.** `_analyze_stl(stl_path, overhang_deg, rotate=None)` now
+takes the orientation's `rotate` steps; `run_gate` threads
+`(orientation or {}).get("rotate")` into it; the mesh is posed via
+`placement.to_matrix({"rotate": rotate})` before `overhang_metrics`. Tests:
+`tests/test_quality_gate.py::test_authored_frame_overhang_cleared_by_print_orientation`,
+`::test_run_gate_threads_orientation_rotate_into_overhang`. Behaviour note:
+`worst_location_xyz_mm` in the overhang issue is now reported in the build frame,
+not the authored frame. The cradle's real overhang (elevated leg/ear undersides,
+identity print orientation) is unaffected and still reported.
 
 ### Silica Tray support claim
 LLM claims "no support needed" despite "support score 654.1" which might be

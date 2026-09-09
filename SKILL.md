@@ -236,7 +236,7 @@ cryptic OCC error or a failed visual review several steps later.
 |------------|--------|
 | `non_manifold_edge` | Rebuild booleans; check zero-thickness faces |
 | `non_watertight` | Open mesh holes: check unclosed boolean bodies |
-| `disconnected_body` | Union split >1 component: union/bridge into one (`union`, `component_count`) |
+| `disconnected_body` | Union split >1 component: compare the per-body axis ranges in `message` first — non-overlapping ranges mean a body is misplaced, so move it back rather than growing it (`union`, `component_count`) |
 | `dimension_mismatch` | Bbox beyond tolerance: fix the parameter driving that axis |
 | `construction_error` | Boolean bodies don't overlap or faces are coincident (`Standard_ConstructionError`) |
 | `command_not_done` | Boolean op failed: extend inner body >= 0.01mm past outer boundary (`BRep_API`) |
