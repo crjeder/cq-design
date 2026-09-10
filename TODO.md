@@ -47,6 +47,9 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 # Tasks for next version
 
 - [ ] generic parametric SCAD importer
+- [ ] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit)
+- [ ] evaluate bernhard-42/jupyter-cadquery
+- [ ] https://github.com/bernhard-42/cadquery-massembly
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-sets]
 - [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
