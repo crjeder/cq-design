@@ -39,10 +39,21 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | https://github.com/matthova/hovalin | | | | Violin |
 | https://github.com/DrLex0/print3D-customizable-sieve | | | | sieve / filter / strainer |
 | https://github.com/jobtalle/Lindenmayer3D | | | | Lindenmayer System |
-| https://github.com/Buback/ParametricDeLavalModel | | | De laval Nozzle |
+| https://github.com/Buback/ParametricDeLavalModel | | | | De laval Nozzle |
 | https://github.com/JonnyHaystack/NoCap | | | | MX keycap |
 | https://github.com/LukasStu/Ferris-Sweep-Bling-MX-Case | | | | Ferris Sweep Bling MX Case |
 | https://github.com/phrxmd/container | | | | shipping containers |
+| [CadQuery/cadquery-contrib](https://github.com/CadQuery/cadquery-contrib) | | | | |
+| [joshreve/dactyl-keyboard](https://www.google.com/search?q=https://github.com/joshreve/dactyl-keyboard) | | | | 
+| [medicationforall/cqspoolterrain / spoolpowerapp](https://github.com/medicationforall/cqspoolterrain) | | | | 
+| [S-S-X/YAPM (Yet Another Parametric Model / Enclosure)](https://github.com/S-S-X) |
+| https://github.com/neuman/gripster |
+| https://github.com/hrvach/deskhop |
+
+
+
+
+
 
 
 
