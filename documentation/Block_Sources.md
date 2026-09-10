@@ -28,5 +28,21 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | OpenCascade Community Catalogs | | | high | **Core Geometric Primitives.** Native OpenCascade `.brep` file catalogs are fully open and can be directly loaded into CadQuery without any translations using `cq.Shape.cast(OCC.Core.BRepTools...)`. |
 | Misumi / McMaster-Carr Open Data | | | medium | **Industrial Hardware.** While hosted by commercial entities, their standardized STEP downloads are perfectly formatted. You can build a local cache folder and use a Python dictionary script to match part numbers to `importStep()` paths. |
 | https://github.com/adafruit/Adafruit_CAD_Parts | | | | **Adafruit products** | 
+| https://github.com/OpenVSP/OpenVSP | | | | modell aircraft geometry tool |
+| https://github.com/eclecticc/ParametricCase | | | | PC Case |
+| https://github.com/AndyLevesque/QuackWorks | | | | | 
+| https://hackaday.io/project/27631-3d-printing-real-world-keys | | | | real-world keys |
+| https://github.com/nvx/protec-3d-printing | | | Printable ABLOY PROTEC Keys |
+| https://github.com/conorpp/3d-maze-generator | | | | 3d-maze-generator |
+| https://github.com/vsergeev/3d-parametric-whoop | | | | Quadrocopter |
+| https://github.com/onthelake/parametric_lego | | | | LEGO |
+| https://github.com/matthova/hovalin | | | | Violin |
+
+
+
+
+
+
+
 
 
