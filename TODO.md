@@ -51,9 +51,11 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 - [ ] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit)
 - [ ] evaluate bernhard-42/jupyter-cadquery
 - [ ] evaluate cq's assembly sytem and https://github.com/bernhard-42/cadquery-massembly
+- [ ] show differences: https://github.com/bdlucas1/diff3d
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-sets]
-- [ ] evaluate https://github.com/voneiden/cq-filter
+- [ ] for selectors: evaluate https://github.com/voneiden/cq-filter and https://github.com/jmwright/selector_synthesis
 - [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
+- [ ] optimisation: https://github.com/yeicor-3d/dl4to4ocp
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] Read back parameters on any user-initiated planning/authoring round
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
