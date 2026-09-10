@@ -68,6 +68,8 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | https://github.com/medicationforall/obeliskterrainapp |
 | https://github.com/openvmp/openvmp-models | 
 | https://github.com/bullestock/cadquery |
+| https://github.com/farnasirim/cq-centrifugal-fan |
+| https://cadhub.xyz/ https://github.com/Irev-Dev/cadhub | | | | abandoned |
 
 
 
