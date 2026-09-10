@@ -32,11 +32,18 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | https://github.com/eclecticc/ParametricCase | | | | PC Case |
 | https://github.com/AndyLevesque/QuackWorks | | | | | 
 | https://hackaday.io/project/27631-3d-printing-real-world-keys | | | | real-world keys |
-| https://github.com/nvx/protec-3d-printing | | | Printable ABLOY PROTEC Keys |
+| https://github.com/nvx/protec-3d-printing | | | | Printable ABLOY PROTEC Keys |
 | https://github.com/conorpp/3d-maze-generator | | | | 3d-maze-generator |
 | https://github.com/vsergeev/3d-parametric-whoop | | | | Quadrocopter |
 | https://github.com/onthelake/parametric_lego | | | | LEGO |
 | https://github.com/matthova/hovalin | | | | Violin |
+| https://github.com/DrLex0/print3D-customizable-sieve | | | | sieve / filter / strainer |
+| https://github.com/jobtalle/Lindenmayer3D | | | | Lindenmayer System |
+| https://github.com/Buback/ParametricDeLavalModel | | | De laval Nozzle |
+| https://github.com/JonnyHaystack/NoCap | | | | MX keycap |
+| https://github.com/LukasStu/Ferris-Sweep-Bling-MX-Case | | | | Ferris Sweep Bling MX Case |
+| https://github.com/phrxmd/container | | | | shipping containers |
+
 
 
 
