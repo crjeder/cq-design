@@ -122,5 +122,10 @@ Projects surveyed for ideas relevant to this skill. Status/adoption tracking liv
 | bernhard-42/jupyter-cadquery | | |
 | https://github.com/filaPro/cad-recode |
 | https://github.com/JBpeople/ai-cadquery | 
+| https://github.com/Mr-Though/cadquery-skills |
+| https://github.com/danwahl/cadqueryeval |
+| https://github.com/filaPro/cad-recode |
+| https://github.com/Text-to-CadQuery/Text-to-CadQuery |
+
 
 https://github.com/topics/text-to-cad?o=asc&s=forks
