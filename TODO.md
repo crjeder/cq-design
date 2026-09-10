@@ -46,6 +46,8 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 
 # Tasks for next version
 
+- [ ] generic parametric SCAD importer
+- [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-sets]
 - [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] Read back parameters on any user-initiated planning/authoring round
@@ -1420,3 +1422,10 @@ mechanism: multi-color/multi-material 3MF export via `lib3mf`, splitting a
 part into named color regions and exporting a pre-colored 3MF for
 AMS-style multi-filament printers. `threemf_multi.py` currently tracks
 named unions/plates but not per-region color -- that's the gap to close.
+
+### Parameter Sets
+e. g. Lego interface definition
+unit is "one point" (w * l * h): 8 * 8 * (3 * 3,2) ; center point (r * h): 2,4 * 1.8 , ...
+reference:
+- https://brickipedia.fandom.com/wiki/LEGO_Brick?file=Brick-in-mm.svg
+- https://www.bartneck.de/2019/04/21/lego-brick-dimensions-and-measurements/
