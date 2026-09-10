@@ -4,9 +4,9 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | Repo | Stars | Last Push | Usability as blocks | Why |
 |---|---:|---|---|---|
 | [gumyr/cq_warehouse](https://github.com/gumyr/cq_warehouse) | 151 | 2024-01 | **High** | Already the project's `cq-warehouse` git dependency (`CLAUDE.md`, `pyproject.toml`). Threads, fasteners, gears, extended workplane ops — same CadQuery API, zero porting. Slower-moving than `bd_warehouse` (its build123d successor) but directly importable today. |
-| `cq_gears` | | | **High** | Generates parametric spur, helical, and planetary gears directly as CadQuery objects. |
-| `cqMore` | | | **High** | Adds fundamental API extensions and base geometric primitives. |
-| `cqterrain` | | | **High** | A specialized part library for terrain and structural components. |
+| [`cq_gears`](https://github.com/meadiode/cq_gears) | | | **High** | Generates parametric spur, helical, and planetary gears directly as CadQuery objects. |
+| [`cqMore`](https://github.com/JustinSDK/cqMore) | | | **High** | Adds fundamental API extensions and base geometric primitives. |
+| [`cqterrain`](https://github.com/medicationforall/cqterrain) | | | **High** | A specialized part library for terrain and structural components. |
 | [michaelgale/cq-gridfinity](https://github.com/michaelgale/cq-gridfinity) | 200 | 2025-04 | **Medium-High** | Pure CadQuery, actively maintained, narrow but well-defined domain (Gridfinity baseplates/boxes). Worth vendoring specific generators as a `blocks/gridfinity.py` module if a project needs it; too specialized to import wholesale. |
 | [fa-mc/vibe-cading](https://github.com/fa-mc/vibe-cading) | 5 | 2026-06 | **Medium** | Explicitly built for CadQuery + LLM agents (typed-parameter Python classes for screws, gears, joints, bearings, heat-set inserts, hinges, standoffs) — closest philosophical match to this skill's `blocks/` pattern. Low stars/immature, so treat as a design reference and cherry-pick, not a hard dependency. |
 | [medicationforall/cadqueryhelper](https://github.com/medicationforall/cadqueryhelper) | 25 | 2026-04 | **Medium** | Small CadQuery primitive/helper library, actively pushed. Fine for occasional shape-primitive borrowing; not comprehensive enough to be a core dependency. |
@@ -49,8 +49,18 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | [S-S-X/YAPM (Yet Another Parametric Model / Enclosure)](https://github.com/S-S-X) |
 | https://github.com/neuman/gripster |
 | https://github.com/hrvach/deskhop |
-
-
+| https://github.com/medicationforall/cqladderterrainstreamlit |
+| https://github.com/lwidm/cq_gears |
+| https://github.com/RinIgarashi/CadQuery_Abenics-generator | 
+| https://github.com/tanius/cadquery-models |
+| https://github.com/zbynekwinkler/cadquery-skylark | | | | not relevant for 3d printing due to size |
+| https://github.com/sethfischer/cq-electronics |
+| https://github.com/mmalecki/cq-queryabolt |
+| https://github.com/nomad-vagabond/cq-uav | 
+| https://github.com/khaledelhady44/CadQuery-Cookbook |
+| https://github.com/Wren6991/CQCAD |
+| https://github.com/jmwright/cadquery-projects |
+| https://github.com/zignig/cqparts_bucket | 
 
 
 
