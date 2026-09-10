@@ -61,6 +61,13 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | https://github.com/Wren6991/CQCAD |
 | https://github.com/jmwright/cadquery-projects |
 | https://github.com/zignig/cqparts_bucket | 
+| https://github.com/medicationforall/cqindustry |
+| https://github.com/uchan-nos/cadquery-models |
+| https://github.com/swolebro/caddyshack | 
+| https://github.com/helmecke/cadquery-models |
+| https://github.com/medicationforall/obeliskterrainapp |
+| https://github.com/openvmp/openvmp-models | 
+| https://github.com/bullestock/cadquery |
 
 
 
