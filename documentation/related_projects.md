@@ -121,5 +121,6 @@ Projects surveyed for ideas relevant to this skill. Status/adoption tracking liv
 | https://github.com/SpatiaOS/P3D-Bench | | | 
 | bernhard-42/jupyter-cadquery | | |
 | https://github.com/filaPro/cad-recode |
+| https://github.com/JBpeople/ai-cadquery | 
 
 https://github.com/topics/text-to-cad?o=asc&s=forks
