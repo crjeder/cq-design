@@ -318,3 +318,134 @@ def test_default_run_gate_reports_without_fixing(monkeypatch, tmp_path):
     assert report["fix_rounds"] == 0
     assert report["passed"] is False
     assert script.read_bytes() == script_bytes
+
+
+# ---- hinge-guard-lint stage ------------------------------------------------
+
+
+def _revolute_plan(moving_union="cradle", part_id="cradle", unions=None, joint_type="revolute"):
+    part = {
+        "id": part_id,
+        "description": "test part",
+        "dimensions": {"w_mm": 10, "d_mm": 10, "h_mm": 10},
+        "interfaces": [],
+        "blocks_needed": [],
+    }
+    if unions:
+        part["unions"] = unions
+    return {
+        "parts": [part],
+        "kinematics": [
+            {
+                "joint_id": "j1",
+                "moving_union": moving_union,
+                "axis_origin_mm": [0, 0, 0],
+                "axis_dir": "Y",
+                "type": joint_type,
+                "required_range": [0, 90],
+                "step": 5,
+            }
+        ],
+    }
+
+
+def test_hinge_guard_flags_hand_rolled_script(tmp_path):
+    plan = _revolute_plan()
+    script = tmp_path / "cradle.py"
+    script.write_text("result = a.union(b)\n")
+    issues = quality_gate._run_hinge_guard_stage(plan, str(script))
+    assert len(issues) == 1
+    assert issues[0]["type"] == "hinge_guard_missing"
+    assert issues[0]["severity"] == "warning"
+    assert issues[0]["unions"] == ["cradle"]
+
+
+def test_hinge_guard_silent_with_verify_seated(tmp_path):
+    plan = _revolute_plan()
+    script = tmp_path / "cradle.py"
+    script.write_text(
+        "result = a.union(b)\nknuckle = verify_seated(riser, knuckle, '-z', 'hinge_ear')\n"
+    )
+    assert quality_gate._run_hinge_guard_stage(plan, str(script)) == []
+
+
+def test_hinge_guard_silent_with_pin_hinge_block(tmp_path):
+    plan = _revolute_plan()
+    script = tmp_path / "cradle.py"
+    script.write_text(
+        "result = a.union(b)\nleaves = pin_hinge(length=10, knuckles=3, leaf_w=5, leaf_t=2)\n"
+    )
+    assert quality_gate._run_hinge_guard_stage(plan, str(script)) == []
+
+
+def test_hinge_guard_non_hinge_part_never_checked(tmp_path):
+    plan = {
+        "parts": [
+            {
+                "id": "body",
+                "description": "x",
+                "dimensions": {"w_mm": 1, "d_mm": 1, "h_mm": 1},
+                "interfaces": [],
+                "blocks_needed": [],
+            }
+        ]
+    }
+    script = tmp_path / "body.py"
+    script.write_text("result = a.union(b)\n")
+    assert quality_gate._run_hinge_guard_stage(plan, str(script)) == []
+
+
+def test_hinge_guard_multi_union_checks_only_hinge_associated_union(tmp_path):
+    plan = _revolute_plan(
+        moving_union="leaf_a",
+        unions=[{"id": "leaf_a"}, {"id": "leaf_b"}],
+    )
+    script = tmp_path / "cradle.py"
+    script.write_text("result = {'leaf_a': a.union(b), 'leaf_b': c.union(d)}\n")
+    issues = quality_gate._run_hinge_guard_stage(plan, str(script))
+    assert len(issues) == 1
+    assert issues[0]["unions"] == ["leaf_a"]
+
+
+def test_hinge_guard_spherical_kinematics_not_covered(tmp_path):
+    plan = _revolute_plan(joint_type="spherical")
+    script = tmp_path / "cradle.py"
+    script.write_text("result = a.union(b)\n")
+    assert quality_gate._run_hinge_guard_stage(plan, str(script)) == []
+
+
+def test_hinge_guard_flags_pin_hinge_joint_member(tmp_path):
+    plan = {
+        "parts": [
+            {
+                "id": "door",
+                "description": "x",
+                "dimensions": {"w_mm": 1, "d_mm": 1, "h_mm": 1},
+                "interfaces": [],
+                "blocks_needed": [],
+            },
+            {
+                "id": "wall",
+                "description": "y",
+                "dimensions": {"w_mm": 1, "d_mm": 1, "h_mm": 1},
+                "interfaces": [],
+                "blocks_needed": [],
+            },
+        ],
+        "joints": [
+            {
+                "joint_id": "hinge1",
+                "block": "pin_hinge",
+                "params": {},
+                "members": [
+                    {"member": "leaf_a", "part": "door"},
+                    {"member": "leaf_b", "part": "wall"},
+                ],
+            }
+        ],
+    }
+    script = tmp_path / "door.py"
+    script.write_text("result = a.union(b)\n")
+    issues = quality_gate._run_hinge_guard_stage(plan, str(script))
+    assert len(issues) == 1
+    assert issues[0]["unions"] == ["door"]
