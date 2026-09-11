@@ -382,6 +382,14 @@ plate" instruction is itself correct -- the plate bore is fixed by the plate's o
 physical stack. The right resolution is a `joints` entry so the plate pose is
 *derived*, making the second literal impossible, not a hand-mirror.)
 
+**Eval coverage added** (`openspec/changes/expand-eval-corpus-hard-cases/`):
+`evals/cases/hinged-latch` (joints+kinematics+shared pivot, guards the knuckle
+pivot-ping-pong class), `evals/cases/lid-thickness-correction` (seeded round-2
+correction), and `evals/cases/east-side-mount` (compass-wording conflation)
+now give the scorecard a signal for this failure class. The product fixes
+below (`coordinate_frame`, hand-rolled-hinge lint, broadened
+`check_shared_interfaces`, `/retrofit`) are still unimplemented.
+
 ### C5 fixes did not take (2026-09-08)
 `debug/session-2026-09-08.md` re-ran the C5 Phone-Holder skill (a small design
 change: east-side fillet + raise the knuckle bore). All three C5 defects above
