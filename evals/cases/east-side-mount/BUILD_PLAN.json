@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "A flat wall-mount plate 60x40x6 mm carrying one cylindrical mounting boss (10 mm diameter, 8 mm tall) on its East-facing edge (+X), the edge that appears on the right side of the South viewing station per the fixed North=+Y/East=+X convention.",
+  "planning_notes": "Request named the boss edge two ways: 'right side viewed from South' and 'East-facing edge'. Resolved per prompts/planning.md's fixed convention: an observer south of the part looking North has East (+X) on their right, so both phrasings agree on +X -- not -X.",
+  "parts": [
+    {
+      "id": "mount_plate",
+      "description": "Wall-mount plate 60x40x6 with one 10mm boss near the East (+X) edge",
+      "dimensions": {
+        "w_mm": 60,
+        "d_mm": 40,
+        "h_mm": 14
+      },
+      "interfaces": [
+        {
+          "type": "screw_mount",
+          "name": "boss",
+          "description": "Mounting boss on the East-facing (+X) edge, right side of the South viewing station",
+          "wall": "east",
+          "diameter_mm": 10,
+          "position_mm": [22, 0, 6]
+        }
+      ],
+      "blocks_needed": [],
+      "engineering_rationale": "no load-bearing features (static wall-mount plate, no declared load)"
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

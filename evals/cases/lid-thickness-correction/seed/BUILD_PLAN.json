@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "A standalone lid plate with an inner locating lip that seats inside a box rim as a loose sliding fit. The lip wall is authored at 1 mm; the plate footprint is 70x50x3 mm and the lip footprint is 66x46 mm, both fixed at the user's original request.",
+  "planning_notes": "Round 1 (accepted): lip wall authored at 1.0 mm.",
+  "request_log": [
+    {
+      "ts": "2026-09-01T10:00:00Z",
+      "kind": "initial",
+      "text": "Design a lid plate 70x50x3 mm with a 66x46 mm inner locating lip, 1 mm wall on the lip. PLA, Bambu P1S."
+    }
+  ],
+  "parts": [
+    {
+      "id": "corrected_lid",
+      "description": "Lid plate 70x50x3 with a 66x46x1 locating lip",
+      "dimensions": {
+        "w_mm": 70,
+        "d_mm": 50,
+        "h_mm": 4
+      },
+      "interfaces": [
+        {
+          "type": "lid_seat",
+          "name": "lip",
+          "description": "Lip locates in the box body rim",
+          "wall": "bottom"
+        }
+      ],
+      "blocks_needed": [],
+      "engineering_rationale": "no load-bearing features (locating lip is a sliding fit, no sustained load)"
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}
