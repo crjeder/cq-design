@@ -70,6 +70,10 @@ on GitHub, rated for use as `src/blocks/` in cq-design
 | https://github.com/bullestock/cadquery |
 | https://github.com/farnasirim/cq-centrifugal-fan |
 | https://cadhub.xyz/ https://github.com/Irev-Dev/cadhub | | | | abandoned |
+| https://github.com/infradom/parametric_din_rail_enclosure | | | | |
+| https://github.com/szymswiat/cq-enclosure | | | | |
+| https://github.com/paulirotta/PELA-blocks | | | | | 
+
 
 
 
