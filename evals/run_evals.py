@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -321,19 +322,42 @@ def render_markdown(scorecard: dict) -> str:
 
 
 def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
-    """Run `claude -p` for one case in its own working directory (costs tokens)."""
+    """Run `claude -p` for one case in its own working directory (costs tokens).
+
+    When the case directory has a `seed/` subdirectory (a prior round's accepted
+    `BUILD_PLAN.json` and part script), its contents are copied into the case's
+    working directory first and the request is framed as a correction to that
+    seeded state, instead of a from-scratch request in an empty directory.
+    """
     case_run_dir = run_dir / case
     case_run_dir.mkdir(parents=True, exist_ok=True)
     request = (CASES_DIR / case / "request.md").read_text(encoding="utf-8")
-    prompt = (
-        "Use the cq-design skill to fulfil this request in the current "
-        "directory. Append telemetry per attempt to build/attempts.jsonl as "
-        "the skill directs. This is an unattended eval run -- there is no "
-        "user to answer clarifying questions. If anything is topology- or "
-        "dimension-ambiguous, pick the most common/standard reading, record "
-        "the assumption in planning_notes, and proceed without asking.\n\n"
-        f"{request}"
-    )
+
+    seed_dir = CASES_DIR / case / "seed"
+    if seed_dir.is_dir():
+        shutil.copytree(seed_dir, case_run_dir, dirs_exist_ok=True)
+        prompt = (
+            "Use the cq-design skill to apply a correction to the existing "
+            "project already present in the current directory (its "
+            "BUILD_PLAN.json and part script(s) are a prior round's accepted "
+            "state). Append telemetry per attempt to build/attempts.jsonl as "
+            "the skill directs. This is an unattended eval run -- there is no "
+            "user to answer clarifying questions. If anything is topology- or "
+            "dimension-ambiguous, pick the most common/standard reading, record "
+            "the assumption in planning_notes, and proceed without asking. "
+            "This is a round-2 correction, not a from-scratch request:\n\n"
+            f"{request}"
+        )
+    else:
+        prompt = (
+            "Use the cq-design skill to fulfil this request in the current "
+            "directory. Append telemetry per attempt to build/attempts.jsonl as "
+            "the skill directs. This is an unattended eval run -- there is no "
+            "user to answer clarifying questions. If anything is topology- or "
+            "dimension-ambiguous, pick the most common/standard reading, record "
+            "the assumption in planning_notes, and proceed without asking.\n\n"
+            f"{request}"
+        )
     try:
         proc = subprocess.run(
             ["claude", "-p", prompt, "--dangerously-skip-permissions", "--output-format", "json"],
