@@ -24,6 +24,7 @@ from typing import Any
 
 _PERMISSIONS_PATH = os.path.join(os.path.dirname(__file__), "skill_permissions.json")
 _SESSION_COST_PATH = os.path.join(os.path.dirname(__file__), "session_cost.py")
+_TELEMETRY_PATH = os.path.join(os.path.dirname(__file__), "telemetry.py")
 
 
 def load_canonical() -> dict[str, Any]:
@@ -73,9 +74,16 @@ def scaffold_directories(working_dir: str) -> list[str]:
     return created
 
 
+def _resolve_command(command: str) -> str:
+    """Substitute the `{session_cost_path}`/`{telemetry_path}` placeholders."""
+    return command.replace("{session_cost_path}", _SESSION_COST_PATH).replace(
+        "{telemetry_path}", _TELEMETRY_PATH
+    )
+
+
 def _resolved_hooks() -> dict[str, Any]:
-    """The canonical `hooks` block with `{session_cost_path}` resolved to the
-    absolute session_cost.py path. Keys starting with `_` (comments) are dropped."""
+    """The canonical `hooks` block with path placeholders resolved to absolute
+    script paths. Keys starting with `_` (comments) are dropped."""
     hooks = load_canonical().get("hooks", {})
     resolved: dict[str, Any] = {}
     for event, groups in hooks.items():
@@ -84,9 +92,7 @@ def _resolved_hooks() -> dict[str, Any]:
         out_groups = []
         for group in groups:
             out_hooks = [
-                {**h, "command": h["command"].replace("{session_cost_path}", _SESSION_COST_PATH)}
-                if "command" in h
-                else h
+                {**h, "command": _resolve_command(h["command"])} if "command" in h else h
                 for h in group.get("hooks", [])
             ]
             out_groups.append({**group, "hooks": out_hooks})
@@ -95,12 +101,13 @@ def _resolved_hooks() -> dict[str, Any]:
 
 
 def merge_hooks(working_dir: str) -> bool:
-    """Seed the session-cost hook into working_dir's settings.local.json.
+    """Seed the canonical hooks (session-cost, telemetry, ...) into working_dir's
+    settings.local.json.
 
     Additive and idempotent: an event's existing hook entries are never removed
-    or reordered, and the session-cost command is added only when no equivalent
-    entry (matched loosely on `session_cost.py`) is already present. Returns True
-    only when something was added.
+    or reordered, and a canonical entry is added only when its resolved command
+    isn't already present under that event. Returns True only when something
+    was added.
     """
     resolved = _resolved_hooks()
     if not resolved:
@@ -113,7 +120,8 @@ def merge_hooks(working_dir: str) -> bool:
     for event, groups in resolved.items():
         existing = hooks.setdefault(event, [])
         present = " ".join(h.get("command", "") for g in existing for h in g.get("hooks", []))
-        if "session_cost.py" in present:
+        new_commands = [h.get("command", "") for g in groups for h in g.get("hooks", [])]
+        if any(cmd and cmd in present for cmd in new_commands):
             continue
         existing.extend(groups)
         changed = True
@@ -182,7 +190,10 @@ def main() -> int:
         print(f"No changes; all patterns already present in {settings_path(args.dir)}")
 
     if merge_hooks(args.dir):
-        print(f"Seeded the session-cost Stop hook (build/cost.json) in {settings_path(args.dir)}")
+        print(
+            f"Seeded the session-cost Stop hook (build/cost.json) and the "
+            f"telemetry PostToolUse hook (build/attempts.jsonl) in {settings_path(args.dir)}"
+        )
 
     created = scaffold_directories(args.dir)
     if created:

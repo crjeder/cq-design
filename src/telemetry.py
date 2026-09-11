@@ -1,12 +1,20 @@
 """Append-only per-attempt telemetry log (build/attempts.jsonl).
 
-One JSON line per part-script attempt. The orchestrating Claude is the single
-writer; it calls the CLI after each attempt:
+One JSON line per part-script attempt, written by two paths:
 
     python telemetry.py append build/attempts.jsonl '{"part_id": ...}'
     python telemetry.py append build/attempts.jsonl --field part_id=housing \
         --field attempt=2 --field outcome=fail \
         --field 'error_types=["silent_boolean"]'
+
+and a ``PostToolUse`` hook (wired by ``init_permissions.py``) that observes each
+``run_cadquery_model.py`` Bash/PowerShell call and appends the base record itself:
+
+    python telemetry.py --hook
+
+A ``(part_id, attempt)`` pair may end up with more than one line (the hook's base
+record, plus a smaller visual-review follow-up appended by the orchestrator per
+skill/phase3_build.md Step 5) -- see ``fold_attempts``.
 
 Stdlib only.
 """
@@ -15,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -72,6 +81,115 @@ def append_attempt(path: str | Path, record: dict) -> dict:
     return record
 
 
+def fold_attempts(records: list[dict]) -> list[dict]:
+    """Group records by (part_id, attempt); return one per group -- the last
+    record in input order -- preserving each group's first-appearance order."""
+    groups: dict[tuple, dict] = {}
+    for rec in records:
+        groups[(rec.get("part_id"), rec.get("attempt"))] = rec
+    return list(groups.values())
+
+
+def _read_records(path: Path) -> list[dict]:
+    """Parseable JSON lines from path, or [] if the file is absent/empty/malformed."""
+    if not path.is_file():
+        return []
+    records = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return records
+
+
+_RUN_MODEL_RE = re.compile(r"run_cadquery_model\.py")
+_SCRIPT_ARG_RE = re.compile(r"build[/\\]([\w-]+)\.py")
+
+
+def _model_from_transcript(transcript_path: str | None) -> str | None:
+    """The model of the last assistant turn in the session transcript, if any."""
+    if not transcript_path:
+        return None
+    path = Path(transcript_path)
+    if not path.is_file():
+        return None
+    model = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(obj, dict) or obj.get("type") != "assistant":
+            continue
+        msg = obj.get("message")
+        if isinstance(msg, dict) and msg.get("model"):
+            model = msg["model"]
+    return model
+
+
+def _run_hook() -> int:
+    """PostToolUse-hook entry point: derive and append a base attempt record from a
+    run_cadquery_model.py Bash/PowerShell call. Fail-open: any problem (unmatched
+    command, missing build/, unparseable result, invalid record) exits 0 and
+    writes nothing -- a telemetry hook must never break a turn."""
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        return 0
+    try:
+        if payload.get("tool_name") not in ("Bash", "PowerShell"):
+            return 0
+        command = payload.get("tool_input", {}).get("command", "")
+        if not _RUN_MODEL_RE.search(command):
+            return 0
+        match = _SCRIPT_ARG_RE.search(command)
+        if not match:
+            return 0
+        part_id = match.group(1)
+
+        build_dir = Path(payload.get("cwd", ".")) / "build"
+        if not build_dir.is_dir():
+            return 0
+        attempts_log = build_dir / "attempts.jsonl"
+
+        existing = [r for r in _read_records(attempts_log) if r.get("part_id") == part_id]
+        attempt = len(fold_attempts(existing)) + 1
+
+        result = json.loads(payload.get("tool_response", {}).get("stdout", ""))
+        error_types = [
+            e.get("type") for e in result.get("errors", []) if isinstance(e, dict) and e.get("type")
+        ]
+
+        record: dict = {
+            "part_id": part_id,
+            "attempt": attempt,
+            "outcome": "pass" if result.get("success") else "fail",
+            "error_types": error_types,
+            "visual_review": None,
+        }
+        model = _model_from_transcript(payload.get("transcript_path"))
+        if model:
+            record["model"] = model
+
+        prompt_path = build_dir / f"{part_id}_prompt_attempt{attempt}.txt"
+        if prompt_path.is_file():
+            record["prompt_chars"] = len(prompt_path.read_text(encoding="utf-8"))
+
+        if validate_attempt(record):
+            return 0
+        append_attempt(attempts_log, record)
+    except Exception:
+        pass
+    return 0
+
+
 def _parse_field(spec: str) -> tuple[str, object]:
     key, sep, raw = spec.partition("=")
     if not sep or not key:
@@ -84,7 +202,12 @@ def _parse_field(spec: str) -> tuple[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument(
+        "--hook",
+        action="store_true",
+        help="read a PostToolUse payload from stdin; append a base record if applicable",
+    )
+    sub = parser.add_subparsers(dest="command")
     ap = sub.add_parser("append", help="append one attempt record")
     ap.add_argument("file", help="JSONL file to append to (e.g. build/attempts.jsonl)")
     ap.add_argument("json", nargs="?", help="record as a JSON object")
@@ -96,6 +219,11 @@ def main(argv: list[str] | None = None) -> int:
         help="set/override one field (value parsed as JSON, else string)",
     )
     args = parser.parse_args(argv)
+
+    if args.hook:
+        return _run_hook()
+    if not args.command:
+        parser.error("a command is required without --hook")
 
     record: dict = {}
     if args.json:

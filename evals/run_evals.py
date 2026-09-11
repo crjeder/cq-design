@@ -48,6 +48,9 @@ PRICES_PATH = EVALS_DIR / "model_prices.json"
 CHAMFER_SAMPLES = 2000
 CHARS_PER_TOKEN = 4
 
+sys.path.insert(0, str(EVALS_DIR.parent / "src"))
+from telemetry import fold_attempts  # noqa: E402
+
 
 def load_prices(path: Path = PRICES_PATH) -> dict:
     prices = json.loads(path.read_text(encoding="utf-8"))
@@ -90,7 +93,7 @@ def read_attempts(case_run_dir: Path) -> list[dict] | None:
         line = line.strip()
         if line:
             records.append(json.loads(line))
-    return records
+    return fold_attempts(records)
 
 
 def chamfer_mm(produced: trimesh.Trimesh, golden: trimesh.Trimesh) -> float:
