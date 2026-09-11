@@ -365,20 +365,29 @@ def _run_plan_validation_stage(plan_path: str) -> list[dict]:
 
 def _run_telemetry_stage(attempts_log: str) -> list[dict]:
     """Warn when the per-attempt telemetry log is absent, empty, or unparseable (once,
-    outside the fix loop; advisory only -- geometry is unaffected either way)."""
+    outside the fix loop; advisory only -- geometry is unaffected either way).
+
+    Folds by (part_id, attempt) first, so a base record plus its visual-review
+    follow-up for the same attempt is not mistaken for two records when only one
+    of them would parse (both parse here, but the fold keeps this consistent
+    with every other consumer of attempts.jsonl).
+    """
+    from telemetry import fold_attempts
     from units import make_issue
 
     if os.path.isfile(attempts_log):
+        records = []
         with open(attempts_log, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
                     continue
                 try:
-                    json.loads(line)
-                    return []
+                    records.append(json.loads(line))
                 except json.JSONDecodeError:
                     continue
+        if fold_attempts(records):
+            return []
 
     return [
         make_issue(

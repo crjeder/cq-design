@@ -50,6 +50,13 @@ mesh (both meshes centered by bounding-box center; no rotation solving), and
 cost per accepted part. The scorecard SHALL be emitted as JSON
 and as human-readable markdown.
 
+Before computing attempt- and cost-based metrics, the runner SHALL fold
+`attempts.jsonl` with `telemetry.py`'s `fold_attempts` (group by `(part_id,
+attempt)`, keep the last record in file order), so a part-script attempt
+represented by more than one line — a base record plus a later
+visual-review follow-up — is scored once, using its authoritative
+(last-written) `outcome`.
+
 Cost per case SHALL be a billed token cost when one was recorded, and an
 estimate otherwise. The runner SHALL prefer, in order: `<case>/cost.json` (the
 `claude -p` result envelope captured at generation), then
@@ -148,6 +155,14 @@ appearing as a change in the metric.
   `build/cost.json`
 - **THEN** the scorecard falls back to the `prompt_chars` estimate and marks the
   case's cost source as an estimate
+
+#### Scenario: A base-plus-follow-up attempt is counted once
+- **WHEN** `attempts.jsonl` holds a base record for `part_id: "lid"`,
+  `attempt: 1`, `outcome: "pass"` and a later follow-up record for the same
+  `part_id`/`attempt` with `outcome: "fail"` (a visual-review mismatch)
+- **THEN** `attempts_to_pass` and `first_shot_rate` treat this as one attempt
+  with `outcome: "fail"` (the folded, last-written record), not as two
+  attempts
 
 ### Requirement: Generation captures the result envelope
 When `run_evals.py` generates a case (`--generate`), it SHALL invoke `claude -p`

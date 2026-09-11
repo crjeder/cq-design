@@ -91,7 +91,7 @@ or calling any script.
 | `src/edge_treatment_check.py` | Per-part chamfer/fillet rule check (apply-time hook + build-frame classify) |
 | `src/gridfinity_check.py` | Per-part Gridfinity conformance check (grid, height, foot profile, mating) |
 | `src/feature_presence_check.py` | Per-part `interfaces[]` position assertion |
-| `src/telemetry.py` | Append-only per-attempt log -> `build/attempts.jsonl` |
+| `src/telemetry.py` | Append-only per-attempt log -> `build/attempts.jsonl` (`append` CLI, `fold_attempts`, `--hook` PostToolUse entry point) |
 | `src/request_log_search.py` | Search `BUILD_PLAN.json`'s `request_log` by keyword/kind |
 | `src/regen_prompt.py` | Export `REGENERATE.md`: a self-contained prompt that regenerates the project in a fresh session |
 | `src/print_orientation.py` | Computes bed-relative print orientation by minimizing support/overhang cost |
@@ -161,6 +161,7 @@ or calling any script.
     model_export.py          # Model-level export: named 3MF + per-union/plate/keep-out-zone STL
     build_template.py        # build.py template copied to build/; regenerates plates in print orientation
     telemetry.py             # Append-only per-attempt log -> build/attempts.jsonl
+                              # (append CLI, fold_attempts, --hook PostToolUse entry point)
                               # (build/journal.md is a milestone log the orchestrator appends to
                               # directly per skill/resume.md -- no dedicated script)
     session_cost.py          # Session transcript -> billed token cost in build/cost.json (Stop hook)
