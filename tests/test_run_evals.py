@@ -276,3 +276,38 @@ def test_end_to_end_scorecard_files(tmp_path):
 
 def test_unknown_case_rejected(tmp_path):
     assert run_evals.main(["--run-dir", str(tmp_path), "--cases", "nope"]) == 1
+
+
+def test_filter_by_tags_no_filter_returns_all():
+    assert run_evals.filter_by_tags(["a", "b"], None) == ["a", "b"]
+    assert run_evals.filter_by_tags(["a", "b"], "") == ["a", "b"]
+
+
+def test_filter_by_tags_real_case_intersection():
+    assert run_evals.filter_by_tags(["hinged-latch", "wall-hook"], "hinge") == ["hinged-latch"]
+
+
+def test_filter_by_tags_treats_missing_key_as_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_evals, "CASES_DIR", tmp_path)
+    (tmp_path / "no-tags").mkdir()
+    (tmp_path / "no-tags" / "case.json").write_text(json.dumps({}), encoding="utf-8")
+    (tmp_path / "tagged").mkdir()
+    (tmp_path / "tagged" / "case.json").write_text(
+        json.dumps({"tags": ["external"]}), encoding="utf-8"
+    )
+
+    result = run_evals.filter_by_tags(["no-tags", "tagged"], "external")
+    assert result == ["tagged"]
+
+
+def test_main_tags_combines_with_cases_by_intersection(tmp_path):
+    case_run = tmp_path / CASE
+    (case_run / "stl").mkdir(parents=True)
+    shutil.copy(GOLDEN, case_run / "stl" / f"{PART}.stl")
+    _write_attempts(case_run, [_record(1, "pass")])
+
+    # u-clip is tagged ["u", "clip"] -- no match means zero cases scored.
+    rc = run_evals.main(["--run-dir", str(tmp_path), "--cases", CASE, "--tags", "nonexistent-tag"])
+    assert rc == 0
+    scorecard = json.loads((tmp_path / "scorecard.json").read_text(encoding="utf-8"))
+    assert scorecard["aggregate"]["cases_scored"] == 0
