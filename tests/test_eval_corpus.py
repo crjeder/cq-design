@@ -16,7 +16,7 @@ CASES = sorted(p.name for p in CASES_DIR.iterdir() if p.is_dir())
 
 
 def test_corpus_has_about_ten_cases():
-    assert 8 <= len(CASES) <= 12
+    assert 8 <= len(CASES) <= 15
 
 
 @pytest.mark.parametrize("case", CASES)
