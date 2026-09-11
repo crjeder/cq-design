@@ -463,41 +463,38 @@ Handle geometry errors first, then decide what this attempt returns.
    - **Progressive (inline):** summarize the remaining errors and any visual mismatch to the user directly. Ask conversationally: provide a hint, accept the part as-is, or skip this part.
    - **Autonomous (builder agent):** return the **Builder return contract** with `status: blocked` and an `error_summary` — do not ask the user; the agent has no user channel. Main handles the ask via **Escalation** below.
 
-**Step 5 — Log the attempt (always, before retrying or advancing)**
+**Step 5 — Log a visual-review follow-up (only when review ran and failed)**
 
-Append exactly one telemetry record for this attempt to `build/attempts.jsonl`
-via the helper (never hand-write the JSONL):
+A `PostToolUse` hook already appended a base telemetry record for this attempt right
+after Step 3's `run_cadquery_model.py` call — `part_id`, `attempt`, `outcome` and
+`error_types` from the wrapper's own JSON, `prompt_chars`, `model`, and
+`visual_review: null`. Nothing here needs to re-assemble that record.
+
+**If Step 4's visual review ran this attempt and answered any question "no"**, append
+one small follow-up record for the same `part_id`/`attempt` (never hand-write the
+JSONL):
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" append build/attempts.jsonl \
-    --field 'part_id=<part_id>' --field 'attempt=<n>' --field 'outcome=<pass|fail>' \
-    --field 'error_types=["<type>", ...]' \
-    --field 'visual_review={"passed": <bool>, "failed_question": "<q or null>"}' \
-    --field 'prompt_chars=<measured character count of build/<part_id>_prompt_attempt<n>.txt>' --field 'model=<executing model>'
+    --field 'part_id=<part_id>' --field 'attempt=<n>' --field 'outcome=fail' \
+    --field 'error_types=["visual_mismatch"]' \
+    --field 'visual_review={"passed": false, "failed_question": "<q>"}'
 ```
 
-- `outcome=pass` only when step 4 accepted the part on this attempt; everything
-  else (geometry errors, visual_mismatch, user skip/blocked) is `fail`.
-- `error_types` lists the typed errors from the wrapper/gate JSON (empty on pass).
-- `visual_review` is the JSON `null` when the review did not run for this attempt
-  (e.g. geometry failed first).
-- `prompt_chars` is the character count of Step 1's `build/<part_id>_prompt_attempt<n>.txt`,
-  computed by reading the file — never typed from memory or estimated. See Step 1's
-  "Measuring the render" note.
-- `model` names the model that actually executed this attempt — the builder
-  agent's own model for an autonomous part, the main session's model for an
-  inline (progressive) part. Never write the literal `inline` — read the real
-  model identity of the executor making this call.
-- Skipping this step loses the measurement baseline every prompt/reference change
-  is judged against -- it is part of the loop, not optional bookkeeping.
+This is the authoritative line for that attempt (consumers fold by `part_id`+`attempt`,
+last line wins) — it overrides the hook's `outcome: pass` with the visual-review verdict.
 
-**Telemetry append safety.** Each `telemetry.py append` call opens the file in append
-mode and writes exactly one line; builders run **sequentially** (see Agent routing gate
-— no parallel builders in this iteration), so there is at most one writer at a time and
-no interleaving risk. This assumption breaks if a future change spawns builders in
-parallel — concurrent appends to the same file are not verified safe here and must be
-checked (or serialized, e.g. each agent returning its rows for main to append) before
-parallelizing.
+**Otherwise (review passed, or did not run this attempt) — there is nothing to do.**
+The hook's base record already stands and is correct.
+
+**Telemetry append safety.** The hook writes synchronously in `PostToolUse`, before the
+next tool call; this Step's follow-up, if any, is a later Bash call in the same
+sequential turn. Builders run **sequentially** (see Agent routing gate — no parallel
+builders in this iteration), so there is at most one writer at a time and no
+interleaving risk between the hook and this step, or across parts. This assumption
+breaks if a future change spawns builders in parallel — concurrent appends to the same
+file are not verified safe here and must be checked (or serialized, e.g. each agent
+returning its rows for main to append) before parallelizing.
 
 **Read the render before re-rendering.** The preview tile and its section/detail
 files are written to stable per-part names, so the next attempt's render overwrites
