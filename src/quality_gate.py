@@ -24,6 +24,7 @@ Usage:
 """
 
 import argparse
+import ast
 import json
 import os
 import subprocess
@@ -32,6 +33,10 @@ from collections.abc import Callable
 
 SKILL_ROOT = os.path.dirname(os.path.abspath(__file__))
 MAX_FIX_ROUNDS = 2
+# Call names that satisfy the hinge-guard-lint stage (see _run_hinge_guard_stage): a
+# hinge-associated union's script must call one of these, whether imported bare
+# (`verify_seated(...)`) or via attribute access (`cq_verify.verify_seated(...)`).
+_HINGE_GUARD_CALL_NAMES = {"verify_seated", "verify_backed", "pin_hinge"}
 # Up-facing gentle-incline area (mm^2) below which the cosmetic-slope finding is suppressed
 # as trivial. Advisory only, so this is tunable without affecting pass/fail.
 COSMETIC_SLOPE_MIN_AREA_MM2 = 20.0
@@ -554,6 +559,80 @@ def _run_feature_presence_stage(plan: dict, script_path: str) -> list[dict]:
     return run_feature_presence_check(plan, script_path)
 
 
+def _is_hinge_associated_union(plan: dict, union_id: str) -> bool:
+    """True when `union_id` is the moving_union of a revolute kinematics entry, or is
+    named in a `pin_hinge` joints entry's members[].part (see hinge-guard-lint spec)."""
+    from units import iter_kinematics_entries
+
+    for entry in iter_kinematics_entries(plan.get("kinematics", [])):
+        if entry.get("type") == "revolute" and entry.get("moving_union") == union_id:
+            return True
+    for joint in plan.get("joints", []):
+        if joint.get("block") != "pin_hinge":
+            continue
+        if any(m.get("part") == union_id for m in joint.get("members", [])):
+            return True
+    return False
+
+
+def _run_hinge_guard_stage(plan: dict, script_path: str) -> list[dict]:
+    """Flag a hinge-associated union whose script builds a boolean union but never calls
+    `verify_seated`/`verify_backed`/`pin_hinge` (once, outside the fix loop; advisory).
+
+    Makes a pre-existing, hand-rolled revolute-hinge script's missing guard visible even
+    though it was never re-authored under the guard's own rule (see hinge-guard-lint spec).
+    """
+    from units import iter_unions, make_issue
+
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
+    if part is None:
+        return []
+
+    hinge_unions = sorted(
+        uid
+        for p, uid, _plate in iter_unions(plan)
+        if p is part and _is_hinge_associated_union(plan, uid)
+    )
+    if not hinge_unions:
+        return []
+
+    try:
+        with open(script_path, encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=script_path)
+    except (OSError, SyntaxError):
+        return []
+
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    has_union_call = any(
+        isinstance(c.func, ast.Attribute) and c.func.attr == "union" for c in calls
+    )
+    if not has_union_call:
+        return []
+
+    has_guard_call = any(
+        (isinstance(c.func, ast.Name) and c.func.id in _HINGE_GUARD_CALL_NAMES)
+        or (isinstance(c.func, ast.Attribute) and c.func.attr in _HINGE_GUARD_CALL_NAMES)
+        for c in calls
+    )
+    if has_guard_call:
+        return []
+
+    return [
+        make_issue(
+            "hinge_guard",
+            "warning",
+            "hinge_guard_missing",
+            f"Union(s) {', '.join(hinge_unions)} are hinge-associated (a revolute "
+            "kinematics moving_union or a pin_hinge joints member) but the script has "
+            "no call to verify_seated, verify_backed, or pin_hinge.",
+            "Guard the hinge seating with cq_verify.verify_seated/verify_backed, or "
+            "build the joint via blocks.joints.pin_hinge, per prompts/part.md rule 8.",
+            unions=hinge_unions,
+        )
+    ]
+
+
 def _run_gridfinity_stage(script_path: str) -> list[dict]:
     """Check Gridfinity conformance for a part built on the Gridfinity blocks (once,
     outside the fix loop).
@@ -779,6 +858,8 @@ def run_gate(
         all_issues += _run_edge_treatment_stage(plan, script_path, orientation)
         # ---- feature-presence check (declared interfaces built; once, outside the fix loop) ----
         all_issues += _run_feature_presence_stage(plan, script_path)
+        # ---- hinge-guard-lint (revolute-hinge script missing its seating guard; advisory) ----
+        all_issues += _run_hinge_guard_stage(plan, script_path)
         # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
         all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
         # ---- Gridfinity conformance (Gridfinity parts only, once, outside the fix loop) ----
