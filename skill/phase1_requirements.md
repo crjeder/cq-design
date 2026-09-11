@@ -192,7 +192,13 @@ Write the reformulation as prose. It **must** state:
 - the fit type of every mating surface (press / snap / sliding / loose);
 - every assumption Phase 1 made rather than asked about, each with its concrete assumed
   value;
-- the repo-relative `sketches/` path of every user-supplied image the design is based on.
+- the repo-relative `sketches/` path of every user-supplied image the design is based on;
+- when the user's wording implies a non-standard compass binding (e.g. "East is the
+  side the logo faces" not matching the standard East=+X table in
+  `prompts/planning.md`), the resolved binding to write into `BUILD_PLAN.json`'s
+  `coordinate_frame` -- read any `coordinate_frame` already on the plan (a re-plan)
+  before asking again. Omit this when the request used no compass language, or used it
+  consistently with the standard table.
 
 It **must not** restate values a structured field already carries in full -- the
 dimension table (it lives in `parameters.py` and, later, `parts[].dimensions`), or the

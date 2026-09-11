@@ -15,6 +15,16 @@ All wall positions, interface locations, and directional language in this plan u
 
 The Down face (Z = 0) is the print bed. Parts are always modeled with their print-bed face at Z = 0.
 
+This project's resolved binding is recorded structurally in `coordinate_frame`
+(`{east, north, up}`, each one of `+x/-x/+y/-y/+z/-z`) only when it differs from the
+standard table above -- write it at the Phase 1 exit checkpoint whenever the user's
+stated frame implies a non-standard binding (e.g. "East is the side the logo faces,
+which is -X in this model"). Omit `coordinate_frame` entirely when the standard
+table applies; every reader then interprets compass language the standard way rather
+than re-deriving it from prose each time. `coordinate_frame` governs prose/review
+interpretation only -- it never changes `placement.rotate` or joint `dof.direction`
+sign conventions.
+
 When an interface's location is known, give its `position_mm` as the feature's intended center `[x, y, z]` in the part's own authored frame (same frame as `dimensions`), plus a size (`diameter_mm` for round features, `size_mm: [w, h]` for rectangular). These structured fields are optional, but supplying them enables the deterministic feature-presence check to confirm the feature was actually built where you declared it.
 
 SPATIAL FRAME:
@@ -147,6 +157,13 @@ adhesive). Content that fits none of these three categories does not belong in
    finding, because the feature's numbers are then typed independently into each part
    and re-diverge on every correction round. Route the mate through `joints` so the
    value has a single source (`joints[].params`) and the mated part's pose is derived.
+   The same finding also fires when two parts' round `interfaces[]` entries (both
+   carrying `position_mm` and `diameter_mm`) coincide in the assembled frame with no
+   linking `joints` entry, even when `name` is null on both or differs -- a shared
+   physical mate belongs in `joints` regardless of whether it was also given a
+   matching vocabulary word. Separately, a multi-part plan whose intent/request_log
+   uses hinge/pivot/fold language with no `joints` entry at all gets its own advisory
+   nudge toward the same fix.
 
 8. **Declare each part's goal pose in the shared assembled frame as `pose_intent`, not
    as a transform.** Do not author `parts[].placement` -- the part author builds the
