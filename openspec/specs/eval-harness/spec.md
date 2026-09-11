@@ -62,6 +62,49 @@ conflating the two would place the feature on the opposite side under the
   viewing-station phrase and a face-normal phrase for opposite compass
   directions, and its golden mesh places the feature per the fixed convention
 
+The corpus MAY additionally contain cases imported from an external
+text-to-CadQuery corpus via `evals/import_external_corpus.py` (see the
+`external-corpus-import` capability). An imported case's `BUILD_PLAN.json` MAY be
+a synthesized single-part plan (one `parts` entry, no `units`/`joints`/
+`kinematics`) rather than hand-authored, but SHALL still pass `plan_validate.py`
+like any other case's plan. An imported case's `request.md` is the source
+corpus's original pair description, not necessarily written in this skill's usual
+conversational-request style. Imported cases are distinguished from hand-authored
+ones by an `"external"` entry in `case.json`'s `tags` array, not by directory
+location -- both live as flat siblings under `evals/cases/`.
+
+#### Scenario: An imported case's plan is a synthesized single-part plan
+- **WHEN** a case's `case.json` `tags` array includes `"external"`
+- **THEN** its `BUILD_PLAN.json` contains exactly one `parts` entry and no
+  `units`, `joints`, or `kinematics` fields, and still passes `plan_validate.py`
+
+### Requirement: Case subsetting by tag
+The eval runner (`evals/run_evals.py`) SHALL support a `--tags` argument
+(comma-separated). When given, a case SHALL be included only if its `case.json`
+`tags` array intersects the given set; a case with no `tags` key SHALL be treated
+as having an empty tag set. When `--tags` is omitted, case selection SHALL be
+unaffected (all cases, or the `--cases` subset if given). When both `--cases` and
+`--tags` are given, the effective case set SHALL be their intersection.
+
+#### Scenario: Tag filter selects the external corpus only
+- **WHEN** the runner is invoked with `--tags external`
+- **THEN** only cases whose `case.json` `tags` array contains `"external"` are
+  scored
+
+#### Scenario: Tag filter selects the canonical corpus by exclusion
+- **WHEN** the runner is invoked with `--tags canonical` and every hand-authored
+  case's `case.json` includes a `"canonical"` tag
+- **THEN** only hand-authored cases are scored
+
+#### Scenario: No tag filter leaves existing behavior unchanged
+- **WHEN** the runner is invoked without `--tags`
+- **THEN** case selection behaves exactly as it did before this field existed
+
+#### Scenario: Cases predating the tags field are excluded by any tag filter
+- **WHEN** a case's `case.json` has no `tags` key and `--tags` is given
+- **THEN** that case is excluded from the run (empty tag set does not intersect
+  any non-empty filter)
+
 ### Requirement: Score-only eval runs
 The eval runner (`evals/run_evals.py`) SHALL, by default, score an existing
 run directory without invoking any model: it reads that run's

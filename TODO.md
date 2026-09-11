@@ -119,8 +119,8 @@ Clean-room reimplementation (GPL-incompatible upstream) -- see [details](#print-
 
 ### Benchmark corpora for `evals/`
 Survey of prompt-to-result corpora usable to seed `evals/cases/` -- see [details](#benchmark-corpora-survey).
-- [ ] Text-to-CadQuery corpus import (arXiv 2505.06507) -- [details](#text-to-cadquery-corpus)
-- [ ] WKJBryan/cadquery-library import -- [details](#wkjbryancadquery-library)
+- [x] Text-to-CadQuery corpus import (arXiv 2505.06507) -- importer landed, `evals/import_external_corpus.py` -- [details](#text-to-cadquery-corpus)
+- [x] WKJBryan/cadquery-library import -- importer landed, `evals/import_external_corpus.py` -- [details](#wkjbryancadquery-library)
 - [ ] SadilKhan/Text2CAD (blocked on a DeepCAD-sketch->CadQuery converter) -- [details](#text2cad)
 - rundiwu/DeepCAD -- low priority, no action -- [details](#deepcad-no-action)
 - mehsenazizi/mecagent-test -- low priority, no action -- [details](#mecagent-test-no-action)
