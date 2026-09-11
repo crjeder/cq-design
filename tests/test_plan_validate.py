@@ -12,7 +12,9 @@ sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
 
 from plan_validate import (  # noqa: E402
     check_block_thinness,
+    check_coordinate_frame_usage,
     check_engineering_rationale,
+    check_hinge_intent_without_joints,
     check_shared_interfaces,
     validate_plan,
 )
@@ -1144,3 +1146,152 @@ def test_shared_interface_finding_does_not_invalidate_plan(plan_file):
     _bore(plan, "wall")
     assert check_shared_interfaces(plan)
     assert validate_plan(plan_file(plan)) == []
+
+
+# ---- coordinate_frame (schema + advisory) --------------------------------------
+
+
+def test_coordinate_frame_absent_validates(plan_file):
+    assert validate_plan(plan_file(VALID_PLAN)) == []
+
+
+def test_valid_coordinate_frame_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["coordinate_frame"] = {"east": "-x", "north": "+y", "up": "+z"}
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_invalid_coordinate_frame_axis_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["coordinate_frame"] = {"east": "sideways"}
+    errors = validate_plan(plan_file(plan))
+    assert any("coordinate_frame" in e for e in errors)
+
+
+def test_compass_word_in_intent_flags():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = plan["intent"] + " Fillet added on the east side of the enclosure."
+    findings = check_coordinate_frame_usage(plan)
+    assert len(findings) == 1
+
+
+def test_compass_word_in_request_log_flags():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Mount it on the West wall"}
+    ]
+    findings = check_coordinate_frame_usage(plan)
+    assert len(findings) == 1
+
+
+def test_coordinate_frame_present_silences_compass_finding():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = plan["intent"] + " Fillet added on the east side."
+    plan["coordinate_frame"] = {"east": "-x"}
+    assert check_coordinate_frame_usage(plan) == []
+
+
+def test_no_compass_word_emits_nothing():
+    assert check_coordinate_frame_usage(VALID_PLAN) == []
+
+
+# ---- hinge/pivot intent without joints -----------------------------------------
+
+
+def test_hinge_language_no_joints_flags():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    plan["intent"] = "A cradle that folds flat against the plate, " + plan["intent"]
+    findings = check_hinge_intent_without_joints(plan)
+    assert len(findings) == 1
+
+
+def test_hinge_language_with_joints_not_flagged():
+    plan = _joints_plan()
+    plan["intent"] = "A cradle that folds flat against the plate, " + plan["intent"]
+    assert check_hinge_intent_without_joints(plan) == []
+
+
+def test_hinge_language_single_part_exempt():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = "A lid that folds flat, " + plan["intent"]
+    assert check_hinge_intent_without_joints(plan) == []
+
+
+def test_no_hinge_language_emits_nothing():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    assert check_hinge_intent_without_joints(plan) == []
+
+
+# ---- positional shared-interface detection (unnamed round mates) ---------------
+
+
+def _round_interface(pid_plan, pid, position_mm, diameter_mm, placement=None):
+    for part in pid_plan["parts"]:
+        if part["id"] == pid:
+            part["interfaces"] = [
+                {"type": "pin_bore", "position_mm": position_mm, "diameter_mm": diameter_mm}
+            ]
+            if placement is not None:
+                part["placement"] = placement
+    return pid_plan
+
+
+def test_unnamed_coincident_round_interfaces_flagged():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [0, 0, 0], 5.0)
+    findings = check_shared_interfaces(plan)
+    assert len(findings) == 1
+    assert "door" in findings[0] and "wall" in findings[0]
+
+
+def test_positional_finding_silenced_by_joints_entry():
+    plan = _joints_plan()
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [0, 0, 0], 5.0)
+    assert check_shared_interfaces(plan) == []
+
+
+def test_positional_different_diameters_not_flagged():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [0, 0, 0], 20.0)
+    assert check_shared_interfaces(plan) == []
+
+
+def test_positional_different_positions_not_flagged():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [100, 0, 0], 5.0)
+    assert check_shared_interfaces(plan) == []
+
+
+def test_positional_check_skips_interfaces_without_position_or_diameter():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    plan["parts"][0]["interfaces"] = [{"type": "pin_bore", "diameter_mm": 5.0}]
+    plan["parts"][1]["interfaces"] = [{"type": "pin_bore", "position_mm": [0, 0, 0]}]
+    assert check_shared_interfaces(plan) == []
+
+
+def test_positional_coincidence_after_placement_transform():
+    """Two interfaces at different authored-frame positions that land at the same
+    assembled-frame point once each part's placement is applied still flag."""
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [10, 0, 0], 5.0, placement={"translate_mm": [-10, 0, 0]})
+    findings = check_shared_interfaces(plan)
+    assert len(findings) == 1
