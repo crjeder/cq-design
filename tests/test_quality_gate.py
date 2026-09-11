@@ -15,6 +15,31 @@ def _issues_of(issues, type_):
     return [i for i in issues if i["type"] == type_]
 
 
+def test_telemetry_stage_silent_on_base_plus_followup_pair(tmp_path):
+    log = tmp_path / "attempts.jsonl"
+    base = {
+        "part_id": "lid",
+        "attempt": 1,
+        "outcome": "pass",
+        "error_types": [],
+        "visual_review": None,
+        "prompt_chars": 1000,
+        "model": "inline",
+    }
+    followup = {**base, "outcome": "fail", "error_types": ["visual_mismatch"]}
+    log.write_text(json.dumps(base) + "\n" + json.dumps(followup) + "\n", encoding="utf-8")
+
+    issues = quality_gate._run_telemetry_stage(str(log))
+
+    assert issues == []
+
+
+def test_telemetry_stage_warns_when_log_absent(tmp_path):
+    issues = quality_gate._run_telemetry_stage(str(tmp_path / "attempts.jsonl"))
+
+    assert _issues_of(issues, "telemetry_missing")
+
+
 @pytest.fixture
 def flat_bottom_cube_stl(tmp_path):
     """Watertight cube: its flat bottom face rests on the bed (Z=min), so it is

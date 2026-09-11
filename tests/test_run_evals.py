@@ -88,6 +88,22 @@ def test_missing_telemetry_degrades_not_crashes(tmp_path):
     assert result["mean_chamfer_mm"] < 0.5
 
 
+def test_base_plus_followup_counted_as_one_attempt(tmp_path):
+    case_run = tmp_path / CASE
+    base = _record(1, "pass")
+    followup = {**base, "outcome": "fail", "error_types": ["visual_mismatch"]}
+    _write_attempts(case_run, [base, followup])
+
+    attempts = run_evals.read_attempts(case_run)
+    assert attempts is not None
+    assert len(attempts) == 1
+    assert attempts[0]["outcome"] == "fail"
+
+    metrics = run_evals.attempt_metrics(attempts, _FLAT_10)
+    assert metrics["first_shot_rate"] == 0.0
+    assert metrics["mean_attempts_to_pass"] == 2.0
+
+
 def test_part_ids_need_not_agree(tmp_path):
     case = "sliding-lid"
     golden_part = "sliding_lid"
