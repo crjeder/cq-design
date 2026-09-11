@@ -266,6 +266,23 @@ def score_case(case: str, run_dir: Path, prices: dict) -> dict:
     return result
 
 
+def _case_tags(case: str) -> set[str]:
+    meta = json.loads((CASES_DIR / case / "case.json").read_text(encoding="utf-8"))
+    return set(meta.get("tags", []))
+
+
+def filter_by_tags(cases: list[str], tags_arg: str | None) -> list[str]:
+    """Cases whose `case.json` `tags` intersect `tags_arg` (comma-separated, OR-matched).
+
+    `tags_arg` of `None`/empty leaves `cases` unchanged. A case with no `tags` key
+    has an empty tag set, so it is excluded by any non-empty filter.
+    """
+    if not tags_arg:
+        return cases
+    wanted = {t.strip() for t in tags_arg.split(",") if t.strip()}
+    return [c for c in cases if _case_tags(c) & wanted]
+
+
 def aggregate(case_results: list[dict]) -> dict:
     def vals_of(key):
         return [r[key] for r in case_results if r.get(key) is not None]
@@ -389,6 +406,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-dir", required=True, help="run directory (one subdir per case)")
     parser.add_argument("--cases", help="comma-separated case subset (default: all)")
     parser.add_argument(
+        "--tags",
+        help="comma-separated tag filter, OR-matched against each case's case.json tags",
+    )
+    parser.add_argument(
         "--generate",
         action="store_true",
         help="generate each case via `claude -p` before scoring (costs tokens)",
@@ -403,6 +424,7 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         print(f"unknown cases: {', '.join(unknown)}", file=sys.stderr)
         return 1
+    cases = filter_by_tags(cases, args.tags)
 
     if args.generate:
         for case in cases:

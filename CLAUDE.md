@@ -100,7 +100,8 @@ or calling any script.
 | `src/cq_compat.py` | Compatibility shim neutralizing a `cq_warehouse` shape-copy patch |
 | `src/init_permissions.py` | Seeds a working directory's `.claude/settings.local.json` (permission patterns + the session-cost `Stop` hook) |
 | `src/session_cost.py` | Records billed token cost from the session transcript -> `build/cost.json` (hook-driven, stdlib only) |
-| `evals/run_evals.py` | Eval harness (score-only by default; `--generate` opt-in) |
+| `evals/run_evals.py` | Eval harness (score-only by default; `--generate` opt-in; `--tags` filters cases by `case.json` tags) |
+| `evals/import_external_corpus.py` | Manual tool: samples/filters a local snapshot of an external text->CadQuery corpus into golden `evals/cases/` entries |
 | `src/measure_stl.py` | Geometry feature extractor (trimesh + numpy) |
 | `src/preview.py` | CadQuery tessellation + matplotlib preview renderer |
 | `src/render_preview.py` | Subprocess entry point for `preview.py` |
@@ -195,8 +196,10 @@ or calling any script.
 
   evals/
     cases/<case>/        # request.md, golden BUILD_PLAN.json, golden/*.stl, case.json
-    run_evals.py         # Scorecard runner (score-only by default; --generate opt-in)
+    run_evals.py         # Scorecard runner (score-only by default; --generate opt-in; --tags filter)
     generate_goldens.py  # Regenerates the golden STLs
+    import_external_corpus.py # Manual: imports a filtered/sampled slice of a local external
+                          # text->CadQuery corpus snapshot into evals/cases/
     model_prices.json    # Editable USD-per-MTok table for cost estimates
 
   prompts/
@@ -232,6 +235,7 @@ or calling any script.
     test_request_log_search.py       # request_log filter helper + CLI -- fast, no CadQuery
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
+    test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # printer_profile.json schema + write-back -- fast, no CadQuery
     test_import_params.py            # import_params.py parse/reconcile/write-back -- fast, no CadQuery
