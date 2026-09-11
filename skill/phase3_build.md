@@ -225,12 +225,9 @@ Branch on the plan's effective `review_policy` (see Build mode above):
   mismatch as a one-line self-correction and adjust the upcoming full script
   accordingly; do not block on it.
 
-Once the stub is approved (or self-reviewed under `minimal`), append one line to
-`build/journal.md` (see `skill/resume.md`):
-
-```
-- phase3/stub_approved:<part_id>: <one-line profile description>
-```
+Once the stub is approved (or self-reviewed under `minimal`), append
+`- phase3/stub_approved:<part_id>: <one-line profile description>` to
+`build/journal.md` (see `skill/resume.md`).
 
 Then attempt up to **3 times**:
 
@@ -453,7 +450,7 @@ feature they specifically asked about.
 
 Handle geometry errors first, then decide what this attempt returns.
 
-1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the review for this attempt. Blocking types include `disconnected_body` (a union that split into separate solids). For that one, read the per-body axis ranges in the `message` before editing: if the bodies do not overlap on some axis, one of them is in the wrong place — a workplane swap moves a box's origin, because `box`'s third dimension runs along the workplane normal and `"XZ"`'s normal is **-Y** (`"XY"` is +Z, `"YZ"` is +X), so an uncentered box that grew into +Z on `"XY"` grows into **-Y** on `"XZ"` — and the repair is to move it back and re-check every coordinate authored in the old frame, not to grow it until it touches. Only when the pieces already meet is added overlap the right fix.
+1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the review for this attempt. Blocking types include `disconnected_body` (a union that split into separate solids). For that one, read the per-body axis ranges in the `message` before editing: if the bodies do not overlap on some axis, one of them is in the wrong place — often a workplane swap (see `reference/CadQuery Pattern Reference.md`'s "CadQuery Workplane Naming" section, already in context from Setup, for the `"XY"`/`"XZ"`/`"YZ"` normal signs) — and the repair is to move it back and re-check every coordinate authored in the old frame, not to grow it until it touches. Only when the pieces already meet is added overlap the right fix.
 2. **`success: true` AND no blocking errors** →
    - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union), the request-conformance questions from the scoped request text (the approved `intent` plus this part's `request_log` entries — see the Request log section's "Scoping to a part"; skip this class when the plan carries neither a reformulated `intent` nor a `request_log`), plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not). A request-conformance question answered "no" is an **advisory** finding (cite the contradicted request phrase and the view) that does not fail the review or consume a retry, unless the same discrepancy also answers a plan-derived question or universal invariant "no" — then it is a blocking `visual_mismatch` like any other. Per the checklist's coverage-first rule, also report any other discrepancy noticed, however low-confidence or minor, as an advisory finding (confidence + severity) — it does not fail a question or consume a retry.
      - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against), and any advisory findings grouped separately under their own heading, not mixed with the checklist. Append `- phase3/part_accepted:<part_id>: progressive review passed` to `build/journal.md` (see `skill/resume.md`). Advance to next part.
@@ -542,12 +539,9 @@ When a builder agent returns `status: blocked`:
 3. **Skip** → advance to the next part without this part's geometry; note the skip in
    the design-approval checkpoint summary.
 
-Whichever outcome, append one line to `build/journal.md` (see `skill/resume.md`) before
-moving on:
-
-```
-- phase3/escalation:<part_id>: <hint given verbatim | accepted as-is | skipped>
-```
+Whichever outcome, append
+`- phase3/escalation:<part_id>: <hint given verbatim | accepted as-is | skipped>`
+to `build/journal.md` (see `skill/resume.md`) before moving on.
 
 ## Implementation audit
 
@@ -714,12 +708,9 @@ run with no checkpoints (see Build mode override above) — in that case still d
 the previews for the record, but proceed straight to print-orientation optimization
 without waiting.
 
-Once approved (or skipped per the override above), append one line to
-`build/journal.md` (see `skill/resume.md`):
-
-```
-- phase3/design_approved: <n> parts
-```
+Once approved (or skipped per the override above), append
+`- phase3/design_approved: <n> parts` to `build/journal.md` (see
+`skill/resume.md`).
 
 ## Print-orientation optimization
 
@@ -803,12 +794,9 @@ Collect the accepted orientations into `build/orientations.json` mapping each pa
 its result (`{"<part_id>": {"rotate": [...], ...}}`). This file feeds the model export and
 the quality-gate recipe below.
 
-Once every union has an accepted orientation, append one line to `build/journal.md`
-(see `skill/resume.md`):
-
-```
-- phase3/orientation_chosen: <n> unions, see build/orientations.json
-```
+Once every union has an accepted orientation, append
+`- phase3/orientation_chosen: <n> unions, see build/orientations.json` to
+`build/journal.md` (see `skill/resume.md`).
 
 ## Model export
 
@@ -939,11 +927,8 @@ own defaults already point at the project root / `stl/` for its output, matching
 layout, so no extra flags are needed for a normal re-run.
 
 Once `model.3mf` and the STLs are written and the standalone project verified, append
-one line to `build/journal.md` (see `skill/resume.md`):
-
-```
-- phase3/model_exported: model.3mf + <n> STL(s) written
-```
+`- phase3/model_exported: model.3mf + <n> STL(s) written` to `build/journal.md`
+(see `skill/resume.md`).
 
 ## Quality gate
 
@@ -974,12 +959,9 @@ if `severity: error` findings remain after that, stop and summarize them to the 
 rather than retrying further. `severity: warning` findings do not trigger a fix round --
 surface them alongside the print recipe. (`--fix` restores the old cold-context fixer
 for standalone use outside this pipeline; the skill does not pass it.) Once the gate
-passes (or its remaining findings are escalated), append one line to
-`build/journal.md` (see `skill/resume.md`):
-
-```
-- phase3/gate_result: <pass|escalated>, <n> remaining findings
-```
+passes (or its remaining findings are escalated), append
+`- phase3/gate_result: <pass|escalated>, <n> remaining findings` to
+`build/journal.md` (see `skill/resume.md`).
 
 Then proceed to Phase 4.
 
@@ -1015,40 +997,12 @@ The `build/` directory is in your current working directory (the directory you c
 
 ## Block library
 
-Select blocks in `blocks_needed` during planning. When generating part scripts, write a flat `from blocks import <function>` at the top for each block (see generated-script rules in the core SKILL.md).
+Select blocks in `blocks_needed` during planning. When generating part scripts, write a flat `from blocks import <function>` at the top for each block (see generated-script rules in the core SKILL.md). Each block's `name`, `use`, and `params` are already in context from Setup's `blocks/inventory.json` read — look there rather than a restated table:
 
-### Primitives (`src/blocks/primitives.py`)
-
-| Block | Use |
-|-------|-----|
-| `fillet_box` | Rectangular solid with filleted vertical edges. Outer shell for enclosures and bases. |
-| `hollow_box` | Open-top hollow body via boolean subtraction. Electronics cases, trays, bins. |
-
-### Fasteners (`src/blocks/fasteners.py`)
-
-| Block | Use |
-|-------|-----|
-| `screw_boss` | Solid cylinder boss with through-hole for M2-M4 self-tapping screws. |
-| `pcb_standoff` | Hollow cylindrical standoff for PCB mounting (M2 / M2.5 / M3). |
-| `snap_hook_clip` | Cantilever snap-fit hook clip for lid-to-body connections. Union onto lid inner wall. |
-| `snap_socket_receiver` | Slot to subtract from a wall to receive `snap_hook_clip`. |
-| `alignment_pin` | Tapered cylinder pin for press-fit part registration. |
-| `alignment_socket` | Receiving hole for `alignment_pin`. Use `clearance=0.2` for loose, `0.05` for press. |
-
-### Connectors (`src/blocks/connectors.py`)
-
-| Block | Use |
-|-------|-----|
-| `port_cutout` | Rectangular port opening: USB-C (9x3.5 mm), USB-A (12x6 mm), barrel jack, HDMI, etc. Add 0.3-0.5 mm clearance. |
-| `cable_slot` | Elongated slot for cable routing, strain relief, wire management. |
-| `vent_grid` | Regular grid of ventilation slots. Subtract from a wall or lid face. |
-
-### Joints (`src/blocks/joints.py`)
-
-| Block | Use |
-|-------|-----|
-| `dovetail_groove` | Dovetail slot cut into a body top edge for a sliding lid. Subtract from the body. |
-| `dovetail_tongue` | Sliding lid panel that mates with `dovetail_groove`. The tongue IS the lid. |
+- **Primitives** (`src/blocks/primitives.py`) — `fillet_box`, `hollow_box`
+- **Fasteners** (`src/blocks/fasteners.py`) — `screw_boss`, `pcb_standoff`, `snap_hook_clip`, `snap_socket_receiver`, `alignment_pin`, `alignment_socket`
+- **Connectors** (`src/blocks/connectors.py`) — `port_cutout`, `cable_slot`, `vent_grid`
+- **Joints** (`src/blocks/joints.py`) — `dovetail_groove`, `dovetail_tongue`
 
 ### Gridfinity (`src/blocks/gridfinity.py`)
 
