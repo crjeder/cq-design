@@ -587,8 +587,8 @@ autonomous part.
    `BUILD_PLAN.json` entry (dimensions, interfaces, blocks_needed, unions), the
    preview/section/detail image paths from the Builder return contract, and the
    **scoped request text** for the part (the approved `intent`, plus the per-part
-   `request_log` entries — see the Request log section's "Scoping to a part"; the
-   `initial` entry stands in for `intent` on a legacy/eval plan). It does **not**
+   `request_log` entries — see the Request log section's "Scoping to a part" for
+   how this text is assembled, including the legacy/eval-plan fallback). It does **not**
    receive the part script — adding the request text does not relax that rule; the
    auditor judges the render against the plan's intent *and the user's own words* with
    no chance to rationalize from the code that produced it. When the plan carries
