@@ -68,14 +68,10 @@ run real CadQuery scripts (a few seconds each).
   Do not rename or remove keys — Claude parses them inline during the part loop.
 - **`errors` field**: always present, empty list on a clean run. Each entry has `type`,
   `message`, `hint`. Claude uses these typed errors to build structured correction prompts.
-- **Multi-union parts**: when a script's `result` is a `dict[str, Workplane]`, the wrapper
-  validates each union body; its findings carry a `union` field and the `message` is prefixed
-  with the union id, and the `geometry` block aggregates over the unions (summed volume/faces,
-  bbox envelope). A single-`Workplane` result is byte-identical to the single-body report.
-- **Thin-interface check** (`--wall-min` set): the `geometry` block gains `thin_regions`
-  (each with `thickness_mm`, `orientation` of `xy`/`z`, `location_xyz_mm`, `thin_direction`,
-  `nearest_feature`). Only XY-thin regions below `wall_min` become `thin_interface` errors;
-  Z-thin slabs are reported in `geometry` but are benign for printing (advisory only).
+- **Multi-union parts**: a script's `result` may be a `dict[str, Workplane]`; the wrapper
+  validates and aggregates per-union. See `reference/scripts.md` for the exact fields.
+- **Thin-interface check** (`--wall-min` set): adds `thin_regions` to the `geometry` block.
+  See `reference/scripts.md` for its shape and which regions become blocking errors.
 - **STL hidden during iteration**: scripts run in `tempfile.mkdtemp()`. STL paths are
   `null`/`[]` in normal JSON output. Use `--deliver --formats stl,...` to get output files.
 - **Exit codes**: 0 = success, 1 = failure, 2 = interpreter not found, 3 = timeout.
