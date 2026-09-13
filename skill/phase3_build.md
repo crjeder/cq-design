@@ -317,6 +317,42 @@ from blocks import fillet_box, screw_boss    # example
 
 Then a `PARAMETERS` block, then the geometry, then `result = ...`. See generated-script rules in the core SKILL.md.
 
+**Reconciling hand-edited PARAMETERS.** If a user (or Claude) tweaks a part script's
+`PARAMETERS` block directly after the plan was built, `BUILD_PLAN.json` goes stale --
+run `python src/import_params.py <script.py> --part <id> --write` to fold the edited
+`width`/`depth`/`height` values back into that part's `dimensions` (schema-validated
+before it writes). Do not hand-edit `BUILD_PLAN.json`'s dimensions to match; let the
+tool do the round-trip so the plan stays the source of truth the quality gate checks
+against.
+
+**Construction-time verification (`cq_verify`).** A no-op `.cut()`/`.union()` and a
+workplane-origin shift after `.center()`/`.hole()` both fail silently. Import from
+`cq_verify` (on the wrapper's `PYTHONPATH`) and assert at the point of risk — each call
+returns its post-op argument so it chains: `verify_boolean(body, body.cut(slot), "cut",
+"vent_slot")`, or `check_workplane(wp, label, expected_origin=...)`, or
+`verify_feature_bounds(before, after, label, tolerance)`, or `verify_backed(backer,
+feature, axis, label)`. Wrap a boolean when a no-op is plausible (computed offset,
+off-center feature, emboss/deboss merge); skip trivially-overlapping ones. Declare a
+mating area with `verify_backed` when a feature (standoff/boss/rib/ear) must be fully
+backed by a specific named neighboring feature at one face — catches the recurring
+mistake of reusing a centerline coordinate as a boundary, off by half the neighbor's
+thickness; don't use it for a feature that legitimately overflows its base on other axes.
+Declare a tangent seat with `verify_seated(support, boss, axis, label)` when a
+hand-rolled flat body seats against a round feature (knuckle/boss/cylinder) — catches
+placing the flat body's mating face at the round feature's center coordinate instead of
+its tangent (`pivot +/- radius`); not needed when the join comes from `pin_hinge`.
+A failed assertion crashes the script; the wrapper reports it as a typed `silent_boolean`
+/ `feature_overflow` / `workplane_drift` / `unbacked_mate` / `boss_swallowed` error
+naming the `label`.
+
+**Geometry contract for scratch parts.** A part with no matching archetype and no
+matching block (raw fluent CadQuery) must open with a named construction plan: each
+stage asserted via `verify_stage(wp, label, bbox=..., vol_min=...)` before building
+the next stage on top of it (`prompts/part.md` "Construction plan for scratch
+geometry"). A failed stage is reported as a typed `stage_mismatch` error naming the
+stage, so a wrong topology fails where it was introduced instead of surfacing as a
+cryptic OCC error or a failed visual review several steps later.
+
 **Multi-union parts.** When the part declares a `unions` array in `BUILD_PLAN.json` (one script
 that builds several rigid bodies in one coordinate frame, e.g. both leaves of a print-in-place
 hinge), set `result` to a **dict** mapping each declared union id to its `Workplane` --
@@ -340,13 +376,10 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/script_lint.py" build/<part
 ```
 
 Pure-stdlib AST lint, no CadQuery subprocess — catches mechanically-detectable
-anti-patterns (a boolean inside a loop, a missing `result`, a submodule block
-import, a direct `cq.exporters.export` call, a magic number outside the named
-parameters, an unre-anchored `.center()`/`.hole()` chain, an unguarded
-computed-offset boolean, `.shell()` after `.fillet()`, `.fillet()` after
-`.chamfer()` in the same chain) in milliseconds instead of a full run. Exit 0 means no findings — proceed to Step 3. Exit 1 prints
-`{"success": false, "findings": [...]}`; fix every finding in the script and
-re-lint before spending the first `run_cadquery_model.py` call.
+anti-patterns in milliseconds instead of a full run; see `reference/scripts.md`'s
+`script_lint.py` entry for the full check list. Exit 0 means no findings — proceed
+to Step 3. Exit 1 prints `{"success": false, "findings": [...]}`; fix every finding
+in the script and re-lint before spending the first `run_cadquery_model.py` call.
 
 **Step 3 — Validate**
 
@@ -997,29 +1030,18 @@ The `build/` directory is in your current working directory (the directory you c
 
 ## Block library
 
-Select blocks in `blocks_needed` during planning. When generating part scripts, write a flat `from blocks import <function>` at the top for each block (see generated-script rules in the core SKILL.md). Each block's `name`, `use`, and `params` are already in context from Setup's `blocks/inventory.json` read — look there rather than a restated table:
-
-- **Primitives** (`src/blocks/primitives.py`) — `fillet_box`, `hollow_box`
-- **Fasteners** (`src/blocks/fasteners.py`) — `screw_boss`, `pcb_standoff`, `snap_hook_clip`, `snap_socket_receiver`, `alignment_pin`, `alignment_socket`
-- **Connectors** (`src/blocks/connectors.py`) — `port_cutout`, `cable_slot`, `vent_grid`
-- **Joints** (`src/blocks/joints.py`) — `dovetail_groove`, `dovetail_tongue`
+Select blocks in `blocks_needed` during planning. When generating part scripts, write a flat `from blocks import <function>` at the top for each block (see generated-script rules in the core SKILL.md). Each block's `name`, `use`, and `params` are already in context from Setup's `blocks/inventory.json` read — look there rather than a restated table.
 
 ### Gridfinity (`src/blocks/gridfinity.py`)
 
 **Read `reference/gridfinity.md` in full before authoring any part that uses these** --
 the grid pitch, foot profile, and stacking clearances are a published standard, and a part
 that misses them by a millimetre fits nothing. Never re-derive the profile by hand.
+Block names, uses, and params are in `blocks/inventory.json` like every other block.
 
-| Block | Use |
-|-------|-----|
-| `gridfinity_bin` | Complete bin: feet, walls, cavity, stacking lip, plus optional dividers, label shelf, scoop, and magnet/screw pockets. `solid=True` gives a blank to cut custom tool pockets into. |
-| `gridfinity_baseplate` | Complete baseplate: a grid of sockets bins drop into, tiling on the 42 mm pitch. |
-| `gridfinity_feet` | Just the feet, to union under a custom body (which starts at Z = 4.75) so that body docks into a grid. |
-| `gridfinity_socket_cutter` | Just the sockets, to cut into a custom plate, drawer bottom, or tool-wall panel. |
-| `gridfinity_dimensions` / `gridfinity_units_for` | The numbers without geometry: a bin's outer size for the plan, or the smallest bin in units that holds an object. |
-
-The `gridfinity-bin` and `gridfinity-baseplate` archetypes (Step 1.5) wrap the first two
-directly; match them for any request naming Gridfinity. A part built on these blocks is
+The `gridfinity-bin` and `gridfinity-baseplate` archetypes (Step 1.5) wrap
+`gridfinity_bin`/`gridfinity_baseplate` directly; match them for any request naming
+Gridfinity. A part built on these blocks is
 checked against the standard automatically by the quality gate (`src/gridfinity_check.py`,
 auto-scoped to scripts that use a Gridfinity block); to run it on its own:
 
