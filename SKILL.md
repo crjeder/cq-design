@@ -18,18 +18,17 @@ Also activate on these explicit slash commands:
 | `/deliver <script.py>` | Export STL and 3MF for an existing script |
 | `/render <script.py>` | Render a multi-view preview PNG for an existing script |
 
-Read the first token of the user's message to pick the command, then jump to its
-section below. For `/cq-design` (or a natural-language trigger), start at Phase 0.
+Read the first token to pick the command, then jump to its section below. For
+`/cq-design` (or a natural-language trigger), start at Phase 0.
 
 ## Overview
 
-A sourcing triage (Phase 0) ahead of a four-phase build pipeline for parametric
-3D-printable CadQuery models: **Sourcing triage** (Phase 0, checks for a usable
-existing model before designing) -> **Requirements gathering** (Phase 1) ->
-**Planning** (Phase 2, produces `BUILD_PLAN.json`) -> **Build** (Phase 3, part
-scripts + print orientation + model export + quality gate) -> **Deliver** (Phase 4).
-Each phase section below carries a summary and a mandatory pointer to its
-`skill/phase*.md` detail file — not optional background.
+A sourcing triage (Phase 0) ahead of a four-phase build pipeline: **Sourcing triage**
+(usable existing model?) -> **Requirements** (Phase 1) -> **Planning** (Phase 2,
+`BUILD_PLAN.json`) -> **Build** (Phase 3: part scripts, print orientation, model
+export, quality gate) -> **Deliver** (Phase 4). Each phase section below carries a
+summary and a mandatory pointer to its `skill/phase*.md` detail file — not optional
+background.
 
 ## Prerequisites
 
@@ -44,17 +43,16 @@ SKILL_DIR="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
 $SKILL_DIR = Split-Path -Parent (Resolve-Path $PSCommandPath)
 ```
 
-Every script's invocation is documented in this file or a `skill/*.md` file at the step
-that uses it — never run `--help` to discover parameters. Generated output always
-writes to the working directory, not `$SKILL_DIR`.
+Every script's invocation is documented at the step that uses it — never run `--help`
+to discover parameters. Generated output writes to the working directory, not
+`$SKILL_DIR`.
 
 **Before Phase 1 in a directory not yet seeded, read `skill/setup.md` in full** (venv,
-permission bootstrap, printer-profile bootstrap). Skip straight to Phase 1 if already
-seeded (`.claude/settings.local.json` has the patterns, `printer_profile.json` exists).
+permission bootstrap, printer-profile bootstrap). Skip to Phase 1 if already seeded
+(`.claude/settings.local.json` has the patterns, `printer_profile.json` exists).
 
-**If `build/journal.md` already exists in the working directory, read `skill/resume.md`
-in full before Phase 0** — it may be an interrupted run; resuming without re-asking the
-user or re-running finished phases is cheaper than restarting cold.
+**If `build/journal.md` already exists, read `skill/resume.md` in full before Phase 0**
+— it may be an interrupted run; resuming beats re-asking the user or restarting cold.
 
 ## Phase 0: Sourcing triage
 
@@ -151,131 +149,30 @@ PETG +0.1 mm (stringing); TPU +0.2 mm (3.0 mm+ walls, prefer flexible snaps); AB
 | North / East / South / West | +Y / +X / -Y / -X | |
 | Up / Down | +Z / -Z | Down is the print bed face, always Z = 0 |
 
-## Request log
-
-`BUILD_PLAN.json` may carry an optional `request_log`: an append-only, verbatim record
-of the initial request plus every clarification/correction, each entry `{ts, kind,
-text, images?}` (`kind` one of `initial`/`clarification`/`correction`; `images` an
-optional array of repo-relative paths to sketches copied into `sketches/`). The planning prompt
-(Phase 2) writes the `initial` entry and any Phase 1/2 clarifications. **Any later
-clarification or correction the user gives mid-build (Phase 3 onward) must be appended
-to `request_log` as a new dated entry — never edit, reorder, or remove existing
-entries.** A correction that triggers re-planning carries the existing log forward
-unchanged before the planning prompt appends the new entry.
-
-**`request_log` and `intent` are the asked/approved pair.** `request_log[0]` is the
-user's original opening request, verbatim and append-only -- it is never rewritten even
-after Phase 1 resolves it. `intent` is the user-approved reformulation from the Phase 1
-exit checkpoint: what is being built in resolved terms, every assumption Phase 1 made,
-and the `sketches/` paths the design is based on. `intent` is current-state -- rewritten
-on each approved correction (the same rule that binds `planning_notes` / `part_notes`),
-while `request_log` keeps the round-by-round history.
-
 ## Generated script rules
 
 Every CadQuery script the pipeline produces must: begin with a flat
 `from blocks import <function>` per block in `blocks_needed` (never import submodules);
 define all dimensions in a `PARAMETERS` block at the top (no magic numbers); assign the
-final geometry to a top-level `result`; never call `cq.exporters.export()` (the
-wrapper handles export); and build a print-in-place revolute knuckle hinge via
-`blocks.joints.pin_hinge` (which seats its leaves at the knuckle tangent) rather than
-hand-rolling knuckle/riser primitives -- hand-roll only when the geometry is
-incompatible with `pin_hinge`'s two-leaf shape, and then declare the join with
-`verify_seated` (below).
-
-**Reconciling hand-edited PARAMETERS.** If a user (or Claude) tweaks a part script's
-`PARAMETERS` block directly after the plan was built, `BUILD_PLAN.json` goes stale --
-run `python src/import_params.py <script.py> --part <id> --write` to fold the edited
-`width`/`depth`/`height` values back into that part's `dimensions` (schema-validated
-before it writes). Do not hand-edit `BUILD_PLAN.json`'s dimensions to match; let the
-tool do the round-trip so the plan stays the source of truth the quality gate checks
-against.
-
-**Construction-time verification (`cq_verify`).** A no-op `.cut()`/`.union()` and a
-workplane-origin shift after `.center()`/`.hole()` both fail silently. Import from
-`cq_verify` (on the wrapper's `PYTHONPATH`) and assert at the point of risk — each call
-returns its post-op argument so it chains: `verify_boolean(body, body.cut(slot), "cut",
-"vent_slot")`, or `check_workplane(wp, label, expected_origin=...)`, or
-`verify_feature_bounds(before, after, label, tolerance)`, or `verify_backed(backer,
-feature, axis, label)`. Wrap a boolean when a no-op is plausible (computed offset,
-off-center feature, emboss/deboss merge); skip trivially-overlapping ones. Declare a
-mating area with `verify_backed` when a feature (standoff/boss/rib/ear) must be fully
-backed by a specific named neighboring feature at one face — catches the recurring
-mistake of reusing a centerline coordinate as a boundary, off by half the neighbor's
-thickness; don't use it for a feature that legitimately overflows its base on other axes.
-Declare a tangent seat with `verify_seated(support, boss, axis, label)` when a
-hand-rolled flat body seats against a round feature (knuckle/boss/cylinder) — catches
-placing the flat body's mating face at the round feature's center coordinate instead of
-its tangent (`pivot +/- radius`); not needed when the join comes from `pin_hinge`.
-A failed assertion crashes the script; the wrapper reports it as a typed `silent_boolean`
-/ `feature_overflow` / `workplane_drift` / `unbacked_mate` / `boss_swallowed` error
-naming the `label`.
-
-**Geometry contract for scratch parts.** A part with no matching archetype and no
-matching block (raw fluent CadQuery) must open with a named construction plan: each
-stage asserted via `verify_stage(wp, label, bbox=..., vol_min=...)` before building
-the next stage on top of it (`prompts/part.md` "Construction plan for scratch
-geometry"). A failed stage is reported as a typed `stage_mismatch` error naming the
-stage, so a wrong topology fails where it was introduced instead of surfacing as a
-cryptic OCC error or a failed visual review several steps later.
-
-## Measurement: telemetry + eval harness
-
-1. **Telemetry is mandatory in the part loop** (Step 5): one record per attempt appended
-   to `build/attempts.jsonl` via `src/telemetry.py`, append-only.
-2. **Run the eval suite around any change to prompts/references/routing** — score the
-   canonical corpus before/after and compare scorecards:
-   `uv run --project "$SKILL_DIR" python "$SKILL_DIR/evals/run_evals.py" --run-dir <dir>`
-   (add `--generate` for a fresh run; costs tokens). Reports first-shot rate,
-   attempts-to-pass, Chamfer distance vs. golden mesh, cost/part — a regression here
-   doesn't ship on vibes.
+final geometry to a top-level `result`; never call `cq.exporters.export()`; build a
+print-in-place revolute knuckle hinge via `blocks.joints.pin_hinge` rather than
+hand-rolling one; assert construction-time invariants via `cq_verify`
+(`verify_boolean`, `check_workplane`, `verify_feature_bounds`, `verify_backed`,
+`verify_seated`, `verify_stage`); and reconcile a hand-edited `PARAMETERS` block back
+into `BUILD_PLAN.json` via `src/import_params.py` rather than hand-editing the plan.
+See `skill/phase3_build.md`'s Step 2 for the full `cq_verify` reference, the
+scratch-part construction-plan contract, and the `import_params.py` invocation.
 
 ## Error handling reference
 
-| Error type | Action |
-|------------|--------|
-| `non_manifold_edge` | Rebuild booleans; check zero-thickness faces |
-| `non_watertight` | Open mesh holes: check unclosed boolean bodies |
-| `disconnected_body` | Union split >1 component: compare the per-body axis ranges in `message` first — non-overlapping ranges mean a body is misplaced, so move it back rather than growing it (`union`, `component_count`) |
-| `dimension_mismatch` | Bbox beyond tolerance: fix the parameter driving that axis |
-| `construction_error` | Boolean bodies don't overlap or faces are coincident (`Standard_ConstructionError`) |
-| `command_not_done` | Boolean op failed: extend inner body >= 0.01mm past outer boundary (`BRep_API`) |
-| `fillet_failure` | Fillet/chamfer left incomplete: radius exceeds an adjacent face (`StdFail_NotDone`) |
-| `null_object` | Referenced a shape that doesn't exist: check selector strings/offsets (`Standard_NullObject`) |
-| `index_out_of_range` | Check `pushPoints` list or loop bounds (`Standard_OutOfRange`) |
-| `type_mismatch` | Wrong shape type for the operation: verify workplane/selector (`Standard_TypeMismatch`) |
-| `occ_exception` | Unmapped OpenCASCADE error class: see hint for the exception class |
-| `silent_boolean` | No-op boolean (`verify_boolean`): reposition tool to intersect body (`label`) |
-| `feature_overflow` | Past base body (`verify_feature_bounds`): constrain/intersect with profile (`label`) |
-| `workplane_drift` | Origin drifted (`check_workplane`): re-anchor with `.workplane(origin=...)` (`label`) |
-| `stage_mismatch` | Construction stage bbox/volume off-plan (`verify_stage`): fix the stage named in `label`, not a later one |
-| `unbacked_mate` | Feature's mating face not fully backed (`verify_backed`): extend the named neighbor to cover the face (`label`) |
-| `boss_swallowed` | Flat support seated at a round boss's center, not its tangent (`verify_seated`): offset the mating face by the boss radius, or route through `pin_hinge` (`label`) |
-| `thin_wall` | Below `wall_min_mm`: increase wall or reduce cutout |
-| `overhang_exceeded` | Exceeds `overhang_max_deg`: chamfer, redesign, or warn |
-| `visual_mismatch` | Checklist question answered "no": name it/the view, fix the parameter/geometry (`skill/phase3_build.md` Step 4) |
-
-`visual_mismatch` is recorded by Claude in the part loop, not emitted by the wrapper; it
-shares the 3-attempt retry budget with the geometry errors. After retries are exhausted,
-ask the user how to proceed (different approach, a hint, or skip the part).
-
-## Hardware dimension reference
-
-Sizing tables for `heat_set_boss`, `counterbore_hole`, `countersink_hole`, and
-`hex_nut_trap` live in `reference/hardware_dims.md`. **Read it before authoring any
-part whose `blocks_needed` includes a fastener block** — never guess these dimensions.
-
-## Gridfinity requests
-
-When the request names Gridfinity (or asks for a part that must fit an existing Gridfinity
-grid), **read `reference/gridfinity.md` before planning** — the 42 mm grid, 7 mm height
-unit, foot profile, stacking lip, and magnet/screw geometry are a published standard, so
-they are never researched, guessed, or hand-modelled. Build on the `gridfinity-bin` /
-`gridfinity-baseplate` archetypes and the `blocks/gridfinity.py` blocks (`gridfinity_bin`,
-`gridfinity_baseplate`, `gridfinity_feet`, `gridfinity_socket_cutter`); use
-`gridfinity_feet` / `gridfinity_socket_cutter` to make any *other* part grid-compatible.
-`src/gridfinity_check.py` verifies conformance and runs automatically in the quality gate
-for parts that use these blocks.
+Typed errors fall into four categories: OCC/geometry failures, `cq_verify.py`
+construction-time assertion failures, DFM limit failures (`thin_wall`,
+`overhang_exceeded`), and `visual_mismatch` (recorded by Claude in the part loop, not
+emitted by the wrapper). Each error's exact name and `hint` are generated by
+`run_cadquery_model.py`/`cq_verify.py` — see `reference/scripts.md` for the full list;
+read the `hint`, don't guess a fix from the type name. All typed errors share the
+3-attempt retry budget; after retries are exhausted, ask the user how to proceed
+(different approach, a hint, or skip the part).
 
 ## Quick reference: key files
 
@@ -292,8 +189,8 @@ for parts that use these blocks.
 | `build/journal.md` | Append-only milestone log for resuming an interrupted run (see `skill/resume.md`) |
 | `skill/*.md` | Setup and per-phase detail (see phase sections above) |
 | `skill/resume.md` | Journal contract and interrupted-run resume procedure |
-| `reference/hardware_dims.md` | Fastener sizing tables (block-gated, see above) |
-| `reference/gridfinity.md` | Gridfinity standard: grid, profiles, holes (read on any Gridfinity request) |
+| `reference/hardware_dims.md` | Fastener sizing tables; read before authoring any part with a fastener block, never guess |
+| `reference/gridfinity.md` | Gridfinity standard (grid/profiles/clearances); read before planning any Gridfinity request, never hand-model |
 | `src/gridfinity_check.py` | Gridfinity conformance check (auto-run by the gate for Gridfinity parts) |
 | `reference/CadQuery Pattern Reference.md` / `Anti-Patterns.md` | Idioms + mistakes, every part |
 | `reference/emboss_text.md` / `servo_splines.md` | Read only when needed |
