@@ -34,12 +34,12 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 - [ ] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- [details](#silica-tray-re-export-coincidence)
 
 ### From Hitster Tower
-- [ ] Missed the intent of the bottom finger-access opening; over-supported the south wall -- [details](#hitstertower-oversupport)
+- [ ] Missed the intent of the bottom finger-access opening; over-supported the south wall -- investigated (transcript not archived); root cause is untyped functional negative space + purely-geometric support verdict -- [details](#hitstertower-oversupport)
 
 ### Independent
 - [x] split `info` directory
 - [ ] code quality audit
-- [ ] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- `openspec/changes/consolidate-engineering-rationale/` -- [details](#engineering-rationale-consolidation)
+- [x] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- DONE: rationale now lives in `parts[].engineering_rationale`, written back in Phase 3 and checked by `plan_validate.py --require-rationale` (`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`) -- [details](#engineering-rationale-consolidation)
 - [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
 - [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](#intent-based-prompt-reformulation)
 - [x] Export a project-regeneration prompt for a fresh LLM session -- DONE: `src/regen_prompt.py` writes `REGENERATE.md` at Phase 4 delivery -- [details](#project-regeneration-prompt)
@@ -470,6 +470,60 @@ south wall. This is not necessary because the load is the mobile phone on
 top, which is hardly more than 200g. This weight can be supported by a 1cm
 support on both sides of the wall.
 
+**Investigated 2026-09-08 -- transcript not in `debug/`.** The two Hitster
+exports on disk are `session-export-1786343198762.zip` (2026-08-10, an OpenSCAD
+attempt interrupted right after the failure-mode question -- never reaches
+planning) and `session-export-1786431095406.zip` (2026-08-12, the
+dovetail-disassembly rebuild). Neither contains a bottom finger-access opening
+or a south-wall support argument: the 08-12 rebuild reduced the base to
+`plate + raised platform + 4 mortise sockets` (`build/base.py`, no card-exit
+cut) and made every wall a plain flat panel, so the opening question never came
+up. This item therefore records a takeaway from a session whose transcript
+isn't archived -- attach it for a tool-call-level pass like the C5 items.
+
+What can still be said from the design and the current pipeline:
+
+*The opening is functional negative space, and nothing types it.* The HitScan
+tower is a card dispenser: the arch-shaped cut at the bottom of one wall is a
+hand-access / card-exit port, not a defect. `interfaces[]` only covers positive
+mating features; an in-part void that must stay open (hand access, card exit,
+vent, cable pass-through) has no typed home, so nothing in the plan tells the
+gate "do not close this, do not bridge/support across it." Same shape of gap as
+[assembly placeholder / keep-clear](#blocks-assembly-placeholder) and the
+keep-out-zone concept, but for a void inside a single part rather than a
+between-parts clearance volume.
+
+*The support verdict is purely geometric.* A wall with a large opening near its
+lower edge presents the material spanning above the opening as an unsupported
+overhang/bridge, so `mesh_io.support_cost` (weighted by `SUPPORT_EXPONENT`) and
+`quality_gate.py`'s `overhang_exceeded` both push toward "add support."
+`print_orientation.py` treats strength as orientation-neutral (always 1.0) and
+has no load-vs-support trade-off, and the overhang checks carry no notion of
+what actually carries the load. So the LLM, with no structured way to assert
+"the opening is intentional and the ~200 g phone on top is carried in
+compression by the two wall columns flanking it, ~10 mm each side is plenty,"
+deferred to the gate's geometric finding and argued for full support.
+
+*The load argument has a home already; the "keep it open" half does not.* The
+structural claim (10 mm of column each side is enough for 200 g) is exactly a
+`parts[].engineering_rationale` `load_path` entry (`prompts/part.md` block) --
+state the assumption, don't add a gate. The missing piece is a way to mark the
+opening as a required void so the support/overhang findings bounding it drop to
+advisory.
+
+Fix direction (cheapest first):
+1. DONE (prompt-only): `prompts/planning.md` rule 5a records a user-described
+   access/exit/clearance opening as an `interfaces[]` entry with
+   `type: "clearance_opening"` plus a `part_notes` load-path note. No schema
+   change (`interfaces[].type` is a free string; `feature_presence_check.py`
+   skips unknown types). This alone gives Phase 3 the structured hook it was
+   missing when it argued for support.
+2. Still open -- the downstream half: nothing reads `clearance_opening` yet.
+   Implementation note added under
+   [Blocks assembly placeholder](#blocks-assembly-placeholder): route the void
+   through the keep-out-zone export so it suppresses `support_cost` and
+   downgrades `overhang_exceeded` to advisory over the opening.
+
 ### Project regeneration prompt
 Export a prompt which allows the human user to re-generate the whole project
 from scratch with a new LLM session (improved LLM, new skill, other skill,
@@ -493,11 +547,10 @@ authoring paths (raw and archetype template) carry their own copy of the inserti
 rule and the load-bearing trigger list, and it is absent from `README.md` /
 `REGENERATE.md`, which are rendered from `BUILD_PLAN.json`.
 
-Promoted to V1 on 2026-09-08: this is the one design-critical artefact with no
-mechanical check, not a new capability. Change:
-`openspec/changes/consolidate-engineering-rationale/` -- the rationale moves to
-`BUILD_PLAN.json`'s `parts[].engineering_rationale`, written back in Phase 3 and
-validated at the pre-export `plan_validate.py` run.
+DONE 2026-09-08: the rationale moves to `BUILD_PLAN.json`'s
+`parts[].engineering_rationale`, written back in Phase 3 and validated at the
+pre-export `plan_validate.py --require-rationale` run. Change:
+`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`.
 
 ### Context creep restructure
 Restructure to combat context creep. Reference: `ARCHITECTURE.md`. Options:
@@ -560,6 +613,28 @@ must not intrude into it or assembly is blocked. Pairs with the mating-area
 footprint (2D where-to-connect) -- this is the 3D keep-clear-for-assembly
 volume. The gate should flag real geometry that violates a declared
 placeholder. Distinct from the model's own clearance gaps.
+
+**Implementation note -- suppress support/overhang cost over a declared void
+(from [Hitstertower oversupport](#hitstertower-oversupport)).** The
+`clearance_opening` interface type now lands in the plan (`prompts/planning.md`
+rule 5a) but nothing downstream reads it yet. The keep-out machinery is the
+place to close the loop: when a part declares a `clearance_opening` interface
+with `position_mm` + `size_mm` (or a script emits a `result["keep_out"]` zone
+tagged as an opening), extend the existing zone export
+(`units.resolve_keep_out` -> `keep_out__<name>.stl` -> `keep_out_check.py`) so
+the zone volume also feeds two suppressions:
+- `mesh_io.support_cost` / `print_orientation.py`: subtract the down-facing
+  area whose supporting ray passes through the zone before reaching the bed --
+  that material is spanning a deliberate hole, not an accidental overhang.
+- `quality_gate.py` `_analyze_stl`: downgrade an `overhang_exceeded` finding to
+  advisory (severity `info`) when its overhanging faces bound a declared
+  `clearance_opening`, with the message pointing at the interface's load-path
+  note instead of "add chamfers or redesign".
+The structural half (is 10 mm of wall each side enough for the stated load?)
+stays a `parts[].engineering_rationale` `load_path` entry -- no new gate. Scope
+question to settle first: reuse the `keep_out` result key for openings vs. a
+distinct `opening` key (keep-out zones are currently checked for *intrusion by
+other parts*; an opening is checked for *nothing* -- it only suppresses).
 
 ### Bill of non-printed materials
 Surfaced by the `planning_notes` audit's C5 cross-check (2026-08-12): the
