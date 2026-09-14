@@ -128,6 +128,18 @@ adhesive). Content that fits none of these three categories does not belong in
      **moving** joint; use `union` when the block is **rigidly fused** (boolean-unioned)
      into the same part's body -- one printed rigid body, no seam, no motion.
 
+5a. **A functional opening is a typed interface, not just a cut.** When the user's
+    request names a void that must stay open -- a hand/finger access port, a card or
+    coin exit, a drain or vent opening, a cable pass-through, a viewing window -- add
+    an `interfaces[]` entry with `type: "clearance_opening"`, the user's own word as
+    `name`, the `wall` it sits on, and `position_mm` + `size_mm` when known. In
+    `part_notes` (or `planning_notes` category (c) when it also serves assembly
+    access) state its purpose and the load path around it: what carries the part's
+    load now that the wall is interrupted (e.g. "the ~200 g phone on top is carried
+    in compression by the two ~10 mm columns flanking the opening"). Typing it this
+    way marks the void as deliberate so the build phase does not try to close, bridge,
+    or support across it.
+
 6. **Each part is a union (one rigid body). Group prints with `plate`.** A part maps
    to one printed rigid body and defaults to its own plate. Set the same `plate` id on
    several parts only for a **print-in-place** mechanism that must print together
