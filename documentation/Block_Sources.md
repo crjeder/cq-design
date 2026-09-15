@@ -56,6 +56,59 @@ Two separate catalogues, because they answer two different questions:
 | [nomad-vagabond/cq-uav](https://github.com/nomad-vagabond/cq-uav) | 19 | 2025-03 | **Low** | Airfoil/wing generative framework with material and aero analysis. Parametric and well-built, but out of domain for printed mechanical blocks. |
 | [openvmp/openvmp-models](https://github.com/openvmp/openvmp-models) | 11 | 2026-09 | **Low** | CadQuery-scripted robot assemblies (Don1) plus a sourcing/BOM catalogue. Work in progress, assembly-level rather than feature-level. Mild reference value for the part-catalog + BOM pattern. |
 | [revarbat/BOSL](https://github.com/revarbat/BOSL) | 687 | 2023-02 | **Very Low** | OpenSCAD, superseded by BOSL2, stale. No reason to use over BOSL2. |
+| [CadQuery/awesome-cadquery](https://github.com/CadQuery/awesome-cadquery) | 181 | 2026-06 | **N/A** (index) | Curated link list, not a library — useful as a discovery starting point (surfaced most of the above), not a source of code. |
+| [phillipthelen/awesome-build123d](https://github.com/phillipthelen/awesome-build123d) | 89 | 2026-05 | **N/A** (index) | Same role for the build123d ecos
+| TraceParts / GrabCAD Open STEP Archives | | | high | **Standard Hardware Components.** Consuming vendor-neutral ISO 10303 (STEP) files is natively supported by CadQuery's underlying OpenCascade kernel. You lose parametric variation at runtime, but you gain exact, un-triangulated math representations for mates, fillets, and CNC work. |
+| FreeCAD Standard Parts Library (`Macro_PartsLibrary`) | | | high | **Fasteners & Bearings.** Because FreeCAD also uses the OpenCascade kernel, its internal geometries map 1:1 to CadQuery. Many FreeCAD catalog macros can either be exported directly to standard STEP or read via raw Python tables to reconstruct parts. |
+| OpenCascade Community Catalogs | | | high | **Core Geometric Primitives.** Native OpenCascade `.brep` file catalogs are fully open and can be directly loaded into CadQuery without any translations using `cq.Shape.cast(OCC.Core.BRepTools...)`. |
+| Misumi / McMaster-Carr Open Data | | | medium | **Industrial Hardware.** While hosted by commercial entities, their standardized STEP downloads are perfectly formatted. You can build a local cache folder and use a Python dictionary script to match part numbers to `importStep()` paths. |
+| https://github.com/adafruit/Adafruit_CAD_Parts | | | | **Adafruit products** | 
+| https://github.com/OpenVSP/OpenVSP | | | | modell aircraft geometry tool |
+| https://github.com/eclecticc/ParametricCase | | | | PC Case |
+| https://github.com/AndyLevesque/QuackWorks | | | | | 
+| https://hackaday.io/project/27631-3d-printing-real-world-keys | | | | real-world keys |
+| https://github.com/nvx/protec-3d-printing | | | | Printable ABLOY PROTEC Keys |
+| https://github.com/conorpp/3d-maze-generator | | | | 3d-maze-generator |
+| https://github.com/vsergeev/3d-parametric-whoop | | | | Quadrocopter |
+| https://github.com/onthelake/parametric_lego | | | | LEGO |
+| https://github.com/matthova/hovalin | | | | Violin |
+| https://github.com/DrLex0/print3D-customizable-sieve | | | | sieve / filter / strainer |
+| https://github.com/jobtalle/Lindenmayer3D | | | | Lindenmayer System |
+| https://github.com/Buback/ParametricDeLavalModel | | | | De laval Nozzle |
+| https://github.com/JonnyHaystack/NoCap | | | | MX keycap |
+| https://github.com/LukasStu/Ferris-Sweep-Bling-MX-Case | | | | Ferris Sweep Bling MX Case |
+| https://github.com/phrxmd/container | | | | shipping containers |
+| [CadQuery/cadquery-contrib](https://github.com/CadQuery/cadquery-contrib) | | | | |
+| [joshreve/dactyl-keyboard](https://www.google.com/search?q=https://github.com/joshreve/dactyl-keyboard) | | | | 
+| [medicationforall/cqspoolterrain / spoolpowerapp](https://github.com/medicationforall/cqspoolterrain) | | | | 
+| [S-S-X/YAPM (Yet Another Parametric Model / Enclosure)](https://github.com/S-S-X) |
+| https://github.com/neuman/gripster |
+| https://github.com/hrvach/deskhop |
+| https://github.com/medicationforall/cqladderterrainstreamlit |
+| https://github.com/lwidm/cq_gears |
+| https://github.com/RinIgarashi/CadQuery_Abenics-generator | 
+| https://github.com/tanius/cadquery-models |
+| https://github.com/zbynekwinkler/cadquery-skylark | | | | not relevant for 3d printing due to size |
+| https://github.com/sethfischer/cq-electronics |
+| https://github.com/mmalecki/cq-queryabolt |
+| https://github.com/nomad-vagabond/cq-uav | 
+| https://github.com/khaledelhady44/CadQuery-Cookbook |
+| https://github.com/Wren6991/CQCAD |
+| https://github.com/jmwright/cadquery-projects |
+| https://github.com/zignig/cqparts_bucket | 
+| https://github.com/medicationforall/cqindustry |
+| https://github.com/uchan-nos/cadquery-models |
+| https://github.com/swolebro/caddyshack | 
+| https://github.com/helmecke/cadquery-models |
+| https://github.com/medicationforall/obeliskterrainapp |
+| https://github.com/openvmp/openvmp-models | 
+| https://github.com/bullestock/cadquery |
+| https://github.com/farnasirim/cq-centrifugal-fan |
+| https://cadhub.xyz/ https://github.com/Irev-Dev/cadhub | | | | abandoned |
+| https://github.com/infradom/parametric_din_rail_enclosure | | | | |
+| https://github.com/szymswiat/cq-enclosure | | | | |
+| https://github.com/paulirotta/PELA-blocks | | | | | 
+
 | [OpenVSP/OpenVSP](https://github.com/OpenVSP/OpenVSP) | 839 | 2026-08 | **Very Low** | Standalone aircraft OML/analysis application, not a Python part library. Out of domain for FDM blocks. |
 
 ### Personal model collections
