@@ -209,6 +209,9 @@ def run_edge_treatment_check(plan: dict, script_path: str, orientations: dict) -
 
     try:
         result, records = _run_with_hook(script_path)
+        if not records:
+            return []
+        unions = resolve_unions(part, result)
     except ImportError as exc:
         return [
             make_issue(
@@ -219,10 +222,19 @@ def run_edge_treatment_check(plan: dict, script_path: str, orientations: dict) -
                 "Install CadQuery to enable the chamfer/fillet check.",
             )
         ]
-    if not records:
-        return []
-
-    unions = resolve_unions(part, result)
+    except ValueError as exc:
+        # resolve_unions: the script's `result` keys don't match its declared `unions`
+        # (e.g. mid-edit). Not this stage's job to report -- plan_validate/the wrapper
+        # already surface that mismatch as a blocking error.
+        return [
+            make_issue(
+                "edge_treatment",
+                "warning",
+                "check_skipped",
+                f"Could not resolve this part's unions for the edge-treatment check: {exc}",
+                "Fix the script's declared unions/result mismatch; see the other reported errors.",
+            )
+        ]
     bboxes = [(uid, bb) for uid, wp in unions if (bb := _union_bbox(wp)) is not None]
 
     # tally[(uid, wanted)] -> [count, sample_authored_midpoint]
