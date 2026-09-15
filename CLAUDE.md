@@ -61,47 +61,6 @@ uv run pytest tests/test_plan_validate.py
 second with no CadQuery installation. All other test files are integration tests that
 run real CadQuery scripts (a few seconds each).
 
-## Core Scripts
-
-One-line index below; File Layout has the same short form organized by directory.
-**Full per-script contract detail** (JSON shapes, CLI flags, typed error names, edge
-cases) lives in [reference/scripts.md](reference/scripts.md) -- read it before modifying
-or calling any script.
-
-| Script | Role |
-|--------|------|
-| `src/run_cadquery_model.py` | Model runner / DFM wrapper (emits JSON contract) |
-| `src/run_model_shim.py` | runpy shim that auto-exports `result` to STL |
-| `src/cq_verify.py` | Construction-time assertions (`verify_boolean`, `verify_feature_bounds`, `check_workplane`, `verify_stage`, `verify_backed`) |
-| `src/script_lint.py` | AST-based pre-flight lint for a generated part script (stdlib only) |
-| `src/units.py` | Part->unions / keep-out-zone expansion |
-| `src/quality_gate.py` | DFM + geometry/overhang aggregation, `claude -p` fixes |
-| `src/plan_validate.py` | `BUILD_PLAN.json` schema + inventory cross-check |
-| `src/printer_profile_validate.py` | `printer_profile.json` schema validation + field write-back |
-| `src/import_params.py` | Reconcile a part script's `PARAMETERS` block back into `BUILD_PLAN.json` |
-| `src/placement.py` | Assembled-frame placement helper (cq + trimesh) |
-| `src/mate_chain.py` | Derived pose along a `joints` mate chain from `root_part` |
-| `src/model_export.py` | Model-level export: named 3MF + per-union/plate/keep-out-zone STL |
-| `src/build_template.py` | `build.py` template; regenerates plates in print orientation |
-| `src/kinematic_check.py` | Whole-model range-of-motion sweep (trimesh + fcl) |
-| `src/plate_clearance_check.py` | Whole-model co-plated union clearance check (trimesh + fcl) |
-| `src/keep_out_check.py` | Whole-model keep-out-zone check (trimesh + fcl) |
-| `src/freshness.py` | Provenance stamp: hash a part script, compare/write the export manifest |
-| `src/interference.py` | Shared static interference primitive (trimesh + fcl + manifold3d) |
-| `src/edge_treatment_check.py` | Per-part chamfer/fillet rule check (apply-time hook + build-frame classify) |
-| `src/feature_presence_check.py` | Per-part `interfaces[]` position assertion |
-| `src/telemetry.py` | Append-only per-attempt log -> `build/attempts.jsonl` |
-| `src/request_log_search.py` | Search `BUILD_PLAN.json`'s `request_log` by keyword/kind |
-| `src/print_orientation.py` | Computes bed-relative print orientation by minimizing support/overhang cost |
-| `src/convert_build123d.py` | Phase 0 sourcing aid: build123d -> CadQuery conversion |
-| `src/cq_compat.py` | Compatibility shim neutralizing a `cq_warehouse` shape-copy patch |
-| `src/init_permissions.py` | Seeds a working directory's `.claude/settings.local.json` |
-| `evals/run_evals.py` | Eval harness (score-only by default; `--generate` opt-in) |
-| `src/measure_stl.py` | Geometry feature extractor (trimesh + numpy) |
-| `src/preview.py` | CadQuery tessellation + matplotlib preview renderer |
-| `src/render_preview.py` | Subprocess entry point for `preview.py` |
-| `src/mesh_io.py` | Trimesh loader + watertightness validation |
-
 ## Key Constraints
 
 - **JSON contract**: `run_cadquery_model.py` always emits `success`, `errors`, `geometry`,
@@ -109,14 +68,10 @@ or calling any script.
   Do not rename or remove keys — Claude parses them inline during the part loop.
 - **`errors` field**: always present, empty list on a clean run. Each entry has `type`,
   `message`, `hint`. Claude uses these typed errors to build structured correction prompts.
-- **Multi-union parts**: when a script's `result` is a `dict[str, Workplane]`, the wrapper
-  validates each union body; its findings carry a `union` field and the `message` is prefixed
-  with the union id, and the `geometry` block aggregates over the unions (summed volume/faces,
-  bbox envelope). A single-`Workplane` result is byte-identical to the single-body report.
-- **Thin-interface check** (`--wall-min` set): the `geometry` block gains `thin_regions`
-  (each with `thickness_mm`, `orientation` of `xy`/`z`, `location_xyz_mm`, `thin_direction`,
-  `nearest_feature`). Only XY-thin regions below `wall_min` become `thin_interface` errors;
-  Z-thin slabs are reported in `geometry` but are benign for printing (advisory only).
+- **Multi-union parts**: a script's `result` may be a `dict[str, Workplane]`; the wrapper
+  validates and aggregates per-union. See `reference/scripts.md` for the exact fields.
+- **Thin-interface check** (`--wall-min` set): adds `thin_regions` to the `geometry` block.
+  See `reference/scripts.md` for its shape and which regions become blocking errors.
 - **STL hidden during iteration**: scripts run in `tempfile.mkdtemp()`. STL paths are
   `null`/`[]` in normal JSON output. Use `--deliver --formats stl,...` to get output files.
 - **Exit codes**: 0 = success, 1 = failure, 2 = interpreter not found, 3 = timeout.
@@ -127,23 +82,43 @@ or calling any script.
 - **Block imports**: Always import from `blocks` (the package), not from individual
   submodules. Claude writes the `from blocks import ...` lines directly when generating
   part scripts (no automatic import injection).
+- **`build/cost.json`**: written by the `session_cost.py` `Stop` hook (seeded by
+  `init_permissions.py`), not by the pipeline. It is a cumulative billed-cost record
+  keyed by session id, safe to delete, and must not be bundled into `lib/` or a
+  deliverable. The eval scorecard reads it as a cost source; nothing else depends on it.
 
 ## File Layout
+
+**Full per-script contract detail** (JSON shapes, CLI flags, typed error names, edge
+cases) lives in [reference/scripts.md](reference/scripts.md) -- read it before modifying
+or calling any script listed below.
 
 ```
 .
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
+    cq_verify.py             # Construction-time assertions (verify_boolean, verify_feature_bounds, check_workplane, verify_stage, verify_backed)
     quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes (model from skill_config.json's models.fix_loop)
     plan_validate.py         # BUILD_PLAN.json schema + inventory cross-check
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
+    render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
+                              # planner/research agent prompts (Phase 1/2)
+    skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
+    print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost
+    convert_build123d.py     # Phase 0 sourcing aid: build123d -> CadQuery conversion
+    cq_compat.py             # Compatibility shim neutralizing a cq_warehouse shape-copy patch
+    init_permissions.py      # Seeds a working directory's .claude/settings.local.json (permission patterns + the session-cost Stop hook)
     printer_profile_validate.py # printer_profile.json schema validation + field write-back
     import_params.py         # Reconcile a part script's PARAMETERS block back into BUILD_PLAN.json
     kinematic_check.py       # Whole-model range-of-motion sweep (trimesh + fcl)
+    minimal_cutout_search.py # Bisects a part-script parameter to the minimal value clearing a kinematics entry
     plate_clearance_check.py # Whole-model co-plated union clearance check (trimesh + fcl)
     keep_out_check.py        # Whole-model keep-out-zone check (trimesh + fcl)
+    interference.py          # Shared static interference primitive (trimesh + fcl + manifold3d)
     edge_treatment_check.py  # Per-part chamfer/fillet rule check (apply-time hook + build-frame classify)
+    gridfinity_check.py      # Per-part Gridfinity conformance check (grid/height/foot profile/mating; auto-scoped gate stage)
+    feature_presence_check.py # Per-part interfaces[] position assertion
     placement.py             # Assembled-frame placement helper (cq + trimesh)
     mate_chain.py            # Derived pose along a `joints` mate chain from root_part
     units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
@@ -151,9 +126,12 @@ or calling any script.
     model_export.py          # Model-level export: named 3MF + per-union/plate/keep-out-zone STL
     build_template.py        # build.py template copied to build/; regenerates plates in print orientation
     telemetry.py             # Append-only per-attempt log -> build/attempts.jsonl
+                              # (append CLI, fold_attempts, --hook PostToolUse entry point)
                               # (build/journal.md is a milestone log the orchestrator appends to
                               # directly per skill/resume.md -- no dedicated script)
+    session_cost.py          # Session transcript -> billed token cost in build/cost.json (Stop hook)
     request_log_search.py    # Search BUILD_PLAN.json's request_log by keyword/kind
+    regen_prompt.py          # BUILD_PLAN.json + parameters.py + sketches/ -> REGENERATE.md (Phase 4)
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer
     render_preview.py        # Subprocess entry point for preview.py
@@ -170,6 +148,7 @@ or calling any script.
       connectors.py          # port_cutout, cable_slot, vent_grid
       hardware.py            # cq_warehouse-backed fastener geometry
       joints.py              # dovetail_groove / dovetail_tongue sliding joints
+      gridfinity.py          # Gridfinity bins, baseplates, feet, socket cutters (42 mm grid standard)
       inventory.json         # Machine-readable block descriptors
       inventory_schema.json  # JSON Schema for inventory.json
       validate.py            # Inventory loader + validator
@@ -181,21 +160,27 @@ or calling any script.
 
   evals/
     cases/<case>/        # request.md, golden BUILD_PLAN.json, golden/*.stl, case.json
-    run_evals.py         # Scorecard runner (score-only by default; --generate opt-in)
+    run_evals.py         # Scorecard runner (score-only by default; --generate opt-in; --tags filter)
     generate_goldens.py  # Regenerates the golden STLs
+    import_external_corpus.py # Manual: imports a filtered/sampled slice of a local external
+                          # text->CadQuery corpus snapshot into evals/cases/
     model_prices.json    # Editable USD-per-MTok table for cost estimates
 
   prompts/
-    planning.md          # Planning phase prompt (outputs BUILD_PLAN.json)
-    part.md              # Per-part code generation prompt
+    research.md          # Research agent prompt (dimension lookup table)
+    planning.md          # Planner agent prompt (outputs BUILD_PLAN.json)
+    builder.md           # Builder agent operating instructions + return contract
+    part.md              # Per-part specification appended to builder.md
+    audit.md             # Fresh-context implementation auditor prompt
 
   templates/
     archetypes.json         # Machine-readable archetype index (name, file, use, params)
     archetypes_schema.json  # JSON Schema for archetypes.json
     enclosure_body.py, lid_sliding.py, lid_snap.py, lid_screwed.py,
     adapter_ring_flanged.py, l_bracket_gusset.py, plate_boss_pattern.py,
-    hook.py, clip.py, stand.py    # Known-good, pre-verified whole-part templates,
-                                    # one per archetype (Phase 3 Step 1.5 match source)
+    hook.py, clip.py, stand.py,
+    gridfinity_bin.py, gridfinity_baseplate.py   # Known-good, pre-verified whole-part templates,
+                                    # one per archetype (builder start points)
 
   skill/                 # Per-phase SKILL.md detail (setup, phase0-4, resume), read on demand
   reference/             # Injected design references (CadQuery patterns, FDM DFM, hardware_dims)
@@ -213,13 +198,19 @@ or calling any script.
     test_plan_validate.py            # Schema validation -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
+    test_render_prompt.py            # Builder/audit/planning/research prompt rendering -- fast, no CadQuery
+    test_skill_version.py            # Version stamping/detection/compare -- fast, no CadQuery
     test_telemetry.py                # Attempt-log helper + CLI -- fast, no CadQuery
     test_request_log_search.py       # request_log filter helper + CLI -- fast, no CadQuery
+    test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
+    test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # printer_profile.json schema + write-back -- fast, no CadQuery
     test_import_params.py            # import_params.py parse/reconcile/write-back -- fast, no CadQuery
     test_edge_treatment_check.py     # Chamfer/fillet rule check (CadQuery)
+    test_gridfinity.py               # Gridfinity blocks + conformance check (CadQuery)
+    test_minimal_cutout_search.py    # Parameter bisection search against a kinematics entry (CadQuery)
     test_templates.py                # Archetype index validation + per-template lint/geometry
     fixtures/
 ```

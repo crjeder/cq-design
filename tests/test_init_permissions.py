@@ -79,6 +79,42 @@ def test_check_reports_uninitialized_then_initialized(tmp_path):
     assert init_permissions.is_initialized(str(tmp_path), sentinel) is True
 
 
+def _stop_commands(working_dir):
+    settings = json.loads(
+        (working_dir / ".claude" / "settings.local.json").read_text(encoding="utf-8")
+    )
+    return [h["command"] for g in settings["hooks"]["Stop"] for h in g["hooks"]]
+
+
+def test_fresh_dir_gets_session_cost_hook(tmp_path):
+    init_permissions.merge_permissions(str(tmp_path))
+
+    assert init_permissions.merge_hooks(str(tmp_path)) is True
+    cmds = _stop_commands(tmp_path)
+    assert any("session_cost.py" in c and "--hook" in c for c in cmds)
+    assert all("{session_cost_path}" not in c for c in cmds)
+
+
+def test_hook_merge_is_idempotent(tmp_path):
+    init_permissions.merge_hooks(str(tmp_path))
+
+    assert init_permissions.merge_hooks(str(tmp_path)) is False
+    assert len(_stop_commands(tmp_path)) == 1
+
+
+def test_hook_merge_preserves_user_stop_hook(tmp_path):
+    _write_settings(
+        tmp_path,
+        {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "echo bye"}]}]}},
+    )
+
+    init_permissions.merge_hooks(str(tmp_path))
+
+    cmds = _stop_commands(tmp_path)
+    assert "echo bye" in cmds
+    assert any("session_cost.py" in c for c in cmds)
+
+
 def test_scaffold_directories_creates_expected_tree(tmp_path):
     created = init_permissions.scaffold_directories(str(tmp_path))
 

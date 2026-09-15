@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "printer": "Bambu P1S",
+  "material": "PLA",
+  "nozzle_mm": 0.4,
+  "intent": "A two-leaf hinged latch: two flat leaves joined by a pin_hinge matched pair sharing one coaxial pivot bore, folding from flat-open to 90 degrees closed.",
+  "root_part": "hinge_leaf_a",
+  "parts": [
+    {
+      "id": "hinge_leaf_a",
+      "description": "Hinge leaf A (pin_hinge leaf_a member), the anchor leaf",
+      "dimensions": {
+        "w_mm": 23.9,
+        "d_mm": 30.0,
+        "h_mm": 4.0
+      },
+      "interfaces": [
+        {
+          "type": "hinge_pin",
+          "name": "pivot_bore",
+          "description": "Coaxial bore carrying the shared 1.75 mm filament pivot pin",
+          "diameter_mm": 1.9,
+          "position_mm": [0, 15, 1.95]
+        }
+      ],
+      "blocks_needed": ["pin_hinge"],
+      "unions": [{"id": "leaf_a"}],
+      "engineering_rationale": "no load-bearing features (pivot pin, not this leaf's material, carries the hinge shear)"
+    },
+    {
+      "id": "hinge_leaf_b",
+      "description": "Hinge leaf B (pin_hinge leaf_b member), pose derived from hinge_leaf_a via the mate chain",
+      "dimensions": {
+        "w_mm": 23.9,
+        "d_mm": 30.0,
+        "h_mm": 4.0
+      },
+      "interfaces": [
+        {
+          "type": "hinge_pin",
+          "name": "pivot_bore",
+          "description": "Coaxial bore carrying the shared 1.75 mm filament pivot pin",
+          "diameter_mm": 1.9,
+          "position_mm": [0, 15, 1.95]
+        }
+      ],
+      "blocks_needed": ["pin_hinge"],
+      "unions": [{"id": "leaf_b"}],
+      "engineering_rationale": "no load-bearing features (pivot pin, not this leaf's material, carries the hinge shear)"
+    }
+  ],
+  "joints": [
+    {
+      "joint_id": "hinge_pivot",
+      "block": "pin_hinge",
+      "params": {
+        "length": 30,
+        "knuckles": 3,
+        "leaf_w": 20,
+        "leaf_t": 4,
+        "d_filament": 1.9,
+        "clearance": 0.3
+      },
+      "members": [
+        {"member": "leaf_a", "part": "hinge_leaf_a"},
+        {"member": "leaf_b", "part": "hinge_leaf_b"}
+      ]
+    }
+  ],
+  "kinematics": [
+    {
+      "joint_id": "hinge_pivot",
+      "moving_union": "leaf_b",
+      "block": "pin_hinge",
+      "axis_origin_mm": [0, 15, 1.95],
+      "axis_dir": "Y",
+      "type": "revolute",
+      "required_range": [-90, 0],
+      "step": 15,
+      "stop_on_contact": false
+    }
+  ],
+  "constraints": {
+    "wall_min_mm": 1.2,
+    "overhang_max_deg": 50,
+    "dimension_tolerance_mm": 0.5
+  }
+}

@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "Flanged adapter ring, 80 mm flange, 60 mm tube, 50 mm bore",
+  "intent": "A flanged adapter ring printed as one part: a circular flange at one end, a concentric tube rising from it, and a through bore down the axis so it can seat over a mating spigot. Flange face prints flat on the bed.",
   "parts": [
     {
       "id": "adapter_ring",
@@ -20,7 +20,8 @@
           "diameter_mm": 50
         }
       ],
-      "blocks_needed": []
+      "blocks_needed": [],
+      "engineering_rationale": "no load-bearing features (static passive-fit ring, no declared load)"
     }
   ],
   "constraints": {

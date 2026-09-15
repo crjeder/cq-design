@@ -45,8 +45,16 @@ def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
 
 
 def _load_geometry_backend() -> tuple[Any, Any, dict | None]:
-    """Try to load the geometry backend. Returns (trimesh, CollisionManager, issue)."""
+    """Try to load the geometry backend. Returns (trimesh, CollisionManager, issue).
+
+    `trimesh.collision` swallows a missing `fcl` internally (`except BaseException`),
+    so importing it alone always succeeds; the actual failure only surfaces later, as a
+    `ValueError` from `CollisionManager()`. Import `fcl` directly here, matching
+    `interference.load_backend`, so a missing python-fcl degrades to `check_skipped`
+    instead of crashing the check.
+    """
     try:
+        import fcl  # noqa: F401
         import trimesh
         from trimesh.collision import CollisionManager
 
