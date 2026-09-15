@@ -89,9 +89,32 @@ else
         tar -C "$REPO_ROOT" "${args[@]}" -cf - . | tar -C "$dest" -xf -
     fi
     echo "Copied skill to $dest"
+
+    # Stamp the commit that was copied, so `skill_version.py` can tell a stale
+    # install apart from a current one. Skipped for --link: a symlink is always
+    # as current as its target, so skill_version.py reads the target's live git
+    # HEAD instead.
+    if command -v git >/dev/null 2>&1 && commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null)"; then
+        commit_short="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
+        branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)"
+        if [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]; then dirty=true; else dirty=false; fi
+        installed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        cat > "$dest/.version.json" <<EOF
+{
+  "commit": "$commit",
+  "commit_short": "$commit_short",
+  "branch": "$branch",
+  "dirty": $dirty,
+  "installed_at": "$installed_at"
+}
+EOF
+    else
+        echo "Note: $REPO_ROOT is not a git checkout -- skipping .version.json (skill_version.py will report 'unknown')"
+    fi
 fi
 
 echo "Provisioning environment with 'uv sync'..."
 uv sync --project "$dest"
 
 echo "Done. cq-design installed at $dest"
+echo "Check the installed version any time with: python \"$dest/src/skill_version.py\""

@@ -103,6 +103,7 @@ or calling any script listed below.
     plan_validate.py         # BUILD_PLAN.json schema + inventory cross-check
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
     render_prompt.py         # Renders builder/auditor agent prompts for one part (Phase 3)
+    skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
     print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost
     convert_build123d.py     # Phase 0 sourcing aid: build123d -> CadQuery conversion
     cq_compat.py             # Compatibility shim neutralizing a cq_warehouse shape-copy patch
@@ -197,6 +198,7 @@ or calling any script listed below.
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
     test_render_prompt.py            # Builder/audit prompt rendering -- fast, no CadQuery
+    test_skill_version.py            # Version stamping/detection/compare -- fast, no CadQuery
     test_telemetry.py                # Attempt-log helper + CLI -- fast, no CadQuery
     test_request_log_search.py       # request_log filter helper + CLI -- fast, no CadQuery
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
