@@ -272,12 +272,10 @@ log it (Request log, above), resume the affected part's builder, re-audit -- but
 re-opens every deterministic step downstream of that union that Phase 4 already reported
 as done: **re-run Print-orientation optimization for the affected union(s)** (unaffected
 unions keep their accepted `build/orientations.json` entry), **then Model export, then
-Quality gate**, before repeating Phase 4's delivery report. See
-[Silica Tray re-export coincidence](TODO.md#silica-tray-re-export-coincidence): before
-this section existed, doing so was a judgment call this file never actually asked
-for -- correct when an LLM happened to think of it, silently skippable when one didn't,
-leaving stale `model.3mf`/STLs/`print_recipe` next to a script that had already moved on.
-`build/orientations.json`'s `source_script_hash` stamp (written by the `--source-script`
-flag above) means a later standalone `uv run python build/build.py` self-corrects this
-regardless, but a delivery report claimed *within this session* must reflect a re-export
-that actually happened here, not one left for the user to trigger later.
+Quality gate**, before repeating Phase 4's delivery report. `build/orientations.json`'s
+`source_script_hash` stamp (written by the `--source-script` flag above) means a later
+standalone `uv run python build/build.py` self-corrects this regardless, but a delivery
+report claimed *within this session* must reflect a re-export that actually happened
+here, not one left for the user to trigger later. See
+[Silica Tray re-export coincidence](TODO.md#silica-tray-re-export-coincidence) for why
+this rule exists.
