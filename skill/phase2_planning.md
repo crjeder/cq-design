@@ -149,11 +149,10 @@ uses.
 
 State the plan's effective `review_policy` (`every_stage` default, `checkpoints`, or
 `minimal`) and one line on what it means for this build: `every_stage` -- every part
-shows a Step 0 profile-stub checkpoint and builds progressively with per-stage
-checkpoints; `checkpoints` -- every part shows the stub checkpoint, but only parts
-matching the complexity gate (an interface, or 3+ blocks) build progressively; `minimal`
--- the stub is self-reviewed with no pause and every part builds autonomously with no
-stage checkpoints. This is the setting the Phase 3 part loop reads to decide when to
+shows a profile-stub checkpoint and then a checkpoint per stage (base shape, features,
+finishing); `checkpoints` -- every part shows the stub checkpoint, but only parts with an
+interface or 3+ blocks get per-stage checkpoints; `minimal` -- no stub and no stage
+checkpoints. This is the setting the Phase 3 part loop reads to decide when to
 pause for review.
 
 **Interfaces** (omit section if no part has any interfaces)
