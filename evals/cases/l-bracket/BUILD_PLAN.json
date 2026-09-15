@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "L-bracket joining two panels at 90 degrees",
+  "intent": "An L-shaped bracket joining two panels at a right angle: a flat base leg and a vertical upright leg of equal thickness meeting at a sharp internal corner. Printed as one part, base leg flat on the bed.",
   "parts": [
     {
       "id": "l_bracket",
@@ -22,7 +22,20 @@
       "blocks_needed": [
         "counterbore_hole"
       ],
-      "part_notes": "Load is bending at the corner; gusset optional."
+      "part_notes": "Load is bending at the corner; gusset optional.",
+      "engineering_rationale": {
+        "load_path": "screw load on the upright transfers as bending into the internal corner, per part_notes",
+        "worst_case_stress": "internal corner, base-to-upright junction",
+        "check": "corner_wall_mm = 6 mm >= 4 mm min for a 90-degree bend joint under bending load (PLA)"
+      },
+      "load": {
+        "dir": [
+          0,
+          0,
+          -1
+        ],
+        "type": "bending"
+      }
     }
   ],
   "constraints": {

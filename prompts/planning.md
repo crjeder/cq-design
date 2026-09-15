@@ -11,11 +11,36 @@ All wall positions, interface locations, and directional language in this plan u
 | South     | -Y    |                              |
 | West      | -X    |                              |
 | Up        | +Z    |                              |
-| Down      | -Z    | Always the print bed face    |
+| Down      | -Z    |                              |
 
-The Down face (Z = 0) is the print bed. Parts are always modeled with their print-bed face at Z = 0.
+Three right-handed frames, all in mm:
 
-When an interface's location is known, give its `position_mm` as the feature's intended center `[x, y, z]` in the part's own authored frame (same frame as `dimensions`), plus a size (`diameter_mm` for round features, `size_mm: [w, h]` for rectangular). These structured fields are optional, but supplying them enables the deterministic feature-presence check to confirm the feature was actually built where you declared it.
+- **Part frame** -- one per part, chosen by you. A part's `dimensions` (`w_mm`, `d_mm`,
+  `h_mm` = X, Y, Z extents) and its interfaces' `wall`/`position_mm` are in it; the part
+  author builds in it. Pick whatever frame makes the part easiest to describe and build
+  (e.g. a leg modeled lying along X even though it stands upright in the model). The
+  user's compass words and stated extents ("60 x 40", "the East edge") describe the
+  assembled frame. A part frame that differs from it in any way -- axes swapped or
+  rotated, origin moved -- REQUIRES `pose_intent` saying how the part sits in the
+  assembled frame; omitting it leaves the part in its part frame in the model.
+- **Assembled frame** -- shared by all parts. You state each part's goal pose in it as
+  `pose_intent` (rule 8); the author writes back `placement` (rotation + translation, no
+  mirror) mapping the part frame into it.
+- **Print frame** -- chosen per union by the orientation optimizer; Z = 0 is the print
+  bed and every deliverable is written in it. Influence it only through `load`,
+  `optimize_for`, and `show_face`.
+
+This project's resolved binding is recorded structurally in `coordinate_frame`
+(`{east, north, up}`, each one of `+x/-x/+y/-y/+z/-z`) only when it differs from the
+standard table above -- write it at the Phase 1 exit checkpoint whenever the user's
+stated frame implies a non-standard binding (e.g. "East is the side the logo faces,
+which is -X in this model"). Omit `coordinate_frame` entirely when the standard
+table applies; every reader then interprets compass language the standard way rather
+than re-deriving it from prose each time. `coordinate_frame` governs prose/review
+interpretation only -- it never changes `placement.rotate` or joint `dof.direction`
+sign conventions.
+
+When an interface's location is known, give its `position_mm` as the feature's intended center `[x, y, z]` in the part frame (same frame as `dimensions`), plus a size (`diameter_mm` for round features, `size_mm: [w, h]` for rectangular). These structured fields are optional, but supplying them enables the deterministic feature-presence check to confirm the feature was actually built where you declared it.
 
 SPATIAL FRAME:
 - World frame is fixed, not viewer-relative
@@ -53,18 +78,11 @@ adhesive). Content that fits none of these three categories does not belong in
 
 ## Rules
 
-1. **Research dimensions; never guess.** For any real-world product (phone, PCB, connector, charger, etc.), web-search exact dimensions before writing any value, cross-referencing at least two sources, and add the appropriate clearance (rule 4) to external fit dimensions.
-
-   **Proprietary mechanical interfaces** (appliance adapters, twist-lock/bayonet mounts, vacuum ports, tool chucks, portafilters, and any coupling geometry the manufacturer hasn't published) have no datasheet. Work through this lookup sequence, cross-checking two sources before committing any dimension:
-   1. Web search: `"<product name>" adapter OR compatible STL 3D print dimensions mm` -- catches forum posts, Reddit, teardowns.
-   2. Thingiverse: `<product name> adapter`, `compatible`, `plate`, `replacement`.
-   3. Printables, same terms.
-   4. MakerWorld: `makerworld.com/en/search/models?keyword=<product+name>`.
-   5. Read the top result's full description and comments on each platform -- authors typically state measured dimensions.
-   6. If a parametric source (OpenSCAD, FreeCAD, CadQuery) is linked, read its parameter block.
-   7. If only an unlabeled STL is available, download it and run `python src/measure_stl.py <path>` -- record the bbox/layer/cylinder output in `planning_notes`.
-
-   If a dimension still can't be verified, write `-1` as a placeholder, add the unknown to `planning_notes`, and **ask the user for the correct value** before finalizing the JSON.
+1. **Use the approved dimensions; never guess.** Real-world dimensions come from the
+   user's request and the approved Phase 1 dimension table. Add the clearance (rule 4)
+   to external fit dimensions. If the decomposition needs a real-world dimension neither
+   supplies, write `-1`, name the unknown in `planning_notes`, and finish the plan; the
+   orchestrator resolves it with the user.
 
 2. **Decompose into the simplest possible parts.** A two-part enclosure (body + lid) beats one complex part. Each part should be printable without supports if possible.
 
@@ -118,6 +136,18 @@ adhesive). Content that fits none of these three categories does not belong in
      **moving** joint; use `union` when the block is **rigidly fused** (boolean-unioned)
      into the same part's body -- one printed rigid body, no seam, no motion.
 
+5a. **A functional opening is a typed interface, not just a cut.** When the user's
+    request names a void that must stay open -- a hand/finger access port, a card or
+    coin exit, a drain or vent opening, a cable pass-through, a viewing window -- add
+    an `interfaces[]` entry with `type: "clearance_opening"`, the user's own word as
+    `name`, the `wall` it sits on, and `position_mm` + `size_mm` when known. In
+    `part_notes` (or `planning_notes` category (c) when it also serves assembly
+    access) state its purpose and the load path around it: what carries the part's
+    load now that the wall is interrupted (e.g. "the ~200 g phone on top is carried
+    in compression by the two ~10 mm columns flanking the opening"). Typing it this
+    way marks the void as deliberate so the build phase does not try to close, bridge,
+    or support across it.
+
 6. **Each part is a union (one rigid body). Group prints with `plate`.** A part maps
    to one printed rigid body and defaults to its own plate. Set the same `plate` id on
    several parts only for a **print-in-place** mechanism that must print together
@@ -141,7 +171,19 @@ adhesive). Content that fits none of these three categories does not belong in
    own part's authored frame, identity when omitted). Exactly one part is `root_part`,
    anchored by its own author-supplied `placement` (identity when the author writes
    none); every other part reached via a `joints` entry gets its assembled pose DERIVED
-   from the mate chain and MUST NOT declare its own `placement`.
+   from the mate chain and MUST NOT declare its own `placement`. Naming one
+   `interfaces[].name` on two parts declares one shared physical feature; with no
+   `joints` entry between those parts, `plan_validate.py` reports a shared-interface
+   finding, because the feature's numbers are then typed independently into each part
+   and re-diverge on every correction round. Route the mate through `joints` so the
+   value has a single source (`joints[].params`) and the mated part's pose is derived.
+   The same finding also fires when two parts' round `interfaces[]` entries (both
+   carrying `position_mm` and `diameter_mm`) coincide in the assembled frame with no
+   linking `joints` entry, even when `name` is null on both or differs -- a shared
+   physical mate belongs in `joints` regardless of whether it was also given a
+   matching vocabulary word. Separately, a multi-part plan whose intent/request_log
+   uses hinge/pivot/fold language with no `joints` entry at all gets its own advisory
+   nudge toward the same fix.
 
 8. **Declare each part's goal pose in the shared assembled frame as `pose_intent`, not
    as a transform.** Do not author `parts[].placement` -- the part author builds the
@@ -221,7 +263,7 @@ adhesive). Content that fits none of these three categories does not belong in
     (default `every_stage`). Map intent: "review every step" / "show me as you go" ->
     `every_stage`; "only pause for complex parts" -> `checkpoints`; "just build it" /
     "run autonomously" -> `minimal`. This is the single source of truth for how often
-    the Phase 3 part loop pauses (including the Step 0 profile-stub checkpoint) -- do
+    the Phase 3 part loop pauses (including the profile-stub checkpoint) -- do
     not also track a separate autonomous-run flag.
 
 12. **Proactively propose the `shadow_gap` block for any visible multi-part seam.**
@@ -247,11 +289,19 @@ adhesive). Content that fits none of these three categories does not belong in
     `kind: "clarification"` entry per clarification gathered in Phase 1/2 (topology
     confirmation, dimension checkpoint corrections, fit-type answers, etc.), each in
     the order it was given. `text` is the user's own wording, verbatim -- never
-    paraphrased or summarized. `ts` is the current UTC time in ISO-8601. **On a
-    re-plan** (this agent runs again against an existing `BUILD_PLAN.json`, e.g. after
+    paraphrased or summarized. `ts` is the current UTC time in ISO-8601. **Type each
+    new entry** with `level` and `targets`: `level` is `functional` (adds/removes/
+    reshapes a part or capability), `operation` (changes how an existing feature is
+    made -- a joint, a cut, a pattern), or `parameter` (a dimension/literal change
+    with the design otherwise fixed); `targets` is an array naming every affected part
+    id and, where the wording is feature- or parameter-specific, every
+    `part.feature` / parameter name. The `initial` entry MAY omit both when the
+    original request is too broad to attribute. Never back-fill `level`/`targets`
+    onto a carried-forward entry that lacks them. **On a re-plan** (this agent runs again against an existing `BUILD_PLAN.json`, e.g. after
     a validation rejection or a correction requiring regeneration): carry every prior
     `request_log` entry forward unchanged, in the same order, and only append the new
-    entry -- never rewrite, reorder, or drop existing entries. `request_log` is the
+    entry -- never rewrite, reorder, or drop existing entries. Carry `intent` forward
+    unchanged in the same way (see rule 16). `request_log` is the
     **exclusive** place for this round-by-round history: `planning_notes` and each
     part's `part_notes` describe only the CURRENT design state, never a "ROUND N"
     changelog or a "SUPERSEDED by round N" annotation -- when a correction changes a
@@ -269,6 +319,18 @@ adhesive). Content that fits none of these three categories does not belong in
     partial rebuild), `planning_notes` MUST state the source URL, its license, and the
     sourcing rung under which it was reused. Plans for a from-scratch design (Phase 0
     fell through to rung 5, or was skipped) need no such entry.
+
+16. **Copy the approved `intent`, never author it.** Phase 1 ends with a
+    user-approved reformulation of the request (`skill/phase1_requirements.md` exit
+    checkpoint). Copy that text into `intent` **verbatim** -- do not author it from
+    scratch, paraphrase it, shorten it, or "improve" it. Plan the part decomposition
+    *against* it. On a re-plan, carry the current `intent` forward unchanged, the same
+    way rule 14 carries `request_log` forward -- only an approved correction rewrites
+    `intent`, and that happens in Phase 3, not here. If the decomposition you produce
+    would build something the approved `intent` does not describe, revise the
+    decomposition to match the intent -- never edit `intent` to match the
+    decomposition; raise the contradiction with the user instead if it cannot be
+    reconciled.
 
 ## Block inventory (name and use only)
 
@@ -299,7 +361,7 @@ profile is present above, take these values from what the user stated in Phase 1
 {
   "schema_version": 1,
   "planning_notes": "<design reasoning: decomposition choices, dimension sources, trade-offs>",
-  "intent": "<what is being built and why>",
+  "intent": "<the Phase 1 approved reformulation, copied verbatim -- see rule 16>",
   "printer": "<printer model>",
   "material": "PLA",
   "nozzle_mm": 0.4,
@@ -347,10 +409,6 @@ profile is present above, take these values from what the user stated in Phase 1
       "hi_inclusive": true,
       "step": 5
     }
-  ],
-  "request_log": [
-    {"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": "<user's original request, verbatim>"},
-    {"ts": "2026-01-01T00:05:00Z", "kind": "clarification", "text": "<verbatim answer to a Phase 1/2 question>"}
   ],
   "constraints": {
     "wall_min_mm": 1.2,

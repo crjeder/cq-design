@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 import pytest
+import trimesh
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
@@ -28,7 +29,10 @@ def minimal_plan(parts: list[dict]) -> dict:
     integration test that only cares about the `parts` list."""
     return {
         "schema_version": 1,
-        "intent": "test fixture",
+        "intent": (
+            "Minimal shared integration-test fixture: the parts list under test, printed "
+            "as-is with default constraints; no fits or assumptions to record here."
+        ),
         "printer": "Bambu P1S",
         "material": "PLA",
         "nozzle_mm": 0.4,
@@ -39,6 +43,13 @@ def minimal_plan(parts: list[dict]) -> dict:
             "dimension_tolerance_mm": 0.2,
         },
     }
+
+
+def box_stl(path, center, extents=(10, 10, 10)):
+    """Write an axis-aligned box STL of `extents` centered at `center` to `path`."""
+    mesh = trimesh.creation.box(extents=extents)
+    mesh.apply_translation(center)
+    mesh.export(str(path))
 
 
 @pytest.fixture

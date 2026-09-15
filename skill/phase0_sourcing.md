@@ -41,9 +41,9 @@ close enough to adapt).
   through the normal wrapper/gate like any generated script — no special handling.
 - **build123d**: both build123d and CadQuery wrap OpenCASCADE, so conversion is
   mostly renaming. Use `src/convert_build123d.py`'s `API_MAPPING` table as a reference
-  while re-authoring the script (`python src/convert_build123d.py --mapping` prints it
-  as JSON), then validate the converted script with its smoke-check mode:
-  `python src/convert_build123d.py --smoke-check converted_part.py` — this runs the
+  while re-authoring the script (`python "$SKILL_DIR/src/convert_build123d.py" --mapping`
+  prints it as JSON), then validate the converted script with its smoke-check mode:
+  `python "$SKILL_DIR/src/convert_build123d.py" --smoke-check converted_part.py` — this runs the
   script through `run_cadquery_model.py --strict` and reports the same JSON verdict
   any generated part gets. Fix findings the same way the part loop would.
 - **OpenSCAD**: **never transpile the .scad text.** OpenSCAD's CSG tree (`hull()`,
@@ -77,7 +77,7 @@ modification.
 
 - **Never deliver a found mesh blind** — found models are frequently wrong or
   unprintable. Run it through the same vetting a generated part gets:
-  1. `python src/measure_stl.py <path>` — cross-check the measured bounding box and
+  1. `uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/measure_stl.py" <path>` — cross-check the measured bounding box and
      any relevant features against the request's stated dimensions.
   2. Run the quality gate's mesh-level stages (watertightness, overhang) against the
      downloaded mesh — the same checks any generated STL passes before delivery.
@@ -143,15 +143,15 @@ page.
   summary shown to the user instead. Either way, state the license and source to the
   user at the point they confirm reuse — never reuse silently.
 
-## Search workflow (shared with Phase 1)
+## Search workflow
 
-Phase 0 does not duplicate the search workflow — it reuses the proprietary-interface
-/ community-model search sequence already defined in `skill/phase1_requirements.md`
-("Dimension lookup with Playwright" -> "Workflow" steps 1.1-1.8): web search, then
-Thingiverse/Printables/MakerWorld, opening the most-downloaded matching result on each
-platform and reading its description, comments, and any linked parametric source.
+1. One web search for the part (plus "STL", "STEP", or "CadQuery"/"OpenSCAD" as useful).
+2. Search Thingiverse, Printables, and MakerWorld for the same terms.
+3. On each platform, open the most-downloaded matching result and read its description,
+   comments (print-failure reports, fit complaints), license, and any linked parametric
+   source.
 
-Run that search once, in Phase 0, framed around "does a model already exist for this
+Run this search once, in Phase 0, framed around "does a model already exist for this
 request" rather than "what are this request's dimensions." **No second sweep:** if
 Phase 0 ran and fell through to rung 5, Phase 1's own dimension lookup (when a real
 product is still named in the request) reuses the same search results already in

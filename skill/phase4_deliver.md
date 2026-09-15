@@ -22,15 +22,28 @@ Report to the user:
      holds the editable part scripts and everything else regenerates from them
    - A one-line pointer to `parameters.py` for the sourced real-world measurements this
      design is based on (see Phase 2)
-   - A one-line pointer to `REQUIREMENTS.md`, when present, for the full intent/
-     topology/fit/constraints spec this design is built from (see Phase 1)
    - The directory layout (mirror the tree in **Model export** in `skill/phase3_build.md`)
+   - A one-line pointer to `REGENERATE.md` (see step 6)
+6. **Write `REGENERATE.md`** at the project root -- the prompt that lets the user rebuild
+   this design from scratch in a fresh session (a better model, a newer skill, a different
+   skill), carrying the approved `intent`, the verbatim `request_log`, `parameters.py`, the
+   `sketches/` list and the print target. Generated, not hand-authored -- do not write this
+   file yourself, and regenerate it (overwrite) on every delivery so it reflects the latest
+   corrections:
 
-If the quality gate failed, summarize the remaining errors and offer to fix the script manually or re-run the gate with `--no-fix` to get a clean report.
+   ```bash
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/regen_prompt.py" --plan BUILD_PLAN.json --out REGENERATE.md
+   ```
 
-Once delivery is reported and `README.md` is written, append one line to
+   Read the result before reporting: if the `What to build` section is a bare noun phrase
+   rather than the approved reformulation, the plan's `intent` was never updated by a
+   Phase 3 correction -- fix `intent` and re-run rather than editing `REGENERATE.md`.
+
+If the quality gate failed, summarize the remaining errors and offer to fix the script manually.
+
+Once delivery is reported and `README.md` / `REGENERATE.md` are written, append one line to
 `build/journal.md` (see `skill/resume.md`):
 
 ```
-- phase4/delivered: README.md written
+- phase4/delivered: README.md + REGENERATE.md written
 ```
