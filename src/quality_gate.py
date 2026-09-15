@@ -47,8 +47,15 @@ COSMETIC_SLOPE_MIN_AREA_MM2 = 20.0
 # ---------------------------------------------------------------------------
 
 
-def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | None, dict | None]:
-    """Run run_cadquery_model.py DFM checks; return list of issue dicts."""
+def _run_wrapper_check(
+    script_path: str, plan: dict
+) -> tuple[list[dict], str | None, dict | None, list[str]]:
+    """Run run_cadquery_model.py DFM checks; return list of issue dicts.
+
+    The 4th element is every union STL the wrapper produced (`data["stls"]`), not just
+    the first (`data["stl"]`) -- a multi-union part's overhang/watertightness analysis
+    must cover every union, not only the one `stl` happens to point at.
+    """
     constraints = plan.get("constraints", {})
     # Line width approximates nozzle diameter * 1.1; drives the brittle thin-wall
     # threshold in the wrapper's thin-interface check.
@@ -84,13 +91,20 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
             ],
             None,
             None,
+            [],
         )
+
+    # The wrapper's own success=False (script crashed / produced no valid geometry)
+    # overrides the type allowlist below -- every error from a failed run is blocking,
+    # not just the types this list happens to enumerate.
+    run_failed = data.get("success") is False
 
     issues = []
     for err in data.get("errors", []):
         severity = (
             "error"
-            if err["type"]
+            if run_failed
+            or err["type"]
             in (
                 "non_manifold_edge",
                 "non_watertight",
@@ -102,6 +116,8 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
                 "index_out_of_range",
                 "type_mismatch",
                 "dimension_mismatch",
+                "disconnected_body",
+                "mesh_load_error",
             )
             else "warning"
         )
@@ -114,9 +130,20 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
                 "hint": err.get("hint", ""),
             }
         )
+    if run_failed and not issues:
+        issues.append(
+            {
+                "source": "wrapper",
+                "severity": "error",
+                "type": "run_failed",
+                "message": "wrapper reported success=False with no structured errors",
+                "hint": data.get("stderr", ""),
+            }
+        )
+
     # Expose STL path for downstream MCP checks
     stl_path: str | None = data.get("stl")
-    return issues, stl_path, data.get("geometry")
+    return issues, stl_path, data.get("geometry"), data.get("stls") or []
 
 
 # ---------------------------------------------------------------------------
@@ -392,8 +419,16 @@ def _fix_loop_model() -> str | None:
 
 
 def _call_claude(prompt_text: str) -> str:
-    """Call claude -p with the prompt text, return generated code."""
-    cmd = ["claude", "-p", prompt_text]
+    """Call claude -p with the prompt text, return generated code.
+
+    `--tools ""` disables every tool (and, per its own contract, ignores project/local
+    settings files) -- this call's only job is to transcode a prompt into Python text,
+    so it needs no tool access. Without this, a script's exception message embedded
+    verbatim in the prompt (see `_render_fix_prompt`) could steer a `claude -p` that
+    inherits this project's `.claude/settings.local.json` -- including the Bash grants
+    `init_permissions.py` seeds -- into running commands unattended.
+    """
+    cmd = ["claude", "-p", prompt_text, "--tools", ""]
     model = _fix_loop_model()
     if model:
         cmd += ["--model", model]
@@ -847,17 +882,38 @@ def run_gate(
     fix_round = 0
     for fix_round in range(MAX_FIX_ROUNDS + 1):
         # ---- wrapper DFM ----
-        wrapper_issues, discovered_stl, geometry = _run_wrapper_check(script_path, plan)
+        wrapper_issues, discovered_stl, geometry, discovered_stls = _run_wrapper_check(
+            script_path, plan
+        )
 
-        effective_stl = stl_path or discovered_stl
+        # An explicit `stl_path` override names one specific STL to analyze. Otherwise
+        # analyze every union STL the wrapper produced -- a multi-union part's `stl`
+        # (== stls[0]) would silently skip the geometry/overhang check for every other
+        # union.
+        effective_stls = (
+            [stl_path]
+            if stl_path
+            else (discovered_stls or ([discovered_stl] if discovered_stl else []))
+        )
+        effective_stls = [p for p in effective_stls if p and os.path.exists(p)]
 
         # ---- geometry + overhang ----
-        if effective_stl and os.path.exists(effective_stl):
+        if effective_stls:
             rotate = (orientation or {}).get("rotate")
             stem = os.path.splitext(os.path.basename(script_path))[0]
             part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
             clearance_zones = _clearance_opening_zones(plan, part, rotate) if part else []
-            geo_issues = _analyze_stl(effective_stl, overhang_deg, rotate, clearance_zones)
+            multi = len(effective_stls) > 1
+            geo_issues = []
+            for stl in effective_stls:
+                uid = os.path.splitext(os.path.basename(stl))[0]
+                stl_issues = _analyze_stl(stl, overhang_deg, rotate, clearance_zones)
+                if multi:
+                    stl_issues = [
+                        {**i, "union": uid, "message": f"[{uid}] {i['message']}"}
+                        for i in stl_issues
+                    ]
+                geo_issues.extend(stl_issues)
         else:
             geo_issues = [
                 {
