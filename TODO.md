@@ -30,7 +30,7 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 - [x] Quality-gate overhang check judged the authored-frame STL, not the print pose -- false-positive `overhang_exceeded` whenever the optimizer rotates the part -- FIXED 2026-09-08 -- [details](#c5-quality-gate-overhang-authored-frame)
 
 ### From Silica Tray session (`session-export-1786620780455.zip`)
-- [ ] LLM claimed "no support needed" despite a nonzero support score -- [details](#silica-tray-support-claim)
+- [x] LLM claimed "no support needed" despite a nonzero support score -- FIXED 2026-09-15: `print_recipe.supports` was hardcoded `False`; now derived from any non-advisory `overhang_exceeded` finding -- [details](#silica-tray-support-claim)
 - [ ] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- [details](#silica-tray-re-export-coincidence)
 
 ### From Hitster Tower
@@ -459,6 +459,26 @@ identity print orientation) is unaffected and still reported.
 ### Silica Tray support claim
 LLM claims "no support needed" despite "support score 654.1" which might be
 wrong. Test result: small overhangs like this can be printed without support.
+
+**Root cause found and FIXED 2026-09-15.** `quality_gate._emit_print_recipe`'s
+`recipe["supports"]` was hardcoded `False`, unconditionally, regardless of
+`orientation["support_score"]` (a weighted overhang-area cost from
+`print_orientation.py`, not a support/no-support verdict) or of any
+`overhang_exceeded` finding the gate had just emitted for the same STL. So the
+delivered `print_recipe` always told the LLM "no support needed" even when the
+gate had flagged an overhang moments earlier -- there was nothing to "get
+wrong" downstream; the field simply never read the analysis. `support_score`
+itself is left as a ranking signal only (used by `print_orientation.py` to pick
+the least-overhang pose among candidates) and is not a support/no-support
+threshold on its own -- a small nonzero score, as here, can still print clean,
+matching the session's test result. Fix: `run_gate` now computes
+`needs_support = any(overhang_exceeded warning in all_issues)` and threads it
+into `_emit_print_recipe`; an `overhang_exceeded` downgraded to `info` by a
+declared `clearance_opening` (see [Hitstertower oversupport](#hitstertower-oversupport))
+does not set it. Tests:
+`tests/test_quality_gate.py::test_print_recipe_supports_true_when_overhang_exceeded`,
+`::test_print_recipe_supports_false_when_self_supporting`,
+`::test_print_recipe_supports_false_when_overhang_downgraded_to_info`.
 
 ### Silica Tray re-export coincidence
 "I just re-derived the print orientation and re-exported so the deliverables
