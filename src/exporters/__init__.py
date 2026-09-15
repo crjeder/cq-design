@@ -48,7 +48,9 @@ def _load_result(script_path: str) -> "cq.Workplane | dict[str, cq.Workplane]":
     """
     script_path = os.path.abspath(script_path)
     script_dir = os.path.dirname(script_path)
-    skill_root = os.path.dirname(os.path.abspath(__file__))
+    # __file__ is src/exporters/__init__.py; go up two levels to src/, not one -- a
+    # part script's `from blocks import ...` needs src/ on the path, not src/exporters/.
+    skill_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     inserted = [p for p in (script_dir, skill_root) if p not in sys.path]
     for path in inserted:
