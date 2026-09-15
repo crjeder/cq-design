@@ -91,13 +91,21 @@ research or guess them. Ask only what the standard cannot supply — how many un
 tall, and what goes in — and still look up any real object the bin has to hold, whose size
 then picks the unit count via `gridfinity_units_for`.
 
-**Research agent.** Render `$SKILL_DIR/prompts/research.md`, substituting
-`{{LOOKUP_TARGETS}}` (one bullet per item to look up and what it is for),
-`{{KNOWN_CONTEXT}}` (user-stated dimensions plus any Phase 0 search results already in
-context, as URL + what it gave; `(none)` otherwise) and `{{SKILL_DIR}}`. Spawn one agent
-with it on the session default model. It returns the dimension table and its sources;
-page snapshots and downloads stay inside the agent. Use the returned table in the exit
-checkpoint below and resolve its `conflict`/`missing` rows with the user there.
+**Research agent.** Write the lookup targets (one bullet per item to look up and what it
+is for) to `build/lookup_targets.md`, and, when there is prior context, the known
+dimensions (user-stated dimensions plus any Phase 0 search results already in context, as
+URL + what it gave) to `build/known_context.md`. Render the prompt:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" research \
+    --targets-file build/lookup_targets.md [--known-file build/known_context.md]
+```
+
+It writes `build/research_prompt.txt` and prints `{"out", "chars"}`. Spawn one agent with
+the prompt `Read <out> in full and follow it. Working directory: <absolute cwd>.` on the
+session default model. It returns the dimension table and its sources; page snapshots and
+downloads stay inside the agent. Use the returned table in the exit checkpoint below and
+resolve its `conflict`/`missing` rows with the user there.
 
 ## Phase 1 exit checkpoint
 
