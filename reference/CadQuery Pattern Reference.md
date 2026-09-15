@@ -264,9 +264,8 @@ Never assume the default matches your intent -- on an irregular face
     view (still flush with the outer wall), visible only in a section that
     crosses it. Clip the feature's height/extent to the actual solid thickness at
     that XY position (e.g. a seam tab under a pit: extrude only bed-to-cavity-floor,
-    not full part height). Visual self-review must check this against a section
-    crossing the feature (`reference/Visual Review Checklist.md`) -- exterior
-    renders look identical either way.
+    not full part height). The audit checks this against a section crossing the
+    feature -- exterior renders look identical either way.
 
 ## Workplane Context Stacking (Origin Drift)
 

@@ -78,16 +78,12 @@ edit; a wrong topology is a full rebuild" above, and the same axis as the `reque
 No dimension may leave Phase 1 as `-1`: a row that could not be sourced is either
 resolved with the user or converted to `assumed` with a concrete value the user accepts.
 
-## Dimension lookup with Playwright
+## Dimension lookup
 
-When a real product is mentioned, run the lookup workflow below in a **research agent**
-before writing a single dimension into the plan.
-
-**Gate: only spawn the research agent when a real-world lookup is actually needed** — a
+**Gate: only spawn the research agent when a real-world lookup is actually needed** -- a
 real product, PCB, or connector is named and its dimensions are not already fully known
-from the user or `printer_profile.json`. A request with no external product reference
-(pure user-stated dimensions) never spawns this agent — skip straight to the checkpoint
-below with an empty table, or skip the checkpoint entirely per its own rule.
+from the user or `printer_profile.json`. With no external product reference, skip straight
+to the exit checkpoint with an empty table.
 
 A **Gridfinity** request is dimensioned by the standard, not by a lookup: the grid pitch,
 height unit, foot profile, and hole sizes are in `reference/gridfinity.md`, so never
@@ -95,65 +91,13 @@ research or guess them. Ask only what the standard cannot supply — how many un
 tall, and what goes in — and still look up any real object the bin has to hold, whose size
 then picks the unit count via `gridfinity_units_for`.
 
-**Research agent.** Spawn one agent whose task is the full lookup workflow below (web
-search, spec pages, community model pages, STL download + `measure_stl.py`) for every
-dimension this request needs looked up. Model override: session default — this role does
-not carry the topology/rebuild cost that justifies the planner's strong-model override.
-The agent has no user channel: it never asks the user anything and never presents the
-checkpoint. It returns exactly two things as its final message:
-
-- The dimension validation table (Item / Value / Source / Status — the same shape as the
-  Dimension validation checkpoint table below).
-- The list of source URLs it consulted.
-
-Everything else the lookup workflow touches — page snapshots, screenshots, downloaded
-STLs, intermediate search results — stays inside the agent; main receives only the table
-and the sources. Main then runs the Dimension validation checkpoint below exactly as
-written, using the returned table.
-
-**Workflow (followed by the research agent):**
-
-1. Navigate to the manufacturer spec page or a reliable secondary source:
-   - Phones / tablets: manufacturer product page, then GSMArena as a cross-check
-   - PCBs / SBCs: official documentation or schematic PDF
-   - Connectors / ICs: manufacturer datasheet (Mouser, DigiKey, or vendor site)
-   - General hardware: iFixit teardown, or search `"<product name> dimensions mm filetype:pdf"`
-   - **Proprietary mechanical interfaces** (appliance bowl adapters, twist-lock mounts, bayonet couplings, vacuum ports, tool chucks, coffee machine portafilters, etc.): manufacturer documentation almost never covers these. Use this search sequence:
-     1. Web search: `"<product name>" adapter OR compatible STL 3D print dimensions mm` -- catches forum posts, Reddit threads, and blog teardowns that state measured values.
-     2. Search Thingiverse: `thingiverse.com/search?q=<product+name>+adapter` -- also try `compatible`, `plate`, `replacement`.
-     3. Search Printables: `printables.com/search/models?q=<product+name>+adapter`
-     4. Search MakerWorld: `makerworld.com/en/search/models?keyword=<product+name>`
-     5. Open the most-downloaded matching model on each platform. Read the full description and all comments -- community designers routinely state the key dimensions they measured.
-     6. If a parametric source (OpenSCAD, FreeCAD, CadQuery) is linked, navigate to it and read the parameter block for exact values.
-     7. If only an STL download is available and no dimensions are stated, download the file and run `python "$SKILL_DIR/src/measure_stl.py" <path>` to extract bounding box, layer heights, and cylinder diameters automatically. Record those values in `planning_notes`.
-     8. Cross-check two sources (or two found models) before committing any dimension.
-2. Call `browser_snapshot` (or `browser_take_screenshot` if the page is image-heavy) to extract the spec table.
-3. Record the dimensions. Repeat for the second source and confirm they agree within 0.5 mm.
-4. If sources conflict or a dimension is absent, set it to `-1` and ask the user.
-
-**Tool usage pattern:**
-
-```
-web_search        →  "<product> adapter STL dimensions mm"
-browser_navigate  →  thingiverse / printables / makerworld search results
-browser_snapshot  →  read model description and comments
-[if STL only]     →  download STL, run: python "$SKILL_DIR/src/measure_stl.py" reference.stl
-browser_navigate  →  manufacturer spec URL (for non-proprietary dims)
-browser_snapshot  →  read dimension values from accessibility tree
-```
-
-**Downloading an STL for measurement:**
-
-```bash
-python -c "import urllib.request; urllib.request.urlretrieve('<direct-stl-url>', 'reference.stl')"
-python "$SKILL_DIR/src/measure_stl.py" reference.stl
-```
-
-The output JSON contains `bounding_box_mm`, `flat_faces` (Z heights and radii of each horizontal layer), and `cylinders` (boss/hole diameter, height, and Z position). Use these as the primary dimension source when no stated values are available.
-
-Use `browser_take_screenshot` only when the spec is in an image or the snapshot returns no useful text. Prefer `browser_snapshot` - it is faster and more token-efficient.
-
-**Lookup narration:** Before each lookup, note internally what is being looked up and which source is being consulted (e.g., "Looking up Bosch MUM9 bowl dimensions on bosch-home.com..."). After each lookup, note the value found and the source URL (e.g., "Found bowl diameter: 220 mm -- bosch-home.com/en/product/..."). This narration lives inside the research agent's own reasoning — it has no user channel, so none of it reaches the user directly; the user-visible summary is the Dimension validation checkpoint table main presents after the agent returns.
+**Research agent.** Render `$SKILL_DIR/prompts/research.md`, substituting
+`{{LOOKUP_TARGETS}}` (one bullet per item to look up and what it is for),
+`{{KNOWN_CONTEXT}}` (user-stated dimensions plus any Phase 0 search results already in
+context, as URL + what it gave; `(none)` otherwise) and `{{SKILL_DIR}}`. Spawn one agent
+with it on the session default model. It returns the dimension table and its sources;
+page snapshots and downloads stay inside the agent. Use the returned table in the exit
+checkpoint below and resolve its `conflict`/`missing` rows with the user there.
 
 ## Phase 1 exit checkpoint
 

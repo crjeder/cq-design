@@ -39,7 +39,7 @@ _HINGE_WORD_RE = re.compile(r"\b(hinge|pivot|fold|articulat)", re.IGNORECASE)
 # Canonical load-bearing trigger set for `engineering_rationale` (see the
 # `engineering-rationale` spec): a part using one of these blocks or archetypes takes
 # the full object form regardless of whether it also declares `load`. Single source of
-# truth -- prompts/part.md and skill/phase3_build.md point here instead of restating it.
+# truth -- src/render_prompt.py and prompts/audit.md use it via _is_load_bearing.
 # Names verified against blocks/inventory.json and templates/archetypes.json.
 _LOAD_BEARING_BLOCKS = {
     "snap_hook_clip",
