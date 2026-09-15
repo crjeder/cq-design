@@ -50,6 +50,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # OCC exception → structured hint translation table
@@ -818,7 +819,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Output directory for --deliver (default: alongside the script)",
     )
+    parser.add_argument(
+        "--attempts-log",
+        default=None,
+        help="Append this run's attempt record to the given attempts.jsonl (part id = script stem)",
+    )
+    parser.add_argument("--model", default=None, help="Model name for the attempt record")
     return parser
+
+
+def _emit(args: argparse.Namespace, result: dict) -> None:
+    """Print the JSON contract; with --attempts-log, also append the attempt record
+    (sub-agent tool calls do not reach the PostToolUse telemetry hook)."""
+    if args.attempts_log:
+        try:
+            from telemetry import record_attempt
+
+            record_attempt(Path(args.attempts_log), Path(args.script).stem, result, args.model)
+        except Exception as exc:  # telemetry must never break a validate run
+            _append_stderr(result, f"attempt telemetry not written: {exc}")
+    print(json.dumps(result, indent=2))
 
 
 def main():
@@ -863,11 +883,11 @@ def main():
             )
         except subprocess.TimeoutExpired as e:
             _append_stderr(result, f"Timeout after {args.timeout}s: {e}")
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(3)
         except FileNotFoundError as e:
             _append_stderr(result, f"Cannot launch interpreter: {e}")
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(2)
 
         result["stdout"] = proc.stdout
@@ -880,7 +900,7 @@ def main():
             result["errors"].extend(_translate_stderr(proc.stderr))
 
         if not result["success"]:
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(1)
 
         # Find STLs written to run_dir
@@ -899,7 +919,7 @@ def main():
                 }
             )
             result["success"] = False
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(1)
 
         # Geometry analysis. A part may emit several union STLs (one per named union);
@@ -910,7 +930,7 @@ def main():
             strict_fail = _run_geometry_checks(sorted(stls_in_temp), args, result)
             if strict_fail:
                 result["success"] = False
-                print(json.dumps(result, indent=2))
+                _emit(args, result)
                 sys.exit(1)
 
         # Preview rendering via render_preview.py subprocess (CQ-native, no OpenGL)
@@ -919,7 +939,7 @@ def main():
             and stls_in_temp
             and _handle_preview(args, script_path, skill_root, env, result)
         ):
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(1)
 
         # --deliver: run modular exporter and expose output paths
@@ -941,7 +961,7 @@ def main():
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)
 
-    print(json.dumps(result, indent=2))
+    _emit(args, result)
     sys.exit(0 if result["success"] else 1)
 
 

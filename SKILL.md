@@ -88,14 +88,13 @@ format to approve.
 
 ## Phase 3: Build
 
-Write and validate each part script (autonomous or progressive), get user approval on
-the finished parts, optimize print orientation, export the model, and run the gate.
+One builder agent per part authors and validates its script (staged with user
+checkpoints, or in one run), a fresh auditor agent judges the renders, then the user
+approves the parts, print orientation is optimized, the model is exported, and the gate runs.
 
-**Before starting Phase 3, read `skill/phase3_build.md` in full** — the part loop
-(archetype match, lint, visual self-review), progressive build staging, the design
-approval checkpoint, print-orientation optimization, model export, the block library,
-kinematic validation, and the quality gate. This phase is not runnable from the summary
-alone.
+**Before starting Phase 3, read `skill/phase3_build.md` in full** — agent routing, stage
+checkpoints, escalation, the audit, write-backs, design approval, print orientation,
+model export, and the quality gate. This phase is not runnable from the summary alone.
 
 ## Phase 4: Deliver
 
@@ -134,7 +133,6 @@ Enforce in planning and during code review:
 | Wall thickness | 1.2 mm min (3 perimeters @ 0.4 mm); 2.0 mm for load-bearing |
 | Overhang limit | 45 deg max without supports |
 | Bridge span | 20 mm reliable; ~50 mm with good cooling |
-| Print bed face | Z = 0; `centered=(True, True, False)` on `.box()` |
 | Boolean overlap | Inner bodies extend 0.01+ mm past outer boundary |
 
 **Clearance by fit type:** press_fit 0.0 mm, snap_fit 0.15 mm, sliding 0.25 mm,
@@ -144,10 +142,12 @@ PETG +0.1 mm (stringing); TPU +0.2 mm (3.0 mm+ walls, prefer flexible snaps); AB
 
 ## Coordinate system
 
-| Direction | Axis | Notes |
-|-----------|------|-------|
-| North / East / South / West | +Y / +X / -Y / -X | |
-| Up / Down | +Z / -Z | Down is the print bed face, always Z = 0 |
+North / East / South / West / Up / Down = +Y / +X / -Y / -X / +Z / -Z. Three
+right-handed frames: the **part frame** (per part, chosen by the planner; dimensions and
+interfaces live in it, the author builds in it), the **assembled frame** (shared;
+`pose_intent` + author-written `placement`, rotation and translation only), and the
+**print frame** (chosen by the orientation optimizer, Z = 0 is the bed). Every
+deliverable is in print frame.
 
 ## Generated script rules
 
@@ -160,8 +160,8 @@ hand-rolling one; assert construction-time invariants via `cq_verify`
 (`verify_boolean`, `check_workplane`, `verify_feature_bounds`, `verify_backed`,
 `verify_seated`, `verify_stage`); and reconcile a hand-edited `PARAMETERS` block back
 into `BUILD_PLAN.json` via `src/import_params.py` rather than hand-editing the plan.
-See `skill/phase3_build.md`'s Step 2 for the full `cq_verify` reference, the
-scratch-part construction-plan contract, and the `import_params.py` invocation.
+The full `cq_verify` reference and the scratch-part construction-plan contract live in
+`prompts/part.md`.
 
 ## Error handling reference
 
@@ -182,10 +182,11 @@ read the `hint`, don't guess a fix from the type name. All typed errors share th
 | `printer_profile.json` | Printer/material/nozzle/constraint defaults |
 | `src/run_cadquery_model.py` / `quality_gate.py` | Geometry validator / DFM gate |
 | `src/plan_validate.py` | Validates BUILD_PLAN.json vs. schema + inventory |
-| `prompts/planning.md` / `prompts/part.md` | Prompt templates |
+| `prompts/research.md` / `planning.md` | Research and planner agent prompts |
+| `prompts/builder.md` + `part.md` / `audit.md` | Builder and auditor agent prompts, rendered by `src/render_prompt.py` |
 | `src/model_export.py` | Assembles unions into model.3mf + per-union/plate STL |
 | `src/blocks/inventory.json` / `validate.py --search <kw>` | Block descriptors; lookup |
-| `templates/archetypes.json` / `templates/*.py` | Known-good whole-part templates matched in Phase 3 Step 1.5 |
+| `templates/archetypes.json` / `templates/*.py` | Known-good whole-part templates a builder starts from |
 | `build/journal.md` | Append-only milestone log for resuming an interrupted run (see `skill/resume.md`) |
 | `skill/*.md` | Setup and per-phase detail (see phase sections above) |
 | `skill/resume.md` | Journal contract and interrupted-run resume procedure |
