@@ -32,7 +32,14 @@ from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
 from freshness import write_manifest
 from mate_chain import compute_mate_poses
 from placement import apply_cq, apply_matrix
-from units import keep_out_stl_name, load_plan, plate_of, resolve_keep_out, resolve_unions
+from units import (
+    keep_out_stl_name,
+    keep_out_zone_key,
+    load_plan,
+    plate_of,
+    resolve_keep_out,
+    resolve_unions,
+)
 
 _NAME_MAX_LEN = 64
 
@@ -149,7 +156,7 @@ def export_model(
         for zone_name, zone_wp in resolve_keep_out(part, result):
             zone_stl = os.path.join(stl_dir, keep_out_stl_name(part["id"], zone_name))
             cq.exporters.export(_pose_union(zone_wp, part, mate_pose), zone_stl)
-            zone_key = f"{part['id']}::{zone_name}"
+            zone_key = keep_out_zone_key(part["id"], zone_name)
             keep_out_stls[zone_key] = zone_stl
             keep_out_scripts[zone_key] = (part["id"], script)
 

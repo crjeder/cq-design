@@ -88,6 +88,22 @@ def test_missing_telemetry_degrades_not_crashes(tmp_path):
     assert result["mean_chamfer_mm"] < 0.5
 
 
+def test_base_plus_followup_counted_as_one_attempt(tmp_path):
+    case_run = tmp_path / CASE
+    base = _record(1, "pass")
+    followup = {**base, "outcome": "fail", "error_types": ["visual_mismatch"]}
+    _write_attempts(case_run, [base, followup])
+
+    attempts = run_evals.read_attempts(case_run)
+    assert attempts is not None
+    assert len(attempts) == 1
+    assert attempts[0]["outcome"] == "fail"
+
+    metrics = run_evals.attempt_metrics(attempts, _FLAT_10)
+    assert metrics["first_shot_rate"] == 0.0
+    assert metrics["mean_attempts_to_pass"] == 2.0
+
+
 def test_part_ids_need_not_agree(tmp_path):
     case = "sliding-lid"
     golden_part = "sliding_lid"
@@ -168,24 +184,70 @@ def test_two_produced_two_golden_assign_one_to_one(tmp_path):
     assert result["within_tolerance"] is True
 
 
+_FLAT_10 = {"default": {"input": 10.0, "output": 10.0}, "inline": {"input": 10.0, "output": 10.0}}
+
+
 def test_cost_sums_all_attempts():
-    prices = {"default": 10.0, "inline": 10.0}
     records = [_record(1, "fail"), _record(2, "fail"), _record(3, "pass")]
-    metrics = run_evals.attempt_metrics(records, prices)
+    metrics = run_evals.attempt_metrics(records, _FLAT_10)
     # 3 attempts x 40000 chars / 4 chars-per-token = 30000 tokens at $10/MTok
     assert abs(metrics["total_cost_usd"] - 0.30) < 1e-9
     assert metrics["cost_per_accepted_part_usd"] == metrics["total_cost_usd"]
+    assert metrics["cost_source"] == "estimate"
     assert metrics["first_shot_rate"] == 0.0
     assert metrics["mean_attempts_to_pass"] == 3.0
 
 
 def test_never_passing_part_counts_attempts_plus_one():
-    prices = {"default": 10.0}
     records = [_record(1, "fail"), _record(2, "fail")]
-    metrics = run_evals.attempt_metrics(records, prices)
+    metrics = run_evals.attempt_metrics(records, _FLAT_10)
     assert metrics["mean_attempts_to_pass"] == 3.0
     assert metrics["unpassed_parts"] == [PART]
     assert metrics["cost_per_accepted_part_usd"] is None
+
+
+def test_recorded_cost_overrides_estimate():
+    records = [_record(1, "pass")]
+    metrics = run_evals.attempt_metrics(records, _FLAT_10, recorded_cost=0.123)
+    assert metrics["total_cost_usd"] == 0.123
+    assert metrics["cost_per_accepted_part_usd"] == 0.123
+    assert metrics["cost_source"] == "recorded"
+
+
+def test_score_case_prefers_envelope_cost(tmp_path):
+    case_run = tmp_path / CASE
+    (case_run / "stl").mkdir(parents=True)
+    shutil.copy(GOLDEN, case_run / "stl" / f"{PART}.stl")
+    _write_attempts(case_run, [_record(1, "pass")])
+    (case_run / "cost.json").write_text(json.dumps({"total_cost_usd": 0.42}), encoding="utf-8")
+
+    result = run_evals.score_case(CASE, tmp_path, run_evals.load_prices())
+    assert result["cost_source"] == "recorded"
+    assert result["cost_per_accepted_part_usd"] == 0.42
+
+
+def test_score_case_falls_back_to_session_record(tmp_path):
+    case_run = tmp_path / CASE
+    (case_run / "stl").mkdir(parents=True)
+    shutil.copy(GOLDEN, case_run / "stl" / f"{PART}.stl")
+    _write_attempts(case_run, [_record(1, "pass")])
+    (case_run / "build" / "cost.json").write_text(
+        json.dumps({"combined": {"cost_usd": 0.07}}), encoding="utf-8"
+    )
+
+    result = run_evals.score_case(CASE, tmp_path, run_evals.load_prices())
+    assert result["cost_source"] == "recorded"
+    assert result["cost_per_accepted_part_usd"] == 0.07
+
+
+def test_score_case_estimate_when_no_record(tmp_path):
+    case_run = tmp_path / CASE
+    (case_run / "stl").mkdir(parents=True)
+    shutil.copy(GOLDEN, case_run / "stl" / f"{PART}.stl")
+    _write_attempts(case_run, [_record(1, "pass")])
+
+    result = run_evals.score_case(CASE, tmp_path, run_evals.load_prices())
+    assert result["cost_source"] == "estimate"
 
 
 def test_aggregate_reports_contributing_case_count():
@@ -214,3 +276,38 @@ def test_end_to_end_scorecard_files(tmp_path):
 
 def test_unknown_case_rejected(tmp_path):
     assert run_evals.main(["--run-dir", str(tmp_path), "--cases", "nope"]) == 1
+
+
+def test_filter_by_tags_no_filter_returns_all():
+    assert run_evals.filter_by_tags(["a", "b"], None) == ["a", "b"]
+    assert run_evals.filter_by_tags(["a", "b"], "") == ["a", "b"]
+
+
+def test_filter_by_tags_real_case_intersection():
+    assert run_evals.filter_by_tags(["hinged-latch", "wall-hook"], "hinge") == ["hinged-latch"]
+
+
+def test_filter_by_tags_treats_missing_key_as_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_evals, "CASES_DIR", tmp_path)
+    (tmp_path / "no-tags").mkdir()
+    (tmp_path / "no-tags" / "case.json").write_text(json.dumps({}), encoding="utf-8")
+    (tmp_path / "tagged").mkdir()
+    (tmp_path / "tagged" / "case.json").write_text(
+        json.dumps({"tags": ["external"]}), encoding="utf-8"
+    )
+
+    result = run_evals.filter_by_tags(["no-tags", "tagged"], "external")
+    assert result == ["tagged"]
+
+
+def test_main_tags_combines_with_cases_by_intersection(tmp_path):
+    case_run = tmp_path / CASE
+    (case_run / "stl").mkdir(parents=True)
+    shutil.copy(GOLDEN, case_run / "stl" / f"{PART}.stl")
+    _write_attempts(case_run, [_record(1, "pass")])
+
+    # u-clip is tagged ["u", "clip"] -- no match means zero cases scored.
+    rc = run_evals.main(["--run-dir", str(tmp_path), "--cases", CASE, "--tags", "nonexistent-tag"])
+    assert rc == 0
+    scorecard = json.loads((tmp_path / "scorecard.json").read_text(encoding="utf-8"))
+    assert scorecard["aggregate"]["cases_scored"] == 0

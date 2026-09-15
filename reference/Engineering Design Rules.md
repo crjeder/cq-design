@@ -1,6 +1,6 @@
 # Engineering Design Rules
 
-Numeric-only reference for the ENGINEERING RATIONALE block (see `prompts/part.md`).
+Numeric-only reference for the `engineering_rationale` plan entry (see `prompts/part.md`).
 Each `##` section is tagged `<!-- applies_to: ... -->`, same convention as
 `FDM 3D Print Design Guidelines.md`: inject a section only if its tag is `always`
 or lists a block in the part's `blocks_needed`, plus any load-relevant section when

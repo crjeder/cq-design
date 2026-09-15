@@ -11,10 +11,14 @@ plan's `request_log` -- a keyword or kind filter -- without loading the entire
 ### Requirement: request_log is searchable without reading the whole plan
 The system SHALL provide `src/request_log_search.py`, a stdlib-only script that filters
 `BUILD_PLAN.json`'s `request_log` array by a case-insensitive substring match against
-`text` (`--query`) and/or an exact `kind` match (`--kind`: `initial`, `clarification`,
-`correction`), returning only the matching entries as JSON -- without requiring the whole
+`text` (`--query`), an exact `kind` match (`--kind`: `initial`, `clarification`,
+`correction`), an exact `level` match (`--level`: `functional`, `operation`,
+`parameter`), and/or a `targets` membership match (`--target`: case-insensitive
+substring against any string in the entry's `targets` array), returning only the
+entries matching every supplied filter as JSON -- without requiring the whole
 `request_log` array (or the rest of `BUILD_PLAN.json`) to be read into context to find
-them.
+them. An entry with no `level` never matches `--level`; an entry with no `targets`
+never matches `--target`.
 
 #### Scenario: Keyword search returns only matching entries
 - **WHEN** `request_log_search.py BUILD_PLAN.json --query "hinge"` is run against a plan
@@ -25,9 +29,19 @@ them.
 - **WHEN** `request_log_search.py BUILD_PLAN.json --kind correction` is run
 - **THEN** only entries with `kind: "correction"` are printed
 
-#### Scenario: Combined query and kind filter
-- **WHEN** both `--query` and `--kind` are given
-- **THEN** only entries matching both conditions are printed
+#### Scenario: Level filter narrows to parameter-level entries
+- **WHEN** `request_log_search.py BUILD_PLAN.json --level parameter` is run
+- **THEN** only entries with `level: "parameter"` are printed, and entries with no
+  `level` field are omitted
+
+#### Scenario: Target filter matches a part id in targets
+- **WHEN** `request_log_search.py BUILD_PLAN.json --target cradle` is run
+- **THEN** only entries whose `targets` array contains a string matching "cradle"
+  (case-insensitive substring) are printed
+
+#### Scenario: Combined filters are ANDed
+- **WHEN** `--query`, `--kind`, `--level`, and `--target` are given together
+- **THEN** only entries matching all supplied conditions are printed
 
 #### Scenario: No matches prints an empty result, not an error
 - **WHEN** the query/kind combination matches no entries

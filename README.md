@@ -46,6 +46,28 @@ uv enforces this constraint and downloads the right Python version if needed.
 
 To work in the repo directly without installing, just run `uv sync`.
 
+## Checking what's installed
+
+A copy install can silently go stale -- edits to this repo don't reach
+`~/.claude/skills/cq-design/` until you re-run the installer. Check what's
+actually there:
+
+```bash
+python ~/.claude/skills/cq-design/src/skill_version.py
+```
+
+It reports the commit that was copied (or, for a `--link`/`-Link` install,
+the live commit of the linked repo -- always current by construction). Pass
+`--compare <path-to-this-repo>` to diff the installed commit against the
+repo's current `HEAD`:
+
+```bash
+python ~/.claude/skills/cq-design/src/skill_version.py --compare .
+```
+
+Exits non-zero when the installed copy isn't confirmed up to date, so it
+also works as a quick check in a script.
+
 ## Regenerating the 3MF / STL files
 
 When the skill finishes it turns your working directory into a self-contained
@@ -80,6 +102,32 @@ when your layout differs:
 uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out build
 ```
 
+## Regenerating the project with a fresh session
+
+Alongside the model files, delivery writes `REGENERATE.md` at the project root: a
+self-contained prompt that rebuilds the *design* from scratch, as opposed to `build.py`,
+which rebuilds the *geometry* from the scripts you already have. Paste it into a new
+session -- a better model, a newer version of this skill, a different skill -- when you
+want the design re-derived rather than re-exported.
+
+It carries what the plan's structured fields cannot be re-narrated from memory: the
+approved intent (what is being built, in resolved terms), the verbatim request history
+including every correction, `parameters.py` inlined whole so the measured real-world
+numbers and their provenance travel along, the print target, and the previous parts and
+joints -- labelled reference, so the new session is free to decompose the request
+differently. Images cannot be inlined; the prompt lists the `sketches/` paths and asks you
+to re-attach those files.
+
+The skill rewrites the file on every delivery, so it always reflects the latest
+corrections. To re-export it by hand after editing `BUILD_PLAN.json` (the script is
+stdlib-only -- no `uv sync` needed):
+
+```bash
+python <skill-dir>/src/regen_prompt.py --plan BUILD_PLAN.json --out REGENERATE.md
+```
+
+Omit `--out` to print it to stdout.
+
 ## Files
 
 ```
@@ -109,9 +157,11 @@ src/
   keep_out_check.py         # whole-model keep-out-zone check (trimesh + python-fcl)
   print_orientation.py      # auto-rotation optimizer for print orientation
   build_template.py         # build.py template copied into build/ to regenerate plates
+  regen_prompt.py           # exports REGENERATE.md: a fresh-session prompt to re-derive the design
   cq_compat.py              # CadQuery/cq_warehouse compatibility shims
   init_permissions.py       # seeds .claude/settings.local.json with pipeline permissions
   skill_permissions.json    # permission patterns seeded by init_permissions.py
+  skill_version.py          # reports/compares the installed commit -- see "Checking what's installed"
 
   project_template/
     pyproject.toml          # scaffolded into the working directory as a self-contained uv project
@@ -165,20 +215,15 @@ tests/
 ```
 
 ## Related projects
-
-Projects surveyed for ideas -- see [`info/related_projects.md`](info/related_projects.md).
+Projects surveyed for ideas -- see [`info/related_projects.md`](documentation/related_projects.md).
 Adoption status/tracking lives in `TODO.md`.
 
-## B-Rep Part Libraries
+## Part Libraries
+Libraries which could be usefull are in [`Block_Sources.md`](documentation/Block_Sources.md)
 
-| Catalog | Format | Re-usability Rating | Best Use Case & CadQuery Integration Notes |
-| --- | --- | --- | --- |
-| TraceParts / GrabCAD Open STEP Archives | `.step`, `.stp` | high | **Standard Hardware Components.** Consuming vendor-neutral ISO 10303 (STEP) files is natively supported by CadQuery's underlying OpenCascade kernel. You lose parametric variation at runtime, but you gain exact, un-triangulated math representations for mates, fillets, and CNC work. |
-| FreeCAD Standard Parts Library (`Macro_PartsLibrary`) | `.fcstd`, `.step` | high | **Fasteners & Bearings.** Because FreeCAD also uses the OpenCascade kernel, its internal geometries map 1:1 to CadQuery. Many FreeCAD catalog macros can either be exported directly to standard STEP or read via raw Python tables to reconstruct parts. |
-| OpenCascade Community Catalogs | `.brep` | high | **Core Geometric Primitives.** Native OpenCascade `.brep` file catalogs are fully open and can be directly loaded into CadQuery without any translations using `cq.Shape.cast(OCC.Core.BRepTools...)`. |
-| Misumi / McMaster-Carr Open Data | `.step`, `.iges` | medium | **Industrial Hardware.** While hosted by commercial entities, their standardized STEP downloads are perfectly formatted. You can build a local cache folder and use a Python dictionary script to match part numbers to `importStep()` paths. |
-| https://github.com/adafruit/Adafruit_CAD_Parts | `.step` | | **Adafruit products** | 
-
+## Software Bill of Materials
+Third-party dependencies and credit for code/ideas adapted from other
+projects -- see [`SBOM.md`](documentation/SBOM.md).
 
 ## License
 

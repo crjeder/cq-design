@@ -1,139 +1,65 @@
 # Phase 3: Build
 
-Execute the part loop inline. You are the orchestrator.
+You are the orchestrator. Builder and auditor agents do all CadQuery authoring and render
+review; you own every user checkpoint, the `BUILD_PLAN.json` write-backs, and the
+deterministic finish. Do not read reference documents, `inventory.json`, or preview images
+into this session for the agents' sake: `src/render_prompt.py` puts what each agent needs
+into its prompt file, and the agent reads that file itself.
 
 ## Request log
 
-**Appending.** Whenever the user gives a clarification or correction during this phase
-(a hint in **Escalation**, a change request at the **Design approval checkpoint**, a
-change request during a **Progressive build** stage, or a load correction you announce
-during print-orientation optimization), append one entry to `BUILD_PLAN.json`'s
-`request_log` array before continuing: `{"ts": "<current UTC ISO-8601>", "kind":
-"clarification" | "correction", "text": "<the user's wording, verbatim>"}` —
-`clarification` for an answer to a question you asked, `correction` for the user
-correcting something on their own initiative. Append only — never edit, reorder, or
-remove an existing entry, even the `initial` one. If `request_log` is absent from an
-older plan, skip this (do not retroactively invent an `initial` entry); if a re-plan
-regenerates the file, the planner carries the existing log forward per
-`prompts/planning.md` rule 14. When a correction changes a part's design, update that
-part's `part_notes` to reflect only the new current state — delete content the
-correction supersedes rather than appending a dated round entry or a "SUPERSEDED by
-round N" annotation; the round-by-round history lives in `request_log`, not in
-`part_notes`.
+**Appending.** Whenever the user gives a clarification or correction during this phase (a
+stage checkpoint, an escalation hint, a design-approval change, a load correction you
+announce), append one entry to `BUILD_PLAN.json`'s `request_log` before acting on it:
+`{"ts": "<UTC ISO-8601>", "kind": "clarification" | "correction", "text": "<user's wording,
+verbatim>", "level": "functional" | "operation" | "parameter", "targets": ["<part id or
+part.feature>", ...]}`. `clarification` answers a question you asked; `correction` is the
+user's own initiative. `level`: `functional` adds/removes/reshapes a part or capability,
+`operation` changes how a feature is made, `parameter` changes a dimension/literal only.
+Append only; never edit, reorder, or back-fill existing entries. Skip if the plan has no
+`request_log`.
 
-**Searching.** When you need prior context on a specific decision or feature during
-Escalation or a correction round — e.g. recalling why a dimension was corrected earlier
-in the build — run `python src/request_log_search.py BUILD_PLAN.json --query <keyword>`
-(add `--kind correction`/`--kind clarification` to narrow further) instead of re-reading
-`BUILD_PLAN.json`'s full `request_log` array into context.
+**Current state only.** When a correction changes the design, in the same turn rewrite
+`intent` to the new approved reading and update the affected `part_notes`, deleting
+superseded wording (no "ROUND 2", no "previously"). History lives only in `request_log`.
+A correction that changes nothing leaves `intent` unchanged.
+
+**Parameter scope.** A `parameter`-level entry changes literals only in the parts it
+targets. A value that must agree across parts routes through `joints` / `mate_chain.py`,
+never by copying the literal into a sibling part.
+
+**Sketches.** An image attached to a clarification or correction is copied to
+`sketches/<slug>-<ts>.<ext>` (`:` in `ts` replaced by `-`) and referenced from the entry's
+`images` array. Pass sketch paths to the builder in the resume message that acts on them.
+
+**Searching.** For prior context on a decision, run
+`python "$SKILL_DIR/src/request_log_search.py" BUILD_PLAN.json --query <kw>` (plus
+`--kind`, `--level`, `--target`) instead of reading the whole log.
 
 ## Vocabulary
 
-The same rules as `skill/phase2_planning.md`'s Vocabulary section apply to every
-user-facing message in this phase (checkpoints, Escalation, fix confirmations):
+Every user-facing message follows `skill/phase2_planning.md`'s vocabulary rules (compass
+terms, clock positions for rotations). Before acting on a spatial or unagreed feature
+reference from the user, restate it with the plan name and its callout badge number
+(e.g. "widening `cable_slot` (2)"); when it could mean more than one feature, ask.
 
-- Use compass/up-down terms for spatial references; left/right/front/back only when
-  directly quoting the user's own words.
-- Before acting on a spatial or unagreed feature reference from the user (e.g. "the
-  slot on the left"), restate it using the agreed plan name -- and the badge number,
-  when the part's callout-annotated preview exists (Step 3 threads one badge per
-  named, positioned interface) -- in the same turn you apply the change, e.g.
-  "widening `cable_slot` (2)". When the reference plausibly matches more than one
-  declared feature, ask which one is meant instead of guessing.
+## Routing
 
-## Setup
-
-Read into context (once, before the loop):
-
-- `BUILD_PLAN.json` — the validated plan
-- `$SKILL_DIR/src/blocks/inventory.json` — block metadata (module, function, params)
-- `$SKILL_DIR/prompts/part.md` — part prompt template
-- `$SKILL_DIR/reference/CadQuery Pattern Reference.md`, `$SKILL_DIR/reference/CadQuery Anti-Patterns.md`, `$SKILL_DIR/reference/emboss_text.md` — read into context once here. This read is the precondition for a progressive part's inline `{{CQ_REFERENCE}}` citation (see the `{{CQ_REFERENCE}}` row below): citation is valid only because these documents are already in the main session's context. An autonomous part's builder agent is a fresh spawn with none of this context, so it still gets the full contents read here re-substituted in full at render time.
-- `$SKILL_DIR/reference/FDM 3D Print Design Guidelines.md` — read into context once here, same role for `{{FDM_GUIDELINES}}`
-- `$SKILL_DIR/reference/Engineering Design Rules.md` — read into context once here, same role for `{{ENGINEERING_RULES}}`; this read is the precondition for a progressive part's inline citation, same as the FDM guide above
-- `$SKILL_DIR/reference/Visual Review Checklist.md` — the visual self-review checklist applied in Step 4
-
-`build/` already exists from `skill/setup.md`'s permission-bootstrap step.
-
-**Precondition for inline citation.** If the part loop starts in a session where these
-setup reads are not visible in context (a resumed or compacted session), re-read the
-reference documents above before rendering the first inline part prompt — citing a
-document that is not actually in context is worse than the duplication this change
-removes.
-
-## Build mode (per part)
-
-Decide per part whether to build **autonomously** (the single-shot Part loop below) or
-**progressively** (staged, with user checkpoints — see Progressive build). The decision
-is driven by the plan's effective `review_policy` (`plan["review_policy"]`, default
-`every_stage` when the field is absent):
-
-- **`every_stage`** (default): every part builds progressively, regardless of its
-  `interfaces` or `blocks_needed`.
-- **`checkpoints`**: build progressively when the part has **at least one `interfaces`
-  entry** OR `len(part["blocks_needed"]) >= 3` (the complexity gate); otherwise build
-  autonomously. The threshold (`3`) is tunable — adjust it here from field experience.
-  This reproduces the pre-`review_policy` default behavior as an explicit opt-in.
-- **`minimal`**: every part builds autonomously; no stage checkpoints are shown for any
-  part.
-
-**User override:** if the user asks to build progressively (e.g. "show me each step",
-"checkpoint as you go") or autonomously (e.g. "just build it", "no checkpoints"), honor
-that for the part or the whole run regardless of `review_policy`. Absent an override,
-`review_policy` decides.
-
-## Autonomous run discipline (`minimal`)
-
-Applies to the orchestrator and to every builder/auditor agent under
-`review_policy: minimal`:
-
-- **Grounded progress.** Before recording an attempt outcome (Step 5) or reporting a
-  part as passing, point to the wrapper JSON or check output that shows it. Never
-  report a state you have not observed in a tool result this session.
-- **No mid-part permission questions.** Proceed on reversible decisions (a coined
-  feature name, a clearance within the table, a plate grouping), record the decision in
-  the part's `part_notes` or the attempt log, and surface it at the next checkpoint
-  rather than pausing to ask. Escalation (a blocked builder) is still a user ask.
-
-## Agent routing gate
-
-Step 0 (the profile-stub review) always runs in the main session, regardless of how the
-part's full authoring is routed below — under `checkpoints`/`every_stage` it is a user
-checkpoint, and even under `minimal` its self-review is cheap enough not to need a
-separate agent spawn. Only Steps 1 onward (full authoring) are subject to this gate.
-
-The build-mode gate above decides progressive vs. autonomous; this gate decides, for an
-autonomous part, whether the Part loop below runs inline or inside a spawned builder
-agent.
-
-- **Autonomous part → builder agent.** Spawn one Agent-tool call per part, sequentially
-  (never in parallel — see Telemetry append safety below). Model override: read
-  `models.part_author` from `skill_config.json` in the working directory; if the file or
-  key is absent, fall back to mid-tier (Sonnet-class) — a default, not a hard
-  requirement — record whatever actually ran in telemetry. If `models.part_author` is
-  `"inline"`, do not spawn a builder agent — run the Part loop below in the main session
-  instead, exactly like a progressive part's authoring but without per-stage checkpoints.
-  The agent's prompt is the Step 1 rendered `prompts/part.md` **plus** the
-  Part-loop operating instructions below (Steps 2-5, including the return contract) —
-  the agent owns its own write/lint/validate/render loop for up to 3 attempts
-  and does not interact with the user. Prepend the cross-part pitfall note (see below)
-  when this session has already built a prior part. Main never receives rendered image
-  content from the agent — only the paths and the structured return described in
-  **Builder return contract**. A part gets at most one builder agent: no additional
-  agent is spawned to review, verify, double-check, or re-run its work — the fresh-context
-  implementation auditor (below) is the single review agent, and the deterministic checks
-  are programs, not agents. A failed attempt or an escalation with a user hint resumes the
-  same builder agent rather than spawning a second one for that part.
-- **Progressive part → inline, unchanged.** Runs in the main session exactly as
-  documented in **Progressive build** below, with its per-stage user checkpoints. Not
-  agentified — those checkpoints are user dialog by definition.
+- **Model.** `models.part_author` in `skill_config.json` (absent: Sonnet-class). Value
+  `"inline"`: do not spawn; follow the rendered builder prompt yourself, returning the
+  same contract to yourself. Auditors always run as fresh agents on the session default.
+- **Stages** come from the plan's `review_policy` (default `every_stage`): `every_stage`
+  stages every part; `checkpoints` stages parts with an interface or 3+ blocks;
+  `minimal` stages nothing and skips the profile stub. A user request for "show me each
+  step" / "just build it" maps to `--override staged` / `--override autonomous`.
+- **One builder per part, sequentially.** Never run builders in parallel (the telemetry
+  hook appends to one file). A part keeps its builder for the whole phase: every later
+  change to it resumes that agent (SendMessage), never a new spawn. The auditor is the
+  only review agent.
+- Under `minimal`, proceed on reversible decisions without asking and surface the
+  builders' `decisions` at the design approval checkpoint.
 
 ## Part loop
-
-Followed by whichever executor owns this part: the **builder agent**, for an autonomous
-part (Step 1 is rendered by main before spawning; Steps 2-5 run inside the agent), or the
-**main session**, for a progressive part's per-stage authoring (see Progressive build,
-which reuses these steps) — every "you" below refers to that executor.
 
 For each part in `plan["parts"]`, in order:
 
@@ -478,190 +404,95 @@ moving on:
 ```
 - phase3/escalation:<part_id>: <hint given verbatim | accepted as-is | skipped>
 ```
+1. **Render** the builder prompt:
+   ```bash
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" builder \
+       --plan BUILD_PLAN.json --part <part_id> --attempts build/attempts.jsonl [--override staged|autonomous]
+   ```
+   It writes `build/<part_id>_prompt.txt` and prints `{"out", "chars", "stages"}`.
+2. **Spawn** the builder (model per Routing) with exactly this prompt:
+   `Read <out> in full and follow it. Working directory: <absolute cwd>.`
+3. **Handle each return** (the builder's JSON contract):
+   - `stage_ready` -> **stage checkpoint**: tell the user the stage and `summary`, list
+     `preview_paths` so they can open them, and ask. For `profile_stub`: approve /
+     change / skip (skip = approve). For other stages: approve / change / finish the rest
+     without checkpoints. Resume the builder with `approve`, `change: <verbatim feedback>`,
+     or `finish`. After the stub is approved append
+     `- phase3/stub_approved:<part_id>: <summary>` to `build/journal.md`.
+   - `passed` -> **Implementation audit** below.
+   - `blocked` -> **Escalation** below.
+
+Preview images stay out of this session unless the user asks you to look at one.
+
+## Escalation
+
+On `blocked`:
+1. Summarize `error_summary` and ask: give a hint, accept as-is, or skip the part.
+2. **Hint** -> resume the same builder with `fix: <hint verbatim>`.
+3. **Accept as-is** -> accept the last render; skip the audit; do the write-backs.
+4. **Skip** -> move on without this part; say so at design approval.
+
+Append `- phase3/escalation:<part_id>: <hint verbatim | accepted as-is | skipped>` to
+`build/journal.md`.
 
 ## Implementation audit
 
-Every part a builder agent returns as `status: passed` is judged by a fresh-context
-**auditor agent** before it counts as accepted — the deterministic checks the builder
-passed are not a review of the render; this audit is the real acceptance bar for an
-autonomous part.
+1. Render and spawn a fresh auditor for every `passed` contract:
+   ```bash
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" audit \
+       --plan BUILD_PLAN.json --part <part_id> --script build/<part_id>.py \
+       --previews <preview_paths from the contract...>
+   ```
+   Prompt: `Read build/<part_id>_audit_prompt.txt in full and follow it.`
+2. **`verdict: pass`** -> accepted. Do the write-backs, append
+   `- phase3/part_accepted:<part_id>: audit passed` to `build/journal.md`, and report any
+   `findings` to the user under their own "Advisory" heading.
+3. **`verdict: fail`** -> record the verdict on the builder's last attempt:
+   ```bash
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" append build/attempts.jsonl \
+       --field 'part_id=<part_id>' --field 'attempt=<contract attempts>' --field 'outcome=fail' \
+       --field 'error_types=["visual_mismatch"]' --field 'prompt_chars=<chars>' --field 'model=<builder model>' \
+       --field 'visual_review={"passed": false, "failed_question": "<first failed question>"}'
+   ```
+   Resume the builder with `fix:` listing each failed question, its view, discrepancy, and
+   any `missing_views`, then re-audit its new contract with a fresh auditor. One such
+   round; a second fail goes to **Escalation**.
 
-1. **Spawn** one auditor agent per accepted part. Its prompt contains: the part's full
-   `BUILD_PLAN.json` entry (dimensions, interfaces, blocks_needed, unions) and the
-   preview/section/detail image paths from the Builder return contract. It does **not**
-   receive the part script — the auditor judges the render against the plan's intent
-   with no chance to rationalize from the code that produced it.
-2. **Checklist.** The auditor applies `reference/Visual Review Checklist.md` exactly as
-   Step 4's progressive-mode review would: one question per interface, block, and union,
-   plus the universal invariants (single connected body, flat bed face, proportions,
-   shape match, authored orientation), each answered against a specific cited view.
-   Per the checklist's coverage-first rule, report every discrepancy observed — not just
-   the ones that fail a question.
-3. **Return contract:**
+## Write-backs on acceptance
 
-```json
-{
-  "part_id": "<part id>",
-  "verdict": "pass | fail",
-  "failed_questions": [
-    {"question": "<checklist question>", "view": "<cited file>", "discrepancy": "<what's wrong>", "confidence": "<low|medium|high>", "severity": "blocking"}
-  ],
-  "findings": [
-    {"question": "<checklist question or observation>", "view": "<cited file>", "discrepancy": "<what's wrong>", "confidence": "<low|medium|high>", "severity": "advisory"}
-  ]
-}
-```
+From the accepted contract, into that part's `BUILD_PLAN.json` entry:
+- `placement` (replacing any planner proposal). Write nothing when it is `null`; a
+  mate-chained part never carries `placement`. Tell the user only when it replaces a
+  differing value.
+- `engineering_rationale`, exactly as returned.
 
-`failed_questions` holds every checklist question answered "no" (`severity: blocking`,
-as before). `findings` holds every other observed discrepancy — low-confidence or minor
-— each carrying its own `confidence` and `severity: advisory`. An advisory finding does
-not fail the audit and is never folded into the fix prompt in step 5 below; it is
-reported to the user alongside the accepted part.
-4. **Pass** (`failed_questions` empty) → the part is finally accepted. Append
-   `- phase3/part_accepted:<part_id>: implementation audit passed` to
-   `build/journal.md` (see `skill/resume.md`). Advance to the next part, surfacing any
-   `findings` to the user grouped separately from the review.
-5. **Fail** (`failed_questions` non-empty) → **resume the same builder agent** (not the
-   auditor, and not a fresh builder) with the named question, cited view, and
-   discrepancy as a targeted `visual_mismatch` fix — the builder still has its attempt
-   history and script in context. The builder re-enters step 2 for that fix,
-   re-validates, and returns an updated contract; re-spawn the auditor on the new
-   preview paths. This does not consume one of the builder's original 3 attempts
-   against a part that already passed its own loop — treat it as a bounded follow-up
-   (one retry) before escalating to the user the same way as **Escalation** above.
-
-## Placement write-back
-
-Once a part is finally accepted — progressive Step 4's "every question yes" path, or the
-Implementation audit's pass verdict for an autonomous part — write back the `placement`
-the author reported (contract rule 6 of `prompts/part.md`) into that part's entry in
-`BUILD_PLAN.json`, replacing any planner-written proposal already there. Same write-back
-principle as the `load` correction above: a corrected understanding belongs in the plan,
-not just in this one script. Two cases need no write:
-- The authored geometry already sits in the pose `pose_intent` describes (or no
-  `pose_intent` was declared) — leave `placement` absent, meaning identity.
-- The part is reached via a `joints` mate chain — it must never carry its own
-  `placement`; its pose is derived.
-
-Announce the write-back to the user only when it replaces a differing proposal (silent
-when it confirms an existing value or leaves absence unchanged).
-
-## Cross-part pitfall injection
-
-Before spawning the builder agent for part *k* (k > 1 in this session), scan this
-session's `build/attempts.jsonl` for error types that recurred (the same `error_types`
-entry across 2+ prior attempts, any part). If any are found, prepend one or two lines to
-the rendered part prompt before it becomes the agent's prompt:
-
-```
-Known pitfalls this session: <error_type> recurred <n> times (e.g. on <part_id>). <one-line mitigation if obvious from the error's hint>.
-```
-
-Keep it to a line or two — this is a cheap nudge, not a report. Skip it entirely when no
-error type has recurred, or for the first part of a build (nothing to scan yet).
-
-## Progressive build
-
-Used for a part the Build mode gate (or the user) routed to progressive. Instead of
-producing the finished part in one shot, construct it in three ordered stages, pausing
-for the user between each. Do not disappear and return with a finished part — show
-progress at each stage.
-
-**Stages:** `base shape` → `features` → `finishing`
-
-- **base shape** — outer shell / overall body, no features yet
-- **features** — boolean cutouts, bosses, ports, slots, vents, and every `interfaces` entry
-- **finishing** — fillets, chamfers, and final cleanup
-
-For each stage, in order:
-
-1. **Author the stage** — write the current `build/<part_id>.py` reflecting everything through this stage (reuse Step 2 authoring rules).
-2. **Validate** — run Step 3 (`run_cadquery_model.py --preview --cross-sections`). Fix any geometry errors (the same retry handling as Step 4 item 1) **before** showing the checkpoint, so the user always reviews a geometrically valid stage.
-3. **Visual self-review** — apply `reference/Visual Review Checklist.md` scoped to the features expected through this stage (e.g. don't fault a missing port at the base-shape stage). Resolve any `visual_mismatch` before the checkpoint.
-4. **Checkpoint** — display the staged preview PNG and a one-line summary of what this stage added, then wait. The user can:
-   - **Approve** → advance to the next stage (or complete the part if this was `finishing`).
-   - **Request a change** → re-author this stage with the feedback, re-validate (2), re-review (3), present the checkpoint again. When the request names a specific small feature (add a vent here, move this boss, change this dovetail), also generate a `--detail` preview for that exact feature (see Step 3's "Feature detail previews") alongside the staged overview — the user asked about one small thing, so show them that thing at a size they can actually inspect, not just the whole-part tile again.
-   - **Skip remaining** → finish the rest of the part with the autonomous Part loop; show no further checkpoints for this part.
-
-**Completion bar:** a progressively built part is done only when its final geometry
-satisfies the plan dimensions within tolerance AND passes the **full** visual self-review —
-the same bar as the autonomous path. Progressive build does not lower the criteria.
+If a part script's `PARAMETERS` block was hand-edited, reconcile with
+`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/import_params.py" build/<part_id>.py --part <part_id> --write`
+instead of hand-editing the plan.
 
 ## Design approval checkpoint
 
-Once every part in `plan["parts"]` has passed its part loop and, for autonomous parts,
-its Implementation audit (progressive parts pass on their own full Step 4 review), stop
-before optimizing print orientation or exporting anything. The auditor's checklist is
-Claude checking a render against the plan's own checklist — it is not the user checking
-the render against what they actually pictured.
-A part can pass that checklist and still be wrong in the user's eyes, and nothing
-upstream of this point has asked them to look.
+When every part is accepted (or skipped), list every part's final preview paths in one
+message, plus the builders' `decisions` and any unresolved advisories, and ask:
 
-Display every part's final preview PNG together in one message (re-display ones shown
-earlier in the loop; don't assume the user still has them in view) and ask directly:
+> Here's every part as modeled. Does this match what you had in mind? Reply to approve,
+> or describe what to change.
 
-> Here's every part as modeled. Does this match what you had in mind? Reply to
-> approve, or describe what to change.
+- **Approve** -> print orientation.
+- **Change** -> log it, resume each affected part's builder with `fix: <feedback>`,
+  re-audit, re-present this checkpoint.
 
-- **Approve** → continue to print-orientation optimization.
-- **Request a change** → identify the affected part(s), re-enter that part's loop
-  (Step 2 onward) with the user's feedback as a targeted edit, re-validate (Step 3),
-  re-review (Step 4), then re-present this checkpoint with the updated renders. If this
-  is a later session and the part's script may have been hand-edited outside the skill
-  since it was last generated, read its current `PARAMETERS` block before editing --
-  treat those values as authoritative over `BUILD_PLAN.json`'s `dimensions`/`part_notes`
-  for that part. Update `BUILD_PLAN.json`'s `dimensions` afterward only if the edit
-  changes the part's overall envelope.
-
-Skip this checkpoint only when the user has explicitly asked for a fully autonomous
-run with no checkpoints (see Build mode override above) — in that case still display
-the previews for the record, but proceed straight to print-orientation optimization
-without waiting.
-
-Once approved (or skipped per the override above), append one line to
-`build/journal.md` (see `skill/resume.md`):
-
-```
-- phase3/design_approved: <n> parts
-```
+Skip the wait only when the user asked for a fully autonomous run (still list the
+previews). Then append `- phase3/design_approved: <n> parts` to `build/journal.md`.
 
 ## Print-orientation optimization
 
-After every union passes the part loop, choose how each one sits on the bed before
-exporting. The objective is **user-selectable** via the plan's `optimize_for` field (a
-plan-level default with optional per-part override; defaults to `strength`):
-
-- **`strength`** (default): keep the part's load in the layer plane (FDM is weakest across
-  layer lines, build Z), then least support as the tiebreaker.
-- **`min_support`**: minimize support material first, strength as the tiebreaker. For jigs,
-  drafts, and parts where print time/cleanup matters more than load capacity.
-- **`visual_quality`**: best surface appearance first, strength then support as tiebreakers.
-  Penalizes gentle inclines (surfaces sloped under 45 deg, which stair-step visibly) and
-  rewards orienting the part's cosmetic surface (`show_face`) face-down against the smooth
-  bed. For display pieces.
-
-When the user states a priority ("optimize for looks", "minimize supports"), it should
-already be recorded as `optimize_for` in `BUILD_PLAN.json` during planning; honor it here.
-
-Run the optimizer once per union, on the union's **authored-frame** STL (the part's own
-`result`, before any `placement`), since print orientation is a property of the part, not
-of its assembled pose. Export that authored STL first (hidden during the loop), into
-`stl/` -- the same directory the deliverable STLs land in below, so nothing scratch ends
-up in `build/`; Model export overwrites it there with the real assembled-pose STL once
-every part passes -- then optimize with the part's effective mode:
+Per union, on its part-frame STL (orientation is a property of the part, not its
+assembled pose), using the part's effective `optimize_for` (default `strength`):
 
 ```bash
-# authored-frame STL for the part (deliver mode writes it out, into stl/ not build/)
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
     build/<part_id>.py --deliver --formats stl --output-dir stl
-# orientation: pass the part's load.dir / load.type from the plan (the planner sets
-# load on every part per planning rule 10; if a part legitimately has no structural
-# load, the plan carries load.type=compression). Omitting --load makes strength
-# orientation-neutral (no load axis is guessed). Pass --show-face when declared, else
-# it is inferred. --optimize-for is the part's effective mode (default strength).
-# --source-script stamps the result with this script's provenance hash, so a later
-# edit to build/<part_id>.py is detectable as staleness when build.py reuses this
-# entry from orientations.json (see "Artifact freshness" below).
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
     stl/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
     --optimize-for <strength|min_support|visual_quality> \
@@ -669,137 +500,50 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
     [--load x,y,z] [--load-type tension|compression|bending|shear] [--show-face x,y,z]
 ```
 
-Each run prints a JSON result: the active `optimize_for`, a `rotate` transform (placement
-convention), the `strength_score`, `support_score`, `bed_contact_mm2`, `visual_score` (with
-`cosmetic_down` and `gentle_incline_fraction`), the `load_dir` used (with `load_declared`),
-`load_type` used, the `show_face` used (with `show_face_inferred`), and a `rationale`.
+Pass `--load`/`--load-type` from the plan's `load`, `--show-face` when declared.
 
-**The loop:** read the score breakdown and decide.
-- **Sanity-check the load first, before trusting the score.** `strength` mode keeps the
-  declared load direction in the layer plane — correct for tension/bending/shear, but
-  pointless for a **compression** load (a resting weight pressing straight through the part's
-  thickness: a base, plinth, pedestal, foot) and for a non-load-bearing **cover/lid/panel**.
-  A compression/cover part scored as tension gets tipped onto its edge chasing an irrelevant
-  "strength" goal — check `build_height_mm` and the rotation against physical common sense
-  (would you actually print this thin, wide part standing on its edge?), not just the numeric
-  score. The optimizer no longer guesses a load: if `load_declared` is false the strength
-  score is neutral (support/bed-contact decided) — which is right only if the part truly has
-  no load. If the load is really compressive, or the plan's declared `load.dir`/`load.type`
-  doesn't match what you now know about the real load path, or the part carries a real load
-  that was left undeclared: **write the correction into `BUILD_PLAN.json`'s `load` field for
-  that part** (same write-back principle as the printer-profile field write-back in Phase 2 —
-  a corrected understanding belongs in the plan, not just in this one CLI invocation),
-  announce the correction to the user, then re-run the optimizer with `--load`/`--load-type`
-  reflecting the now-declared plan field.
-- **Accept** the recommended orientation when its scores are acceptable for the chosen mode,
-  or when no better orientation exists at comparable primary score.
-- **Improve** the part when the chosen mode's primary score is poor for a load that
-  genuinely is tension/bending/shear: make a targeted geometry edit to the part script
-  (chamfer a steep overhang or a gentle incline, add a print-in-place foot, split a
-  feature), re-validate it (Step 3), and re-run the optimizer. Re-scoring on identical
-  input is deterministic, so a changed score reflects the edit.
-- Respect the user's mode: `visual_quality` and `min_support` may deliberately accept a
-  weaker or higher-support pose. The non-primary scores stay in the result and rationale, so
-  if the trade-off looks unacceptable, surface it to the user rather than silently overriding
-  the mode.
+- **Sanity-check the load first.** A compression part (base, foot, plinth) or a
+  non-load-bearing cover scored as tension gets tipped onto an edge; check
+  `build_height_mm` and the rotation against common sense. If the plan's `load` is wrong
+  or missing for a real load, correct `load` in `BUILD_PLAN.json`, tell the user, and
+  re-run.
+- **Accept** when the mode's primary score is acceptable or no comparable pose is better.
+- **Improve** a genuinely poor primary score by resuming the part's builder with
+  `fix: <geometry edit, e.g. chamfer the overhang at ...>`, re-auditing, and re-running.
+- `min_support` / `visual_quality` may accept a weaker pose on purpose; surface a trade-off
+  that looks unacceptable instead of overriding the mode.
 
-Collect the accepted orientations into `build/orientations.json` mapping each part id to
-its result (`{"<part_id>": {"rotate": [...], ...}}`). This file feeds the model export and
-the quality-gate recipe below.
-
-Once every union has an accepted orientation, append one line to `build/journal.md`
-(see `skill/resume.md`):
-
-```
-- phase3/orientation_chosen: <n> unions, see build/orientations.json
-```
+Write the accepted results to `build/orientations.json` (`{"<part_id>": {...result}}`)
+and one `build/<part_id>.orientation.json` per union, then append
+`- phase3/orientation_chosen: <n> unions, see build/orientations.json` to
+`build/journal.md`.
 
 ## Model export
 
-Before exporting, re-run `plan_validate.py` against `BUILD_PLAN.json` now that every
-part's placement write-back (above) is in the plan. This run is authoritative for any
-check that consumes `placement`, including the joint-contract axis arm (see
-`assembled-pose-handback` design D5) — the Phase 2 run could only report it as a
-deferred advisory, since the placements did not exist yet. A failure blocks the export:
-
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
-```
-
-The model is assembled declaratively from each part's `placement` — there is no
-hand-written fused-assembly script. Run the model export to emit the deliverables. Pass
-`--orientations build/orientations.json` so the **deliverable 3MF/STL are written in each
-union's recommended print orientation**; the assembled-pose per-union STLs that the
-kinematic check consumes are still written from `placement`, unaffected:
-
-```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json --require-rationale
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/model_export.py" \
     --plan BUILD_PLAN.json --parts-dir build --out . --stl-out stl \
     --orientations build/orientations.json
 ```
 
-This writes a named-object `model.3mf` **at the project root** (each union a separately
-named object in its print orientation, carrying its `plate` metadata), one
-**assembled-pose** STL per union into `stl/` (`stl/<part_id>.stl`, the kinematic check's
-input, in `placement` pose), and one fused STL per plate that holds more than one union
-into `stl/` (in the plate's print orientation). Run the export even for a single-part
-model to get the print-oriented deliverable; omit `--orientations` to fall back to
-assembled-pose deliverables.
+A validation failure blocks the export. The export writes `model.3mf` (each union a named
+object in print pose, with plate metadata), fused `stl/plate_<n>.stl` per multi-union plate
+(print pose), and `stl/<part_id>.stl` per union in **assembled** pose for the whole-model
+checks.
 
-Then make the working directory a **self-contained uv project** so the user can
-regenerate the plates on any machine with uv, without the skill installed. The directory
-layout keeps `build/` to only the part scripts you author -- everything else (bundled
-tooling, STL, 3MF, previews) lives elsewhere:
+Then make the working directory a self-contained uv project that regenerates the plates
+without the skill:
 
 ```
 <working directory>/
-  README.md              # project overview + build instructions (Phase 4)
-  parameters.py           # sourced real-world measurements (Phase 2, see below)
-  model.3mf                # deliverable, print-oriented
-  BUILD_PLAN.json
-  printer_profile.json
+  README.md, REGENERATE.md, parameters.py, model.3mf, BUILD_PLAN.json, printer_profile.json
   pyproject.toml, .python-version, uv.lock, .venv/
-  build/
-    <part_id>.py           # ONLY the part scripts you (Claude) write and edit
-    build.py               # re-runnable driver, copied verbatim (not edited)
-    orientations.json, *.orientation.json   # build-process bookkeeping
-  lib/                     # bundled tooling, copied so the project is skill-free
-    mesh_io.py, model_export.py, print_orientation.py, placement.py,
-    mate_chain.py, units.py, freshness.py, cq_verify.py, cq_compat.py,
-    exporters/, blocks/
-  stl/
-    export_manifest.json   # provenance stamp per union/zone (see "Artifact freshness")
-    <part_id>.stl, plate_<n>.stl
-  preview/
-    <part_id>_preview.png, <part_id>_detail_*.png, <part_id>_section_*.png
+  build/   <part_id>.py (part scripts only), build.py, orientations.json, *.orientation.json, attempts.jsonl, cost.json
+  lib/     bundled tooling (below)
+  stl/     export_manifest.json, <part_id>.stl, plate_<n>.stl
+  preview/ <part_id>_preview.png, _detail_*.png, _section_*.png
 ```
-
-Five steps:
-
-1. **Drop in the re-runnable build script.** Copy `$SKILL_DIR/src/build_template.py`
-   verbatim to `build/build.py` (no placeholder substitution).
-
-2. **Bundle the tooling into `lib/`** (a sibling of `build/`, not inside it -- `build/`
-   holds only edited part scripts): create `lib/` if absent, then copy in the modules
-   `mesh_io.py`, `model_export.py`, `print_orientation.py`, `placement.py`,
-   `mate_chain.py`, `units.py`, `freshness.py`, `cq_verify.py`, `cq_compat.py` and the
-   packages `exporters/` and `blocks/` (copy the whole directories, including their
-   `*.json` data files). `cq_verify.py` and `cq_compat.py` are runtime dependencies of
-   generated part scripts and `blocks/hardware.py` respectively (the `cq_warehouse`
-   compat shim); `freshness.py` is a runtime dependency of `build_template.py` itself
-   (the accepted-orientation staleness check) -- omitting any of these breaks the
-   standalone project's own `build/build.py` re-run and its mypy check on a fresh
-   machine with no `$SKILL_DIR` to fall back on. `build.py` adds `../lib` (relative to
-   its own location) to `sys.path` itself, so no further wiring is needed. Re-running
-   the skill overwrites `lib/` with the current `src/` versions.
-
-3. **Scaffold the uv project files** at the working-directory root: copy
-   `$SKILL_DIR/src/project_template/pyproject.toml` to `pyproject.toml` and
-   `$SKILL_DIR/src/project_template/.python-version` to `.python-version`.
-
-4. **Sync and verify.** Run `uv sync` in the working directory to create `.venv` and
-   produce a committed `uv.lock`, then verify the build runs in that environment with
-   `uv run python build/build.py`.
 
 ```bash
 # POSIX
@@ -828,21 +572,12 @@ uv sync
 uv run python build/build.py
 ```
 
-This gives the user a self-contained project where `uv run python build/build.py`
-regenerates every plate with its object in print orientation after a manual part edit,
-without re-invoking the skill. It reuses `build/orientations.json` when present (so the
-plates match the ones just delivered) and recomputes orientations otherwise. `build.py`'s
-own defaults already point at the project root / `stl/` for its output, matching this
-layout, so no extra flags are needed for a normal re-run.
-
-Once `model.3mf` and the STLs are written and the standalone project verified, append
-one line to `build/journal.md` (see `skill/resume.md`):
-
-```
-- phase3/model_exported: model.3mf + <n> STL(s) written
-```
+Never copy `build/cost.json` or `build/attempts.jsonl` into `lib/` or the deliverable.
+Append `- phase3/model_exported: model.3mf + <n> STL(s) written` to `build/journal.md`.
 
 ## Quality gate
+
+Once per union:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/quality_gate.py" \
@@ -850,211 +585,38 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/quality_gate.py" \
     --stl-dir stl --orientation build/<part_id>.orientation.json
 ```
 
-DFM, geometry, and overhang are per-rigid-body concerns, so the gate runs on each
-union's own part script: run it once per union for a multi-part model. Pass `--stl-dir
-stl` so the kinematic/plate-clearance sweep finds every union's assembled STL there
-(it defaults to alongside `--script`, i.e. `build/`, which no longer holds any STLs).
-Pass the union's own orientation result (one object split out of
-`build/orientations.json`) via `--orientation` so the emitted print recipe's
-`orientation` field carries the computed rotation and rationale instead of the default
-`flat_bottom_down`. The whole-model kinematic check runs once over the per-union
-assembled STLs produced by the model export.
+Read `build/quality_gate.json`. The gate is report-only (never pass `--fix`).
 
-Parse `build/quality_gate.json`. The gate is report-only (`--fix` is not passed) --
-it never rewrites the script itself. On a `severity: error` finding, re-enter Step 2's
-fix path for the offending part's script, using the finding's `type`, `message`, and
-`hint` as the correction, exactly as with a wrapper error from an earlier attempt --
-this keeps the fix inside the orchestrating session, with the plan, renders, and
-attempt history already in context, instead of a cold `claude -p` subprocess that has
-none of it. Re-run the gate after the fix. Bound gate-driven fix rounds at 2 per part;
-if `severity: error` findings remain after that, stop and summarize them to the user
-rather than retrying further. `severity: warning` findings do not trigger a fix round --
-surface them alongside the print recipe. (`--fix` restores the old cold-context fixer
-for standalone use outside this pipeline; the skill does not pass it.) Once the gate
-passes (or its remaining findings are escalated), append one line to
-`build/journal.md` (see `skill/resume.md`):
+- **`severity: error`** -> resume the part's builder with `fix: <type>: <message> (hint:
+  <hint>)`, re-audit if geometry changed, re-export, re-run the gate. At most 2 rounds per
+  part; then summarize the remaining errors to the user.
+- **`stale_artifact`** -> the STL predates an edit: re-run the model export, then the gate.
+- **`motion_collision`** -> names the binding value and `colliding_union`: relieve that
+  geometry, or fix the plan's `kinematics` entry if the declared range is wrong.
+- **`plate_clearance`** -> co-plated unions within one layer height fuse: widen the gap.
+- **`range_exceeds_limit`** -> the required range exceeds the joint's mechanical limit:
+  change the range or the joint.
+- **Warnings** (`contact_limited_stop`, `range_check_not_applicable`, `edge_treatment`,
+  `cosmetic_slope`, `check_skipped`) never trigger a fix round; show them with the print
+  recipe. For `contact_limited_stop`, ask whether the natural stop is the intended rest
+  position (then narrow `required_range`) or should be relieved. Describe ranges as clock
+  positions per the vocabulary rules.
 
-```
-- phase3/gate_result: <pass|escalated>, <n> remaining findings
-```
+Append `- phase3/gate_result: <pass|escalated>, <n> remaining findings` to
+`build/journal.md`, then proceed to Phase 4.
 
-Then proceed to Phase 4.
+## Post-delivery corrections
 
-The gate runs entirely in-process (trimesh + numpy geometry and overhang analysis); it needs no slicer or MCP. Real slicer-based printability validation (e.g. the orca-check MCP) is optional and external, not part of the gate.
-
-If the plan has a `kinematics` array, the gate also runs the **kinematic range check** (`src/kinematic_check.py`) once, after the geometry checks. The sweep is whole-model, so it needs **every union's assembled STL** present in `--stl-dir` (`stl/`) as `<part_id>.stl`. Produce these with the **model export** (`src/model_export.py`), which applies each part's `placement` and writes one assembled STL per union (plus the named-object `model.3mf` and any fused-per-plate STL). The stage degrades to a `check_skipped` warning when a union STL or the `python-fcl`/`scipy` backend is missing. See **Kinematic validation** below.
-
-Whenever any plate carries more than one union (print-in-place), the gate also runs the **plate-clearance check** (`src/plate_clearance_check.py`) once, over the same assembled per-union STLs. For every co-plated union pair it measures the minimum surface-to-surface gap and flags any pair within one layer height (`nozzle_mm * 0.5`) as a `plate_clearance` **error** -- those unions fuse on the bed. The gate runs this automatically (no separate command); it degrades to a `check_skipped` warning when trimesh or the `python-fcl` backend is missing. Measuring on the assembled STLs is valid because a plate fuses as a rigid cluster, so its print-orientation rotation preserves the pairwise gaps.
-
-### Artifact freshness
-
-The kinematic, plate-clearance, and keep-out-zone stages all validate exported STLs against
-a part script they were built from -- but none of them re-derive the STL themselves, so
-none of them can tell on their own whether the export is still current. `model_export.py`
-writes `stl/export_manifest.json` on every run, recording each union's (and keep-out zone's)
-provenance stamp (a hash of its source part script). Each of the three stages compares that
-stamp against the current `build/<part_id>.py` and, on a mismatch, emits a `stale_artifact`
-**error** naming the affected union or zone instead of validating (and possibly passing)
-geometry the project no longer builds. **To clear it:** re-run the model export
-(`src/model_export.py`, or `build/build.py`) so the STL and its manifest entry reflect the
-edited script, then re-run the gate. The same mechanism protects `build/orientations.json`:
-`build_template.resolve_orientations` (what `build/build.py` calls) recomputes an accepted
-orientation whose stamp no longer matches its script, rather than reusing a pose picked for
-superseded geometry, and reports which unions it recomputed in its summary output. A project
-exported before this mechanism existed (no manifest, unstamped orientation entries) degrades
-to a `check_skipped` warning / unconditional reuse -- never a hard failure.
-
-The gate also runs the **edge-treatment check** (`src/edge_treatment_check.py`) once on the part script, enforcing the reference's Chamfer / Fillet rule (horizontal edge -> chamfer, vertical edge -> fillet). It wraps `cq.Workplane.fillet`/`.chamfer` and re-runs the script to record the exact direction of every treated edge, then classifies each **in the print frame** -- the bed-relative frame where the rule matters -- by rotating its authored-frame tangent through the union's print orientation. Supply that orientation (pass `--orientation`, or keep `build/orientations.json` next to the script); a treated union with no available orientation is reported as `check_skipped` rather than judged in the authored frame. A fillet on a horizontal edge or a chamfer on a vertical edge is an advisory `edge_treatment` **warning** (not blocking -- it is a print-quality preference; the harmful case of a bottom-edge fillet is already caught by the overhang check); diagonal edges and tilted round rims are passed silently. Treat these warnings as suggestions and disregard any that fall on an internal or intentionally-treated edge.
-
-For a part whose effective `optimize_for` is `visual_quality`, the gate also runs the **cosmetic-slope check** once. Shallow UP-facing surfaces (inclined ~5-45 degrees from horizontal) print as visible layer stair-steps. `print_orientation.py` already measures this at the chosen pose (`cosmetic_slope_area_mm2` in the orientation result, up-facing faces only so it does not overlap the overhang check); the gate reads that value from `--orientation` and emits an advisory `cosmetic_slope` **warning** when the area is non-trivial. It is never an error (a shallow ramp still prints) and never fires for non-`visual_quality` parts (a hidden structural slope is fine); with no orientation available it degrades to `check_skipped`. Remedy per the FDM "Cosmetic Slopes" guideline: reshape to >= 45 degrees / vertical, chamfer-step, or lower layer height for the 20-45 degree range -- the optimizer already picked the least-stepping orientation, so rotation alone will not remove it.
-
-The `build/` directory is in your current working directory (the directory you called the skill from), not inside `$SKILL_DIR`.
-
-## Block library
-
-Select blocks in `blocks_needed` during planning. When generating part scripts, write a flat `from blocks import <function>` at the top for each block (see generated-script rules in the core SKILL.md).
-
-### Primitives (`src/blocks/primitives.py`)
-
-| Block | Use |
-|-------|-----|
-| `fillet_box` | Rectangular solid with filleted vertical edges. Outer shell for enclosures and bases. |
-| `hollow_box` | Open-top hollow body via boolean subtraction. Electronics cases, trays, bins. |
-
-### Fasteners (`src/blocks/fasteners.py`)
-
-| Block | Use |
-|-------|-----|
-| `screw_boss` | Solid cylinder boss with through-hole for M2-M4 self-tapping screws. |
-| `pcb_standoff` | Hollow cylindrical standoff for PCB mounting (M2 / M2.5 / M3). |
-| `snap_hook_clip` | Cantilever snap-fit hook clip for lid-to-body connections. Union onto lid inner wall. |
-| `snap_socket_receiver` | Slot to subtract from a wall to receive `snap_hook_clip`. |
-| `alignment_pin` | Tapered cylinder pin for press-fit part registration. |
-| `alignment_socket` | Receiving hole for `alignment_pin`. Use `clearance=0.2` for loose, `0.05` for press. |
-
-### Connectors (`src/blocks/connectors.py`)
-
-| Block | Use |
-|-------|-----|
-| `port_cutout` | Rectangular port opening: USB-C (9x3.5 mm), USB-A (12x6 mm), barrel jack, HDMI, etc. Add 0.3-0.5 mm clearance. |
-| `cable_slot` | Elongated slot for cable routing, strain relief, wire management. |
-| `vent_grid` | Regular grid of ventilation slots. Subtract from a wall or lid face. |
-
-### Joints (`src/blocks/joints.py`)
-
-| Block | Use |
-|-------|-----|
-| `dovetail_groove` | Dovetail slot cut into a body top edge for a sliding lid. Subtract from the body. |
-| `dovetail_tongue` | Sliding lid panel that mates with `dovetail_groove`. The tongue IS the lid. |
-
-## Kinematic validation
-
-For an assembly whose parts are meant to move relative to each other (a hinge that
-folds, a slide that travels, a ball joint that articulates), declare the required
-range of motion so the quality gate can verify the parts actually clear that range
-without binding. The check is **multi-part only** (it compares separate part STLs):
-single-body print-in-place hinges (`pin_hinge`, print-in-place `hinge_leaf`) declare
-a revolute `dof` for their nominal motion but are not swept while fused into one body.
-The `living_hinge` flexure is a true exception - it has no axle, so it carries no `dof`.
-
-Two pieces declare the motion:
-
-**1. Inventory `dof`** (intrinsic to the joint block, already set in `inventory.json`):
-
-```json
-"dof": {"type": "revolute", "axis": "Y", "mechanical_limit": [0, 180], "unit": "deg"}
-```
-
-`type` is `revolute` | `prismatic` | `spherical`; `unit` is `deg` (revolute/spherical)
-or `mm` (prismatic). `mechanical_limit` is the block's *nominal* full range -- a
-sanity bound only. The collision sweep is authoritative for what the printed
-instance actually achieves.
-
-**2. Plan `kinematics`** (the range THIS design requires) -- a top-level array in
-`BUILD_PLAN.json`:
-
-```json
-"kinematics": [{
-  "joint_id": "phone_hinge",
-  "moving_union": "arm",
-  "block": "hinge_leaf",
-  "axis_origin_mm": [0, 0, 4],
-  "axis_dir": "Y",
-  "type": "revolute",
-  "required_range": [0, 90],
-  "lo_inclusive": true,
-  "hi_inclusive": true,
-  "unit": "deg",
-  "step": 5
-}]
-```
-
-`axis_origin_mm` + `axis_dir` give the assembled-frame joint axis (you declare it; it
-is not inferred). `moving_union` is the part that moves; **the fixed set is every
-other union in the model**, so the sweep is whole-model and catches in-context binding
-(a lid blocked by the body, not just the hinge in isolation). `required_range` is the
-arc the design depends on, **relative to the union's authored pose (zero)**; it may be
-negative or straddle zero (e.g. `[-30, 90]`), and `lo_inclusive`/`hi_inclusive`
-(default `true`) mark whether each bound must be cleared. `plan_validate.py` checks
-`moving_union` exists, the block exists and carries a `dof`, and `unit` matches the
-block `dof.unit`.
-
-When describing this range to the user (checkpoint prose, not the JSON), state it as
-a clock position on the view whose sight-line is `axis_dir` -- above<->Z, South<->Y,
-West<->X -- e.g. "swings to the 90° position in the above view". Never say
-"clockwise"/"counterclockwise": right-hand-rule-positive `required_range` reads
-clockwise on South/West but counterclockwise on above, so a bare direction word has
-no axis-independent correct sign (see `feature-vocabulary` spec).
-
-The gate then performs two checks per joint: (1) `required_range` within a mechanical
-limit -- the block's `mechanical_limit` when the entry names one, otherwise the
-entry's own `mechanical_limit` when declared -- -> `range_exceeds_limit` on failure
-(no mesh loaded); (2) a collision sweep of the moving union against every other union,
-each added as a separately named collision object -> `motion_collision` carrying the
-binding value and the `colliding_union` so the design loop knows what to fix. A
-print-in-place joint (several unions on one plate) is swept the same way -- no special
-case. Designed surface contact at the joint is tolerated -- interference is measured as
-boolean intersection **volume** against a small `--penetration-tol-mm3` budget, so a
-flush resting face measures ~0 and never binds. The check reads the assembled per-union
-STLs from the model export (see **Model export** / `model_export.py`).
-
-The sweep travels **outward from the authored pose** (zero), so `[-90, 0]` starts at 0
-and moves toward -90, and a range straddling zero is swept as two independent arms. A
-cut-short sweep tells you how far the joint got: `achieved_range` (one bound per
-direction), `min_clearance_mm`, and `overlap_mm3`, with the stop bisected so it is not
-snapped to a `step` sample.
-
-**Contact-limited joints (`stop_on_contact`).** A joint whose travel ENDS by resting
-against another body -- a folding leaf closing onto its plate, a lid onto its rim --
-can never pass a plain range check: the poses past its stop necessarily interpenetrate
-even though the mechanism cannot reach them. Set `stop_on_contact: true` on such an
-entry. First real contact is then reported as the joint's mechanical stop: a
-`contact_limited_stop` **warning** naming the achieved range and what it stopped
-against, not a `motion_collision` error. Declare the ideal travel in `required_range`
-anyway -- the warning states the shortfall so you (or the user) can judge whether the
-natural stop is the intended rest position. If it is, narrow `required_range` to match;
-if not, relieve the contacting feature.
-
-**Block-less (directly-declared) joints.** A custom hinge built from raw primitives
-usually has no matching inventory block -- `block` is optional for exactly this case.
-Omit it and declare the axis directly; the sweep needs nothing from a block:
-
-```json
-"kinematics": [{
-  "joint_id": "phone_hinge",
-  "moving_union": "arm",
-  "axis_origin_mm": [0, 0, 4],
-  "axis_dir": "Y",
-  "type": "revolute",
-  "required_range": [0, 90],
-  "mechanical_limit": [0, 180],
-  "step": 5
-}]
-```
-
-`mechanical_limit` is optional too -- declare it for a numeric sanity bound, or omit
-it and get a `range_check_not_applicable` warning (not a silent skip) while the
-collision sweep still runs. Do not omit the whole `kinematics` entry just because no
-block fits: the C5 Phone-Holder retrospective did exactly that for a raw-primitive
-clevis/tongue hinge, and the result was seven rounds of a hand-written, unreliable
-ad-hoc sweep standing in for what `kinematic_check.py` already does.
+A user request that changes geometry (a dimension, a feature, a hand-edit to a part
+script) arriving after Phase 4 has already reported delivery is still a correction --
+log it (Request log, above), resume the affected part's builder, re-audit -- but it also
+re-opens every deterministic step downstream of that union that Phase 4 already reported
+as done: **re-run Print-orientation optimization for the affected union(s)** (unaffected
+unions keep their accepted `build/orientations.json` entry), **then Model export, then
+Quality gate**, before repeating Phase 4's delivery report. `build/orientations.json`'s
+`source_script_hash` stamp (written by the `--source-script` flag above) means a later
+standalone `uv run python build/build.py` self-corrects this regardless, but a delivery
+report claimed *within this session* must reflect a re-export that actually happened
+here, not one left for the user to trigger later. See
+[Silica Tray re-export coincidence](TODO.md#silica-tray-re-export-coincidence) for why
+this rule exists.

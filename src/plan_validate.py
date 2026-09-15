@@ -33,9 +33,38 @@ _LEGACY_FIELD_HINTS = {
 }
 _ADDITIONAL_PROPS_RE = re.compile(r"'([^']+)'")
 
+_COMPASS_WORD_RE = re.compile(r"\b(north|south|east|west)\b", re.IGNORECASE)
+_HINGE_WORD_RE = re.compile(r"\b(hinge|pivot|fold|articulat)", re.IGNORECASE)
+
+# Canonical load-bearing trigger set for `engineering_rationale` (see the
+# `engineering-rationale` spec): a part using one of these blocks or archetypes takes
+# the full object form regardless of whether it also declares `load`. Single source of
+# truth -- src/render_prompt.py and prompts/audit.md use it via _is_load_bearing.
+# Names verified against blocks/inventory.json and templates/archetypes.json.
+_LOAD_BEARING_BLOCKS = {
+    "snap_hook_clip",
+    "screw_boss",
+    "pcb_standoff",
+    "living_hinge",
+    "dovetail_groove",
+    "dovetail_tongue",
+    "dovetail_corner_joint",
+}
+_LOAD_BEARING_ARCHETYPES = {
+    "hook",
+    "clip",
+    "l-bracket-gusset",
+}
+
 
 def _hint_for_error(err: jsonschema.exceptions.ValidationError) -> str:
     """Extra guidance for a known-legacy additional-property error, else ''."""
+    path = list(err.absolute_path)
+    if err.validator == "pattern" and path[-1:] == ["name"] and "interfaces" in path:
+        return (
+            " (interface names must be normalized snake_case: lowercase, with "
+            "spaces and hyphens replaced by underscores, e.g. 'inner_lip')"
+        )
     if err.validator != "additionalProperties":
         return ""
     names = _ADDITIONAL_PROPS_RE.findall(err.message)
@@ -95,6 +124,7 @@ def validate_plan(
 
     errors.extend(_check_archetypes(plan, archetypes_path))
     errors.extend(_check_unions(plan))
+    errors.extend(_check_interface_names(plan))
     errors.extend(_check_placements(plan))
     errors.extend(_check_nonzero_dir(plan, "load"))
     errors.extend(_check_nonzero_dir(plan, "show_face"))
@@ -150,6 +180,26 @@ def _check_unions(plan: dict[str, Any]) -> list[str]:
                 f"Union id '{uid}' is declared more than once (parts '{seen[uid]}' and '{pid}')"
             )
         seen[uid] = pid
+    return errors
+
+
+def _check_interface_names(plan: dict[str, Any]) -> list[str]:
+    """Interface `name` values must be unique within a part; unnamed interfaces are
+    skipped. Unlike `_check_unions` (model-wide -- union ids share one namespace for
+    files and 3MF objects), this scope is per-part: callout badges are rendered one
+    part at a time, so a duplicate only creates ambiguity within that part's legend.
+    The same name on two different parts is fine -- the part id disambiguates them."""
+    errors = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        seen: set[str] = set()
+        for interface in part.get("interfaces", []):
+            name = interface.get("name")
+            if name is None:
+                continue
+            if name in seen:
+                errors.append(f"Part '{pid}': interface name '{name}' is declared more than once")
+            seen.add(name)
     return errors
 
 
@@ -520,6 +570,219 @@ def check_deferred_axis_arms(
     return findings
 
 
+def _linked_part_pairs(plan: dict[str, Any]) -> set[frozenset[str]]:
+    return {
+        frozenset(m.get("part") for m in joint.get("members", []))
+        for joint in plan.get("joints", [])
+    }
+
+
+# Relative tolerance for comparing two interfaces' diameter_mm in the positional
+# coincidence check (D4). Small and multiplicative, unlike the fixed-mm position tolerance.
+_DIAMETER_REL_TOL = 0.05
+
+
+def _positional_round_interfaces(
+    plan: dict[str, Any],
+) -> list[tuple[str, tuple[float, float, float], float]]:
+    """(part_id, assembled-frame position, diameter_mm) for every interface carrying both
+    `position_mm` and `diameter_mm`, transformed through its part's `placement` (D4)."""
+    from placement import transform_point
+
+    out = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        placement = part.get("placement")
+        for interface in part.get("interfaces", []):
+            if "position_mm" not in interface or "diameter_mm" not in interface:
+                continue
+            pos = transform_point(interface["position_mm"], placement)
+            out.append((pid, pos, float(interface["diameter_mm"])))
+    return out
+
+
+def _check_positional_shared_interfaces(plan: dict[str, Any]) -> list[str]:
+    """Advisory: two parts' round interfaces coincide in the assembled frame (position
+    within `feature_presence_check`'s `_POS_TOL_MM`, diameter within a small relative
+    tolerance) with no `joints` entry linking the two parts. Additive to the named-
+    interface check above -- independent of whether `name` matches, is null, or differs.
+    """
+    import math
+
+    from feature_presence_check import _POS_TOL_MM
+
+    entries = _positional_round_interfaces(plan)
+    linked = _linked_part_pairs(plan)
+
+    findings: list[str] = []
+    seen_pairs: set[frozenset[str]] = set()
+    for i, (pid_a, pos_a, dia_a) in enumerate(entries):
+        for pid_b, pos_b, dia_b in entries[i + 1 :]:
+            if pid_a == pid_b:
+                continue
+            pair = frozenset((pid_a, pid_b))
+            if pair in linked or pair in seen_pairs:
+                continue
+            dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(pos_a, pos_b, strict=True)))
+            if dist > _POS_TOL_MM:
+                continue
+            if abs(dia_a - dia_b) / max(dia_a, dia_b) > _DIAMETER_REL_TOL:
+                continue
+            seen_pairs.add(pair)
+            findings.append(
+                f"Parts '{pid_a}' and '{pid_b}' each declare a round interface "
+                f"(~{dia_a:.2f} mm) at coincident assembled-frame positions with no "
+                "joints entry linking them; a shared vocabulary word for two genuinely "
+                "independent features is legitimate, but a shared physical mate belongs "
+                "in `joints` so its value has a single source and the mated part's pose "
+                "is derived (mate_chain.py)"
+            )
+
+    return findings
+
+
+def check_shared_interfaces(plan: dict[str, Any]) -> list[str]:
+    """Advisory: one `interfaces[].name` held by parts no `joints` entry links, or two
+    parts' round interfaces coincide in the assembled frame with no `joints` entry.
+
+    Two parts naming one feature with the same agreed vocabulary word are declaring
+    one physical mate. Routed through `joints`, the pair's numbers live once in
+    `joints[].params` and the second part's pose is derived by `mate_chain.py`;
+    declared as two `interfaces[]` entries instead, they are two independently typed
+    literals that agree only by convention -- the C5 cradle/plate `PIVOT_Z`, which
+    re-diverged every correction round (see TODO.md). Advisory, not an error: a
+    shared vocabulary word for two genuinely independent features is legitimate.
+    Unnamed interfaces are skipped by the named-match branch below, but still covered
+    by the positional branch (D4) when they carry `position_mm`/`diameter_mm`.
+    """
+    holders: dict[str, list[str]] = {}
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        for interface in part.get("interfaces", []):
+            name = interface.get("name")
+            if name is not None and pid not in holders.setdefault(name, []):
+                holders[name].append(pid)
+
+    linked = _linked_part_pairs(plan)
+
+    findings: list[str] = []
+    for name, parts in holders.items():
+        if len(parts) < 2:
+            continue
+        # Parts this name links to no other holder of it. With a joint covering one
+        # pair, only the remaining holders are still independently typed.
+        unlinked = [
+            pid
+            for pid in parts
+            if not any(frozenset((pid, other)) in linked for other in parts if other != pid)
+        ]
+        if not unlinked:
+            continue
+        reported = parts if len(unlinked) == len(parts) else unlinked
+        findings.append(
+            f"Interface '{name}' is declared on {', '.join(repr(p) for p in reported)} "
+            "with no joints entry linking them; a shared mate belongs in `joints` so "
+            "its value has a single source and the mated part's pose is derived "
+            "(mate_chain.py), instead of the same literal being typed into each part"
+        )
+
+    findings.extend(_check_positional_shared_interfaces(plan))
+    return findings
+
+
+def _plan_texts(plan: dict[str, Any], *, include_planning_notes: bool) -> list[str]:
+    """intent, optionally planning_notes, and every request_log[].text -- the text pool
+    the compass-usage and hinge-intent keyword scans (D2, D5) search."""
+    texts = []
+    if plan.get("intent"):
+        texts.append(plan["intent"])
+    if include_planning_notes and plan.get("planning_notes"):
+        texts.append(plan["planning_notes"])
+    for entry in plan.get("request_log") or []:
+        if entry.get("text"):
+            texts.append(entry["text"])
+    return texts
+
+
+def check_coordinate_frame_usage(plan: dict[str, Any]) -> list[str]:
+    """Advisory: compass language used in `intent`/`planning_notes`/`request_log` with no
+    recorded `coordinate_frame` (see coordinate-frame spec). A cheap keyword scan, not an
+    LLM classification -- false positives just mean an unnecessary reminder.
+    """
+    if plan.get("coordinate_frame"):
+        return []
+    texts = _plan_texts(plan, include_planning_notes=True)
+    if not any(_COMPASS_WORD_RE.search(t) for t in texts):
+        return []
+    return [
+        "Plan uses compass language (north/south/east/west) in intent/planning_notes/"
+        "request_log but declares no `coordinate_frame`; record one so every reader "
+        "resolves 'East' etc. the same way (see prompts/planning.md's Coordinate "
+        "vocabulary table for the standard binding)."
+    ]
+
+
+def check_hinge_intent_without_joints(plan: dict[str, Any]) -> list[str]:
+    """Advisory: hinge/pivot/fold language in `intent`/`request_log` on a multi-part plan
+    with no `joints` entry (see shared-literal-detection spec, D5).
+    """
+    parts = plan.get("parts", [])
+    if len(parts) <= 1:
+        return []
+    if plan.get("joints"):
+        return []
+    texts = _plan_texts(plan, include_planning_notes=False)
+    if not any(_HINGE_WORD_RE.search(t) for t in texts):
+        return []
+    return [
+        "Plan's intent/request_log uses hinge/pivot/fold/articulation language but "
+        "declares no `joints` entry linking the moving parts; route a shared mechanical "
+        "mate through `joints`/`kinematics` (see prompts/planning.md rule 7)."
+    ]
+
+
+def _is_load_bearing(part: dict[str, Any]) -> bool:
+    """True if `part` meets the engineering-rationale trigger: a declared `load`, or a
+    block/archetype in the canonical load-bearing set."""
+    if part.get("load"):
+        return True
+    if part.get("archetype") in _LOAD_BEARING_ARCHETYPES:
+        return True
+    for block in part.get("blocks_needed", []):
+        name = block if isinstance(block, str) else block.get("name")
+        if name in _LOAD_BEARING_BLOCKS:
+            return True
+    return False
+
+
+def check_engineering_rationale(plan: dict[str, Any]) -> list[str]:
+    """Check each part's `engineering_rationale` against the load-bearing trigger.
+
+    A triggered part must carry the object form; an untriggered part may carry either
+    form; a missing field is always a finding. Advisory by default -- the caller decides
+    whether to treat these as errors (see `--require-rationale`).
+    """
+    findings: list[str] = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        rationale = part.get("engineering_rationale")
+        triggered = _is_load_bearing(part)
+
+        if rationale is None:
+            findings.append(
+                f"Part '{pid}': missing 'engineering_rationale'"
+                + (" (this part is load-bearing)" if triggered else "")
+            )
+        elif triggered and isinstance(rationale, str):
+            findings.append(
+                f"Part '{pid}': declares a load or a load-bearing block/archetype but "
+                f"'engineering_rationale' is the one-line form -- the full "
+                f"load_path/worst_case_stress/check object is required"
+            )
+
+    return findings
+
+
 def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     """Flag blocks whose smallest declared extent is below the wall minimum.
 
@@ -561,6 +824,15 @@ def main():
     parser.add_argument(
         "--archetypes", default=_ARCHETYPES_PATH, help="Path to templates/archetypes.json"
     )
+    parser.add_argument(
+        "--require-rationale",
+        action="store_true",
+        help=(
+            "Treat engineering_rationale findings as errors (exit 1). Use at the Phase 3 "
+            "pre-export run, once every part has been authored; the Phase 2 run omits "
+            "this flag since no part has a rationale yet."
+        ),
+    )
     args = parser.parse_args()
 
     errors = validate_plan(args.plan, args.inventory, args.archetypes)
@@ -585,6 +857,33 @@ def main():
         print(f"\nDeferred axis-arm findings ({len(deferred)}):")
         for f in deferred:
             print(f"  - {f}")
+
+    shared = check_shared_interfaces(plan)
+    if shared:
+        print(f"\nShared-interface findings ({len(shared)}):")
+        for f in shared:
+            print(f"  - {f}")
+
+    coordinate_frame = check_coordinate_frame_usage(plan)
+    if coordinate_frame:
+        print(f"\nCoordinate-frame findings ({len(coordinate_frame)}):")
+        for f in coordinate_frame:
+            print(f"  - {f}")
+
+    hinge_intent = check_hinge_intent_without_joints(plan)
+    if hinge_intent:
+        print(f"\nHinge-intent findings ({len(hinge_intent)}):")
+        for f in hinge_intent:
+            print(f"  - {f}")
+
+    rationale = check_engineering_rationale(plan)
+    if rationale:
+        label = "error" if args.require_rationale else "advisory"
+        print(f"\nEngineering-rationale findings ({len(rationale)}, {label}):")
+        for f in rationale:
+            print(f"  - {f}")
+        if args.require_rationale:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

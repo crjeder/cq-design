@@ -4,19 +4,17 @@ Run once per working directory, immediately after establishing `SKILL_DIR` and b
 
 ## Python environment
 
-Python 3.10-3.12 (CadQuery has no wheels for 3.13+), with the venv activated:
+The skill's own uv project supplies Python 3.12 and every dependency; no venv to
+activate. Sync it once (idempotent, fast when already synced):
 
 ```bash
-python3.12 -m venv .venv
-# Windows:  .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
+uv sync --project "$SKILL_DIR"
 ```
 
-```bash
-# Windows (cmd / any shell, using Python)
-for /f "delims=" %i in ('python -c "import pathlib, sys; print(pathlib.Path(sys.argv[1]).parent.resolve())" "%~f0"') do set SKILL_DIR=%i
-```
+Scripts that import third-party packages are then run as
+`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/<script>.py"`; stdlib-only helpers
+(`init_permissions.py`, `request_log_search.py`, `convert_build123d.py`,
+`blocks/validate.py`) may use plain `python`.
 
 ## Permission bootstrap (first use per directory)
 
@@ -44,9 +42,12 @@ if ($LASTEXITCODE -ne 0) { python "$SKILL_DIR/src/init_permissions.py" . }
 
 The merge is additive and idempotent: it creates `.claude/settings.local.json` if
 absent, appends only missing patterns to `permissions.allow`, and never removes,
-reorders, or duplicates existing entries or other settings keys. The directory
-scaffold is likewise idempotent -- it only creates `build/`/`stl/`/`preview/` if
-missing and never touches existing contents. On a truly fresh directory the very
+reorders, or duplicates existing entries or other settings keys. It also seeds a
+`Stop` hook that runs `src/session_cost.py` to record billed token cost into
+`build/cost.json` after each turn (a no-op until `build/` exists; added only when no
+`session_cost.py` hook is already present) -- the bootstrap output names it alongside
+the pattern count. The directory scaffold is likewise idempotent -- it only creates
+`build/`/`stl/`/`preview/` if missing and never touches existing contents. On a truly fresh directory the very
 first invocation of `init_permissions.py` itself may prompt once; that single
 approval seeds everything else.
 
@@ -56,9 +57,11 @@ the skill), run `python "$SKILL_DIR/src/init_permissions.py" .` unconditionally 
 
 **Fallback when the helper cannot run:** if `init_permissions.py` is unavailable or its
 first run is declined, read `$SKILL_DIR/src/skill_permissions.json` and merge its `allow`
-array into `.claude/settings.local.json` yourself with the Read/Write tools (same
-additive, dedup, order-preserving merge — do not drop existing entries or other keys),
-and create `build/`, `stl/`, `preview/` yourself if they don't already exist.
+array (and its `hooks` block, with `{session_cost_path}` replaced by the absolute path
+to `$SKILL_DIR/src/session_cost.py`) into `.claude/settings.local.json` yourself with
+the Read/Write tools (same additive, dedup, order-preserving merge — do not drop
+existing entries or other keys), and create `build/`, `stl/`, `preview/` yourself if
+they don't already exist.
 
 Known gaps: arbitrary manufacturer `WebFetch` domains and browser MCP tools (whose
 server name is environment-dependent) are not in the seeded set and may still prompt.
@@ -75,7 +78,7 @@ if [ ! -f printer_profile.json ]; then
     cp "$SKILL_DIR/src/printer_profile.default.json" ./printer_profile.json
     echo "Seeded printer_profile.json with defaults -- edit it to match your printer."
 fi
-python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
 ```
 
 ```powershell
@@ -84,7 +87,7 @@ if (-not (Test-Path printer_profile.json)) {
     Copy-Item "$SKILL_DIR/src/printer_profile.default.json" ./printer_profile.json
     Write-Host "Seeded printer_profile.json with defaults -- edit it to match your printer."
 }
-python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
 ```
 
 An existing `printer_profile.json` is never overwritten or re-seeded -- the copy only happens

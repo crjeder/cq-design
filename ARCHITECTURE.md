@@ -7,7 +7,7 @@ model routing (strong model for planning, cheaper model for part authoring).
 Two forces determine every agent boundary:
 
 1. **User interaction** - sub-agents cannot talk to the user. Every checkpoint
-   (dimension table, plan approval, design approval, progressive-build stages,
+   (dimension table, plan approval, design approval, build-stage checkpoints,
    hint requests) MUST live in the main session.
 2. **Context weight** - web page snapshots and preview PNGs are the heavy
    payloads. They belong inside the agent that consumes them, so they never
@@ -23,8 +23,8 @@ flowchart TB
         REQ["Phase 1: requirements Q&A,<br>topology clarification"]
         CK1{"Dimension table<br>approved?"}
         CK2{"BUILD_PLAN.json<br>approved?"}
-        ROUTE{"Per part:<br>autonomous or progressive?"}
-        PROG["Progressive build stays inline:<br>stage checkpoints with the user"]
+        ROUTE{"Per part:<br>staged or one run?"}
+        PROG["Stage checkpoint:<br>user reviews the stage renders"]
         HINT["Attempts exhausted:<br>ask user - hint / accept / skip"]
         CK3{"Design approval:<br>user reviews all renders"}
         FINISH["Deterministic finish - programs, no LLM:<br>print orientation, model export +<br>whole-model checks (kinematic, plate<br>clearance, keep-out), quality gate, deliver"]
@@ -44,13 +44,13 @@ flowchart TB
     PV -- "valid" --> CK2
     CK2 -- "edits" --> PLANNER
     CK2 -- "approved" --> ROUTE
-    ROUTE -- "autonomous" --> BUILDER
-    ROUTE -- "progressive or user override" --> PROG
+    ROUTE -- "stages from review_policy<br>or user override" --> BUILDER
+    BUILDER -- "stage_ready" --> PROG
+    PROG -- "approve / change / finish:<br>RESUME the same agent" --> BUILDER
     BUILDER <--> DET
     BUILDER -- "blocked after 3 attempts" --> HINT
     HINT -- "hint: RESUME the same agent,<br>attempt context intact" --> BUILDER
     BUILDER -- "part passed" --> AUDITOR
-    PROG -- "final stage passed" --> AUDITOR
     AUDITOR -- "visual_mismatch: named question<br>+ cited view" --> BUILDER
     AUDITOR -- "all questions pass" --> CK3
     CK3 -- "change request" --> BUILDER
@@ -80,10 +80,16 @@ gate, orange = main-session user interaction.
 
 | Agent | Model | Input | Output | Why it is an agent |
 |---|---|---|---|---|
-| Research | default | product names, lookup targets | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
-| Planner | `skill_config.json`'s `models.planner` (default strong, e.g. Opus) | rendered `prompts/planning.md` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
-| Part builder (x N) | `skill_config.json`'s `models.part_author` (default mid-tier, e.g. Sonnet; `"inline"` skips the spawn) | rendered `prompts/part.md` (already self-contained by design) | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
-| Implementation auditor | default (vision) | plan part entries + preview/section PNGs, NOT the scripts | per-question pass/fail with cited views | kills self-review bias - the author never grades its own homework |
+| Research | default | rendered `prompts/research.md` by `src/render_prompt.py` | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
+| Planner | `skill_config.json`'s `models.planner` (default strong, e.g. Opus) | rendered `prompts/planning.md` by `src/render_prompt.py` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
+| Part builder (x N) | `skill_config.json`'s `models.part_author` (default mid-tier, e.g. Sonnet; `"inline"` skips the spawn) | `build/<id>_prompt.txt` = `prompts/builder.md` + `prompts/part.md`, rendered by `src/render_prompt.py` | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
+| Implementation auditor | default (vision) | `prompts/audit.md` rendered by `src/render_prompt.py`: plan entry, scoped request text, preview/section PNGs, PARAMETERS values for load-bearing parts, NOT the geometry code | per-question pass/fail with cited views | kills self-review bias - the author never grades its own homework |
+
+Remarks:
+- Research: lookup targets need to be researched and improved
+- Research: output is a correct and user validated, complete, consistent and coflict free user intent.
+- Planner, Builder: invariant is the user intent. any change to the intent starts over the outer loop (at research)
+- Auditor: compare agaist intent
 
 ## Design rules
 
@@ -99,16 +105,16 @@ gate, orange = main-session user interaction.
   returns `blocked` + error summary; main asks the user; the SAME agent is
   resumed with the hint, so attempt context is preserved exactly when it is
   valuable.
-- **Progressive parts stay conversational.** The existing complexity gate
-  (interfaces present, or >= 3 blocks) becomes an agent-routing gate:
-  autonomous parts go to builder agents, progressive parts run inline in main
-  because each stage needs a user checkpoint.
+- **Checkpoints resume, too.** A staged part's builder returns `stage_ready`
+  after each stage; main shows the renders to the user and resumes the same
+  agent with the feedback. Every part therefore gets a builder and an audit, and
+  main never loads the references or the images.
 - **Orientation is not terminal.** The print-orientation loop can demand
   geometry edits (chamfer an overhang, add a foot); that re-enters the builder
   and re-runs validation + audit for the touched part.
-- **No `.claude/agents/` files needed.** The part prompt is already a fully
-  rendered, self-contained text artifact; main passes it as an Agent-tool
-  prompt with a per-call model override. Portable with the skill.
+- **No `.claude/agents/` files needed.** `src/render_prompt.py` writes each
+  agent's prompt to a file; main spawns the agent with "read this file and
+  follow it" and a per-call model override. Portable with the skill.
 
 ## Known tensions (measured, not assumed)
 
@@ -132,13 +138,11 @@ gate, orange = main-session user interaction.
 
 ## Sequencing
 
-`split-skill-md` (progressive doc loading) lands first: its per-phase files are
-exactly the per-agent instruction sources this architecture needs, and in the
-agent world the main session never loads Phase 3 detail at all -
-`skill/phase3_build.md` effectively becomes the builder agent's prompt.
+Agent instructions live in `prompts/research.md`, `prompts/planning.md`,
+`prompts/builder.md` + `prompts/part.md`, and `prompts/audit.md`; the
+`skill/phase*.md` files hold only main-session orchestration.
 
 Model routing finally gives the telemetry `model` field real values (the part
-loop now records the executor's actual model per attempt — see
-`skill/phase3_build.md` Step 5), so the eval harness can prove whether the
+telemetry hook records the executor's actual model per attempt), so the eval harness can prove whether the
 routing pays for itself.
 

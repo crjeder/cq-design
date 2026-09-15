@@ -51,6 +51,7 @@ import sys
 
 import numpy as np
 import trimesh
+from scipy.spatial import ConvexHull
 from trimesh.transformations import euler_from_matrix
 
 from freshness import script_hash
@@ -183,6 +184,13 @@ def _strength_score(
     return round(1.0 - abs(float(load_after[2])), 6)
 
 
+def _bed_contact_mask(posed: trimesh.Trimesh) -> np.ndarray:
+    """Faces counted as bed contact: near flat-down, within one first-layer height."""
+    min_z = float(posed.vertices[:, 2].min())
+    centroids_z = posed.triangles.mean(axis=1)[:, 2]
+    return (posed.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
+
+
 def _support_metrics(posed: trimesh.Trimesh, overhang_deg: float) -> tuple[float, float]:
     """Return (support_cost, bed_contact_area) for the mesh already posed.
 
@@ -192,9 +200,7 @@ def _support_metrics(posed: trimesh.Trimesh, overhang_deg: float) -> tuple[float
     cost. Bed contact is counted within one first-layer height of the floor, so a
     marginally non-coplanar resting face still counts as contact.
     """
-    min_z = float(posed.vertices[:, 2].min())
-    centroids_z = posed.triangles.mean(axis=1)[:, 2]
-    contact_mask = (posed.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
+    contact_mask = _bed_contact_mask(posed)
     bed_contact = float(posed.area_faces[contact_mask].sum())
     cost = support_cost(posed, overhang_deg, SUPPORT_EXPONENT, exclude_mask=contact_mask)
     return round(cost, 3), round(bed_contact, 3)
@@ -239,6 +245,27 @@ def _gentle_incline_fraction(posed: trimesh.Trimesh) -> float:
 
     bad_area = float(posed.area_faces[gentle & ~on_bed].sum())
     return round(bad_area / total, 6)
+
+
+def _stability_metrics(posed: trimesh.Trimesh) -> bool:
+    """Whether the posed mesh rests stably (won't tip) on its bed-contact footprint.
+
+    A resting body under gravity is stable when its center of mass, projected onto
+    the bed plane (XY), falls within the convex hull of its support polygon (the
+    bed-contact footprint). Fewer than 3 distinct footprint points (a point or
+    knife-edge contact) can't form a polygon at all, so it is unstable outright.
+    """
+    contact_mask = _bed_contact_mask(posed)
+    footprint = np.unique(np.round(posed.triangles[contact_mask].reshape(-1, 3)[:, :2], 6), axis=0)
+    if len(footprint) < 3:
+        return False
+    try:
+        hull = ConvexHull(footprint)
+    except Exception:
+        return False
+    com_xy = posed.center_mass[:2]
+    eqs = hull.equations
+    return bool(np.all(eqs[:, :2] @ com_xy + eqs[:, 2] <= 1e-7))
 
 
 def _visual_metrics(
@@ -290,7 +317,16 @@ def _select(
     - min_support: least support, ties by best strength, then most bed contact.
     - visual_quality: best visual, ties by best strength, then least support.
     - min_build_height: least build height, ties by best strength, then least support.
+
+    Before applying the mode's ordering, candidates are restricted to stable ones
+    (those that won't tip over on the bed) whenever at least one is stable; a
+    candidate without a `stable` key is treated as stable (older/synthetic
+    candidate dicts, e.g. in unit tests). If none are stable, the full set is used
+    so a recommendation is still produced.
     """
+    stable_candidates = [c for c in candidates if c.get("stable", True)]
+    if stable_candidates:
+        candidates = stable_candidates
     if optimize_for == "min_support":
         best = min(c["support"] for c in candidates)
         contenders = [c for c in candidates if c["support"] - best <= SUPPORT_BAND]
@@ -350,6 +386,7 @@ def optimize_orientation(
         strength = _strength_score(rotation, load_vec, load_type)
         support, bed_contact = _support_metrics(posed, overhang_deg)
         visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec)
+        stable = _stability_metrics(posed)
         candidates.append(
             {
                 "idx": idx,
@@ -361,9 +398,13 @@ def optimize_orientation(
                 "cosmetic_down": cosmetic_down,
                 "gentle_incline_fraction": incline,
                 "build_height": _build_height(posed),
+                "stable": stable,
             }
         )
 
+    unstable_excluded = any(c["stable"] for c in candidates) and any(
+        not c["stable"] for c in candidates
+    )
     chosen = _select(candidates, optimize_for, strength_band)
 
     # Cosmetic stair-step area at the chosen pose: up-facing faces in the gentle-incline
@@ -376,7 +417,13 @@ def optimize_orientation(
     load_used = [round(float(v), 6) for v in _unit(load_vec)] if load_vec is not None else None
     show_used = [round(float(v), 6) for v in _unit(show_vec)]
     rationale = _rationale(
-        chosen, optimize_for, overhang_deg, len(candidates), load_type, load_declared
+        chosen,
+        optimize_for,
+        overhang_deg,
+        len(candidates),
+        load_type,
+        load_declared,
+        unstable_excluded,
     )
     return {
         "optimize_for": optimize_for,
@@ -389,6 +436,7 @@ def optimize_orientation(
         "gentle_incline_fraction": chosen["gentle_incline_fraction"],
         "cosmetic_slope_area_mm2": cosmetic_slope_area,
         "build_height_mm": chosen["build_height"],
+        "stable": chosen["stable"],
         "load_dir": load_used,
         "load_declared": load_declared,
         "load_type": load_type,
@@ -405,6 +453,7 @@ def _rationale(
     n_candidates: int,
     load_type: str = "tension",
     load_declared: bool = True,
+    unstable_excluded: bool = False,
 ) -> str:
     """Human-readable explanation naming the mode and the winning trade-off."""
     common = (
@@ -425,6 +474,8 @@ def _rationale(
             ". load_type=compression: strength is orientation-neutral "
             "(interlayer bond isn't stressed by a resting load), so support/bed-contact decided"
         )
+    if unstable_excluded:
+        common += ". unstable candidates (would tip over on the bed) were excluded from selection"
     if optimize_for == "min_support":
         lead = "min_support: least support first, strength as tiebreaker"
     elif optimize_for == "visual_quality":
