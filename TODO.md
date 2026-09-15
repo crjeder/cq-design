@@ -76,11 +76,15 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 - [ ] HitsterTower: dovetail-corner-joint disassembly form fell outside the joints schema's single-rooted tree -- [details](#hitstertower-dovetail-form)
 - [ ] Deduplicate pairwise-mirrored parts into one script/STL -- [details](#mirrored-parts-dedup)
 - [ ] A minimal deliverable for a parametric part -- just the code, not the full `/lib`
+- [x] Intent-based prompt reformulation -- DONE, merged into item 4 below and shipped
+      as `REQUIREMENTS.md` -- [details](#intent-based-prompt-reformulation)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties
-- [ ] User intent as an invariant over generation loops (today only a log exists, no invariant) -- [details](#intent-as-invariant)
+- [ ] User intent as an invariant over generation loops (capture now exists --
+      `REQUIREMENTS.md`, see item 4 below -- but nothing checks the generation loop's
+      output against it; still no invariant) -- [details](#intent-as-invariant)
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
 - [ ] tool to produce cable traces where cables are held press fit for enclosure
 
@@ -148,7 +152,8 @@ discussion (items 1 and 3 are arguably V1 defect fixes; not decided).
 - [ ] 1. Typed `request_log` entries (`level` + `targets`) -- [details](#typed-request_log-entries)
 - [ ] 2. Spec audit with named ambiguity categories -- [details](#spec-audit-ambiguity-categories)
 - [ ] 3. Request-relative acceptance in the implementation audit -- [details](#request-relative-acceptance)
-- [ ] 4. Canonical intent restatement artifact -- [details](#canonical-intent-restatement)
+- [x] 4. Canonical intent restatement artifact -- DONE, shipped ahead of the freeze
+      status below as `REQUIREMENTS.md` -- [details](#canonical-intent-restatement)
 - [ ] 5. Under-specified eval cases -- [details](#under-specified-eval-cases)
 
 ### From SmartAI/Chamfer's efficiency study (github.com/SmartAI/Chamfer @ a8f1c59, read 2026-08)
@@ -816,10 +821,13 @@ BUILD_PLAN.json so wall_b references wall_a's geometry instead of carrying
 its own script."
 
 ### Intent-based prompt reformulation
-Same artifact as the re-generation prompt above ([Project regeneration
-prompt](#project-regeneration-prompt)) -- see
+DONE -- same artifact as the re-generation prompt above ([Project regeneration
+prompt](#project-regeneration-prompt)) and as
 `documentation/intent_recognition.md` item 4
-([Canonical intent restatement](#canonical-intent-restatement)).
+([Canonical intent restatement](#canonical-intent-restatement)), which shipped
+as `REQUIREMENTS.md` (`skill/phase1_requirements.md`, `openspec/changes/
+capture-requirements-spec/`). No separate reformulation prompt needed --
+resolved by that same artifact.
 
 DONE. The reformulation itself is `BUILD_PLAN.json`'s `intent`: written and
 approved at the Phase 1 exit checkpoint, copied verbatim by Phase 2, rewritten
@@ -829,11 +837,24 @@ request-conformance bar in review. Delivered by
 regeneration prompt above.
 
 ### Intent as invariant
-User intent as invariant over the generation loops (there is no invariant
-today, only a log) -- see `documentation/intent_recognition.md` gaps 2-3 and
-items 1/3 ([Typed request_log entries](#typed-request_log-entries),
-[Request-relative acceptance](#request-relative-acceptance)).
-openspec works like this: user states an intent and thes skill asks enough questions to write a spec. the spec then is used to write the code. can openspec be gute idee?
+Question resolved 2026-08-29: yes, adopting the OpenSpec-style flow (user
+states an intent -> skill asks enough questions to write a spec -> the spec
+drives generation) was a good idea, and it shipped as `REQUIREMENTS.md`
+(Phase 1 writes it; Phase 2 amends it in place; see [Canonical intent
+restatement](#canonical-intent-restatement) and `openspec/changes/
+capture-requirements-spec/`).
+
+That closes the *capture* half only. The *invariant* half of this item is
+still open: nothing re-checks a part's output, or a mid-build correction,
+against `REQUIREMENTS.md` -- it is a human-readable artifact for review, not
+yet a machine input any gate or agent consults. Today only `request_log`
+exists as a running history (a log, not an invariant). Closing this fully
+still needs items 1/3 from `documentation/intent_recognition.md`'s gaps 2-3
+([Typed request_log entries](#typed-request_log-entries),
+[Request-relative acceptance](#request-relative-acceptance)), which would
+give the generation loop something to check *against* -- `REQUIREMENTS.md`/
+`BUILD_PLAN.json`'s `intent` field, or `request_log`'s targeted entries --
+rather than only auditing conformance to the plan's structure.
 
 ### Knowledge domain activation audit
 Audited `documentation/Knowledge Domains.md` (an external survey of what a
@@ -1203,8 +1224,12 @@ stage.
 
 Freeze status (`Feature freeze for V1.0`, 12.08.2026): items 1 and 3 target
 logged, reproduced failures (the C5 cradle ping-pong; the audit being blind
-to the request) and are arguably defect fixes; 2, 4 and 5 are features for
-the next version. Not decided here.
+to the request) and are arguably defect fixes; 2, 4 and 5 were slated as
+features for the next version. **Update 2026-08-29:** item 4 was pulled
+forward into V1 anyway (see [Canonical intent restatement](#canonical-intent-restatement))
+-- the capture half was cheap (a docs-only Phase 1 addition, no schema or
+script change) and closes a real gap in what ships. 2 and 5 remain deferred
+to the next version; not decided here.
 
 #### Typed request_log entries
 One change -- strategy: reimplement (LLM4CAD-Editor). Give each
@@ -1261,18 +1286,32 @@ pipeline enforces. Closes the gap with no new agent and no new artifact.
   retry budget)
 
 #### Canonical intent restatement
-One change -- strategy: reimplement. Merges two standing items ("intent
+DONE 2026-08-29 -- strategy: reimplement. Merges two standing items ("intent
 based prompt reformulation", "regenerate the whole project from scratch with
 a new LLM session"): a frame-explicit, user-confirmed restatement of what is
 being built, carried forward and updated as corrections land. Also the
 natural input to [Request-relative acceptance](#request-relative-acceptance)
 and the structural fix for compass-language defects -- restatement forces
 the reference frame to be written down instead of assumed.
-- decide where it lives: a project-root artifact beside `parameters.py`
-  (measurement provenance) and `BUILD_PLAN.json` (structure), or an
-  extension of one of them -- NOT a third free-text field in the plan
-- give it a bounded role like `planning_notes` (current state only) and
-  `request_log` (history only), or it becomes a changelog
+
+Shipped as `REQUIREMENTS.md`, a project-root artifact beside `parameters.py`
+(resolving the "where it lives" question in favor of a sibling file, not a
+plan field): intent, confirmed topology reading, dimensions, fit
+requirements, resolved DFM constraints, and open questions/assumptions.
+`skill/phase1_requirements.md` writes it at the same checkpoint as
+`parameters.py`; `skill/phase2_planning.md` amends it in place if planning
+introduces or changes a requirement (bounded role, `planning_notes`-style
+current-state-only -- not a changelog). See
+`openspec/changes/capture-requirements-spec/` for the proposal and spec
+delta.
+
+Deliberately deferred (see that change's `design.md`): no quality-gate
+presence check yet (mirrors how `parameters.py`'s own gate check shipped as
+a separate follow-up change after the convention existed), and it is not
+yet wired into [Request-relative acceptance](#request-relative-acceptance)
+or the reference-frame check the compass-language defect needs -- those
+still require the auditor to actually read and check against this file,
+which is the remaining work under [Intent as invariant](#intent-as-invariant).
 
 #### Under-specified eval cases
 One change -- strategy: reimplement (gating cost). Every case in
