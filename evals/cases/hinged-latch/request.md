@@ -1,0 +1,1 @@
+Design a small two-leaf hinged latch: two flat leaves, 30 mm hinge length, joined by a pin hinge (coaxial 1.9 mm bore for 1.75 mm filament) so the latch folds from fully open (flat) to fully closed (folded 90 degrees against itself). Each leaf is 20 mm wide and 4 mm thick, with 3 interleaved knuckles along the hinge axis. PLA, Bambu P1S.

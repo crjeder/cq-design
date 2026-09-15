@@ -39,7 +39,7 @@ Report to the user:
    rather than the approved reformulation, the plan's `intent` was never updated by a
    Phase 3 correction -- fix `intent` and re-run rather than editing `REGENERATE.md`.
 
-If the quality gate failed, summarize the remaining errors and offer to fix the script manually or re-run the gate with `--no-fix` to get a clean report.
+If the quality gate failed, summarize the remaining errors and offer to fix the script manually.
 
 Once delivery is reported and `README.md` / `REGENERATE.md` are written, append one line to
 `build/journal.md` (see `skill/resume.md`):

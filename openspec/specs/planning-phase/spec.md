@@ -7,11 +7,11 @@ Defines requirements for the planning phase: the prompt that produces `BUILD_PLA
 ## Requirements
 
 ### Requirement: Planning prompt produces structured BUILD_PLAN
-The system SHALL provide a `prompts/planning.md` prompt that, when invoked with a user's model description and rendered with `{{USER_REQUEST}}`, `{{BLOCK_INVENTORY}}`, `{{FDM_GUIDELINES}}`, and `{{PRINTER_PROFILE}}`, produces a valid `BUILD_PLAN.json` file conforming to the defined schema.
+The system SHALL provide a `prompts/planning.md` prompt that, when invoked with a user's model description and rendered with `{{USER_REQUEST}}`, `{{BLOCK_INVENTORY}}`, `{{ARCHETYPE_INDEX}}`, `{{FDM_GUIDELINES}}`, and `{{PRINTER_PROFILE}}`, produces a valid `BUILD_PLAN.json` file conforming to the defined schema. All placeholder substitution SHALL be performed by `src/render_prompt.py planning` before invoking the LLM (see `planner-research-prompt-rendering` spec), not by hand in the main session and not by `orchestrate.py`.
 
-The `{{FDM_GUIDELINES}}` placeholder SHALL be substituted with sections from `reference/FDM 3D Print Design Guidelines.md` matching the union of all `blocks_needed` across all parts in the plan, plus sections tagged `always`. This substitution is performed by the skill before invoking the LLM, not by `orchestrate.py`.
+The `{{FDM_GUIDELINES}}` placeholder SHALL be substituted with sections from `reference/FDM 3D Print Design Guidelines.md` tagged `always`, plus, on a re-plan where the prior `BUILD_PLAN.json` is passed, sections matching the union of all `blocks_needed` across all parts in that plan.
 
-The `{{PRINTER_PROFILE}}` placeholder SHALL be substituted with the resolved `printer`, `material`, `nozzle_mm`, and `constraints` values from a validated `printer_profile.json` in the working directory, when one exists (see `printer-profile-config` spec). When `printer_profile.json` is absent or fails validation, the corresponding field(s) SHALL instead be asked of the user, exactly as when no profile exists. This substitution is performed by the skill before invoking the LLM, not by `orchestrate.py`.
+The `{{PRINTER_PROFILE}}` placeholder SHALL be substituted with the resolved `printer`, `material`, `nozzle_mm`, and `constraints` values from a validated `printer_profile.json` in the working directory, when one exists (see `printer-profile-config` spec). When `printer_profile.json` is absent or fails validation, the corresponding field(s) SHALL instead be asked of the user, exactly as when no profile exists.
 
 When the user explicitly states a value for `printer`, `material`, `nozzle_mm`, or a `constraints` field that differs from the loaded profile, the resulting `BUILD_PLAN.json` SHALL use the user-stated value, AND the skill SHALL write that value back into `printer_profile.json` in the working directory as the new project-level default, announcing the change to the user in the same turn. If the user explicitly indicates the value is a one-time exception rather than a new default, the skill SHALL use the value for the current plan only and SHALL NOT write it back.
 
@@ -144,6 +144,70 @@ user-noun naming rule is enforced by the schema rather than left to the planner.
 #### Scenario: Plan without pose intent still validates
 - **WHEN** a part declares neither `pose_intent` nor `placement`
 - **THEN** validation passes; the part is treated as authored in the assembled frame
+
+---
+
+### Requirement: Planning consumes the approved intent rather than authoring it
+
+The planning phase SHALL treat the approved reformulation Phase 1 wrote to `intent` as
+input: it SHALL copy that text into the emitted `BUILD_PLAN.json`'s `intent` unchanged,
+and SHALL plan the part decomposition against it. The planner SHALL NOT author `intent`
+from scratch, and SHALL NOT paraphrase or shorten the approved text.
+
+When a re-plan regenerates the file, the planner SHALL carry the current approved
+`intent` forward unchanged, the same way it carries `request_log` forward. Only an
+approved correction rewrites `intent` (see the `approved-intent` spec).
+
+#### Scenario: Planner copies the approved intent
+
+- **WHEN** Phase 1 exits with an approved reformulation and the planner is invoked
+- **THEN** the emitted `BUILD_PLAN.json` carries that text verbatim as `intent`
+
+#### Scenario: Re-plan preserves the approved intent
+
+- **WHEN** a correction causes the planner to regenerate the plan
+- **THEN** the new `BUILD_PLAN.json` carries forward the current approved `intent`, and
+  the planner does not rewrite it
+
+#### Scenario: Plan contradicts the approved intent
+
+- **WHEN** the decomposition the planner produces would build something the approved
+  `intent` does not describe
+- **THEN** the planner revises the decomposition to match the approved intent rather than
+  editing `intent` to match the decomposition
+
+### Requirement: Plan validation rejects a token intent
+
+The `BUILD_PLAN.json` schema SHALL require `intent` to be long enough to carry a
+reformulation rather than a token phrase, so that a plan whose `intent` was never
+replaced by the Phase 1 approved text fails validation.
+
+The `-1` unresolved-dimension placeholder needs no additional validator rule: every
+size-valued numeric field in the schema (`parts[].dimensions.*`,
+`interfaces[].diameter_mm`, `interfaces[].size_mm[]`, `blocks_needed[].extents_mm[]`,
+`kinematics.step`) already carries `exclusiveMinimum: 0` and rejects it. The schema's
+remaining unbounded numeric fields are signed by design -- `interfaces[].position_mm`,
+`load.dir`, `show_face.dir`, `placement.translate_mm`, `placement.rotate[].angle_deg`,
+`kinematics.axis_origin_mm`, `kinematics.required_range`, `kinematics.mechanical_limit`
+-- where `-1` is a legitimate value. A blanket `-1` rejection SHALL NOT be added, as it
+would reject valid plans.
+
+#### Scenario: Token intent is rejected
+
+- **WHEN** a plan's `intent` is shorter than the reformulation floor
+- **THEN** `plan_validate.py` reports a schema validation error for `intent`
+
+#### Scenario: Unresolved dimension is already rejected
+
+- **WHEN** a part's `dimensions.d_mm` is `-1`
+- **THEN** validation fails on the existing `exclusiveMinimum: 0` bound, naming that
+  field
+
+#### Scenario: A legitimate negative value still validates
+
+- **WHEN** a part declares `load.dir` of `[0, 0, -1]` and an interface at
+  `position_mm` `[-12.5, 0, 4]`
+- **THEN** validation passes -- no rule rejects `-1` in a signed field
 
 ---
 

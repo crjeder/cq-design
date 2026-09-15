@@ -13,8 +13,8 @@ and a ``PostToolUse`` hook (wired by ``init_permissions.py``) that observes each
     python telemetry.py --hook
 
 A ``(part_id, attempt)`` pair may end up with more than one line (the hook's base
-record, plus a smaller visual-review follow-up appended by the orchestrator per
-skill/phase3_build.md Step 5) -- see ``fold_attempts``.
+record, plus an audit-verdict follow-up appended by the orchestrator per
+skill/phase3_build.md's Implementation audit) -- see ``fold_attempts``.
 
 Stdlib only.
 """
@@ -147,47 +147,48 @@ def _run_hook() -> int:
         if payload.get("tool_name") not in ("Bash", "PowerShell"):
             return 0
         command = payload.get("tool_input", {}).get("command", "")
-        if not _RUN_MODEL_RE.search(command):
+        if not _RUN_MODEL_RE.search(command) or "--attempts-log" in command:
             return 0
         match = _SCRIPT_ARG_RE.search(command)
         if not match:
             return 0
-        part_id = match.group(1)
-
         build_dir = Path(payload.get("cwd", ".")) / "build"
         if not build_dir.is_dir():
             return 0
-        attempts_log = build_dir / "attempts.jsonl"
-
-        existing = [r for r in _read_records(attempts_log) if r.get("part_id") == part_id]
-        attempt = len(fold_attempts(existing)) + 1
-
         result = json.loads(payload.get("tool_response", {}).get("stdout", ""))
-        error_types = [
-            e.get("type") for e in result.get("errors", []) if isinstance(e, dict) and e.get("type")
-        ]
-
-        record: dict = {
-            "part_id": part_id,
-            "attempt": attempt,
-            "outcome": "pass" if result.get("success") else "fail",
-            "error_types": error_types,
-            "visual_review": None,
-        }
         model = _model_from_transcript(payload.get("transcript_path"))
-        if model:
-            record["model"] = model
-
-        prompt_path = build_dir / f"{part_id}_prompt_attempt{attempt}.txt"
-        if prompt_path.is_file():
-            record["prompt_chars"] = len(prompt_path.read_text(encoding="utf-8"))
-
-        if validate_attempt(record):
-            return 0
-        append_attempt(attempts_log, record)
+        record_attempt(build_dir / "attempts.jsonl", match.group(1), result, model)
     except Exception:
         pass
     return 0
+
+
+def record_attempt(attempts_log: Path, part_id: str, result: dict, model: str | None) -> None:
+    """Append the base record for one run_cadquery_model.py result; skips stubs and
+    records missing a required field (fail-open, like the hook)."""
+    if part_id.endswith("_stub"):
+        return
+    existing = [r for r in _read_records(attempts_log) if r.get("part_id") == part_id]
+    attempt = len(fold_attempts(existing)) + 1
+    record: dict = {
+        "part_id": part_id,
+        "attempt": attempt,
+        "outcome": "pass" if result.get("success") else "fail",
+        "error_types": [
+            e.get("type") for e in result.get("errors", []) if isinstance(e, dict) and e.get("type")
+        ],
+        "visual_review": None,
+    }
+    if model:
+        record["model"] = model
+    build_dir = attempts_log.parent
+    for name in (f"{part_id}_prompt_attempt{attempt}.txt", f"{part_id}_prompt.txt"):
+        prompt_path = build_dir / name
+        if prompt_path.is_file():
+            record["prompt_chars"] = len(prompt_path.read_text(encoding="utf-8"))
+            break
+    if not validate_attempt(record):
+        append_attempt(attempts_log, record)
 
 
 def _parse_field(spec: str) -> tuple[str, object]:
