@@ -263,3 +263,21 @@ Read `build/quality_gate.json`. The gate is report-only (never pass `--fix`).
 
 Append `- phase3/gate_result: <pass|escalated>, <n> remaining findings` to
 `build/journal.md`, then proceed to Phase 4.
+
+## Post-delivery corrections
+
+A user request that changes geometry (a dimension, a feature, a hand-edit to a part
+script) arriving after Phase 4 has already reported delivery is still a correction --
+log it (Request log, above), resume the affected part's builder, re-audit -- but it also
+re-opens every deterministic step downstream of that union that Phase 4 already reported
+as done: **re-run Print-orientation optimization for the affected union(s)** (unaffected
+unions keep their accepted `build/orientations.json` entry), **then Model export, then
+Quality gate**, before repeating Phase 4's delivery report. See
+[Silica Tray re-export coincidence](TODO.md#silica-tray-re-export-coincidence): before
+this section existed, doing so was a judgment call this file never actually asked
+for -- correct when an LLM happened to think of it, silently skippable when one didn't,
+leaving stale `model.3mf`/STLs/`print_recipe` next to a script that had already moved on.
+`build/orientations.json`'s `source_script_hash` stamp (written by the `--source-script`
+flag above) means a later standalone `uv run python build/build.py` self-corrects this
+regardless, but a delivery report claimed *within this session* must reflect a re-export
+that actually happened here, not one left for the user to trigger later.
