@@ -281,12 +281,24 @@ def _analyze_stl(
 # ---------------------------------------------------------------------------
 
 
-def _emit_print_recipe(plan: dict, geometry: dict | None, orientation: dict | None = None) -> dict:
+def _emit_print_recipe(
+    plan: dict,
+    geometry: dict | None,
+    orientation: dict | None = None,
+    needs_support: bool = False,
+) -> dict:
     """Build a recommended print recipe from plan constraints + geometry.
 
     When `orientation` (a print_orientation.py result) is supplied, the recipe's
     `orientation` field carries the computed rotation and its rationale; otherwise
     it falls back to the default flat-bottom-down assumption.
+
+    `needs_support` SHALL be derived from whether the geometry analysis emitted a
+    (non-advisory) `overhang_exceeded` finding at the chosen pose, not guessed --
+    see [Silica Tray support claim](TODO.md#silica-tray-support-claim): this field
+    used to be hardcoded `False` regardless of `orientation["support_score"]` or
+    any overhang finding, so the delivered recipe always claimed no support was
+    needed even when the gate had just flagged one.
     """
     constraints = plan.get("constraints", {})
     wall_min = constraints.get("wall_min_mm", 1.2)
@@ -314,7 +326,7 @@ def _emit_print_recipe(plan: dict, geometry: dict | None, orientation: dict | No
         "top_bottom_layers": 4,
         "infill_percent": 20,
         "infill_pattern": "gyroid",
-        "supports": False,
+        "supports": needs_support,
         "support_threshold_deg": constraints.get("overhang_max_deg", 45),
         "orientation": orientation_field,
     }
@@ -926,11 +938,16 @@ def run_gate(
         all_issues += _run_gridfinity_stage(script_path)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
+    needs_support = any(
+        i["type"] == "overhang_exceeded" and i["severity"] == "warning" for i in all_issues
+    )
 
     return {
         "passed": passed,
         "issues": all_issues,
-        "print_recipe": _emit_print_recipe(plan, geometry, orientation) if passed else None,
+        "print_recipe": (
+            _emit_print_recipe(plan, geometry, orientation, needs_support) if passed else None
+        ),
         "fix_rounds": fix_round,
     }
 
