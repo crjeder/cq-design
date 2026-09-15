@@ -1,6 +1,6 @@
 # Phase 2: Planning
 
-**Prerequisite:** The dimension validation checkpoint must be approved before this phase begins. If user-corrected values were provided during the checkpoint, use those values -- not the originally looked-up values -- when populating `BUILD_PLAN.json`.
+**Prerequisite:** The Phase 1 exit checkpoint must be approved before this phase begins. If user-corrected values were provided during the checkpoint, use those values -- not the originally looked-up values -- when populating `BUILD_PLAN.json`.
 
 Build the planning prompt from the template in `prompts/planning.md`. Substitute five placeholders:
 
@@ -43,7 +43,7 @@ with open("BUILD_PLAN.json", "w", encoding="utf-8") as f:
 ```
 
 ```bash
-python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
 ```
 
 If the write fails (e.g. the working directory is not writable), surface the error and ask the user to confirm or change the working directory before continuing.
@@ -57,7 +57,7 @@ Once `plan_validate.py` passes, append one line to `build/journal.md` (see
 
 **Update `parameters.py`** at the project root alongside `BUILD_PLAN.json`, only if
 planning introduced or changed a measurement not already captured when Phase 1's
-Dimension validation checkpoint was approved (`skill/phase1_requirements.md` writes the
+exit checkpoint was approved (`skill/phase1_requirements.md` writes the
 file from scratch at that point, before this phase starts). Add or amend named
 constants the same way, each commented with its source; leave the rest of the file
 untouched. Skip this step entirely when planning added nothing new -- which is the
@@ -84,7 +84,7 @@ a one-time exception during Phase 1, write the changed field(s) back so the prof
 project default:
 
 ```bash
-python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json --set nozzle_mm=0.6
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json --set nozzle_mm=0.6
 ```
 
 Repeat `--set` for each changed field (dotted for constraints, e.g.
