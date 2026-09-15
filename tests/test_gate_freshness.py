@@ -7,15 +7,9 @@ needs no CadQuery-exported joint mesh -- just two co-plated union STLs.
 
 import json
 
-import trimesh
+from conftest import box_stl
 
 import quality_gate
-
-
-def _box_stl(path, center):
-    mesh = trimesh.creation.box(extents=(10, 10, 10))
-    mesh.apply_translation(center)
-    mesh.export(str(path))
 
 
 def _plan():
@@ -51,8 +45,8 @@ def test_stale_export_surfaces_through_gate(tmp_path, good_script):
 
     stl_dir = good_script.parent  # same dir the gate defaults stl_dir/parts_dir to
     # Co-plated boxes close enough to fail clearance if both were validated.
-    _box_stl(stl_dir / "a.stl", (0, 0, 0))
-    _box_stl(stl_dir / "b.stl", (10.05, 0, 0))
+    box_stl(stl_dir / "a.stl", (0, 0, 0))
+    box_stl(stl_dir / "b.stl", (10.05, 0, 0))
 
     (stl_dir / "a.py").write_text("result = 1\n", encoding="utf-8")
     (stl_dir / "b.py").write_text("result = 2\n", encoding="utf-8")

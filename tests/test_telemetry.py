@@ -230,3 +230,19 @@ def test_hook_noop_on_malformed_payload(monkeypatch):
     monkeypatch.setattr(sys, "stdin", io.StringIO("not json"))
     rc = telemetry.main(["--hook"])
     assert rc == 0
+
+
+def test_record_attempt_numbers_attempts_and_skips_stubs(tmp_path):
+    log = tmp_path / "build" / "attempts.jsonl"
+    log.parent.mkdir()
+    (log.parent / "lid_prompt.txt").write_text("x" * 42, encoding="utf-8")
+    fail = {"success": False, "errors": [{"type": "occ_exception"}]}
+    telemetry.record_attempt(log, "lid", fail, "claude-sonnet-5")
+    telemetry.record_attempt(log, "lid", {"success": True, "errors": []}, "claude-sonnet-5")
+    telemetry.record_attempt(log, "lid_stub", {"success": True, "errors": []}, "claude-sonnet-5")
+    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert [(r["attempt"], r["outcome"], r["prompt_chars"]) for r in records] == [
+        (1, "fail", 42),
+        (2, "pass", 42),
+    ]
+    assert records[0]["error_types"] == ["occ_exception"]

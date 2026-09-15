@@ -1,28 +1,34 @@
 # Phase 2: Planning
 
-**Prerequisite:** The dimension validation checkpoint must be approved before this phase begins. If user-corrected values were provided during the checkpoint, use those values -- not the originally looked-up values -- when populating `BUILD_PLAN.json`.
+**Prerequisite:** The Phase 1 exit checkpoint must be approved before this phase begins. If user-corrected values were provided during the checkpoint, use those values -- not the originally looked-up values -- when populating `BUILD_PLAN.json`.
 
-Build the planning prompt from the template in `prompts/planning.md`. Substitute five placeholders:
+**Render** the planning prompt: write the user's full description of the part to
+`build/request.md`, then run
 
-| Placeholder | Source |
-|-------------|--------|
-| `{{USER_REQUEST}}` | User's full description of the part |
-| `{{BLOCK_INVENTORY}}` | Condensed name + use lines from `src/blocks/inventory.json` |
-| `{{ARCHETYPE_INDEX}}` | Condensed name + use lines from `templates/archetypes.json` |
-| `{{FDM_GUIDELINES}}` | Sections tagged `always` from `reference/FDM 3D Print Design Guidelines.md` |
-| `{{PRINTER_PROFILE}}` | `printer`/`material`/`nozzle_mm`/`constraints` from a validated `printer_profile.json` in the working directory, or a note that none is available |
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" planning \
+    --request-file build/request.md [--plan BUILD_PLAN.json] [--profile printer_profile.json]
+```
+
+Pass `--plan BUILD_PLAN.json` only on a re-plan (an existing validated plan in the working
+directory); it adds that plan's `blocks_needed` union to the FDM guideline sections, on top
+of the always-applicable ones a fresh plan gets. `--profile` defaults to
+`printer_profile.json` in the working directory. It writes `build/planning_prompt.txt` and
+prints `{"out", "chars", "profile"[, "profile_errors"]}`. `profile` is `loaded`, `absent`,
+or `invalid` -- when it is not `loaded`, ask the user for printer, material, nozzle, and
+constraints as Phase 1 would; do not open `printer_profile.json` yourself to check.
 
 ## Planner agent
 
-Spawn a single agent (Agent tool) whose prompt is the fully rendered `prompts/planning.md`
-from above, model override: read `models.planner` from `skill_config.json` in the working
-directory; if the file or key is absent, fall back to the strongest available model. A
-topology or interface-tree error in the plan costs a full rebuild of every part downstream
-of it, which is why this role defaults to the strongest model rather than the builder's
-mid-tier default. The agent has no user
-channel — everything user-facing (topology clarification, dimension checkpoint approval,
-the plan summary below) already happened in main before this call, or happens in main
-after it returns.
+Spawn a single agent (Agent tool) with the prompt
+`Read <out> in full and follow it. Working directory: <absolute cwd>.`, model override:
+read `models.planner` from `skill_config.json` in the working directory; if the file or key
+is absent, fall back to the strongest available model. A topology or interface-tree error
+in the plan costs a full rebuild of every part downstream of it, which is why this role
+defaults to the strongest model rather than the builder's mid-tier default. The agent has
+no user channel — everything user-facing (topology clarification, dimension checkpoint
+approval, the plan summary below) already happened in main before this call, or happens in
+main after it returns.
 
 The agent returns the plan JSON as its final message. Parse it, write it to disk, and
 validate exactly as below. **`plan_validate.py` rejection re-enters the planner agent**:
@@ -43,7 +49,7 @@ with open("BUILD_PLAN.json", "w", encoding="utf-8") as f:
 ```
 
 ```bash
-python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
 ```
 
 If the write fails (e.g. the working directory is not writable), surface the error and ask the user to confirm or change the working directory before continuing.
@@ -57,7 +63,7 @@ Once `plan_validate.py` passes, append one line to `build/journal.md` (see
 
 **Update `parameters.py`** at the project root alongside `BUILD_PLAN.json`, only if
 planning introduced or changed a measurement not already captured when Phase 1's
-Dimension validation checkpoint was approved (`skill/phase1_requirements.md` writes the
+exit checkpoint was approved (`skill/phase1_requirements.md` writes the
 file from scratch at that point, before this phase starts). Add or amend named
 constants the same way, each commented with its source; leave the rest of the file
 untouched. Skip this step entirely when planning added nothing new -- which is the
@@ -84,7 +90,7 @@ a one-time exception during Phase 1, write the changed field(s) back so the prof
 project default:
 
 ```bash
-python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json --set nozzle_mm=0.6
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json --set nozzle_mm=0.6
 ```
 
 Repeat `--set` for each changed field (dotted for constraints, e.g.
@@ -149,11 +155,10 @@ uses.
 
 State the plan's effective `review_policy` (`every_stage` default, `checkpoints`, or
 `minimal`) and one line on what it means for this build: `every_stage` -- every part
-shows a Step 0 profile-stub checkpoint and builds progressively with per-stage
-checkpoints; `checkpoints` -- every part shows the stub checkpoint, but only parts
-matching the complexity gate (an interface, or 3+ blocks) build progressively; `minimal`
--- the stub is self-reviewed with no pause and every part builds autonomously with no
-stage checkpoints. This is the setting the Phase 3 part loop reads to decide when to
+shows a profile-stub checkpoint and then a checkpoint per stage (base shape, features,
+finishing); `checkpoints` -- every part shows the stub checkpoint, but only parts with an
+interface or 3+ blocks get per-stage checkpoints; `minimal` -- no stub and no stage
+checkpoints. This is the setting the Phase 3 part loop reads to decide when to
 pause for review.
 
 **Interfaces** (omit section if no part has any interfaces)

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -43,8 +44,14 @@ import trimesh
 from scipy.optimize import linear_sum_assignment
 
 EVALS_DIR = Path(__file__).parent
+REPO_ROOT = EVALS_DIR.parent
 CASES_DIR = EVALS_DIR / "cases"
 PRICES_PATH = EVALS_DIR / "model_prices.json"
+SKILL_CONFIG_SRC = (
+    REPO_ROOT / "skill_config.json"
+    if (REPO_ROOT / "skill_config.json").is_file()
+    else REPO_ROOT / "src" / "skill_config.default.json"
+)
 CHAMFER_SAMPLES = 2000
 CHARS_PER_TOKEN = 4
 
@@ -265,6 +272,23 @@ def score_case(case: str, run_dir: Path, prices: dict) -> dict:
     return result
 
 
+def _case_tags(case: str) -> set[str]:
+    meta = json.loads((CASES_DIR / case / "case.json").read_text(encoding="utf-8"))
+    return set(meta.get("tags", []))
+
+
+def filter_by_tags(cases: list[str], tags_arg: str | None) -> list[str]:
+    """Cases whose `case.json` `tags` intersect `tags_arg` (comma-separated, OR-matched).
+
+    `tags_arg` of `None`/empty leaves `cases` unchanged. A case with no `tags` key
+    has an empty tag set, so it is excluded by any non-empty filter.
+    """
+    if not tags_arg:
+        return cases
+    wanted = {t.strip() for t in tags_arg.split(",") if t.strip()}
+    return [c for c in cases if _case_tags(c) & wanted]
+
+
 def aggregate(case_results: list[dict]) -> dict:
     def vals_of(key):
         return [r[key] for r in case_results if r.get(key) is not None]
@@ -321,19 +345,47 @@ def render_markdown(scorecard: dict) -> str:
 
 
 def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
-    """Run `claude -p` for one case in its own working directory (costs tokens)."""
+    """Run `claude -p` for one case in its own working directory (costs tokens).
+
+    When the case directory has a `seed/` subdirectory (a prior round's accepted
+    `BUILD_PLAN.json` and part script), its contents are copied into the case's
+    working directory first and the request is framed as a correction to that
+    seeded state, instead of a from-scratch request in an empty directory.
+
+    `skill_config.json` is copied into the case's working directory too, from
+    the repo root if present there, else from `src/skill_config.default.json`
+    -- so eval runs pick up the same model routing as an interactive session.
+    """
     case_run_dir = run_dir / case
     case_run_dir.mkdir(parents=True, exist_ok=True)
     request = (CASES_DIR / case / "request.md").read_text(encoding="utf-8")
-    prompt = (
-        "Use the cq-design skill to fulfil this request in the current "
-        "directory. Append telemetry per attempt to build/attempts.jsonl as "
-        "the skill directs. This is an unattended eval run -- there is no "
-        "user to answer clarifying questions. If anything is topology- or "
-        "dimension-ambiguous, pick the most common/standard reading, record "
-        "the assumption in planning_notes, and proceed without asking.\n\n"
-        f"{request}"
-    )
+
+    seed_dir = CASES_DIR / case / "seed"
+    if seed_dir.is_dir():
+        shutil.copytree(seed_dir, case_run_dir, dirs_exist_ok=True)
+        prompt = (
+            "Use the cq-design skill to apply a correction to the existing "
+            "project already present in the current directory (its "
+            "BUILD_PLAN.json and part script(s) are a prior round's accepted "
+            "state). Append telemetry per attempt to build/attempts.jsonl as "
+            "the skill directs. This is an unattended eval run -- there is no "
+            "user to answer clarifying questions. If anything is topology- or "
+            "dimension-ambiguous, pick the most common/standard reading, record "
+            "the assumption in planning_notes, and proceed without asking. "
+            "This is a round-2 correction, not a from-scratch request:\n\n"
+            f"{request}"
+        )
+    else:
+        prompt = (
+            "Use the cq-design skill to fulfil this request in the current "
+            "directory. Append telemetry per attempt to build/attempts.jsonl as "
+            "the skill directs. This is an unattended eval run -- there is no "
+            "user to answer clarifying questions. If anything is topology- or "
+            "dimension-ambiguous, pick the most common/standard reading, record "
+            "the assumption in planning_notes, and proceed without asking.\n\n"
+            f"{request}"
+        )
+    shutil.copyfile(SKILL_CONFIG_SRC, case_run_dir / "skill_config.json")
     try:
         proc = subprocess.run(
             ["claude", "-p", prompt, "--dangerously-skip-permissions", "--output-format", "json"],
@@ -365,6 +417,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-dir", required=True, help="run directory (one subdir per case)")
     parser.add_argument("--cases", help="comma-separated case subset (default: all)")
     parser.add_argument(
+        "--tags",
+        help="comma-separated tag filter, OR-matched against each case's case.json tags",
+    )
+    parser.add_argument(
         "--generate",
         action="store_true",
         help="generate each case via `claude -p` before scoring (costs tokens)",
@@ -379,6 +435,7 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         print(f"unknown cases: {', '.join(unknown)}", file=sys.stderr)
         return 1
+    cases = filter_by_tags(cases, args.tags)
 
     if args.generate:
         for case in cases:

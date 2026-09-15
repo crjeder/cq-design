@@ -1,0 +1,3 @@
+{"id": "0001", "description": "A rectangular mounting bracket plate for wall installation", "code": "import cadquery as cq\nresult = cq.Workplane(\"XY\").box(30, 20, 5)\n"}
+{"id": "0002", "description": "A broken mounting bracket that references an undefined variable", "code": "import cadquery as cq\nresult = undefined_variable\n"}
+{"id": "0003", "description": "A decorative vase with a spiral pattern for a flower display", "code": "import cadquery as cq\nresult = cq.Workplane(\"XY\").box(30, 20, 5)\n"}

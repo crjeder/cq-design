@@ -28,6 +28,16 @@
       "type": "string",
       "description": "Printer model, e.g. 'Bambu P1S', 'Prusa MK4', 'Ender 3'"
     },
+    "coordinate_frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Resolved compass-to-axis binding for this project's prose and review interpretation only (does not alter placement.rotate or joint dof.direction sign conventions). Defaults to the standard binding (east: +x, north: +y, up: +z, per prompts/planning.md's Coordinate vocabulary table) when absent.",
+      "properties": {
+        "east": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]},
+        "north": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]},
+        "up": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]}
+      }
+    },
     "material": {
       "type": "string",
       "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC"],
