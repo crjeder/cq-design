@@ -3,6 +3,6 @@
   "models": {
     "planner": "claude-opus-5",
     "part_author": "claude-sonnet-5",
-    "fix_loop": "inline"
+    "fix_loop": "claude-sonnet-5"
   }
 }

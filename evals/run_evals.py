@@ -44,8 +44,14 @@ import trimesh
 from scipy.optimize import linear_sum_assignment
 
 EVALS_DIR = Path(__file__).parent
+REPO_ROOT = EVALS_DIR.parent
 CASES_DIR = EVALS_DIR / "cases"
 PRICES_PATH = EVALS_DIR / "model_prices.json"
+SKILL_CONFIG_SRC = (
+    REPO_ROOT / "skill_config.json"
+    if (REPO_ROOT / "skill_config.json").is_file()
+    else REPO_ROOT / "src" / "skill_config.default.json"
+)
 CHAMFER_SAMPLES = 2000
 CHARS_PER_TOKEN = 4
 
@@ -345,6 +351,10 @@ def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
     `BUILD_PLAN.json` and part script), its contents are copied into the case's
     working directory first and the request is framed as a correction to that
     seeded state, instead of a from-scratch request in an empty directory.
+
+    `skill_config.json` is copied into the case's working directory too, from
+    the repo root if present there, else from `src/skill_config.default.json`
+    -- so eval runs pick up the same model routing as an interactive session.
     """
     case_run_dir = run_dir / case
     case_run_dir.mkdir(parents=True, exist_ok=True)
@@ -375,6 +385,7 @@ def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
             "the assumption in planning_notes, and proceed without asking.\n\n"
             f"{request}"
         )
+    shutil.copyfile(SKILL_CONFIG_SRC, case_run_dir / "skill_config.json")
     try:
         proc = subprocess.run(
             ["claude", "-p", prompt, "--dangerously-skip-permissions", "--output-format", "json"],
