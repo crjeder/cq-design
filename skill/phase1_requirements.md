@@ -2,7 +2,7 @@
 
 **Sourcing search vs. dimension lookup:** Phase 0 (`skill/phase0_sourcing.md`) already
 runs a full-model search — "does a usable model already exist for this request" —
-before Phase 1 starts. The "Dimension lookup with Playwright" workflow below answers a
+before Phase 1 starts. The "Dimension lookup" step below answers a
 narrower question — "what are the exact dimensions of a named real-world product or
 component" — and is not a repeat of Phase 0's search. **No second sweep:** if Phase 0
 ran and fell through to Phase 1 (rung 5, nothing usable), reuse its search results
