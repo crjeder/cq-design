@@ -63,6 +63,347 @@ reference from the user, restate it with the plan name and its callout badge num
 
 For each part in `plan["parts"]`, in order:
 
+**Step 0 — Profile stub review**
+
+Before rendering the full part prompt (Step 1 below), author a minimal stub script:
+the part's characteristic 2D profile (from `dimensions` and, when it drives the
+outline, `part_notes`/`interfaces`), extruded to a nominal thickness. Write it to a
+throwaway path (e.g. `build/<part_id>_stub.py`, not `build/<part_id>.py`) and render it:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
+    build/<part_id>_stub.py --preview --preview-dir preview
+```
+
+This reuses the existing preview path; no new renderer is introduced. The stub is
+disposable — it is never reused as progressive build's base-shape stage, and its
+geometry is not required to match the construction plan later used for that stage
+(see the Progressive build section below).
+
+Branch on the plan's effective `review_policy` (see Build mode above):
+
+- **`checkpoints` or `every_stage`:** display the rendered stub and a one-line
+  description of the profile, then wait. The user can **approve** (proceed to Step 1),
+  **request a change** (re-author the stub with the feedback, re-render, present the
+  checkpoint again), or **skip** (proceed to Step 1 without further stub iteration).
+- **`minimal`:** still render the stub, but evaluate it yourself against the part's
+  design intent (does the silhouette look right) without pausing for the user —
+  the same self-review posture already used for autonomous parts' geometry. Note any
+  mismatch as a one-line self-correction and adjust the upcoming full script
+  accordingly; do not block on it.
+
+Once the stub is approved (or self-reviewed under `minimal`), append one line to
+`build/journal.md` (see `skill/resume.md`):
+
+```
+- phase3/stub_approved:<part_id>: <one-line profile description>
+```
+
+Then attempt up to **3 times**:
+
+**Step 1 — Render the part prompt**
+
+Read `$SKILL_DIR/prompts/part.md` and substitute every placeholder. The rendering
+**mode** is set by where this prompt ends up being read, and the `{{CQ_REFERENCE}}` /
+`{{FDM_GUIDELINES}}` rows below are mode-keyed:
+
+- **Inline** — the prompt is authored and consumed in the **main session's own
+  context**, which already holds the Phase 3 setup reads. Today this is only a
+  **progressive part's** per-stage authoring (see Progressive build). Substitute
+  with a citation, not file contents.
+- **Cold** — the prompt is sent to a context with no ambient reads of its own: a
+  spawned **builder agent** (every autonomous part, per the Agent routing gate —
+  an Agent-tool spawn starts fresh with none of main's context, even though main
+  renders Step 1 before spawning it) or a future `claude -p` subprocess (item 15's
+  routed part authoring). Substitute with full file contents.
+
+A retry within the part loop (Step 2's "On retry attempts") re-renders Step 1 in the
+same mode as the attempt it is retrying — a builder agent's retries stay cold, a
+progressive part's retries stay inline; a part never switches modes mid-build.
+
+| Placeholder | Value |
+|-------------|-------|
+| `{{PART_ID}}` | `part["id"]` |
+| `{{PART_DESCRIPTION}}` | `part["description"]` |
+| `{{W_MM}}` | `part["dimensions"]["w_mm"]` |
+| `{{D_MM}}` | `part["dimensions"]["d_mm"]` |
+| `{{H_MM}}` | `part["dimensions"]["h_mm"]` |
+| `{{INTERFACES}}` | `part["interfaces"]` as JSON, or `(none)` |
+| `{{POSE_INTENT}}` | `part["pose_intent"]`, or `(none)` -- present in both cold and inline render modes |
+| `{{PART_NOTES}}` | `part["part_notes"]`, or `(none)` -- for a part with no matching blocks, this is the ONLY place the design intent for its scratch geometry is recorded (see `prompts/planning.md` rule 3); never omit this substitution when the field is present |
+| `{{BLOCK_SPECS}}` | For each block in `part["blocks_needed"]`: look up in inventory, format as `- **name** — use\n  params: k (v), ...`; `(none — use raw CadQuery primitives)` if list is empty |
+| `{{WALL_MIN_MM}}` | `plan["constraints"]["wall_min_mm"]` |
+| `{{OVERHANG_MAX_DEG}}` | `plan["constraints"]["overhang_max_deg"]` |
+| `{{MATERIAL}}` | `plan["material"]` |
+| `{{NOZZLE_MM}}` | `plan["nozzle_mm"]` |
+| `{{CQ_REFERENCE}}` | **Cold** (builder agent / future `claude -p`): full contents of `CadQuery Pattern Reference.md`, then the full contents of `CadQuery Anti-Patterns.md` (appended **always**, for every part), then `emboss_text.md` **only when this part involves text/emboss** (its `description`, `part_notes`, or any `interfaces` entry mentions text/engrave/emboss/label; otherwise omit it — the pattern reference already carries the basic `.text()` idiom). **Inline** (progressive part, main session): a citation naming `reference/CadQuery Pattern Reference.md` and `reference/CadQuery Anti-Patterns.md` as already-in-context documents to apply, do not paste their contents; name `reference/emboss_text.md` too under the same text/emboss gate. |
+| `{{FDM_GUIDELINES}}` | Sections from `FDM 3D Print Design Guidelines.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always`. **Cold:** inject those sections' full text. **Inline:** cite the same selected sections by name only (the tag-filter computation is unchanged; only whether its output is bodies or names differs by mode). |
+| `{{ENGINEERING_RULES}}` | Sections from `Engineering Design Rules.md` whose `applies_to` tag includes any block in `blocks_needed`, plus all sections tagged `always`, plus all load-relevant sections when `part["load"]` is declared (any type), plus the "Flush-Fold Hinge Standoff" section when any entry in the plan's top-level `kinematics` array names this part as `moving_union` (block-based or block-free, per `blockless-kinematics`). **Cold:** inject those sections' full text. **Inline:** cite the same selected sections by name only. |
+
+**Measuring the render.** Write the fully-substituted prompt text (the same text
+handed to the builder agent in cold mode, or the same text this session is now acting on
+in inline mode) to `build/<part_id>_prompt_attempt<n>.txt` before proceeding. This is
+the source for Step 5's `prompt_chars` field — never type or estimate that number, only
+report a count computed from this file (e.g. `python -c
+"import pathlib;print(len(pathlib.Path('build/<part_id>_prompt_attempt<n>.txt').read_text(encoding='utf-8')))"`).
+A typed guess is not telemetry; a self-reported prompt_chars value from before this
+instrumentation existed is not comparable to one measured this way (see `attempt-telemetry`
+design D7).
+
+**Step 1.5 — Match archetype**
+
+Before authoring from a blank file, check whether `templates/archetypes.json` has a
+known-good template for this part's shape:
+
+1. **Planned value.** If `part["archetype"]` is set (the planner's rule 3a match), look up
+   that entry's `use` description and confirm it actually fits this part's `description` /
+   `part_notes` / `interfaces`. A confirmed fit skips straight to step 3 below.
+2. **No planned value, or the planned value doesn't fit.** Scan `templates/archetypes.json`
+   for an entry whose `use` or `aliases` matches this part's shape. No entry read here needs
+   its full script contents yet -- match on `name`/`use`/`aliases` only.
+3. **Match found (planned or newly matched).** Author the part script by copying
+   `templates/<file>` verbatim into `build/<part_id>.py`, then edit its top-level
+   `PARAMETERS` block to this part's dimensions/positions and apply any needed deltas
+   (added/removed features) -- preserving the template's existing `cq_verify` guards
+   rather than stripping them. This replaces Step 2's from-scratch authoring for this part;
+   Steps 2.5 onward (lint, validate, review) run unchanged against the resulting script.
+
+   **Add the ENGINEERING RATIONALE block.** A copied template has no rationale
+   section of its own (it was written once, generically, for no specific part's
+   parameters) -- the archetype path does not render `prompts/part.md`, so nothing
+   else inserts one. Apply the same trigger as `prompts/part.md`'s Engineering
+   rationale section (declared plan `load`, or `blocks_needed`/`archetype` in the
+   load-bearing set) to decide full vs. one-line form, then insert the section
+   between PARAMETERS and the geometry, evaluating the check against the
+   just-edited PARAMETERS values -- not the template's original defaults.
+4. **No match.** Fall back to raw authoring (Step 2 below) and state in one line why no
+   archetype fit (e.g. "no archetype fits: this is a multi-cavity organizer tray, not a
+   single enclosure/lid/bracket shape").
+
+A retry within the part loop does not re-run this match -- it edits the already-authored
+script (from either path) per Step 2's "On retry attempts".
+
+**Step 2 — Write the part script**
+
+Write `build/<part_id>.py`. The script must open with a flat import line for every block in `blocks_needed` — the `blocks` package re-exports every block, so no submodule path is needed:
+
+```python
+from blocks import fillet_box, screw_boss    # example
+```
+
+Then a `PARAMETERS` block, then the geometry, then `result = ...`. See generated-script rules in the core SKILL.md.
+
+**Multi-union parts.** When the part declares a `unions` array in `BUILD_PLAN.json` (one script
+that builds several rigid bodies in one coordinate frame, e.g. both leaves of a print-in-place
+hinge), set `result` to a **dict** mapping each declared union id to its `Workplane` --
+`result = {"leaf_a": <wp>, "leaf_b": <wp>}` -- with keys exactly the declared union ids. Each
+union is then exported, posed, and kinematically/clearance checked as a distinct body. A part
+without a `unions` array keeps the single `result = <wp>` form (one union, id = part id).
+
+On retry attempts: review the error types and hints from the previous attempt, apply targeted fixes. Do not start over blindly — you have full planning context. Keep the fix inside what the reported error implicates: do not restructure, refactor, or rewrite parts of the script the error does not name, and do not take the retry as an opening to add features or guards the spec did not ask for.
+
+**Rationale survives retries.** A correction prompt never waives the ENGINEERING
+RATIONALE requirement (see `prompts/part.md`). If the fix changes a parameter that
+appears in the rationale's computed check, re-evaluate that check with the new value
+in the corrected script — don't leave a stale number that no longer matches the
+parameters it claims to check.
+
+**Step 2.5 — Lint before validate**
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/script_lint.py" build/<part_id>.py
+```
+
+Pure-stdlib AST lint, no CadQuery subprocess — catches mechanically-detectable
+anti-patterns (a boolean inside a loop, a missing `result`, a submodule block
+import, a direct `cq.exporters.export` call, a magic number outside the named
+parameters, an unre-anchored `.center()`/`.hole()` chain, an unguarded
+computed-offset boolean, `.shell()` after `.fillet()`, `.fillet()` after
+`.chamfer()` in the same chain) in milliseconds instead of a full run. Exit 0 means no findings — proceed to Step 3. Exit 1 prints
+`{"success": false, "findings": [...]}`; fix every finding in the script and
+re-lint before spending the first `run_cadquery_model.py` call.
+
+**Step 3 — Validate**
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
+    build/<part_id>.py \
+    --expected-dims <w_mm>,<d_mm>,<h_mm> \
+    --dim-tolerance <dimension_tolerance_mm> \
+    --wall-min <wall_min_mm> \
+    --preview --preview-dir preview \
+    --cross-sections \
+    --callout "name=<name>;center=<x>,<y>,<z>" [...one per named+positioned interface] \
+    --unlocated-name <name> [...one per named interface with no position_mm]
+```
+
+`--preview-dir preview` writes the preview PNG(s) to the project's `preview/` directory
+instead of alongside the script, keeping `build/` free of generated images.
+
+**Thread the part's agreed vocabulary onto the tile.** For each of this part's
+`interfaces[]` entries that declares both `name` and `position_mm`, add one
+`--callout "name=<name>;center=<x>,<y>,<z>"` (plan order -- badge numbers follow
+supply order); for each named interface with no `position_mm`, add one
+`--unlocated-name <name>`. This makes the tile the checkpoint's vocabulary-
+ratification artifact (design D2/D3 of `shared-feature-vocabulary`): every agreed
+feature name gets a numbered badge and a legend line, or an explicit "not located"
+listing, so later conversation can reference features by name and badge instead of
+re-describing their location in prose.
+
+Parse the JSON result. Blocking error types: `non_manifold_edge`, `non_watertight`, `disconnected_body`, `dimension_mismatch`, `occ_exception`, `construction_error`, `command_not_done`, `fillet_failure`, `null_object`, `index_out_of_range`, `type_mismatch`.
+
+The `--preview` overview is a **2x2 first-angle tile** (Front, Left side, Top,
+Isometric); `--cross-sections` writes the interior sections as **separate files**
+(`previews[1:]`), not into the tile. Pass the declared feature/union positions from
+`BUILD_PLAN.json` as `--extra-section` cuts so the review's connectedness and
+interior questions have a section that actually crosses the geometry.
+
+**Sections through declared positions.** With no positions, `--cross-sections` cuts
+X/Y/Z through the bounding-box center only. If this part unions a feature (a boss,
+tab, dovetail, rib) into a body that already has a cavity (pit, pocket, shell)
+elsewhere in the same script, or joins bodies at a junction away from the center, the
+center cuts will not pass through it — and a disconnection or a feature poking into a
+cavity is invisible from every exterior panel (see `CadQuery Pattern Reference.md`
+gotcha 12). Add one `--extra-section axis=value_mm` per such position (repeatable),
+e.g. `--extra-section x=50 --extra-section x=110` for two seam tabs at x=50 and x=110,
+so the Step 4 review has a section crossing each feature/junction to answer against.
+When `--extra-section` positions are given they replace the center cuts (they are the
+declared positions); each is written as its own `<part>_section_<axis>_<pos>mm.png`.
+
+**Feature detail previews for small features.** The default overview tile packs the
+four views into a compact 2x2 grid (Front, Left, Top, Isometric, each a few hundred
+pixels) — a small feature (a boss, a slot, one dovetail tooth, a vent hole) is hard
+to actually inspect at that scale, especially
+right after adding or changing it at the user's specific request, when they want
+to see that exact change clearly. Generate a standalone, higher-resolution detail
+preview for it via `--detail`, in **addition to** (not instead of) the normal
+`--preview` overview:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
+    build/<part_id>.py --preview --preview-dir preview \
+    --detail "name=<feature_name>;center=<x>,<y>,<z>;size=<mm>[;section=<axis>=<pos>]"
+```
+
+- `name` becomes part of the output filename (`<part_id>_detail_<name>.png`, and
+  `<part_id>_section_<axis>_<name>.png` when `section` is given) — pick a short,
+  descriptive name (`vent_slot`, `dovetail_west`, `mount_hole`), not a generic one.
+- `center`/`size` frame a window roughly 2-4x the feature's own size, centered on
+  it — not the whole part's extent — so the feature actually fills the frame at
+  the higher `DETAIL_VIEW_SIZE` resolution.
+- Add `section=axis=pos` when the feature's internal depth or fit matters (a
+  blind hole, a boss inside a cavity, a snap-fit lip): it renders a second file, a
+  zoomed cross-section through the same point.
+- The extra files land in `previews[1:]` of the JSON result (the main overview
+  stays `previews[0]`) — repeat `--detail` for more than one feature in the same
+  run.
+
+Display every detail/section file alongside the main overview when reporting the
+change back to the user — don't make them squint at the small overview tile for a
+feature they specifically asked about.
+
+**Step 4 — Decide**
+
+Handle geometry errors first, then decide what this attempt returns.
+
+1. **Geometry errors present** AND attempt < 3 → fix the script (step 2), re-validate (step 3). The render is unreliable when geometry failed, so skip the review for this attempt. Blocking types include `disconnected_body` (a union that split into separate solids — union or bridge the pieces so they fuse into one component).
+2. **`success: true` AND no blocking errors** →
+   - **Progressive (inline):** run the full **question-driven visual self-review** per `reference/Visual Review Checklist.md`. Generate the question list from this part's `BUILD_PLAN.json` entry (one per interface, block, and union) plus the universal invariants (single connected body, flat bed face, proportions, shape match, authored orientation). Answer each yes/no **against a specific named view, and cite it**: the 2x2 tile panels for exterior questions, a section file for connectedness and interior questions. If no rendered view shows a question's geometry, render the needed section (`--extra-section`) or detail (`--detail`) **before** answering — an uncitable "yes" is not a pass. The connectedness invariant MUST be answered against a section that crosses the body's junctions, never an exterior panel (which can overlap in projection and read as connected when it is not). Per the checklist's coverage-first rule, also report any other discrepancy noticed, however low-confidence or minor, as an advisory finding (confidence + severity) — it does not fail a question or consume a retry.
+     - **Every question answered "yes"** → part done. Record `geometry.bbox`. Display the preview PNG (and the section/detail files it was judged against), and any advisory findings grouped separately under their own heading, not mixed with the checklist. Append `- phase3/part_accepted:<part_id>: progressive review passed` to `build/journal.md` (see `skill/resume.md`). Advance to next part.
+     - **Any question answered "no"** AND attempt < 3 → record a `visual_mismatch` finding naming the failed question, the cited view, and the discrepancy, then fix the script (step 2) with a targeted edit driven by that description and re-validate (step 3). Advisory findings from this attempt are not folded into the fix.
+   - **Autonomous (builder agent):** this attempt is accepted. Record `geometry.bbox` and the preview/section/detail paths, then return the **Builder return contract** (`status: passed`) without judging the render itself — the **Implementation audit** below, run by a fresh-context agent that never saw the script, is the acceptance bar for an autonomous part.
+3. **Attempt 3 exhausted** with remaining geometry errors or an unresolved visual-mismatch finding →
+   - **Progressive (inline):** summarize the remaining errors and any visual mismatch to the user directly. Ask conversationally: provide a hint, accept the part as-is, or skip this part.
+   - **Autonomous (builder agent):** return the **Builder return contract** with `status: blocked` and an `error_summary` — do not ask the user; the agent has no user channel. Main handles the ask via **Escalation** below.
+
+**Step 5 — Log the attempt (always, before retrying or advancing)**
+
+Append exactly one telemetry record for this attempt to `build/attempts.jsonl`
+via the helper (never hand-write the JSONL):
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" append build/attempts.jsonl \
+    --field 'part_id=<part_id>' --field 'attempt=<n>' --field 'outcome=<pass|fail>' \
+    --field 'error_types=["<type>", ...]' \
+    --field 'visual_review={"passed": <bool>, "failed_question": "<q or null>"}' \
+    --field 'prompt_chars=<measured character count of build/<part_id>_prompt_attempt<n>.txt>' --field 'model=<executing model>'
+```
+
+- `outcome=pass` only when step 4 accepted the part on this attempt; everything
+  else (geometry errors, visual_mismatch, user skip/blocked) is `fail`.
+- `error_types` lists the typed errors from the wrapper/gate JSON (empty on pass).
+- `visual_review` is the JSON `null` when the review did not run for this attempt
+  (e.g. geometry failed first).
+- `prompt_chars` is the character count of Step 1's `build/<part_id>_prompt_attempt<n>.txt`,
+  computed by reading the file — never typed from memory or estimated. See Step 1's
+  "Measuring the render" note.
+- `model` names the model that actually executed this attempt — the builder
+  agent's own model for an autonomous part, the main session's model for an
+  inline (progressive) part. Never write the literal `inline` — read the real
+  model identity of the executor making this call.
+- Skipping this step loses the measurement baseline every prompt/reference change
+  is judged against -- it is part of the loop, not optional bookkeeping.
+
+**Telemetry append safety.** Each `telemetry.py append` call opens the file in append
+mode and writes exactly one line; builders run **sequentially** (see Agent routing gate
+— no parallel builders in this iteration), so there is at most one writer at a time and
+no interleaving risk. This assumption breaks if a future change spawns builders in
+parallel — concurrent appends to the same file are not verified safe here and must be
+checked (or serialized, e.g. each agent returning its rows for main to append) before
+parallelizing.
+
+**Read the render before re-rendering.** The preview tile and its section/detail
+files are written to stable per-part names, so the next attempt's render overwrites
+them. Complete the visual review of an attempt (examine and cite the tile and every
+section/detail file it produced) **before** you re-author and re-render for the next
+attempt — never review against a file a later render has already overwritten.
+
+## Builder return contract
+
+When the executor is a builder agent (autonomous part), the last thing it does before
+finishing is return this contract as its final message — main parses it and never
+ingests any image content, only these fields and the paths inside them:
+
+```json
+{
+  "part_id": "<part id>",
+  "status": "passed | blocked",
+  "bbox": {"...": "geometry.bbox from the last successful validate"},
+  "preview_paths": ["preview/<part_id>_preview.png", "preview/<part_id>_section_*.png", "..."],
+  "attempts": <n>,
+  "error_summary": "<remaining errors / visual mismatch, or null on passed>"
+}
+```
+
+`status: passed` means the part cleared its deterministic checks (lint, wrapper
+validation, rendering) — it is **not** final acceptance; the part still owes the
+Implementation audit below, which is what actually judges the render. `status: blocked`
+means attempt 3 exhausted with unresolved geometry errors or a visual-mismatch finding;
+`error_summary` is what main shows the user in Escalation.
+
+## Escalation (blocked builder)
+
+When a builder agent returns `status: blocked`:
+
+1. Main summarizes `error_summary` to the user and asks conversationally: provide a
+   hint, accept the part as-is, or skip this part.
+2. **Hint** → **resume the same builder agent** (the one already spawned for this part,
+   not a new one) with the hint as its next message. The resumed agent keeps its full
+   attempt history and context — a cold respawn would discard exactly the memory the
+   hint is meant to steer. It continues the write/lint/validate/render loop
+   with the hint applied and returns an updated **Builder return contract** when done.
+2. **Accept as-is** → treat the last attempt's render as the final result for this part;
+   record it and advance. Skip the Implementation audit for this part (the user already
+   overrode the bar).
+3. **Skip** → advance to the next part without this part's geometry; note the skip in
+   the design-approval checkpoint summary.
+
+Whichever outcome, append one line to `build/journal.md` (see `skill/resume.md`) before
+moving on:
+
+```
+- phase3/escalation:<part_id>: <hint given verbatim | accepted as-is | skipped>
+```
 1. **Render** the builder prompt:
    ```bash
    uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" builder \
