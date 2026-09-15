@@ -1,6 +1,7 @@
 """Tests for quality_gate._analyze_stl overhang and geometry analysis."""
 
 import json
+import math
 
 import numpy as np
 import pytest
@@ -156,6 +157,55 @@ def test_authored_frame_overhang_cleared_by_print_orientation(multi_overhang_stl
         multi_overhang_stl, OVERHANG_DEG, [{"axis": "X", "angle_deg": 90.0}]
     )
     assert _issues_of(rotated, "overhang_exceeded") == []
+
+
+def test_overhang_over_clearance_opening_downgrades_to_info(multi_overhang_stl):
+    # Regression (hitstertower-oversupport): a wall opening the plan declares must
+    # stay open (finger access, card exit) still spans material overhead that reads
+    # as an unsupported overhang -- but it should be advisory, not a call to add
+    # support/redesign, once the plan names it.
+    zones = [{"center": (3.333, 3.333, 5.0), "radius_mm": 2.0, "name": "finger_access"}]
+    issues = _issues_of(
+        quality_gate._analyze_stl(multi_overhang_stl, OVERHANG_DEG, clearance_zones=zones),
+        "overhang_exceeded",
+    )
+    assert len(issues) == 1
+    assert issues[0]["severity"] == "info"
+    assert "finger_access" in issues[0]["message"]
+
+
+def test_overhang_outside_clearance_opening_stays_warning(multi_overhang_stl):
+    zones = [{"center": (100.0, 100.0, 100.0), "radius_mm": 2.0, "name": "unrelated"}]
+    issues = _issues_of(
+        quality_gate._analyze_stl(multi_overhang_stl, OVERHANG_DEG, clearance_zones=zones),
+        "overhang_exceeded",
+    )
+    assert len(issues) == 1
+    assert issues[0]["severity"] == "warning"
+
+
+def test_clearance_opening_zones_maps_position_through_placement_and_rotate():
+    plan: dict = {}
+    part = {
+        "placement": {"translate_mm": [10.0, 0.0, 0.0]},
+        "interfaces": [
+            {
+                "type": "clearance_opening",
+                "name": "finger_access",
+                "position_mm": [0, 0, 0],
+                "size_mm": [10, 6],
+            },
+            {"type": "screw_mount", "position_mm": [1, 1, 1]},
+        ],
+    }
+    zones = quality_gate._clearance_opening_zones(
+        plan, part, rotate=[{"axis": "Z", "angle_deg": 90.0}]
+    )
+    assert len(zones) == 1
+    assert zones[0]["name"] == "finger_access"
+    # placement translate then Z+90 rotate: (10,0,0) -> (0,10,0)
+    assert zones[0]["center"] == pytest.approx((0.0, 10.0, 0.0), abs=1e-6)
+    assert zones[0]["radius_mm"] == pytest.approx(math.hypot(5, 3) + 1.0)
 
 
 def test_run_gate_threads_orientation_rotate_into_overhang(
