@@ -400,7 +400,7 @@ def _run_telemetry_stage(attempts_log: str) -> list[dict]:
             "warning",
             "telemetry_missing",
             f"No attempt telemetry found at {attempts_log}.",
-            "Log each attempt with telemetry.py per skill/phase3_build.md Step 5.",
+            "Attempts are logged by the telemetry.py PostToolUse hook (see init_permissions.py).",
         )
     ]
 

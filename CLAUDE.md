@@ -102,6 +102,7 @@ or calling any script listed below.
     quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes (model from skill_config.json's models.fix_loop)
     plan_validate.py         # BUILD_PLAN.json schema + inventory cross-check
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
+    render_prompt.py         # Renders builder/auditor agent prompts for one part (Phase 3)
     print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost
     convert_build123d.py     # Phase 0 sourcing aid: build123d -> CadQuery conversion
     cq_compat.py             # Compatibility shim neutralizing a cq_warehouse shape-copy patch
@@ -164,8 +165,11 @@ or calling any script listed below.
     model_prices.json    # Editable USD-per-MTok table for cost estimates
 
   prompts/
-    planning.md          # Planning phase prompt (outputs BUILD_PLAN.json)
-    part.md              # Per-part code generation prompt
+    research.md          # Research agent prompt (dimension lookup table)
+    planning.md          # Planner agent prompt (outputs BUILD_PLAN.json)
+    builder.md           # Builder agent operating instructions + return contract
+    part.md              # Per-part specification appended to builder.md
+    audit.md             # Fresh-context implementation auditor prompt
 
   templates/
     archetypes.json         # Machine-readable archetype index (name, file, use, params)
@@ -174,7 +178,7 @@ or calling any script listed below.
     adapter_ring_flanged.py, l_bracket_gusset.py, plate_boss_pattern.py,
     hook.py, clip.py, stand.py,
     gridfinity_bin.py, gridfinity_baseplate.py   # Known-good, pre-verified whole-part templates,
-                                    # one per archetype (Phase 3 Step 1.5 match source)
+                                    # one per archetype (builder start points)
 
   skill/                 # Per-phase SKILL.md detail (setup, phase0-4, resume), read on demand
   reference/             # Injected design references (CadQuery patterns, FDM DFM, hardware_dims)
@@ -192,6 +196,7 @@ or calling any script listed below.
     test_plan_validate.py            # Schema validation -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
+    test_render_prompt.py            # Builder/audit prompt rendering -- fast, no CadQuery
     test_telemetry.py                # Attempt-log helper + CLI -- fast, no CadQuery
     test_request_log_search.py       # request_log filter helper + CLI -- fast, no CadQuery
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
