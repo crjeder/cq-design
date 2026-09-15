@@ -80,8 +80,8 @@ gate, orange = main-session user interaction.
 
 | Agent | Model | Input | Output | Why it is an agent |
 |---|---|---|---|---|
-| Research | default | rendered `prompts/research.md` | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
-| Planner | `skill_config.json`'s `models.planner` (default strong, e.g. Opus) | rendered `prompts/planning.md` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
+| Research | default | rendered `prompts/research.md` by `src/render_prompt.py` | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
+| Planner | `skill_config.json`'s `models.planner` (default strong, e.g. Opus) | rendered `prompts/planning.md` by `src/render_prompt.py` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
 | Part builder (x N) | `skill_config.json`'s `models.part_author` (default mid-tier, e.g. Sonnet; `"inline"` skips the spawn) | `build/<id>_prompt.txt` = `prompts/builder.md` + `prompts/part.md`, rendered by `src/render_prompt.py` | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
 | Implementation auditor | default (vision) | `prompts/audit.md` rendered by `src/render_prompt.py`: plan entry, scoped request text, preview/section PNGs, PARAMETERS values for load-bearing parts, NOT the geometry code | per-question pass/fail with cited views | kills self-review bias - the author never grades its own homework |
 

@@ -102,7 +102,8 @@ or calling any script listed below.
     quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes (model from skill_config.json's models.fix_loop)
     plan_validate.py         # BUILD_PLAN.json schema + inventory cross-check
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
-    render_prompt.py         # Renders builder/auditor agent prompts for one part (Phase 3)
+    render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
+                              # planner/research agent prompts (Phase 1/2)
     skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
     print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost
     convert_build123d.py     # Phase 0 sourcing aid: build123d -> CadQuery conversion
@@ -197,7 +198,7 @@ or calling any script listed below.
     test_plan_validate.py            # Schema validation -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
-    test_render_prompt.py            # Builder/audit prompt rendering -- fast, no CadQuery
+    test_render_prompt.py            # Builder/audit/planning/research prompt rendering -- fast, no CadQuery
     test_skill_version.py            # Version stamping/detection/compare -- fast, no CadQuery
     test_telemetry.py                # Attempt-log helper + CLI -- fast, no CadQuery
     test_request_log_search.py       # request_log filter helper + CLI -- fast, no CadQuery

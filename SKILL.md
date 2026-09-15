@@ -179,7 +179,7 @@ read the `hint`, don't guess a fix from the type name. All typed errors share th
 | `printer_profile.json` | Printer/material/nozzle/constraint defaults |
 | `src/run_cadquery_model.py` / `quality_gate.py` | Geometry validator / DFM gate |
 | `src/plan_validate.py` | Validates BUILD_PLAN.json vs. schema + inventory |
-| `prompts/research.md` / `planning.md` | Research and planner agent prompts |
+| `prompts/research.md` / `planning.md` | Research and planner agent prompts, rendered by `src/render_prompt.py` |
 | `prompts/builder.md` + `part.md` / `audit.md` | Builder and auditor agent prompts, rendered by `src/render_prompt.py` |
 | `src/model_export.py` | Assembles unions into model.3mf + per-union/plate STL |
 | `src/blocks/inventory.json` / `validate.py --search <kw>` | Block descriptors; lookup |

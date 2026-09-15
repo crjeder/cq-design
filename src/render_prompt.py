@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Render the builder or auditor agent prompt for one part of BUILD_PLAN.json.
+"""Render the builder, auditor, planner, or research agent prompt.
 
 Usage:
     python render_prompt.py builder --plan BUILD_PLAN.json --part lid \
         [--override autonomous|staged] [--attempts build/attempts.jsonl] [--out PATH]
     python render_prompt.py audit --plan BUILD_PLAN.json --part lid \
         --script build/lid.py --previews preview/lid_preview.png ... [--out PATH]
+    python render_prompt.py planning --request-file build/request.md \
+        [--plan BUILD_PLAN.json] [--profile printer_profile.json] [--out PATH]
+    python render_prompt.py research --targets-file build/lookup_targets.md \
+        [--known-file build/known_context.md] [--out PATH]
 
-Writes the prompt to --out (default build/<part>_prompt.txt / build/<part>_audit_prompt.txt)
-and prints {"out", "chars", ...} as JSON. Exit 1 on an unknown part or unfilled placeholder.
+Writes the prompt to --out (default build/<part>_prompt.txt / build/<part>_audit_prompt.txt /
+build/planning_prompt.txt / build/research_prompt.txt) and prints {"out", "chars", ...} as
+JSON. Exit 1 on an unknown part or unfilled placeholder.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from collections import Counter
 from pathlib import Path
 
 from plan_validate import _is_load_bearing
+from printer_profile_validate import validate_profile
 from request_log_search import search_request_log
 from telemetry import _read_records, fold_attempts
 
@@ -335,6 +341,73 @@ def render_audit(plan: dict, part: dict, script: Path, previews: list[str]) -> s
     )
 
 
+def _index_lines(entries: list[dict], with_file: bool) -> str:
+    if with_file:
+        return "\n".join(
+            f"- **{e['name']}** (`templates/{e['file']}`) -- {e['use']}" for e in entries
+        )
+    return "\n".join(f"- **{e['name']}** -- {e['use']}" for e in entries)
+
+
+NO_PROFILE_NOTE = (
+    "(none -- take printer, material, nozzle, and constraints from the user's Phase 1 answers)"
+)
+
+
+def render_planning(
+    request: str, plan: dict | None, profile_path: Path
+) -> tuple[str, str, list[str]]:
+    """Returns (rendered text, profile status, profile errors)."""
+    inventory = json.loads(_read(SKILL_DIR / "src/blocks/inventory.json"))
+    archetypes = json.loads(_read(SKILL_DIR / "templates/archetypes.json"))
+    blocks = {
+        block_name(b)
+        for part in (plan or {}).get("parts", [])
+        for b in part.get("blocks_needed") or []
+    }
+    fdm = tagged_sections(_read(REF / "FDM 3D Print Design Guidelines.md"), blocks)
+
+    profile_errors: list[str] = []
+    if not profile_path.is_file():
+        status = "absent"
+        profile_text = NO_PROFILE_NOTE
+    else:
+        profile_errors = validate_profile(str(profile_path))
+        if profile_errors:
+            status = "invalid"
+            profile_text = NO_PROFILE_NOTE
+        else:
+            profile = json.loads(_read(profile_path))
+            status = "loaded"
+            profile_text = json.dumps(
+                {k: profile[k] for k in ("printer", "material", "nozzle_mm", "constraints")},
+                indent=2,
+            )
+
+    text = fill(
+        _read(SKILL_DIR / "prompts/planning.md"),
+        {
+            "USER_REQUEST": request,
+            "BLOCK_INVENTORY": _index_lines(inventory, with_file=False),
+            "ARCHETYPE_INDEX": _index_lines(archetypes, with_file=True),
+            "FDM_GUIDELINES": fdm,
+            "PRINTER_PROFILE": profile_text,
+        },
+    )
+    return text, status, profile_errors
+
+
+def render_research(targets: str, known: str | None) -> str:
+    return fill(
+        _read(SKILL_DIR / "prompts/research.md"),
+        {
+            "LOOKUP_TARGETS": targets,
+            "KNOWN_CONTEXT": known.strip() if known and known.strip() else "(none)",
+            "SKILL_DIR": SKILL_DIR.as_posix(),
+        },
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -349,25 +422,59 @@ def main(argv: list[str] | None = None) -> int:
     sub.choices["builder"].add_argument("--attempts", type=Path)
     sub.choices["audit"].add_argument("--script", required=True, type=Path)
     sub.choices["audit"].add_argument("--previews", required=True, nargs="+")
-    args = parser.parse_args(argv)
 
-    plan = json.loads(_read(Path(args.plan)))
-    part = next((p for p in plan["parts"] if p["id"] == args.part), None)
-    if part is None:
-        print(f"render_prompt: no part '{args.part}' in {args.plan}", file=sys.stderr)
-        return 1
-    try:
-        if args.kind == "builder":
-            text, part_stages = render_builder(plan, part, args.override, args.attempts)
-            out = Path(args.out or f"build/{part['id']}_prompt.txt")
-            extra = {"stages": part_stages}
-        else:
-            text = render_audit(plan, part, args.script, args.previews)
-            out = Path(args.out or f"build/{part['id']}_audit_prompt.txt")
-            extra = {}
-    except ValueError as exc:
-        print(f"render_prompt: {exc}", file=sys.stderr)
-        return 1
+    p = sub.add_parser("planning")
+    p.add_argument("--request-file", required=True, type=Path)
+    p.add_argument("--plan", type=Path)
+    p.add_argument("--profile", type=Path, default=Path("printer_profile.json"))
+    p.add_argument("--out")
+
+    p = sub.add_parser("research")
+    p.add_argument("--targets-file", required=True, type=Path)
+    p.add_argument("--known-file", type=Path)
+    p.add_argument("--out")
+
+    args = parser.parse_args(argv)
+    extra: dict[str, str | list[str]] = {}
+
+    if args.kind in ("builder", "audit"):
+        plan = json.loads(_read(Path(args.plan)))
+        part = next((p for p in plan["parts"] if p["id"] == args.part), None)
+        if part is None:
+            print(f"render_prompt: no part '{args.part}' in {args.plan}", file=sys.stderr)
+            return 1
+        try:
+            if args.kind == "builder":
+                text, part_stages = render_builder(plan, part, args.override, args.attempts)
+                out = Path(args.out or f"build/{part['id']}_prompt.txt")
+                extra["stages"] = part_stages
+            else:
+                text = render_audit(plan, part, args.script, args.previews)
+                out = Path(args.out or f"build/{part['id']}_audit_prompt.txt")
+        except ValueError as exc:
+            print(f"render_prompt: {exc}", file=sys.stderr)
+            return 1
+    elif args.kind == "planning":
+        plan = json.loads(_read(args.plan)) if args.plan else None
+        try:
+            text, status, errors = render_planning(_read(args.request_file), plan, args.profile)
+        except ValueError as exc:
+            print(f"render_prompt: {exc}", file=sys.stderr)
+            return 1
+        out = Path(args.out or "build/planning_prompt.txt")
+        extra["profile"] = status
+        if errors:
+            extra["profile_errors"] = errors
+    else:
+        try:
+            text = render_research(
+                _read(args.targets_file), _read(args.known_file) if args.known_file else None
+            )
+        except ValueError as exc:
+            print(f"render_prompt: {exc}", file=sys.stderr)
+            return 1
+        out = Path(args.out or "build/research_prompt.txt")
+
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     print(json.dumps({"out": out.as_posix(), "chars": len(text), **extra}))
