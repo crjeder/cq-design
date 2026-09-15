@@ -4,19 +4,17 @@ Run once per working directory, immediately after establishing `SKILL_DIR` and b
 
 ## Python environment
 
-Python 3.10-3.12 (CadQuery has no wheels for 3.13+), with the venv activated:
+The skill's own uv project supplies Python 3.12 and every dependency; no venv to
+activate. Sync it once (idempotent, fast when already synced):
 
 ```bash
-python3.12 -m venv .venv
-# Windows:  .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
+uv sync --project "$SKILL_DIR"
 ```
 
-```bash
-# Windows (cmd / any shell, using Python)
-for /f "delims=" %i in ('python -c "import pathlib, sys; print(pathlib.Path(sys.argv[1]).parent.resolve())" "%~f0"') do set SKILL_DIR=%i
-```
+Scripts that import third-party packages are then run as
+`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/<script>.py"`; stdlib-only helpers
+(`init_permissions.py`, `request_log_search.py`, `convert_build123d.py`,
+`blocks/validate.py`) may use plain `python`.
 
 ## Permission bootstrap (first use per directory)
 
@@ -80,7 +78,7 @@ if [ ! -f printer_profile.json ]; then
     cp "$SKILL_DIR/src/printer_profile.default.json" ./printer_profile.json
     echo "Seeded printer_profile.json with defaults -- edit it to match your printer."
 fi
-python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
 ```
 
 ```powershell
@@ -89,7 +87,7 @@ if (-not (Test-Path printer_profile.json)) {
     Copy-Item "$SKILL_DIR/src/printer_profile.default.json" ./printer_profile.json
     Write-Host "Seeded printer_profile.json with defaults -- edit it to match your printer."
 }
-python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
 ```
 
 An existing `printer_profile.json` is never overwritten or re-seeded -- the copy only happens
