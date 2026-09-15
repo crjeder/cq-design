@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 import render_prompt as rp
 
 CASES = Path(__file__).parent.parent / "evals" / "cases"
@@ -76,6 +78,71 @@ def test_text_part_injects_emboss_reference_without_placeholder_error():
         plan, {**part, "description": "lid with an embossed label"}, None, None
     )
     assert "# Emboss & Deboss Text Reference" in text
+
+
+def test_render_planning_fresh_plan_lists_inventory_and_archetypes(tmp_path):
+    profile = tmp_path / "printer_profile.json"
+    profile.write_text(
+        json.dumps(
+            {
+                "printer": "Prusa MK4",
+                "material": "PLA",
+                "nozzle_mm": 0.4,
+                "constraints": {
+                    "wall_min_mm": 1.2,
+                    "overhang_max_deg": 45,
+                    "dimension_tolerance_mm": 0.5,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    text, status, errors = rp.render_planning("a small enclosure", None, profile)
+    assert status == "loaded"
+    assert errors == []
+    assert "a small enclosure" in text
+    assert "fillet_box" in text
+    assert "enclosure-body" in text
+    assert "Prusa MK4" in text
+    assert "{{" not in text
+
+
+def test_render_planning_replan_includes_block_tagged_fdm_section():
+    plan = json.loads((CASES / "boss-plate" / "BUILD_PLAN.json").read_text(encoding="utf-8"))
+    fresh_text, _, _ = rp.render_planning("req", None, Path("does-not-exist.json"))
+    replan_text, _, _ = rp.render_planning("req", plan, Path("does-not-exist.json"))
+    assert replan_text != fresh_text
+    assert len(replan_text) > len(fresh_text)
+
+
+def test_render_planning_absent_and_invalid_profile(tmp_path):
+    missing = tmp_path / "printer_profile.json"
+    text, status, errors = rp.render_planning("req", None, missing)
+    assert status == "absent"
+    assert errors == []
+    assert "take printer, material, nozzle" in text
+
+    invalid = tmp_path / "bad_profile.json"
+    invalid.write_text(json.dumps({"printer": "X"}), encoding="utf-8")
+    text, status, errors = rp.render_planning("req", None, invalid)
+    assert status == "invalid"
+    assert errors
+    assert "take printer, material, nozzle" in text
+
+
+def test_render_research_with_and_without_known_context():
+    text = rp.render_research("- iPhone 15 Pro width", None)
+    assert "iPhone 15 Pro width" in text
+    assert "(none)" in text
+    assert "{{" not in text
+
+    text2 = rp.render_research("- widget width", "iPhone 15: 70.6mm per apple.com")
+    assert "iPhone 15: 70.6mm per apple.com" in text2
+
+
+def test_fill_raises_on_unfilled_placeholder():
+    with pytest.raises(ValueError, match="unfilled placeholders"):
+        rp.fill("hello {{MISSING}}", {})
 
 
 def test_audit_parameters_block_skips_calls(tmp_path):
