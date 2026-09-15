@@ -1,32 +1,19 @@
 # CadQuery Anti-Patterns
 
-Negative-space companion to `CadQuery Pattern Reference.md`: the mistakes LLMs make
-generating CadQuery, and how to fix them. The pattern reference tells you how to do X;
-this file tells you what you did wrong.
-
-Organized by **durability tier**, because that ordering is also a real sort -- kernel
-truths vs. artifacts of the stateful fluent API:
-
-- **Tier 1 -- Kernel-level (OCCT):** geometry facts. True in any OpenCASCADE-backed API.
-- **Tier 2 -- Stateful-context:** bugs that exist *because* the fluent API carries a
-  persistent origin and a selection stack. A stateless/algebra-mode API has none of them.
-- **Tier 3 -- CadQuery API mechanics:** method-specific semantics you re-express, not
-  geometry truths.
-
-All dimensions are in millimeters. Every example is fluent API; the Free Function API
-(`cadquery.func`) is intentionally not covered -- this pipeline is fluent-only.
+Mistakes LLMs make generating CadQuery, and how to fix them. Tiers: **1 Kernel-level
+(OCCT)** -- geometry facts true in any OpenCASCADE-backed API. **2 Stateful-context**
+-- bugs from the fluent API's persistent origin and selection stack. **3 API
+mechanics** -- method-specific semantics. Millimeters; fluent API only
+(`cadquery.func` not covered).
 
 
 ## Tier 1 -- Kernel-level (OCCT geometry truths)
 
-These are OpenCASCADE facts, not CadQuery-API facts.
-
 ### Feature operations vs. booleans -- and when each is right
 
-Reaching for `.union()` / `.cut()` when a direct feature operation would be cleaner is the
-most common LLM reflex. Booleans rebuild the full boundary from scratch; feature operations
-extend or modify the existing BRep directly -- faster, and cleaner topology for subsequent
-selections.
+Reaching for `.union()`/`.cut()` when a feature op would be cleaner is the most
+common LLM reflex. Booleans rebuild the full boundary; feature ops extend the
+existing BRep directly -- faster, cleaner topology.
 
 | Instead of... | Use... |
 |--------------|--------|
@@ -36,252 +23,167 @@ selections.
 | `.union(...)` for a chamfered edge | `.edges(...).chamfer(d)` |
 | `.union(...)` for a filleted edge | `.edges(...).fillet(r)` |
 
-**Skill rule (reconciles this with Pattern Reference Common Gotcha #10):**
-- **Feature ops** for bosses, holes, pockets, and edges on an existing solid.
-- **Booleans** for combining genuinely separate solids, AND for cavities / enclosures
-  where `.shell()` is fragile on filleted bodies -- model the cavity as its own solid and
-  `.cut()` it (this is exactly what the `hollow_box` block does; see Gotcha #10).
-
-So "avoid booleans" is not absolute: it means *don't* use a boolean for a single boss or
-hole; it does *not* mean avoid the sanctioned cavity-cut pattern.
+**Skill rule (reconciles with Pattern Reference Common Gotcha #10):** feature ops for
+bosses/holes/pockets/edges on an existing solid; booleans for combining separate
+solids, AND for cavities where `.shell()` is fragile on filleted bodies -- model the
+cavity as its own solid and `.cut()` it (what `hollow_box` does; see Gotcha #10).
+"Avoid booleans" means don't use one for a single boss/hole, not "never cut a cavity."
 
 ### Booleans are expensive -- never loop them
 
-Each boolean recomputes the full boundary. N sequential cuts is O(N) full-boundary rebuilds.
-Combine the tools into one compound and subtract once.
+Each boolean recomputes the full boundary; N sequential cuts is O(N) rebuilds.
+Combine tools into one compound and subtract once (same principle as the pattern
+reference's "Non-Overlapping Part Assembly"):
 
 ```python
-# Wrong: 10 sequential boolean operations
-result = body
-for h in holes:            # each iteration rebuilds the whole boundary
-    result = result.cut(h)
-
-# Right: one compound, one cut
+# Wrong: result = body; for h in holes: result = result.cut(h)
+# Right:
 from cadquery import Compound
 tool = Compound.makeCompound([h.val() for h in holes])
 result = body.cut(tool)
 ```
 
-This is the same principle behind the pattern reference's "Non-Overlapping Part Assembly"
-section (compound instead of N unions).
-
 ### A wire must be closed before it can bound a solid
 
-`.lineTo()` / `.spline()` / `.threePointArc()` sequences must reach `.close()` before
-`.extrude()` or `.revolve()`. An open wire cannot bound a face, so it errors or produces an
-open shell.
+`.lineTo()`/`.spline()`/`.threePointArc()` sequences must reach `.close()` before
+`.extrude()`/`.revolve()`, or the profile can't bound a face.
 
 ```python
-# Wrong: missing .close() -> extrude has no closed profile
-cq.Workplane("XY").moveTo(0, 0).lineTo(10, 0).lineTo(10, 5).lineTo(0, 5).extrude(3)
-
-# Right
-cq.Workplane("XY").moveTo(0, 0).lineTo(10, 0).lineTo(10, 5).lineTo(0, 5).close().extrude(3)
+# Wrong: ...lineTo(0, 5).extrude(3)          # no .close() -> open shell
+# Right:  ...lineTo(0, 5).close().extrude(3)
 ```
 
 ### `BREP_API command not done`
 
-This comes from the OpenCASCADE kernel: a BRep operation could not be completed
-geometrically. It is not a CadQuery bug -- the requested geometry is invalid or degenerate.
-The message does not say which operation failed. Common causes:
+An OCCT BRep op could not be completed geometrically -- not a CadQuery bug; the
+message doesn't say which op failed. Common causes:
 
-- **Fillet / chamfer radius too large** -- larger than the shortest adjacent edge, or
-  adjacent fillets overlap. Reduce the radius; fillet in separate calls, smallest features
-  first; fillet different edge groups separately rather than all at once.
-- **Self-intersecting profile** -- a wire/sketch that crosses itself, or a revolve profile
-  that crosses its own axis of revolution, cannot be extruded/revolved.
-- **Self-intersecting sweep** -- the profile is too large relative to the path curvature and
-  folds back on itself at tight bends. Reduce the profile size or increase the path radius.
-- **Shell thickness too large** -- `.shell()` fails when the thickness exceeds the smallest
-  local radius of curvature (the offset surface self-intersects). Reduce thickness or
-  simplify the geometry before shelling.
+- **Fillet/chamfer radius too large** -- larger than the shortest adjacent edge, or
+  adjacent fillets overlap. Reduce radius; smallest features first, separate calls
+  per edge group.
+- **Self-intersecting profile/sweep** -- a wire crossing itself, a revolve profile
+  crossing its own axis, or a sweep profile too large for the path curvature.
+- **Shell thickness too large** -- `.shell()` fails when thickness exceeds the
+  smallest local radius of curvature. Reduce thickness or simplify first.
 
 ```python
-# Fails if the box edge is shorter than 5, or adjacent fillets intersect
-solid.edges("|Z").fillet(5)   # BREP_API command not done
-
-# Apply smaller fillets to shorter edges first
-result = (cq.Workplane("XY").box(20, 20, 5)
-          .edges("|Z").fillet(1)      # vertical edges first
-          .edges(">Z").fillet(0.5))   # then top perimeter, smaller radius
+solid.edges("|Z").fillet(5)   # Wrong if any |Z edge is shorter than 5, or fillets intersect
+# Right: smaller fillets on shorter edges first, then the rest
+result = cq.Workplane("XY").box(20,20,5).edges("|Z").fillet(1).edges(">Z").fillet(0.5)
 ```
 
 
 ## Tier 2 -- Stateful-context footguns
 
-Every item here is a consequence of the fluent API's persistent origin and selection stack.
-A stateless / algebra-mode API (e.g. build123d algebra mode) has none of these failure modes.
-
 ### Origin drift after `.center()`
 
 `.center(x, y)` permanently mutates the workplane origin. A later `.faces(">Z").workplane()`
-inherits that shifted origin via the default `centerOption="ProjectedOrigin"` -- NOT the face
-center -- placing subsequent features off-center. Full treatment, with three fixes, lives in
-the pattern reference's **"Workplane Context Stacking (Origin Drift)"** and **"The Fresh
-Workplane Pattern"** sections. Prefer `.moveTo()` (does not mutate the origin) when
-repositioning a single feature. To catch drift at build time, assert the origin before
-placing the next feature: `wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))`
-(from `cq_verify`); a drifted origin then fails as a typed `workplane_drift` error instead
-of silently misplacing geometry.
+inherits that shifted origin (`centerOption="ProjectedOrigin"`) -- NOT the face
+center -- misplacing subsequent features. Full treatment in the pattern reference's
+"Workplane Context Stacking (Origin Drift)" and "The Fresh Workplane Pattern."
+Prefer `.moveTo()` (no origin mutation) for a single feature. Catch drift at build
+time: `wp = check_workplane(wp, "lid_top", expected_origin=(0,0,12))` (`cq_verify`)
+-- fails as a typed `workplane_drift` error instead of silently misplacing geometry.
 
 ### Losing the solid context after a selector
 
-After `.faces(...)` or `.edges(...)`, the stack holds the selected entities, not the solid.
-Calling a feature op directly on the selection uses the wrong context.
+After `.faces(...)`/`.edges(...)`, the stack holds the selection, not the solid.
 
 ```python
-# Wrong: after .faces(), the solid is not the active context
-solid.faces(">Z").box(5, 5, 3)
-
-# Right: .workplane() re-establishes a sketch context on the face
-solid.faces(">Z").workplane().rect(5, 5).extrude(3)
-
-# Right: .end() returns to the solid context
-solid.faces(">Z").tag("top").end().faces("<Z").workplane().hole(3)
+solid.faces(">Z").box(5, 5, 3)                              # Wrong: wrong context
+solid.faces(">Z").workplane().rect(5, 5).extrude(3)         # Right: .workplane() re-establishes sketch context
+solid.faces(">Z").tag("top").end().faces("<Z").workplane().hole(3)  # Right: .end() returns to solid
 ```
 
-Which ops need a `.workplane()` after a face selection: `.hole()`, `.shell()`, and
-`.fillet()` act on the selected face directly, but sketch-then-lift ops
-(`.circle().extrude()`, `.rect().cutBlind()`) need one -- skipping it silently uses whatever
-plane was active *before* the selection, producing geometry in the wrong place. When in
-doubt, call `.workplane()`.
-
-```python
-solid.faces(">Z").hole(3)                       # fine -- .hole() works on the face directly
-solid.faces(">Z").circle(3).extrude(5)          # wrong -- uses the previous plane context
-solid.faces(">Z").workplane().circle(3).extrude(5)   # correct
-```
+`.hole()`, `.shell()`, `.fillet()` act on the selected face directly; sketch-then-lift
+ops (`.circle().extrude()`, `.rect().cutBlind()`) need `.workplane()` first, or they
+silently use whatever plane was active before the selection. When in doubt, call
+`.workplane()`.
 
 ### Coordinates are local after `.workplane()`
 
-Once a workplane is attached, all sketch coordinates are in that plane's **local** frame,
-not global. A `.circle(3)` lands at the face center (local (0,0)), not global (0,0). Shift
-within the local frame with `.center()` or `.transformed()` -- not by reaching for global
-coordinates.
-
-```python
-solid.faces(">Z").workplane().circle(3).extrude(5)              # circle at face center
-solid.faces(">Z").workplane().center(10, 10).circle(3).extrude(5)  # shifted in local frame
-```
+Sketch coordinates are in the plane's **local** frame, not global. `.circle(3)`
+lands at local (0,0) (the face center). Shift with `.center()`/`.transformed()`.
 
 ### `.val()` silently returns only the first stack item
 
-`.val()` returns the first item and discards the rest without error. Use `.vals()` for all.
-
 ```python
-face  = solid.faces().val()    # ONE face, first in iteration order -- not necessarily ">Z"
-faces = solid.faces().vals()   # all six
-top   = solid.faces(">Z").val()  # select first, then val() for a specific one
+face  = solid.faces().val()      # Wrong for "give me all": ONE face, first in iteration order
+faces = solid.faces().vals()     # Right: all six
 ```
 
 ### `.each()` replaces the stack and needs a Shape return
 
-`.each(callback)` calls the callback on every stack item and *replaces* the stack with the
-returned Shapes. It is not a side-effect iterator.
+Calls the callback on every stack item and *replaces* the stack with the returned
+Shapes -- not a side-effect iterator.
 
 ```python
-# Wrong: callback returns None; stack is destroyed
-solid.faces().each(lambda f: print(f.Area()))
-
-# Right (transform): return a Shape per item
-centers = solid.faces().each(lambda f: f.Center())
-
-# For inspection, iterate .vals() instead
-for face in solid.faces().vals():
-    print(face.Area())
+solid.faces().each(lambda f: print(f.Area()))    # Wrong: returns None, destroys the stack
+centers = solid.faces().each(lambda f: f.Center())  # Right: return a Shape per item
 ```
 
 ### `.translate()` on a Workplane moves in global coordinates
 
-`.translate()` is a Shape method. Called mid-chain on a Workplane it still moves the geometry,
-but in the global frame -- bypassing the workplane system. Position with workplane placement
-instead; use `.translate()` only on an extracted Shape or a finished `result` (see the
-pattern reference's Transform Operations note).
+`.translate()` is a Shape method; called mid-chain on a Workplane it still moves the
+geometry, but in the global frame, bypassing the workplane system.
 
 ```python
-# Bypasses the workplane frame
-cq.Workplane("XY").box(10, 10, 10).translate((5, 0, 0))
-
-# Position via the workplane instead
-cq.Workplane("XY").center(5, 0).box(10, 10, 10)
-
-# .translate() is fine on an extracted Shape
-shape = cq.Workplane("XY").box(10, 10, 10).val()
-moved = shape.translate(cq.Vector(5, 0, 0))
+cq.Workplane("XY").box(10,10,10).translate((5,0,0))       # Wrong: bypasses workplane frame
+cq.Workplane("XY").center(5,0).box(10,10,10)               # Right: position via workplane
+shape = cq.Workplane("XY").box(10,10,10).val(); shape.translate(cq.Vector(5,0,0))  # Right: fine on an extracted Shape
 ```
 
 ### Index-selector fragility
 
-`">>Z[1]"` / `">Z[1]"` depend on a sorted count of all matching entities. Adding fillets,
-chamfers, holes, or shells changes that count and silently shifts which entity is selected.
-Tag the target before adding features that change topology.
+`">>Z[1]"`/`">Z[1]"` depend on a sorted count of all matching entities. Fillets,
+chamfers, holes, or shells change that count and silently shift the selected entity.
+Tag the target before adding topology-changing features:
 
 ```python
-result = (cq.Workplane("XY").box(20, 20, 20)
-          .faces(">Z[1]").tag("target")   # tag first
-          .end()
-          .edges(">Z").fillet(1)          # this would shift the index above
+result = (cq.Workplane("XY").box(20,20,20)
+          .faces(">Z[1]").tag("target").end()   # tag first
+          .edges(">Z").fillet(1)                # would shift the index above
           .faces(tag="target").workplane().hole(3))
 ```
 
-Note: the fragility *principle* is broader than the fluent API (any position-sorted index
-can shift), but the tag-based fix here is fluent-specific.
-
 ### Building in hardcoded global coordinates
 
-Placing everything at absolute global coordinates makes scripts brittle. Build relative to
-existing faces. When you *do* need a known global placement, use the Fresh Workplane Pattern
-(`transformed(offset=...)`) -- that still works through a workplane frame and is not this
-anti-pattern.
-
-```python
-# Brittle: positions hardcoded in global space via translate()
-result = (cq.Workplane("XY").box(30, 30, 10)
-          .union(cq.Workplane("XY").cylinder(5, 8).translate((10, 10, 9))))
-
-# Relative to the face
-result = (cq.Workplane("XY").box(30, 30, 10)
-          .faces(">Z").workplane().center(10, 10).circle(5).extrude(8))
-```
+Absolute global placement (`.translate()`) is brittle; build relative to existing
+faces instead. For a genuinely known global placement, use the Fresh Workplane
+Pattern (`transformed(offset=...)`) -- still through a workplane frame.
 
 
 ## Tier 3 -- CadQuery API mechanics
 
-Method-specific semantics. Not deleted by a stateless API, but re-expressed differently.
-
 ### `.extrude()` defaults to `combine=True`
 
-By default `.extrude()` unions the new solid into the context stack. Pass `combine=False`
-for a separate solid (to combine later or export independently). The inverse mistake also
-occurs: relying on the default union, then unioning the result again -> double union.
+Unions the new solid into the context stack by default. Pass `combine=False` for a
+separate solid. Inverse mistake: relying on the default union, then unioning again ->
+double union.
 
 ```python
-result   = solid.faces(">Z").workplane().circle(3).extrude(5)              # unioned in
-new_part = cq.Workplane("XY").circle(3).extrude(5, combine=False)          # separate solid
+result   = solid.faces(">Z").workplane().circle(3).extrude(5)         # unioned in
+new_part = cq.Workplane("XY").circle(3).extrude(5, combine=False)     # separate solid
 ```
 
 ### `.cutBlind()` cuts along the outward face normal
 
-`.cutBlind(depth)` cuts in the direction of the workplane normal, which points *outward* from
-a selected face by default -- so cutting from the top face without inverting cuts away into
-empty space. Use `.workplane(invert=True)` to flip the normal into the solid.
+Cuts in the direction of the workplane normal, which points *outward* from a
+selected face by default -- cutting from the top face without inverting cuts away
+into empty space. Use `.workplane(invert=True)` to flip the normal into the solid.
 
 ```python
-# Wrong: cuts upward, away from the solid
-solid.faces(">Z").workplane().rect(5, 5).cutBlind(3)
-
-# Right: invert the normal to cut into the solid
-solid.faces(">Z").workplane(invert=True).rect(5, 5).cutBlind(3)
+solid.faces(">Z").workplane().rect(5,5).cutBlind(3)              # Wrong: cuts upward, away from solid
+solid.faces(">Z").workplane(invert=True).rect(5,5).cutBlind(3)   # Right: inverted, cuts into solid
 ```
 
 ### `|Z` when you mean `>Z` (and other selector-string confusions)
 
-The most common wrong-face bug: `|Z` selects every face whose normal is *parallel* to Z --
-on a box that is the top AND the bottom face. For "the top face only" use `>Z` (highest
-centroid). Related traps: `>Z` picks the max-*centroid* entity, not the one with the topmost
-vertex; and `.edges("%Circle and >Z")` (combined string) is less predictable than
-`.faces(">Z").edges("%Circle")` (chained). See the "Selector Semantics" subsection in the
-pattern reference.
+`|Z` selects every face *parallel* to Z -- on a box, top AND bottom. Use `>Z`
+(highest centroid) for "top face only." Related traps: `>Z` picks the max-centroid
+entity, not the topmost vertex; `.edges("%Circle and >Z")` (combined string) is less
+predictable than `.faces(">Z").edges("%Circle")` (chained). See "Selector Semantics"
+in the pattern reference.
 
 ```python
 solid.faces("|Z")   # top AND bottom -- probably not what you want
@@ -290,7 +192,5 @@ solid.faces(">Z")   # top face only
 
 ### Fluent and Free Function APIs do not mix
 
-A `Workplane` is not a `Shape`; Free Function operations do not accept `Workplane` objects,
-and Shape operators do not accept `Workplane`. If you ever touch `cadquery.func`, extract
-with `.val()` / `.vals()` first. (This pipeline is fluent-only, so prefer to stay in the
-fluent API entirely.)
+A `Workplane` is not a `Shape`; Free Function ops don't accept `Workplane` and vice
+versa. Extract with `.val()`/`.vals()` first if you touch `cadquery.func` (fluent-only pipeline).

@@ -10,11 +10,22 @@ import pytest
 SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
 
-from plan_validate import check_block_thinness, validate_plan  # noqa: E402
+from plan_validate import (  # noqa: E402
+    check_block_thinness,
+    check_coordinate_frame_usage,
+    check_engineering_rationale,
+    check_hinge_intent_without_joints,
+    check_shared_interfaces,
+    validate_plan,
+)
 
 VALID_PLAN: dict[str, Any] = {
     "schema_version": 1,
-    "intent": "Arduino Nano enclosure",
+    "intent": (
+        "Open-top enclosure for an Arduino Nano, printed as a single body with 1.2 mm "
+        "walls and a USB-C pass-through on the front wall. Board seats on internal "
+        "standoffs (press fit, assumed 0.2 mm clearance -- adjust after a test fit)."
+    ),
     "printer": "Bambu P1S",
     "material": "PLA",
     "nozzle_mm": 0.4,
@@ -69,6 +80,38 @@ def test_valid_two_parts(plan_file):
     assert errors == []
 
 
+def test_token_intent_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = "A laptop stand"
+    errors = validate_plan(plan_file(plan))
+    assert any("intent" in e for e in errors)
+
+
+def test_reformulation_length_intent_passes(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = (
+        "A wedge phone stand printed as one part, back face raked 65 degrees from "
+        "horizontal (assumed -- adjust after a test fit), sized for a phone in landscape."
+    )
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_negative_one_dimension_still_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["dimensions"]["d_mm"] = -1
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_negative_one_in_signed_fields_still_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    plan["parts"][0]["interfaces"] = [
+        {"type": "screw_boss", "position_mm": [-12.5, 0, 4], "diameter_mm": 3.2}
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
 def test_valid_load_hint(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["load"] = {"dir": [1, 0, 0]}
@@ -110,6 +153,18 @@ def test_valid_show_face(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["show_face"] = {"dir": [0, 0, 1]}
     assert validate_plan(plan_file(plan)) == []
+
+
+def test_valid_pose_intent(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["pose_intent"] = "stands upright, outward face toward world -Y"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_missing_pose_intent_and_placement_is_valid(plan_file):
+    # VALID_PLAN omits both pose_intent and placement; absence must not be an error.
+    errors = validate_plan(plan_file(VALID_PLAN))
+    assert errors == []
 
 
 def _set_optimize_for_speed(p):
@@ -261,6 +316,86 @@ def test_thick_blocks_no_findings():
     assert check_block_thinness(plan) == []
 
 
+# ---- engineering_rationale schema + trigger check ----
+
+
+def test_rationale_object_form_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    plan["parts"][0]["engineering_rationale"] = {
+        "load_path": "base bears the enclosed board weight",
+        "worst_case_stress": "floor, center span",
+        "check": "deflection = 5*w*L^4/(384*E*I) = 0.02 mm <= 0.1 mm allowable (PLA)",
+    }
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_rationale_string_form_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (static cosmetic part)"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_rationale_string_form_without_reason_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features"
+    errors = validate_plan(plan_file(plan))
+    assert any("engineering_rationale" in e for e in errors)
+
+
+def test_rationale_object_missing_check_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["engineering_rationale"] = {
+        "load_path": "x",
+        "worst_case_stress": "y",
+    }
+    errors = validate_plan(plan_file(plan))
+    assert any("engineering_rationale" in e for e in errors)
+
+
+def test_rationale_missing_field_is_advisory_finding():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    findings = check_engineering_rationale(plan)
+    assert len(findings) == 1
+    assert "body" in findings[0]
+
+
+def test_rationale_load_bearing_part_needs_object_form():
+    """A part declaring `load` but carrying the string form is flagged."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (flat plate)"
+    findings = check_engineering_rationale(plan)
+    assert len(findings) == 1
+    assert "body" in findings[0]
+
+
+def test_rationale_load_bearing_block_without_declared_load_still_triggers():
+    """blocks_needed alone (no `load` field) is enough to require the object form."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["blocks_needed"] = ["hollow_box", "screw_boss"]
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (n/a)"
+    findings = check_engineering_rationale(plan)
+    assert len(findings) == 1
+
+
+def test_rationale_string_form_on_untriggered_part_passes():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["engineering_rationale"] = "no load-bearing features (static cosmetic part)"
+    assert check_engineering_rationale(plan) == []
+
+
+def test_rationale_object_form_on_triggered_part_passes():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    plan["parts"][0]["engineering_rationale"] = {
+        "load_path": "base bears the enclosed board weight",
+        "worst_case_stress": "floor, center span",
+        "check": "deflection = 0.02 mm <= 0.1 mm allowable (PLA)",
+    }
+    assert check_engineering_rationale(plan) == []
+
+
 # ---- multi-union parts: union namespace ----
 
 
@@ -300,11 +435,98 @@ def test_keep_out_reserved_as_sub_union_id_rejected(plan_file):
     assert any("reserved" in e and "keep_out" in e for e in errors)
 
 
+def test_named_interface_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"][0]["name"] = "inner_lip"
+    assert validate_plan(plan_file(plan)) == []
+
+
+@pytest.mark.parametrize("bad_name", ["Inner Lip", "inner-lip"])
+def test_non_normalized_interface_name_rejected(plan_file, bad_name):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"][0]["name"] = bad_name
+    errors = validate_plan(plan_file(plan))
+    assert any("name" in e for e in errors)
+
+
+def test_duplicate_interface_name_within_part_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [
+        {"type": "screw_mount", "name": "mount_hole"},
+        {"type": "screw_mount", "name": "mount_hole"},
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert any("interface name 'mount_hole' is declared more than once" in e for e in errors)
+
+
+def test_same_interface_name_on_different_parts_accepted(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN_TWO_PARTS))
+    plan["parts"][0]["interfaces"] = [{"type": "screw_mount", "name": "mount_hole"}]
+    plan["parts"][1]["interfaces"] = [{"type": "screw_mount", "name": "mount_hole"}]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_unnamed_interfaces_do_not_collide(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [
+        {"type": "screw_mount"},
+        {"type": "screw_mount"},
+        {"type": "screw_mount"},
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
 def test_keep_out_reserved_as_part_id_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["id"] = "keep_out"
     errors = validate_plan(plan_file(plan))
     assert any("reserved" in e and "keep_out" in e for e in errors)
+
+
+def _plan_with_pin_hinge_kinematics(placement=None):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    if placement is not None:
+        plan["parts"][0]["placement"] = placement
+    plan["kinematics"] = [
+        {
+            "joint_id": "j1",
+            "moving_union": "body",
+            "block": "pin_hinge",
+            "axis_origin_mm": [0, 0, 0],
+            "axis_dir": "Y",
+            "type": "revolute",
+            "required_range": [0, 90],
+            "step": 5,
+        }
+    ]
+    return plan
+
+
+def test_kinematics_no_placement_defers_axis_arm(plan_file):
+    """A moving union whose part has no placement yet: no joint_contract error,
+    and the deferred axis arm shows up as a non-fatal advisory."""
+    from plan_validate import check_deferred_axis_arms
+
+    plan = _plan_with_pin_hinge_kinematics(placement=None)
+    errors = validate_plan(plan_file(plan))
+    assert not any("joint axis_dir" in e or "not coaxial" in e for e in errors)
+
+    findings = check_deferred_axis_arms(plan)
+    assert len(findings) == 1
+    assert "j1" in findings[0]
+    assert "deferred" in findings[0]
+
+
+def test_kinematics_placement_rotating_axis_off_still_errors(plan_file):
+    """With a placement in place, a block axis rotated away from axis_dir still
+    produces the joint_contract error (D5: authoritative once placement exists)."""
+    plan = _plan_with_pin_hinge_kinematics(placement={"rotate": [{"axis": "Z", "angle_deg": 90}]})
+    errors = validate_plan(plan_file(plan))
+    assert any("joint axis_dir" in e for e in errors)
+
+    from plan_validate import check_deferred_axis_arms
+
+    assert check_deferred_axis_arms(plan) == []
 
 
 def test_moving_union_may_reference_a_sub_union(plan_file):
@@ -353,8 +575,11 @@ def test_contract_type_mismatch_rejected(plan_file):
 
 
 def test_contract_revolute_wrong_axis_rejected(plan_file):
-    # pin_hinge's dof axis is +Y; a Z wish is not parallel.
+    # pin_hinge's dof axis is +Y; a Z wish is not parallel. The axis arm is only
+    # authoritative once the part carries a placement (identity here, so the block
+    # axis is unrotated); see test_kinematics_no_placement_defers_axis_arm.
     plan = _plan_with_joint(axis_dir="Z")
+    plan["parts"][0]["placement"] = {"rotate": [{"axis": "Y", "angle_deg": 0}]}
     errors = validate_plan(plan_file(plan))
     assert any("not parallel" in e for e in errors)
 
@@ -362,6 +587,7 @@ def test_contract_revolute_wrong_axis_rejected(plan_file):
 def test_contract_revolute_parallel_but_off_line_rejected(plan_file):
     # Axis parallel (+Y) but the pivot is off the block's axis line -> not coaxial.
     plan = _plan_with_joint(axis_dir="Y", axis_origin_mm=[5, 0, 0])
+    plan["parts"][0]["placement"] = {"rotate": [{"axis": "Y", "angle_deg": 0}]}
     errors = validate_plan(plan_file(plan))
     assert any("not coaxial" in e for e in errors)
 
@@ -469,8 +695,9 @@ def test_blockless_entry_with_bad_moving_union_still_fails(plan_file):
 
 def test_blockbacked_entry_contract_checks_still_apply(plan_file):
     # Regression: a block-backed entry keeps the full contract (unaffected by the
-    # block-less branch added alongside it).
+    # block-less branch added alongside it), once the part carries a placement.
     plan = _plan_with_joint(axis_dir="Z")  # pin_hinge's dof axis is +Y; Z is not parallel
+    plan["parts"][0]["placement"] = {"rotate": [{"axis": "Y", "angle_deg": 0}]}
     errors = validate_plan(plan_file(plan))
     assert any("not parallel" in e for e in errors)
 
@@ -667,6 +894,38 @@ def test_well_formed_request_log_validates(plan_file):
     assert validate_plan(plan_file(plan)) == []
 
 
+def test_request_log_entry_with_images_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make an enclosure"},
+        {
+            "ts": "2026-07-19T11:00:00Z",
+            "kind": "correction",
+            "text": "Ear should sit lower, see sketch",
+            "images": ["sketches/ear-placement-2026-07-19T11-00-00Z.png"],
+        },
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_request_log_empty_images_array_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "images": []}
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
+def test_request_log_empty_image_path_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "images": [""]}
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert len(errors) >= 1
+
+
 def test_request_log_unknown_kind_rejected(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["request_log"] = [{"ts": "2026-07-19T10:00:00Z", "kind": "bogus", "text": "hi"}]
@@ -724,6 +983,69 @@ def test_request_log_non_first_initial_rejected(plan_file):
     assert len(errors) >= 1
 
 
+def test_request_log_level_and_targets_validate(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make a cradle"},
+        {
+            "ts": "2026-07-19T11:00:00Z",
+            "kind": "correction",
+            "text": "saddle should be 40mm wide",
+            "level": "parameter",
+            "targets": ["cradle", "cradle.saddle_width"],
+        },
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_request_log_mixed_typed_and_untyped_entries_validate(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make a cradle"},
+        {"ts": "2026-07-19T10:30:00Z", "kind": "clarification", "text": "press fit"},
+        {
+            "ts": "2026-07-19T11:00:00Z",
+            "kind": "correction",
+            "text": "add a drain slot",
+            "level": "operation",
+            "targets": ["base"],
+        },
+    ]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_request_log_unknown_level_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "level": "bogus"}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
+def test_request_log_empty_targets_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "targets": []}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
+def test_request_log_empty_target_string_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "targets": [""]}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
+def test_request_log_non_array_targets_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "targets": "cradle"}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
 # ---- review_policy --------------------------------------------------------
 
 
@@ -762,3 +1084,214 @@ def test_unknown_archetype_rejected(plan_file):
 def test_plan_without_archetypes_stays_valid(plan_file):
     # VALID_PLAN carries no `archetype` field on any part.
     assert validate_plan(plan_file(VALID_PLAN)) == []
+
+
+# ---- shared interface names without a joints entry ----------------------------
+
+
+def _bore(pid_plan, pid):
+    """Give part `pid` a named pivot_bore interface."""
+    for part in pid_plan["parts"]:
+        if part["id"] == pid:
+            part["interfaces"] = [{"type": "pin_bore", "name": "pivot_bore"}]
+    return pid_plan
+
+
+def test_shared_interface_name_without_joint_flagged():
+    """The C5 case: one bore named on two parts nothing links."""
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _bore(plan, "door")
+    _bore(plan, "wall")
+    findings = check_shared_interfaces(plan)
+    assert len(findings) == 1
+    assert "pivot_bore" in findings[0]
+    assert "door" in findings[0] and "wall" in findings[0]
+
+
+def test_shared_interface_name_with_joint_not_flagged():
+    plan = _joints_plan()
+    _bore(plan, "door")
+    _bore(plan, "wall")
+    assert check_shared_interfaces(plan) == []
+
+
+def test_single_part_and_unnamed_interfaces_not_flagged():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _bore(plan, "door")
+    plan["parts"][1]["interfaces"] = [{"type": "pin_bore"}]
+    assert check_shared_interfaces(plan) == []
+
+
+def test_third_holder_flagged_when_pair_is_linked():
+    plan = _joints_plan()
+    plan["parts"].append(_part("strut"))
+    for pid in ("door", "wall", "strut"):
+        _bore(plan, pid)
+    findings = check_shared_interfaces(plan)
+    assert len(findings) == 1
+    assert "strut" in findings[0]
+    assert "door" not in findings[0] and "wall" not in findings[0]
+
+
+def test_shared_interface_finding_does_not_invalidate_plan(plan_file):
+    """Advisory only -- it must not reach the gate's plan_invalid path."""
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _bore(plan, "door")
+    _bore(plan, "wall")
+    assert check_shared_interfaces(plan)
+    assert validate_plan(plan_file(plan)) == []
+
+
+# ---- coordinate_frame (schema + advisory) --------------------------------------
+
+
+def test_coordinate_frame_absent_validates(plan_file):
+    assert validate_plan(plan_file(VALID_PLAN)) == []
+
+
+def test_valid_coordinate_frame_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["coordinate_frame"] = {"east": "-x", "north": "+y", "up": "+z"}
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_invalid_coordinate_frame_axis_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["coordinate_frame"] = {"east": "sideways"}
+    errors = validate_plan(plan_file(plan))
+    assert any("coordinate_frame" in e for e in errors)
+
+
+def test_compass_word_in_intent_flags():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = plan["intent"] + " Fillet added on the east side of the enclosure."
+    findings = check_coordinate_frame_usage(plan)
+    assert len(findings) == 1
+
+
+def test_compass_word_in_request_log_flags():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Mount it on the West wall"}
+    ]
+    findings = check_coordinate_frame_usage(plan)
+    assert len(findings) == 1
+
+
+def test_coordinate_frame_present_silences_compass_finding():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = plan["intent"] + " Fillet added on the east side."
+    plan["coordinate_frame"] = {"east": "-x"}
+    assert check_coordinate_frame_usage(plan) == []
+
+
+def test_no_compass_word_emits_nothing():
+    assert check_coordinate_frame_usage(VALID_PLAN) == []
+
+
+# ---- hinge/pivot intent without joints -----------------------------------------
+
+
+def test_hinge_language_no_joints_flags():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    plan["intent"] = "A cradle that folds flat against the plate, " + plan["intent"]
+    findings = check_hinge_intent_without_joints(plan)
+    assert len(findings) == 1
+
+
+def test_hinge_language_with_joints_not_flagged():
+    plan = _joints_plan()
+    plan["intent"] = "A cradle that folds flat against the plate, " + plan["intent"]
+    assert check_hinge_intent_without_joints(plan) == []
+
+
+def test_hinge_language_single_part_exempt():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["intent"] = "A lid that folds flat, " + plan["intent"]
+    assert check_hinge_intent_without_joints(plan) == []
+
+
+def test_no_hinge_language_emits_nothing():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    assert check_hinge_intent_without_joints(plan) == []
+
+
+# ---- positional shared-interface detection (unnamed round mates) ---------------
+
+
+def _round_interface(pid_plan, pid, position_mm, diameter_mm, placement=None):
+    for part in pid_plan["parts"]:
+        if part["id"] == pid:
+            part["interfaces"] = [
+                {"type": "pin_bore", "position_mm": position_mm, "diameter_mm": diameter_mm}
+            ]
+            if placement is not None:
+                part["placement"] = placement
+    return pid_plan
+
+
+def test_unnamed_coincident_round_interfaces_flagged():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [0, 0, 0], 5.0)
+    findings = check_shared_interfaces(plan)
+    assert len(findings) == 1
+    assert "door" in findings[0] and "wall" in findings[0]
+
+
+def test_positional_finding_silenced_by_joints_entry():
+    plan = _joints_plan()
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [0, 0, 0], 5.0)
+    assert check_shared_interfaces(plan) == []
+
+
+def test_positional_different_diameters_not_flagged():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [0, 0, 0], 20.0)
+    assert check_shared_interfaces(plan) == []
+
+
+def test_positional_different_positions_not_flagged():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [100, 0, 0], 5.0)
+    assert check_shared_interfaces(plan) == []
+
+
+def test_positional_check_skips_interfaces_without_position_or_diameter():
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    plan["parts"][0]["interfaces"] = [{"type": "pin_bore", "diameter_mm": 5.0}]
+    plan["parts"][1]["interfaces"] = [{"type": "pin_bore", "position_mm": [0, 0, 0]}]
+    assert check_shared_interfaces(plan) == []
+
+
+def test_positional_coincidence_after_placement_transform():
+    """Two interfaces at different authored-frame positions that land at the same
+    assembled-frame point once each part's placement is applied still flag."""
+    plan = _joints_plan()
+    del plan["joints"]
+    del plan["root_part"]
+    _round_interface(plan, "door", [0, 0, 0], 5.0)
+    _round_interface(plan, "wall", [10, 0, 0], 5.0, placement={"translate_mm": [-10, 0, 0]})
+    findings = check_shared_interfaces(plan)
+    assert len(findings) == 1

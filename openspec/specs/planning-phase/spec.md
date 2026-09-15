@@ -7,11 +7,11 @@ Defines requirements for the planning phase: the prompt that produces `BUILD_PLA
 ## Requirements
 
 ### Requirement: Planning prompt produces structured BUILD_PLAN
-The system SHALL provide a `prompts/planning.md` prompt that, when invoked with a user's model description and rendered with `{{USER_REQUEST}}`, `{{BLOCK_INVENTORY}}`, `{{FDM_GUIDELINES}}`, and `{{PRINTER_PROFILE}}`, produces a valid `BUILD_PLAN.json` file conforming to the defined schema.
+The system SHALL provide a `prompts/planning.md` prompt that, when invoked with a user's model description and rendered with `{{USER_REQUEST}}`, `{{BLOCK_INVENTORY}}`, `{{ARCHETYPE_INDEX}}`, `{{FDM_GUIDELINES}}`, and `{{PRINTER_PROFILE}}`, produces a valid `BUILD_PLAN.json` file conforming to the defined schema. All placeholder substitution SHALL be performed by `src/render_prompt.py planning` before invoking the LLM (see `planner-research-prompt-rendering` spec), not by hand in the main session and not by `orchestrate.py`.
 
-The `{{FDM_GUIDELINES}}` placeholder SHALL be substituted with sections from `reference/FDM 3D Print Design Guidelines.md` matching the union of all `blocks_needed` across all parts in the plan, plus sections tagged `always`. This substitution is performed by the skill before invoking the LLM, not by `orchestrate.py`.
+The `{{FDM_GUIDELINES}}` placeholder SHALL be substituted with sections from `reference/FDM 3D Print Design Guidelines.md` tagged `always`, plus, on a re-plan where the prior `BUILD_PLAN.json` is passed, sections matching the union of all `blocks_needed` across all parts in that plan.
 
-The `{{PRINTER_PROFILE}}` placeholder SHALL be substituted with the resolved `printer`, `material`, `nozzle_mm`, and `constraints` values from a validated `printer_profile.json` in the working directory, when one exists (see `printer-profile-config` spec). When `printer_profile.json` is absent or fails validation, the corresponding field(s) SHALL instead be asked of the user, exactly as when no profile exists. This substitution is performed by the skill before invoking the LLM, not by `orchestrate.py`.
+The `{{PRINTER_PROFILE}}` placeholder SHALL be substituted with the resolved `printer`, `material`, `nozzle_mm`, and `constraints` values from a validated `printer_profile.json` in the working directory, when one exists (see `printer-profile-config` spec). When `printer_profile.json` is absent or fails validation, the corresponding field(s) SHALL instead be asked of the user, exactly as when no profile exists.
 
 When the user explicitly states a value for `printer`, `material`, `nozzle_mm`, or a `constraints` field that differs from the loaded profile, the resulting `BUILD_PLAN.json` SHALL use the user-stated value, AND the skill SHALL write that value back into `printer_profile.json` in the working directory as the new project-level default, announcing the change to the user in the same turn. If the user explicitly indicates the value is a one-time exception rather than a new default, the skill SHALL use the value for the current plan only and SHALL NOT write it back.
 
@@ -82,7 +82,9 @@ The `BUILD_PLAN.json` schema SHALL include the following top-level fields:
 
 The schema SHALL NOT define an `assembly` object, and SHALL NOT make any field
 conditionally required on the number of parts. Multi-part assembly is expressed through
-each part's `placement`.
+each part's `placement`, which the part author supplies during the build phase (see
+`assembled-pose-handback`); the planner expresses the same relationship as each part's
+`pose_intent`.
 
 Each part object SHALL include:
 - `id` (string, required, unique)
@@ -91,15 +93,21 @@ Each part object SHALL include:
 - `interfaces` (array, may be empty)
 - `blocks_needed` (array of block names from inventory, may be empty)
 - `print_orientation` (string, required)
+- `pose_intent` (string, optional): the part's goal pose in the shared assembled frame,
+  stated as intent rather than as a rotation sequence
 
 Each `interfaces[]` entry SHALL require `type` (string) and MAY carry structured,
-machine-readable placement fields (all optional): `wall` (one of the six face names),
-`position_mm` (`[x, y, z]`, the feature's intended center in the part's authored frame),
-and a size field (`diameter_mm` for round features, or `size_mm` as `[w, h]` for
-rectangular). These fields SHALL be defined in the schema (not free-form
-`additionalProperties`), so a declared placement is machine-readable; they remain optional
-so an interface may declare only its `type`, and an empty `interfaces` array still
-validates.
+machine-readable placement fields (all optional): `name` (the agreed vocabulary word for
+the feature), `wall` (one of the six face names), `position_mm` (`[x, y, z]`, the
+feature's intended center in the part's authored frame), and a size field
+(`diameter_mm` for round features, or `size_mm` as `[w, h]` for rectangular). These
+fields SHALL be defined in the schema (not free-form `additionalProperties`), so a
+declared placement is machine-readable; they remain optional so an interface may declare
+only its `type`, and an empty `interfaces` array still validates.
+
+The `name` field SHALL be constrained to the same normalized snake_case form as a part
+`id` (`^[a-z][a-z0-9_]*$`), so that the mechanical normalization promised by the
+user-noun naming rule is enforced by the schema rather than left to the planner.
 
 #### Scenario: Part with physical interface
 - **WHEN** a part has a USB-C port cutout
@@ -109,8 +117,16 @@ validates.
 - **WHEN** an interface entry declares `position_mm` and a size field
 - **THEN** the schema validates them as structured fields (an array of numbers for `position_mm`, a number or `[w, h]` for the size), rejecting a malformed placement
 
+#### Scenario: Named interface validates
+- **WHEN** an interface entry declares `name: "inner_lip"` alongside its `type`
+- **THEN** validation passes and the name is available to downstream consumers as a structured field
+
+#### Scenario: Non-normalized interface name is rejected
+- **WHEN** an interface entry declares `name: "Inner Lip"` or `name: "inner-lip"`
+- **THEN** validation fails with a schema error naming the offending field, rather than silently accepting an unnormalized vocabulary word
+
 #### Scenario: Interface with only a type still validates
-- **WHEN** an interface entry declares `type` but no `wall`, `position_mm`, or size
+- **WHEN** an interface entry declares `type` but no `name`, `wall`, `position_mm`, or size
 - **THEN** validation passes (the placement fields are optional)
 
 #### Scenario: Part with no interfaces
@@ -120,6 +136,115 @@ validates.
 #### Scenario: Multi-part plan needs no assembly object
 - **WHEN** a plan contains two or more parts
 - **THEN** validation passes without an `assembly` field, and the schema rejects an `assembly` property if one is supplied
+
+#### Scenario: Part declares its pose as intent
+- **WHEN** a planner positions a part away from the assembled-frame origin
+- **THEN** the part carries a `pose_intent` string and no planner-written `placement`
+
+#### Scenario: Plan without pose intent still validates
+- **WHEN** a part declares neither `pose_intent` nor `placement`
+- **THEN** validation passes; the part is treated as authored in the assembled frame
+
+---
+
+### Requirement: Planning consumes the approved intent rather than authoring it
+
+The planning phase SHALL treat the approved reformulation Phase 1 wrote to `intent` as
+input: it SHALL copy that text into the emitted `BUILD_PLAN.json`'s `intent` unchanged,
+and SHALL plan the part decomposition against it. The planner SHALL NOT author `intent`
+from scratch, and SHALL NOT paraphrase or shorten the approved text.
+
+When a re-plan regenerates the file, the planner SHALL carry the current approved
+`intent` forward unchanged, the same way it carries `request_log` forward. Only an
+approved correction rewrites `intent` (see the `approved-intent` spec).
+
+#### Scenario: Planner copies the approved intent
+
+- **WHEN** Phase 1 exits with an approved reformulation and the planner is invoked
+- **THEN** the emitted `BUILD_PLAN.json` carries that text verbatim as `intent`
+
+#### Scenario: Re-plan preserves the approved intent
+
+- **WHEN** a correction causes the planner to regenerate the plan
+- **THEN** the new `BUILD_PLAN.json` carries forward the current approved `intent`, and
+  the planner does not rewrite it
+
+#### Scenario: Plan contradicts the approved intent
+
+- **WHEN** the decomposition the planner produces would build something the approved
+  `intent` does not describe
+- **THEN** the planner revises the decomposition to match the approved intent rather than
+  editing `intent` to match the decomposition
+
+### Requirement: Plan validation rejects a token intent
+
+The `BUILD_PLAN.json` schema SHALL require `intent` to be long enough to carry a
+reformulation rather than a token phrase, so that a plan whose `intent` was never
+replaced by the Phase 1 approved text fails validation.
+
+The `-1` unresolved-dimension placeholder needs no additional validator rule: every
+size-valued numeric field in the schema (`parts[].dimensions.*`,
+`interfaces[].diameter_mm`, `interfaces[].size_mm[]`, `blocks_needed[].extents_mm[]`,
+`kinematics.step`) already carries `exclusiveMinimum: 0` and rejects it. The schema's
+remaining unbounded numeric fields are signed by design -- `interfaces[].position_mm`,
+`load.dir`, `show_face.dir`, `placement.translate_mm`, `placement.rotate[].angle_deg`,
+`kinematics.axis_origin_mm`, `kinematics.required_range`, `kinematics.mechanical_limit`
+-- where `-1` is a legitimate value. A blanket `-1` rejection SHALL NOT be added, as it
+would reject valid plans.
+
+#### Scenario: Token intent is rejected
+
+- **WHEN** a plan's `intent` is shorter than the reformulation floor
+- **THEN** `plan_validate.py` reports a schema validation error for `intent`
+
+#### Scenario: Unresolved dimension is already rejected
+
+- **WHEN** a part's `dimensions.d_mm` is `-1`
+- **THEN** validation fails on the existing `exclusiveMinimum: 0` bound, naming that
+  field
+
+#### Scenario: A legitimate negative value still validates
+
+- **WHEN** a part declares `load.dir` of `[0, 0, -1]` and an interface at
+  `position_mm` `[-12.5, 0, 4]`
+- **THEN** validation passes -- no rule rejects `-1` in a signed field
+
+---
+
+### Requirement: Interface names are unique within a part
+`plan_validate.py` SHALL reject a plan in which two `interfaces[]` entries of the same
+part declare the same `name`, mirroring the existing union-id uniqueness cross-check.
+The error SHALL name the part and the duplicated name. Because callout badges are
+numbered by supply order and the legend echoes names verbatim, a duplicate name within
+one part would produce two indistinguishable legend lines and an ambiguous conversational
+reference. Names SHALL be permitted to repeat across different parts, where the part id
+disambiguates them.
+
+#### Scenario: Duplicate name within one part is rejected
+- **WHEN** a part declares two interfaces both named `mount_hole`
+- **THEN** validation fails with an error naming that part and the duplicated name
+
+#### Scenario: Same name on two different parts is accepted
+- **WHEN** two different parts each declare an interface named `mount_hole`
+- **THEN** validation passes
+
+#### Scenario: Unnamed interfaces do not collide
+- **WHEN** a part declares three interfaces, none of which carries a `name`
+- **THEN** validation passes (the uniqueness check considers only declared names)
+
+---
+
+### Requirement: The plan summary shows each part's pose intent
+
+The human-readable plan summary shown at the Phase 2 review checkpoint SHALL surface
+each part's `pose_intent`, so the user reviews the assembled arrangement in the terms
+the planner stated it. The summary SHALL NOT render rotation sequences or translation
+vectors for parts.
+
+#### Scenario: Summary shows the arrangement
+- **WHEN** a multi-part plan is summarized for review
+- **THEN** each part's row or entry carries its `pose_intent` text, and no `rotate`/
+  `translate_mm` values appear in the summary
 
 ---
 
@@ -421,14 +546,104 @@ identifier; a duplicate identifier makes such a citation ambiguous.
 
 ---
 
+### Requirement: planning_notes carries only three categories of content
+`prompts/planning.md` SHALL bound `planning_notes` by an inclusion rule rather than
+commissioning general design reasoning. The field SHALL carry only:
+
+- **(a) Decisions against something**, with the reason: a rejected alternative design, a
+  rejected archetype, a schema mechanism that cannot express the design, a deviation
+  from the user's literal request, a deviation from a `printer_profile.json` default, or
+  an optional field deliberately left empty. Where a rejection forces a compensating
+  measure, the compensation is part of the record.
+- **(b) Invariants binding more than one part**, which no per-part field can hold: the
+  semantic anchors of the shared coordinate frame, a dimension in one part fixed by a
+  feature of another, an authoring-frame convention that several parts must share, and
+  the reason the parts must agree.
+- **(c) The assembly procedure and the non-printed hardware it consumes**: the order and
+  direction in which printed parts are put together, which features exist to serve
+  assembly access rather than function, and any item the user must supply (rod, screw,
+  insert, magnet, adhesive).
+
+`prompts/planning.md` SHALL state that content outside these three categories does not
+belong in `planning_notes`.
+
+#### Scenario: A deliberately omitted optional field is recorded with its reason
+- **WHEN** the planner leaves an optional field (for example a part's `load`, or a
+  `kinematics` entry) empty on purpose
+- **THEN** `planning_notes` records what was omitted and why, since no other field in the
+  plan can express an absence
+
+#### Scenario: A cross-part invariant is recorded once, not per part
+- **WHEN** two or more parts must share a convention or a coordinate for the assembly to
+  work (a shared authoring frame, a coordinate in one part fixed by another part's
+  feature)
+- **THEN** the invariant and the reason the parts must agree are stated in
+  `planning_notes`, not split across each part's `part_notes` where the cross-part
+  reason has no home
+
+#### Scenario: Assembly procedure and supplied hardware are recorded
+- **WHEN** the model requires the user to supply a non-printed item, or requires the
+  printed parts to be assembled in a particular order or direction
+- **THEN** `planning_notes` states the procedure and names the supplied item, including
+  any feature that exists only to give the assembly step access
+
+#### Scenario: Content outside the three categories is excluded
+- **WHEN** the planner has reasoning that fits none of the three categories (for example
+  a summary of DFM cleanup already visible in the parts, or per-part orientation
+  rationale already in that part's `part_notes`)
+- **THEN** it is omitted from `planning_notes`
+
+---
+
+### Requirement: planning_notes does not restate structured fields in prose
+`prompts/planning.md` SHALL instruct that any fact already expressed by a structured
+field of `BUILD_PLAN.json` -- including `placement`, `pose_intent`, `load`,
+`dimensions`, `blocks_needed`, `interfaces`, `intent`, and `optimize_for` -- SHALL NOT
+be narrated in `planning_notes`. The structured field is the single source. This
+generalizes the existing `placement`-specific prohibition to every structured field.
+
+#### Scenario: A part's declared load is not narrated
+- **WHEN** a part declares a `load` object
+- **THEN** `planning_notes` does not restate the load direction or type in prose; a
+  cross-part consequence of that load remains admissible under category (b)
+
+#### Scenario: Chosen blocks are not listed in prose
+- **WHEN** parts declare `blocks_needed`
+- **THEN** `planning_notes` does not enumerate which block was used for which feature,
+  since `blocks_needed` already states it
+
+---
+
+### Requirement: A re-plan reads and rewrites planning_notes
+`prompts/planning.md` SHALL instruct that on a re-plan (the planning agent running again
+against an existing `BUILD_PLAN.json`) the agent reads the existing `planning_notes`
+before re-deciding, does not silently re-litigate a decision recorded there, and
+rewrites the field to describe the current state. Unlike `request_log`, `planning_notes`
+is rewritten rather than carried forward entry by entry: superseded content is deleted,
+and content still true is retained.
+
+#### Scenario: A recorded rejection is not silently reversed
+- **WHEN** a re-plan considers an approach that the existing `planning_notes` records as
+  rejected
+- **THEN** the agent either keeps the recorded decision, or adopts the approach and
+  replaces the rejection record with the new decision and its reason -- never adopts it
+  while leaving the stale rejection in place
+
+#### Scenario: A superseded invariant is deleted, not annotated
+- **WHEN** a re-plan changes a cross-part invariant recorded in `planning_notes`
+- **THEN** the regenerated field states the new invariant and the superseded text is
+  removed rather than annotated as superseded
+
+---
+
 ### Requirement: planning_notes and part_notes describe current state only
 `prompts/planning.md` and `prompts/part.md` SHALL instruct that `planning_notes`
-(plan-level design reasoning) and each part's `part_notes` describe the CURRENT design
-state only -- decomposition choices, dimension sources, blocks chosen, geometry
-rationale as of the present plan/script -- and SHALL NOT contain round-by-round build
-history, dated "ROUND N" narrative, or "SUPERSEDED by round N" annotations.
-Round-by-round history belongs exclusively in `request_log` (see the `request-log`
-capability).
+(plan-level design reasoning, bounded by the three-category inclusion rule) and each
+part's `part_notes` describe the CURRENT design state only -- decomposition choices,
+dimension sources, blocks chosen, geometry rationale as of the present plan/script --
+and SHALL NOT contain round-by-round build history, dated "ROUND N" narrative, or
+"SUPERSEDED by round N" annotations. Round-by-round history belongs exclusively in
+`request_log` (see the `request-log` capability).
 
 #### Scenario: Part notes stay current-state-only across correction rounds
 - **WHEN** a part's design changes across several correction rounds
@@ -440,3 +655,8 @@ capability).
 - **THEN** the regenerated `planning_notes` describes the current decomposition/
   reasoning, not a log of what changed from the previous plan version (that history is
   in `request_log`)
+
+#### Scenario: A corrected decision is restated, not diffed
+- **WHEN** a correction changes a decision recorded in `planning_notes`
+- **THEN** the field states the decision as it now stands, without a
+  "changed from X to Y this session" narrative

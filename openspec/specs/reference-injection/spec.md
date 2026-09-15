@@ -90,15 +90,18 @@ citation into the already-in-context guide), not their bodies.
 There SHALL be a `reference/Engineering Design Rules.md` containing only numeric
 engineering content - material constants (allowable strain, flexural modulus per
 material), snap-fit formula coefficients, rib/boss/gusset ratio limits, insert and
-clearance deltas not already in `hardware_dims.md` - with no prose tutorials, using
-`<!-- applies_to: block1, block2 -->` section tags with the same vocabulary as the
-FDM guide (including `always` for material constants). Section selection for a part
-SHALL intersect `applies_to` with the part's `blocks_needed` plus `always`-tagged
-sections, and SHALL additionally select all load-relevant sections when the part
-declares a plan `load`. Rendering SHALL follow the existing mode split: an inline
-part render cites the selected section names as already-in-context material; a
-cold-context render (subagent or `claude -p`) receives the selected sections' full
-bodies. An untagged section SHALL be excluded from all selections.
+clearance deltas not already in `hardware_dims.md`, and the flush-fold hinge
+standoff formula - with no prose tutorials, using `<!-- applies_to: block1,
+block2 -->` section tags with the same vocabulary as the FDM guide (including
+`always` for material constants). Section selection for a part SHALL intersect
+`applies_to` with the part's `blocks_needed` plus `always`-tagged sections, SHALL
+additionally select all load-relevant sections when the part declares a plan
+`load`, and SHALL additionally select the flush-fold hinge section when any entry
+in the plan's top-level `kinematics` array names this part as `moving_union`
+(block-based or block-free). Rendering SHALL follow the existing mode split: an
+inline part render cites the selected section names as already-in-context
+material; a cold-context render (subagent or `claude -p`) receives the selected
+sections' full bodies. An untagged section SHALL be excluded from all selections.
 
 #### Scenario: Snap-fit part in a cold context
 
@@ -124,6 +127,27 @@ bodies. An untagged section SHALL be excluded from all selections.
 
 - **WHEN** a part with no `load` and no matching block tags is rendered
 - **THEN** only `always`-tagged sections are selected (cited inline, injected cold)
+
+#### Scenario: Block-based hinge part
+
+- **WHEN** a part with `blocks_needed: ["pin_hinge"]` (or `["living_hinge"]`) is
+  rendered
+- **THEN** the flush-fold hinge standoff section is selected, plus any
+  `always`-tagged sections
+
+#### Scenario: Block-free hinge part
+
+- **WHEN** the plan's `kinematics` array has an entry naming this part as
+  `moving_union` with no `block` reference (a raw-primitive hinge, per
+  `blockless-kinematics`) and the part has no hinge-related `blocks_needed`
+- **THEN** the flush-fold hinge standoff section is still selected for it, plus
+  `always` sections
+
+#### Scenario: Non-hinge part with no kinematics
+
+- **WHEN** a part is named as `moving_union` in no `kinematics` entry and has no
+  hinge-related `blocks_needed`
+- **THEN** the flush-fold hinge standoff section is excluded
 
 ---
 
@@ -156,11 +180,19 @@ substitution.
 ---
 
 ### Requirement: FDM guidelines placeholder substituted across all part blocks for planning
-The system SHALL inject FDM guideline sections matching the union of all `blocks_needed` across all parts in the plan when substituting `{{FDM_GUIDELINES}}` in `prompts/planning.md`.
+The system SHALL substitute `{{FDM_GUIDELINES}}` in `prompts/planning.md` with all
+`always`-tagged sections plus, when a prior `BUILD_PLAN.json` is passed to
+`render_prompt.py planning --plan`, the sections matching the union of all
+`blocks_needed` across all parts in that plan. A fresh plan (no prior plan) SHALL receive
+the `always` sections only.
 
 #### Scenario: Multi-part plan with different blocks per part
-- **WHEN** the plan has `body` needing `["hollow_box"]` and `lid` needing `["snap_hook_clip"]`
+- **WHEN** the prior plan has `body` needing `["hollow_box"]` and `lid` needing `["snap_hook_clip"]` and is passed via `--plan`
 - **THEN** the planning prompt includes guideline sections for both `hollow_box` and `snap_hook_clip`, plus all `always` sections
+
+#### Scenario: Fresh plan
+- **WHEN** `render_prompt.py planning` runs without `--plan`
+- **THEN** the planning prompt includes only the `always` FDM sections
 
 ---
 
@@ -170,3 +202,94 @@ The system SHALL load reference file content once at the start of `build()` and 
 #### Scenario: Three-part build
 - **WHEN** the build plan contains three parts
 - **THEN** `reference/CadQuery Pattern Reference.md` and `reference/emboss_text.md` are each read from disk exactly once during the build, not three times
+
+---
+
+### Requirement: Injected CadQuery references carry only non-recallable content
+
+`reference/CadQuery Pattern Reference.md` and `reference/CadQuery Anti-Patterns.md`
+SHALL contain only material a competent CadQuery author cannot reliably recall:
+exact API signatures and argument semantics, selector-string vocabulary, OCC/BRep
+failure signatures and their causes, numeric tables, and project-specific contracts
+(block imports, `result` conventions, `cq_verify` usage). They SHALL NOT contain
+prose tutorials, restatements of general Python or CAD fundamentals, or worked
+examples whose idiom an archetype template in `templates/` already demonstrates.
+Each document SHALL be at most 65% of its pre-change byte size.
+
+#### Scenario: Tutorial prose is removed
+
+- **WHEN** a section explains a general concept without naming an API signature, a
+  failure signature, a numeric value, or a project contract
+- **THEN** that section is absent from the condensed document
+
+#### Scenario: Gotchas and tables are retained
+
+- **WHEN** a section documents an exact API gotcha, an OCC error signature, or a
+  numeric table
+- **THEN** that section is retained in the condensed document
+
+#### Scenario: Size target met
+
+- **WHEN** the condensed documents are measured
+- **THEN** each is at most 65% of its pre-change byte size
+
+---
+
+### Requirement: Reference cuts are backed by attempt-history evidence
+
+A section removal SHALL be justified by evidence, not preference. Before removal,
+the archived attempt telemetry (`build/attempts.jsonl` across `evals/runs/*`) SHALL
+be surveyed for error types the section addresses. A section addressing an error
+type observed in that history SHALL be retained (condensed, not deleted). The
+evidence survey and the retain/cut decision per section SHALL be recorded in the
+change's design document.
+
+#### Scenario: Section maps to an observed error type
+
+- **WHEN** a candidate section addresses an error type present in the archived
+  attempt history
+- **THEN** the section is retained in condensed form rather than removed
+
+#### Scenario: Section maps to no observed error and no non-recallable content
+
+- **WHEN** a candidate section addresses no observed error type and contains no
+  signature, failure signature, table, or project contract
+- **THEN** the section is removed
+
+---
+
+### Requirement: Condensation is validated by an eval sweep before acceptance
+
+The condensed references SHALL be accepted only after a full eval sweep
+(`evals/run_evals.py --generate` over the canonical corpus) whose first-shot rate
+and attempts-to-pass are no worse than the preceding archived run, and whose mean
+cold-render `prompt_chars` is measurably lower than the `c2-prompt-chars` run. A
+sweep failing the first condition SHALL cause the condensation to be reverted or
+narrowed, not accepted with a caveat.
+
+#### Scenario: Sweep holds quality and reduces prompt size
+
+- **WHEN** the post-condensation sweep holds first-shot rate and attempts-to-pass
+  and shows lower mean cold-render `prompt_chars`
+- **THEN** the condensation is accepted and the run dir plus scorecard are archived
+  under `evals/runs/`
+
+#### Scenario: Sweep regresses quality
+
+- **WHEN** the post-condensation sweep shows a lower first-shot rate or higher
+  attempts-to-pass than the preceding run
+- **THEN** the condensation is reverted or narrowed and re-measured
+
+---
+
+### Requirement: Cited section names remain resolvable after condensation
+
+Inline renders cite reference sections by name. Any section name referenced from
+`prompts/*.md`, `skill/*.md`, or `SKILL.md` SHALL still exist in the condensed
+documents, or the referencing text SHALL be updated in the same change.
+
+#### Scenario: A renamed or removed section is still cited
+
+- **WHEN** condensation removes or renames a section named elsewhere in the skill
+- **THEN** the citing text is updated in the same change so no citation points at a
+  missing section

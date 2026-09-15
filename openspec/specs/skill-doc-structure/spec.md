@@ -89,3 +89,108 @@ paths, consistent with the skill-invocation-path-resolution capability.
 #### Scenario: Skill invoked from a foreign working directory
 - **WHEN** the shell cwd is outside the skill root
 - **THEN** phase files are still found via `$SKILL_DIR/skill/<file>.md`
+
+---
+
+### Requirement: Phase-file prose does not restate a guaranteed-in-context read
+A `skill/phase*.md` file SHALL NOT restate the substantive content of a
+document its own phase's Setup step already reads into context
+unconditionally, before the content that would restate it is needed. Such
+content SHALL instead be stated once in the source document and cited by
+name from the phase file. This applies to technical explanations (e.g. a
+CadQuery convention) and structured data (e.g. block metadata); it does not
+apply to a short excerpt needed to make a decision tree self-contained, or to
+content whose source is read conditionally (only on some branches), where
+restating the needed piece keeps every branch correct without depending on
+which branch already ran the conditional read.
+
+#### Scenario: A technical explanation available from a Setup read is cited, not restated
+- **WHEN** a phase file's step needs a CadQuery-convention fact that a
+  reference document read at that phase's Setup already states in full
+- **THEN** the phase file names that document and section instead of
+  re-explaining the convention inline
+
+#### Scenario: Structured metadata available from a Setup read is cited, not restated
+- **WHEN** a phase file would otherwise tabulate data (e.g. name/use/params
+  per block) that a machine-readable file the phase's Setup already reads
+  into context also carries
+- **THEN** the phase file points to that file instead of duplicating the
+  table, unless the phase file also carries procedural instruction with no
+  equivalent in the machine-readable source (in which case that instruction
+  stays, and only the plain data restatement is cut)
+
+#### Scenario: A conditionally-read document is not assumed in context
+- **WHEN** a phase file's instruction would apply regardless of which branch
+  of an earlier conditional read executed (e.g. an instruction useful on a
+  fresh run, before a conditionally-read file would have been read)
+- **THEN** the phase file states the needed content inline rather than citing
+  a document that is not guaranteed to be in context on every path that
+  reaches this instruction
+
+---
+
+### Requirement: Prose does not restate a code-enforced contract
+A `SKILL.md` or `skill/phase*.md` file SHALL NOT restate the substantive
+content of a fact that a JSON Schema, a validator/runner script's typed
+output (e.g. error names, hint text, contract keys), an AST lint check, or a
+machine-readable inventory file (e.g. `blocks/inventory.json`) already
+defines or enforces at run time. Such prose SHALL instead name the enforcing
+file and, at most, a short category summary, rather than duplicating the
+enumerated values, exact wording, or full field list. This is distinct from
+the existing requirement against restating a guaranteed-in-context document
+read: this requirement applies even when the enforcing file is not read into
+context during the phase, because the enforcing file -- not the doc -- is
+the source of truth and the one that changes first when behavior changes.
+
+#### Scenario: Typed error table restated in prose
+- **WHEN** a phase file or SKILL.md lists typed error names together with
+  their exact remediation hint text
+- **THEN** the list is replaced with a short category summary plus a pointer
+  to the script (e.g. `run_cadquery_model.py`'s `errors[].hint`,
+  `cq_verify.py`) that generates the names and hints, so a new or renamed
+  error type does not require a matching doc edit to stay accurate
+
+#### Scenario: Lint-check list restated in prose
+- **WHEN** a phase file spells out the AST lint checks a lint script
+  implements (e.g. by describing each check in prose)
+- **THEN** the phase file instead points to the single authoritative list of
+  check names (in `reference/scripts.md`, itself describing
+  `script_lint.py`) rather than carrying its own restatement
+
+#### Scenario: Inventory data restated in prose
+- **WHEN** a phase file tabulates block names, uses, or parameters that a
+  machine-readable inventory file (`blocks/inventory.json`) already carries
+- **THEN** the table is removed and only the procedural instruction to
+  consult the inventory file remains, unless the phase file's row carries
+  procedural guidance absent from the inventory file itself
+
+#### Scenario: A schema-owned field is described only by name
+- **WHEN** a phase file or SKILL.md needs to mention a JSON contract field
+  whose shape (subfields, enum values, aggregation behavior) is defined by
+  a runner script or JSON Schema
+- **THEN** the doc names the field and the file that defines its shape,
+  and does not reproduce the field's internal structure
+
+---
+
+### Requirement: Phase-file prose does not restate itself
+A `skill/phase*.md` file SHALL NOT state the same substantive rule more than
+once within its own body. Where a later section needs the reader to recall a
+rule already stated earlier in the same file, it SHALL reference the earlier
+statement by section name rather than repeating the rule's content. This is
+distinct from the existing requirements against restating a
+guaranteed-in-context read or a code-enforced contract: those cover content
+whose source of truth lives outside the phase file; this one covers a phase
+file duplicating its own text.
+
+#### Scenario: A rule stated in one section is needed again in a later section
+- **WHEN** a phase file's later section (e.g. an approval or exit-checkpoint
+  step) depends on a constraint already stated in full earlier in the same
+  file (e.g. in an "Ask vs. assume" or eligibility section)
+- **THEN** the later section names the earlier section instead of restating
+  the constraint's full wording
+
+#### Scenario: Two adjacent sentences make the same point
+- **WHEN** a section's opening states a rule and the very next sentence
+  restates the same rule in different words with no new information
+- **THEN** the section keeps a single statement of the rule

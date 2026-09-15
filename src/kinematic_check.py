@@ -337,6 +337,222 @@ def _sweep_collision(
     }
 
 
+def _load_collision_backend() -> tuple[bool, dict | None]:
+    """Try to load the collision backend. Returns (collision_ok, warning issue or None)."""
+    from interference import load_backend
+
+    try:
+        load_backend()
+        return True, None
+    except ImportError as exc:
+        return False, make_issue(
+            "kinematics",
+            "warning",
+            "check_skipped",
+            f"Collision backend unavailable: {exc}",
+            "Install python-fcl and scipy to enable the motion sweep.",
+        )
+
+
+def _compute_stale_unions(
+    all_unions: list[tuple[str, str]], stl_dir: str, parts_dir: str | None
+) -> tuple[set[str], dict | None]:
+    """Returns (stale union ids, warning issue if the manifest is unavailable)."""
+    manifest = read_manifest(stl_dir) if parts_dir else None
+    if parts_dir is None or manifest is None:
+        return set(), make_issue(
+            "kinematics",
+            "warning",
+            "check_skipped",
+            "Export manifest not available; cannot verify exported STLs are current.",
+            "Run the model export (writes export_manifest.json) and pass "
+            "--parts-dir to enable staleness detection.",
+        )
+    uid_to_script = {uid: os.path.join(parts_dir, f"{pid}.py") for pid, uid in all_unions}
+    return stale_ids(manifest.get("unions", {}), uid_to_script), None
+
+
+def _numeric_range_check(
+    jid: str, unit: str, lo: float, hi: float, block: dict | None, entry: dict
+) -> tuple[dict | None, bool]:
+    """Numeric check (no mesh, no collision backend). Returns (issue or None, skip_sweep)."""
+    dof = (block or {}).get("dof")
+    limit = dof["mechanical_limit"] if dof is not None else entry.get("mechanical_limit")
+
+    if limit is None:
+        return make_issue(
+            "kinematics",
+            "warning",
+            "range_check_not_applicable",
+            f"Joint '{jid}' has no mechanical_limit source (block-less entry "
+            "with none declared); numeric range check skipped, collision sweep "
+            "still runs.",
+            "Declare 'mechanical_limit' on the entry to enable the numeric check.",
+            joint_id=jid,
+        ), False
+
+    mlo, mhi = limit
+    if lo < mlo - 1e-9 or hi > mhi + 1e-9:
+        # Mechanically impossible: do not load a mesh or sweep this joint.
+        return make_issue(
+            "kinematics",
+            "error",
+            "range_exceeds_limit",
+            f"Joint '{jid}' required range [{lo}, {hi}] {unit} exceeds "
+            f"mechanical limit [{mlo}, {mhi}] {unit}",
+            "Reduce the required range or choose a joint with a larger mechanical limit.",
+            joint_id=jid,
+            required_range=[lo, hi],
+            mechanical_limit=[mlo, mhi],
+            unit=unit,
+        ), True
+
+    return None, False
+
+
+def _binding_issue(
+    entry: dict, jid: str, moving_id: str, unit: str, lo: float, hi: float, binding: dict
+) -> dict:
+    """Build the motion_collision/contact_limited_stop issue for a bound sweep result."""
+    stop = binding["stop_value"]
+    colliding = binding["colliding"]
+    shared = {
+        "joint_id": jid,
+        "achieved_range": binding["achieved_range"],
+        "colliding_union": colliding,
+        "overlap_mm3": binding["overlap_mm3"],
+        "min_clearance_mm": binding["min_clearance_mm"],
+        "required_range": [lo, hi],
+        "unit": unit,
+    }
+
+    if entry.get("stop_on_contact"):
+        # Contact IS the design: the mechanism stops here and never reaches the
+        # interpenetrating poses beyond, so this is not a defect. Report the stop and
+        # let the designer judge the shortfall.
+        return make_issue(
+            "kinematics",
+            "warning",
+            "contact_limited_stop",
+            f"Joint '{jid}' (moving union '{moving_id}') reaches "
+            f"{binding['achieved_range']} of the required [{lo}, {hi}] {unit}, "
+            f"stopping against {', '.join(colliding)}",
+            "If this stop is the intended rest position, narrow required_range to "
+            "match it; otherwise relieve the contacting feature.",
+            **shared,
+        )
+    return make_issue(
+        "kinematics",
+        "error",
+        "motion_collision",
+        f"Joint '{jid}' (moving union '{moving_id}') binds at {stop} "
+        f"{unit} against {', '.join(colliding)} (required range "
+        f"[{lo}, {hi}] {unit}, achieved {binding['achieved_range']})",
+        "Increase joint clearance or relieve the colliding feature. If this "
+        "contact is the joint's intended mechanical stop, set "
+        "stop_on_contact.",
+        binding_value=stop,
+        **shared,
+    )
+
+
+def _resolve_sweep_ids(
+    jid: str, subtree_ids: list[str], fixed_ids: list[str], stale_unions: set[str], stl_dir: str
+) -> tuple[list[str], list[dict], bool]:
+    """Drop stale/missing unions from `fixed_ids`, honouring `subtree_ids` when staleness
+    makes the sweep itself meaningless. Returns (fixed_ids, issues, abort)."""
+    issues: list[dict] = []
+
+    stale_subtree = [uid for uid in subtree_ids if uid in stale_unions]
+    stale_fixed = [uid for uid in fixed_ids if uid in stale_unions]
+    if stale_subtree or stale_fixed:
+        issues.append(
+            make_issue(
+                "kinematics",
+                "error",
+                "stale_artifact",
+                f"Joint '{jid}': exported STL is stale for union(s) "
+                f"{', '.join(stale_subtree + stale_fixed)} -- the source script "
+                "changed since the model was last exported.",
+                "Re-run the model export so these unions' STLs reflect the current "
+                "scripts, then re-run the quality gate.",
+                joint_id=jid,
+                stale_unions=stale_subtree + stale_fixed,
+            )
+        )
+        if stale_subtree:
+            # The moving subtree itself is unreliable -- nothing meaningful to sweep.
+            return fixed_ids, issues, True
+        fixed_ids = [uid for uid in fixed_ids if uid not in stale_fixed]
+
+    missing = [
+        uid for uid in [*subtree_ids, *fixed_ids] if not os.path.exists(stl_path(stl_dir, uid))
+    ]
+    if missing:
+        issues.append(
+            make_issue(
+                "kinematics",
+                "warning",
+                "check_skipped",
+                f"Joint '{jid}': assembled union STL not found ({', '.join(missing)})",
+                "Run the model export so each union has an assembled STL.",
+                joint_id=jid,
+            )
+        )
+        return fixed_ids, issues, True
+
+    return fixed_ids, issues, False
+
+
+def _sweep_entry(
+    entry: dict,
+    jid: str,
+    moving_id: str,
+    unit: str,
+    lo: float,
+    hi: float,
+    all_union_ids: list[str],
+    stale_unions: set[str],
+    stl_dir: str,
+    penetration_tol_mm3: float,
+) -> list[dict]:
+    """Collision sweep for one entry's subtree (moving union + nested children) against
+    every union outside that subtree. Returns the issues produced (0 or more)."""
+    import trimesh
+    from trimesh.collision import CollisionManager
+
+    from units import iter_kinematics_entries
+
+    subtree_ids = [e["moving_union"] for e in iter_kinematics_entries([entry])]
+    fixed_ids = [uid for uid in all_union_ids if uid not in subtree_ids]
+
+    fixed_ids, issues, abort = _resolve_sweep_ids(
+        jid, subtree_ids, fixed_ids, stale_unions, stl_dir
+    )
+    if abort:
+        return issues
+
+    subtree_meshes = [
+        (uid, trimesh.load(stl_path(stl_dir, uid), force="mesh")) for uid in subtree_ids
+    ]
+    manager = CollisionManager()
+    fixed_meshes = {}
+    for uid in fixed_ids:
+        mesh = trimesh.load(stl_path(stl_dir, uid), force="mesh")
+        manager.add_object(uid, mesh)
+        fixed_meshes[uid] = mesh
+
+    binding = _sweep_collision(subtree_meshes, manager, fixed_meshes, entry, penetration_tol_mm3)
+    if binding is None:
+        # Whole required range clear: achieved == required by definition, so no
+        # finding. (The gate partitions on error/warning only; an informational
+        # third tier would be silently discarded.)
+        return issues
+
+    issues.append(_binding_issue(entry, jid, moving_id, unit, lo, hi, binding))
+    return issues
+
+
 def run_kinematic_check(
     plan: dict,
     stl_dir: str,
@@ -359,28 +575,14 @@ def run_kinematic_check(
         return []
 
     from blocks.validate import get_block
+    from units import iter_kinematics_entries, iter_unions
 
     issues: list[dict] = []
 
     # Collision backend is optional: the numeric check still runs without it.
-    from interference import load_backend
-
-    collision_ok = True
-    try:
-        load_backend()
-    except ImportError as exc:
-        collision_ok = False
-        issues.append(
-            make_issue(
-                "kinematics",
-                "warning",
-                "check_skipped",
-                f"Collision backend unavailable: {exc}",
-                "Install python-fcl and scipy to enable the motion sweep.",
-            )
-        )
-
-    from units import iter_kinematics_entries, iter_unions
+    collision_ok, backend_issue = _load_collision_backend()
+    if backend_issue:
+        issues.append(backend_issue)
 
     all_unions = [(part["id"], uid) for part, uid, _plate in iter_unions(plan)]
     all_union_ids = [uid for _pid, uid in all_unions]
@@ -389,21 +591,9 @@ def run_kinematic_check(
     if collision_ok:
         # Freshness only matters for the mesh sweep below; skip this check (and its own
         # warning) entirely when the sweep itself is already skipped for lack of a backend.
-        manifest = read_manifest(stl_dir) if parts_dir else None
-        if parts_dir is None or manifest is None:
-            issues.append(
-                make_issue(
-                    "kinematics",
-                    "warning",
-                    "check_skipped",
-                    "Export manifest not available; cannot verify exported STLs are current.",
-                    "Run the model export (writes export_manifest.json) and pass "
-                    "--parts-dir to enable staleness detection.",
-                )
-            )
-        else:
-            uid_to_script = {uid: os.path.join(parts_dir, f"{pid}.py") for pid, uid in all_unions}
-            stale_unions = stale_ids(manifest.get("unions", {}), uid_to_script)
+        stale_unions, staleness_issue = _compute_stale_unions(all_unions, stl_dir, parts_dir)
+        if staleness_issue:
+            issues.append(staleness_issue)
 
     for entry in iter_kinematics_entries(kinematics):
         jid = entry.get("joint_id", "(unknown)")
@@ -411,157 +601,27 @@ def run_kinematic_check(
         lo, hi = entry["required_range"]
         moving_id = entry["moving_union"]
         block = get_block(entry["block"], inventory_path) if entry.get("block") else None
-        dof = (block or {}).get("dof")
-        limit = dof["mechanical_limit"] if dof is not None else entry.get("mechanical_limit")
 
-        # ---- numeric check (no mesh, no collision backend) ----
-        if limit is not None:
-            mlo, mhi = limit
-            if lo < mlo - 1e-9 or hi > mhi + 1e-9:
-                issues.append(
-                    make_issue(
-                        "kinematics",
-                        "error",
-                        "range_exceeds_limit",
-                        f"Joint '{jid}' required range [{lo}, {hi}] {unit} exceeds "
-                        f"mechanical limit [{mlo}, {mhi}] {unit}",
-                        "Reduce the required range or choose a joint with a larger "
-                        "mechanical limit.",
-                        joint_id=jid,
-                        required_range=[lo, hi],
-                        mechanical_limit=[mlo, mhi],
-                        unit=unit,
-                    )
-                )
-                # Mechanically impossible: do not load a mesh or sweep this joint.
-                continue
-        else:
-            issues.append(
-                make_issue(
-                    "kinematics",
-                    "warning",
-                    "range_check_not_applicable",
-                    f"Joint '{jid}' has no mechanical_limit source (block-less entry "
-                    "with none declared); numeric range check skipped, collision sweep "
-                    "still runs.",
-                    "Declare 'mechanical_limit' on the entry to enable the numeric check.",
-                    joint_id=jid,
-                )
-            )
-
-        # ---- collision sweep (subtree: moving union + everything nested under its
-        # children, vs every union outside that subtree) ----
-        if not collision_ok:
+        numeric_issue, skip_sweep = _numeric_range_check(jid, unit, lo, hi, block, entry)
+        if numeric_issue:
+            issues.append(numeric_issue)
+        if skip_sweep or not collision_ok:
             continue
 
-        import trimesh
-        from trimesh.collision import CollisionManager
-
-        subtree_ids = [e["moving_union"] for e in iter_kinematics_entries([entry])]
-        fixed_ids = [uid for uid in all_union_ids if uid not in subtree_ids]
-
-        stale_subtree = [uid for uid in subtree_ids if uid in stale_unions]
-        stale_fixed = [uid for uid in fixed_ids if uid in stale_unions]
-        if stale_subtree or stale_fixed:
-            issues.append(
-                make_issue(
-                    "kinematics",
-                    "error",
-                    "stale_artifact",
-                    f"Joint '{jid}': exported STL is stale for union(s) "
-                    f"{', '.join(stale_subtree + stale_fixed)} -- the source script "
-                    "changed since the model was last exported.",
-                    "Re-run the model export so these unions' STLs reflect the current "
-                    "scripts, then re-run the quality gate.",
-                    joint_id=jid,
-                    stale_unions=stale_subtree + stale_fixed,
-                )
+        issues.extend(
+            _sweep_entry(
+                entry,
+                jid,
+                moving_id,
+                unit,
+                lo,
+                hi,
+                all_union_ids,
+                stale_unions,
+                stl_dir,
+                penetration_tol_mm3,
             )
-            if stale_subtree:
-                # The moving subtree itself is unreliable -- nothing meaningful to sweep.
-                continue
-            fixed_ids = [uid for uid in fixed_ids if uid not in stale_fixed]
-
-        missing = [
-            uid for uid in [*subtree_ids, *fixed_ids] if not os.path.exists(stl_path(stl_dir, uid))
-        ]
-        if missing:
-            issues.append(
-                make_issue(
-                    "kinematics",
-                    "warning",
-                    "check_skipped",
-                    f"Joint '{jid}': assembled union STL not found ({', '.join(missing)})",
-                    "Run the model export so each union has an assembled STL.",
-                    joint_id=jid,
-                )
-            )
-            continue
-
-        subtree_meshes = [
-            (uid, trimesh.load(stl_path(stl_dir, uid), force="mesh")) for uid in subtree_ids
-        ]
-        manager = CollisionManager()
-        fixed_meshes = {}
-        for uid in fixed_ids:
-            mesh = trimesh.load(stl_path(stl_dir, uid), force="mesh")
-            manager.add_object(uid, mesh)
-            fixed_meshes[uid] = mesh
-
-        binding = _sweep_collision(
-            subtree_meshes, manager, fixed_meshes, entry, penetration_tol_mm3
         )
-        if binding is None:
-            # Whole required range clear: achieved == required by definition, so no
-            # finding. (The gate partitions on error/warning only; an informational
-            # third tier would be silently discarded.)
-            continue
-
-        stop = binding["stop_value"]
-        colliding = binding["colliding"]
-        shared = {
-            "joint_id": jid,
-            "achieved_range": binding["achieved_range"],
-            "colliding_union": colliding,
-            "overlap_mm3": binding["overlap_mm3"],
-            "min_clearance_mm": binding["min_clearance_mm"],
-            "required_range": [lo, hi],
-            "unit": unit,
-        }
-
-        if entry.get("stop_on_contact"):
-            # Contact IS the design: the mechanism stops here and never reaches the
-            # interpenetrating poses beyond, so this is not a defect. Report the stop and
-            # let the designer judge the shortfall.
-            issues.append(
-                make_issue(
-                    "kinematics",
-                    "warning",
-                    "contact_limited_stop",
-                    f"Joint '{jid}' (moving union '{moving_id}') reaches "
-                    f"{binding['achieved_range']} of the required [{lo}, {hi}] {unit}, "
-                    f"stopping against {', '.join(colliding)}",
-                    "If this stop is the intended rest position, narrow required_range to "
-                    "match it; otherwise relieve the contacting feature.",
-                    **shared,
-                )
-            )
-        else:
-            issues.append(
-                make_issue(
-                    "kinematics",
-                    "error",
-                    "motion_collision",
-                    f"Joint '{jid}' (moving union '{moving_id}') binds at {stop} "
-                    f"{unit} against {', '.join(colliding)} (required range "
-                    f"[{lo}, {hi}] {unit}, achieved {binding['achieved_range']})",
-                    "Increase joint clearance or relieve the colliding feature. If this "
-                    "contact is the joint's intended mechanical stop, set "
-                    "stop_on_contact.",
-                    binding_value=stop,
-                    **shared,
-                )
-            )
 
     return issues
 

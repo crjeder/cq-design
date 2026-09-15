@@ -50,61 +50,72 @@ def load_inventory(path: str = _INVENTORY_PATH) -> list[Any]:
     return data
 
 
+_REQUIRED_FIELDS = ("name", "module", "function", "use", "params", "dimensions", "interfaces")
+
+
+def _check_required_fields(tag: str, entry: dict) -> list[str]:
+    return [
+        f"{tag}: missing required field '{field}'"
+        for field in _REQUIRED_FIELDS
+        if field not in entry
+    ]
+
+
+def _check_scalar_fields(tag: str, entry: dict) -> list[str]:
+    """Check the optional motion/reversible/carries/emits fields' shape and vocabulary."""
+    errors = []
+    if "motion" in entry and entry["motion"] not in _VALID_MOTION:
+        allowed = ", ".join(sorted(_VALID_MOTION))
+        errors.append(f"{tag}: motion '{entry['motion']}' not in allowed vocabulary ({allowed})")
+    if "reversible" in entry and not isinstance(entry["reversible"], bool):
+        errors.append(f"{tag}: reversible must be a boolean")
+    if "carries" in entry and not (
+        isinstance(entry["carries"], list) and all(isinstance(c, str) for c in entry["carries"])
+    ):
+        errors.append(f"{tag}: carries must be a list of strings")
+    if "emits" in entry and not (
+        isinstance(entry["emits"], list)
+        and len(entry["emits"]) == 2
+        and all(isinstance(m, str) for m in entry["emits"])
+    ):
+        errors.append(f"{tag}: emits must be a list of exactly two strings")
+    return errors
+
+
+def _check_interfaces(tag: str, entry: dict) -> list[str]:
+    errors = []
+    for iface in entry.get("interfaces", []):
+        itype = iface.get("type", "")
+        if itype not in _VALID_INTERFACE_TYPES:
+            allowed = ", ".join(sorted(_VALID_INTERFACE_TYPES))
+            errors.append(f"{tag}: interface type '{itype}' not in allowed vocabulary ({allowed})")
+        if "orientation" not in iface:
+            errors.append(f"{tag}: interface missing 'orientation'")
+        if "origin" not in iface or len(iface.get("origin", [])) != 3:
+            errors.append(f"{tag}: interface missing or invalid 'origin' (must be [x,y,z])")
+    return errors
+
+
+def _validate_entry(i: int, entry: dict, seen_names: set[str]) -> list[str]:
+    tag = f"block[{i}] {entry.get('name', '(no name)')!r}"
+    errors = _check_required_fields(tag, entry)
+
+    name = entry.get("name", "")
+    if name in seen_names:
+        errors.append(f"{tag}: duplicate name '{name}'")
+    seen_names.add(name)
+
+    errors.extend(_check_scalar_fields(tag, entry))
+    errors.extend(_check_interfaces(tag, entry))
+    return errors
+
+
 def validate_inventory(inventory: list[Any]) -> list[str]:
     """Validate inventory entries. Returns list of error strings (empty = OK)."""
     errors = []
-    seen_names = set()
-
+    seen_names: set[str] = set()
     for i, entry in enumerate(inventory):
-        tag = f"block[{i}] {entry.get('name', '(no name)')!r}"
-
-        for field in (
-            "name",
-            "module",
-            "function",
-            "use",
-            "params",
-            "dimensions",
-            "interfaces",
-        ):
-            if field not in entry:
-                errors.append(f"{tag}: missing required field '{field}'")
-
-        name = entry.get("name", "")
-        if name in seen_names:
-            errors.append(f"{tag}: duplicate name '{name}'")
-        seen_names.add(name)
-
-        if "motion" in entry and entry["motion"] not in _VALID_MOTION:
-            allowed = ", ".join(sorted(_VALID_MOTION))
-            errors.append(
-                f"{tag}: motion '{entry['motion']}' not in allowed vocabulary ({allowed})"
-            )
-        if "reversible" in entry and not isinstance(entry["reversible"], bool):
-            errors.append(f"{tag}: reversible must be a boolean")
-        if "carries" in entry and not (
-            isinstance(entry["carries"], list) and all(isinstance(c, str) for c in entry["carries"])
-        ):
-            errors.append(f"{tag}: carries must be a list of strings")
-        if "emits" in entry and not (
-            isinstance(entry["emits"], list)
-            and len(entry["emits"]) == 2
-            and all(isinstance(m, str) for m in entry["emits"])
-        ):
-            errors.append(f"{tag}: emits must be a list of exactly two strings")
-
-        for iface in entry.get("interfaces", []):
-            itype = iface.get("type", "")
-            if itype not in _VALID_INTERFACE_TYPES:
-                allowed = ", ".join(sorted(_VALID_INTERFACE_TYPES))
-                errors.append(
-                    f"{tag}: interface type '{itype}' not in allowed vocabulary ({allowed})"
-                )
-            if "orientation" not in iface:
-                errors.append(f"{tag}: interface missing 'orientation'")
-            if "origin" not in iface or len(iface.get("origin", [])) != 3:
-                errors.append(f"{tag}: interface missing or invalid 'origin' (must be [x,y,z])")
-
+        errors.extend(_validate_entry(i, entry, seen_names))
     return errors
 
 

@@ -1,0 +1,10 @@
+{
+  "tolerance_mm": 1.0,
+  "expected_parts": 1,
+  "tags": [
+    "correction",
+    "round2",
+    "seeded",
+    "lid"
+  ]
+}

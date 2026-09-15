@@ -16,8 +16,11 @@ named -- rather than downstream as a vague watertight/dimension symptom:
   neighboring feature (e.g. a standoff post only half-supported by the leg it
   stands on), catching a centerline-reused-as-boundary mistake at the point the
   feature was authored.
+- ``verify_seated`` -- a flat support body seated at a round boss's *center*
+  instead of its tangent (e.g. a hinge riser box whose top face lands on the
+  knuckle disc's center), leaving the boss half-buried in the support.
 
-All five raise a single marked ``RuntimeError`` on failure and return their
+All raise a single marked ``RuntimeError`` on failure and return their
 post-operation argument on success, so they sit inline in the build chain. The
 marker lets ``run_cadquery_model.py`` map the failure to a typed error; nothing
 else parses it. Depends only on CadQuery + the standard library.
@@ -213,3 +216,42 @@ def verify_backed(backer, feature, axis: str, label: str = "", tolerance: float 
             )
 
     return feature
+
+
+def verify_seated(support, boss, axis: str, label: str = "", overlap: float = 1.0):
+    """Raise if a flat `support` body bites past the tangent plane of a round `boss`.
+
+    `axis` is a signed token ("+x"/"-x"/"+y"/"-y"/"+z"/"-z") naming the direction from
+    `boss` toward `support` -- e.g. "-z" for a riser standing below a hinge knuckle.
+    Bbox-only: the bite depth is how far `support`'s bounding box extends past `boss`'s
+    bounding-box tangent face on that axis. Fails when the bite exceeds `overlap`
+    (default 1.0 mm, `pin_hinge`'s genuine-fusion margin), catching a flat body
+    positioned at the round feature's *center* coordinate instead of its tangent so the
+    boss ends up more than half-buried. Returns `boss` unchanged on success so it chains
+    inline like the other verify_* helpers.
+    """
+    if axis not in _AXIS_TOKENS:
+        raise ValueError(
+            f"verify_seated({label!r}): axis must be one of {sorted(_AXIS_TOKENS)}, got {axis!r}"
+        )
+
+    bb_s = _solid(support).BoundingBox()
+    bb_boss = _solid(boss).BoundingBox()
+    axis_name, sign = _AXIS_TOKENS[axis]
+
+    if sign < 0:
+        tangent = getattr(bb_boss, f"{axis_name}min")
+        bite = getattr(bb_s, f"{axis_name}max") - tangent
+    else:
+        tangent = getattr(bb_boss, f"{axis_name}max")
+        bite = tangent - getattr(bb_s, f"{axis_name}min")
+
+    if bite > overlap:
+        raise _fail(
+            "boss_swallowed",
+            label,
+            f"support bites {bite:.2f} mm past the boss tangent plane on {axis} "
+            f"({tangent:.2f} mm), exceeding the {overlap:.2f} mm fusion margin; the flat "
+            f"body is seated at the round feature's center, not its tangent",
+        )
+    return boss

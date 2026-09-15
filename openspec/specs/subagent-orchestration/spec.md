@@ -30,8 +30,11 @@ main session. No sub-agent SHALL be expected to interact with the user.
 Each part routed to autonomous build SHALL be built by its own sub-agent whose
 prompt is the fully rendered `prompts/part.md` for that part. The builder owns
 the full internal loop - write, lint (`script_lint.py`), validate
-(`run_cadquery_model.py`), render, self-check - for at most 3 attempts, with
-draft and refine in the same agent so retries retain attempt memory.
+(`run_cadquery_model.py`), render - for at most 3 attempts, with draft and
+refine in the same agent so retries retain attempt memory. The builder SHALL NOT
+run a model-driven review of its own render before returning; a part that clears
+its deterministic checks and renders SHALL return `status: passed`, and the
+fresh-context implementation audit is the acceptance bar for that part.
 
 #### Scenario: Builder return contract
 - **WHEN** a builder agent finishes
@@ -43,6 +46,13 @@ draft and refine in the same agent so retries retain attempt memory.
 - **WHEN** attempt 1 fails with a typed error
 - **THEN** attempt 2 happens inside the same agent with the prior attempt's
   errors and hints in its context
+
+#### Scenario: Clean deterministic checks end the builder's loop
+- **WHEN** an attempt returns `success: true` with no blocking wrapper errors and
+  a rendered preview
+- **THEN** the builder returns `status: passed` with its bbox and preview paths
+  without judging the render itself, and does not spend a further attempt on a
+  self-review finding
 
 ### Requirement: Progressive parts stay inline
 A part routed to progressive build (existing complexity gate: any `interfaces`
@@ -67,32 +77,86 @@ agent spawned.
 
 ### Requirement: Fresh-context implementation audit
 A part accepted by its builder SHALL be judged by an auditor agent that
-receives the part's `BUILD_PLAN.json` entry and the rendered preview, section,
-and detail images, and SHALL NOT receive the part script. The auditor answers
-the Visual Review Checklist questions, each against a specific cited view. An
-audit failure re-enters that part's builder as a targeted `visual_mismatch`
-fix.
+receives the part's `BUILD_PLAN.json` entry, the rendered preview, section, and
+detail images, and the scoped `request_log` text (the `initial` entry plus every
+entry whose typed `targets` name this part, or absent typed targets every entry
+matched by `request_log_search.py --query <part id or name>`). It SHALL NOT
+receive the part script. The auditor answers the Visual Review Checklist
+questions, each against a specific cited view, AND judges whether the render
+satisfies the fed request wording as a second, advisory bar. An audit failure
+re-enters that part's builder as a targeted `visual_mismatch` fix.
 
 #### Scenario: Auditor input isolation
 - **WHEN** the auditor agent is spawned for a part
-- **THEN** its prompt contains the plan entry and image paths but no part
-  script source
+- **THEN** its prompt contains the plan entry, the image paths, and the scoped
+  `request_log` text but no part script source
 
 #### Scenario: Audit failure
 - **WHEN** the auditor answers any checklist question "no"
 - **THEN** it names the question, the cited view, and the discrepancy, and the
   part's builder is resumed with that finding
 
+#### Scenario: Request-conformance finding is advisory
+- **WHEN** the auditor judges the render contradicts the fed request wording but
+  every checklist question still answers "yes"
+- **THEN** the audit verdict is `pass`, an advisory finding naming the contradicted
+  request text and its cited view is returned in `findings`, and it is surfaced to
+  the user without resuming the builder
+
+#### Scenario: Request contradiction that also fails a checklist question
+- **WHEN** the discrepancy that contradicts the request wording also answers a
+  checklist question "no"
+- **THEN** it is returned in `failed_questions` as `severity: blocking` with the
+  request text cited as supporting evidence, and the builder is resumed
+
 ### Requirement: Planner runs as a strong-model agent
 Phase 2 plan generation SHALL run in a sub-agent whose prompt is the rendered
-`prompts/planning.md` and whose model is the strongest available, overridden
-per call. `plan_validate.py` gating and the user approval checkpoint remain in
+`prompts/planning.md` and whose model is read from `skill_config.json`'s
+`models.planner`, overridden per call; absent that file or key, the strongest
+available model. `plan_validate.py` gating and the user approval checkpoint remain in
 the main session; validation errors re-enter the planner agent.
 
 #### Scenario: Plan validation loop
 - **WHEN** `plan_validate.py` rejects the planner's output
 - **THEN** the planner agent is resumed with the validation errors, and the
   user sees only the validated plan summary
+
+#### Scenario: Configured planner model
+- **WHEN** `skill_config.json` sets `models.planner`
+- **THEN** the planner agent is spawned with that model as its per-call override
+
+### Requirement: Builder agents use the configured authoring model
+A builder agent spawned for an autonomous part SHALL use `skill_config.json`'s
+`models.part_author` as its per-call model override; absent that file or key, the
+documented mid-tier default. When the value is `"inline"`, the part loop SHALL run in
+the calling session instead of spawning a builder agent. The model actually used SHALL
+be what Step 5's telemetry record names.
+
+#### Scenario: Configured authoring model
+- **WHEN** `models.part_author` names a model and a part routes autonomous
+- **THEN** the builder agent is spawned with that model, and its `attempts.jsonl`
+  records name that model
+
+#### Scenario: Inline authoring
+- **WHEN** `models.part_author` is `"inline"`
+- **THEN** no builder agent is spawned and the part loop runs in the main session,
+  with telemetry naming the main session's model
+
+### Requirement: One builder agent per part, no verification subagents
+A part SHALL be dispatched to at most one builder agent, spawned by the Agent routing
+gate. The orchestrating session SHALL NOT spawn additional agents to review, verify,
+double-check, or re-run a builder's work. The fresh-context implementation auditor is
+the single review agent and the deterministic checks are programs, not agents.
+
+#### Scenario: No verification spawn after a passing builder
+- **WHEN** a builder returns `status: passed`
+- **THEN** the part proceeds to the implementation audit with no intermediate
+  verification agent spawned
+
+#### Scenario: Retry does not spawn a second builder
+- **WHEN** a builder's attempt fails or the part is escalated with a user hint
+- **THEN** the same builder agent is resumed rather than a second builder spawned for
+  that part
 
 ### Requirement: Dimension lookup runs as a research agent
 When Phase 1 requires real-world dimension lookups, the lookup workflow (web

@@ -12,18 +12,21 @@ Runs these checks against the final model script:
   5. Keep-out zones: no union may intrude on a declared keep-out zone, excluding the
      zone's own declaring part (once, outside the fix loop) via keep_out_check.py
 
-Aggregates issues with severity (error/warning), generates a targeted fix prompt
-if any errors are found, invokes `claude -p` for up to MAX_FIX_ROUNDS, then
-re-runs the gate. On a clean pass emits a print recipe JSON.
+Aggregates issues with severity (error/warning) and emits a report. Report-only by
+default; pass --fix to generate a targeted fix prompt and invoke `claude -p` for up
+to MAX_FIX_ROUNDS (cold-context, no plan/render/attempt history) before re-running
+the gate. On a clean pass emits a print recipe JSON.
 
 Usage:
     python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json
     python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json --stl build/body.stl
-    python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json --no-fix
+    python3 quality_gate.py --script build/body.py --plan BUILD_PLAN.json --fix
 """
 
 import argparse
+import ast
 import json
+import math
 import os
 import subprocess
 import sys
@@ -31,6 +34,10 @@ from collections.abc import Callable
 
 SKILL_ROOT = os.path.dirname(os.path.abspath(__file__))
 MAX_FIX_ROUNDS = 2
+# Call names that satisfy the hinge-guard-lint stage (see _run_hinge_guard_stage): a
+# hinge-associated union's script must call one of these, whether imported bare
+# (`verify_seated(...)`) or via attribute access (`cq_verify.verify_seated(...)`).
+_HINGE_GUARD_CALL_NAMES = {"verify_seated", "verify_backed", "pin_hinge"}
 # Up-facing gentle-incline area (mm^2) below which the cosmetic-slope finding is suppressed
 # as trivial. Advisory only, so this is tunable without affecting pass/fail.
 COSMETIC_SLOPE_MIN_AREA_MM2 = 20.0
@@ -40,8 +47,15 @@ COSMETIC_SLOPE_MIN_AREA_MM2 = 20.0
 # ---------------------------------------------------------------------------
 
 
-def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | None, dict | None]:
-    """Run run_cadquery_model.py DFM checks; return list of issue dicts."""
+def _run_wrapper_check(
+    script_path: str, plan: dict
+) -> tuple[list[dict], str | None, dict | None, list[str]]:
+    """Run run_cadquery_model.py DFM checks; return list of issue dicts.
+
+    The 4th element is every union STL the wrapper produced (`data["stls"]`), not just
+    the first (`data["stl"]`) -- a multi-union part's overhang/watertightness analysis
+    must cover every union, not only the one `stl` happens to point at.
+    """
     constraints = plan.get("constraints", {})
     # Line width approximates nozzle diameter * 1.1; drives the brittle thin-wall
     # threshold in the wrapper's thin-interface check.
@@ -77,18 +91,33 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
             ],
             None,
             None,
+            [],
         )
+
+    # The wrapper's own success=False (script crashed / produced no valid geometry)
+    # overrides the type allowlist below -- every error from a failed run is blocking,
+    # not just the types this list happens to enumerate.
+    run_failed = data.get("success") is False
 
     issues = []
     for err in data.get("errors", []):
         severity = (
             "error"
-            if err["type"]
+            if run_failed
+            or err["type"]
             in (
                 "non_manifold_edge",
                 "non_watertight",
                 "occ_exception",
+                "construction_error",
+                "command_not_done",
+                "fillet_failure",
+                "null_object",
+                "index_out_of_range",
+                "type_mismatch",
                 "dimension_mismatch",
+                "disconnected_body",
+                "mesh_load_error",
             )
             else "warning"
         )
@@ -101,9 +130,20 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
                 "hint": err.get("hint", ""),
             }
         )
+    if run_failed and not issues:
+        issues.append(
+            {
+                "source": "wrapper",
+                "severity": "error",
+                "type": "run_failed",
+                "message": "wrapper reported success=False with no structured errors",
+                "hint": data.get("stderr", ""),
+            }
+        )
+
     # Expose STL path for downstream MCP checks
     stl_path: str | None = data.get("stl")
-    return issues, stl_path, data.get("geometry")
+    return issues, stl_path, data.get("geometry"), data.get("stls") or []
 
 
 # ---------------------------------------------------------------------------
@@ -111,8 +151,50 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
 # ---------------------------------------------------------------------------
 
 
-def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
-    """Analyze STL geometry and overhangs using trimesh. Returns issues."""
+def _clearance_opening_zones(plan: dict, part: dict, rotate: list[dict] | None) -> list[dict]:
+    """Build-frame `{center, radius_mm}` for each of `part`'s `clearance_opening`
+    interfaces (see [Hitstertower oversupport](TODO.md#hitstertower-oversupport)).
+
+    `position_mm` is the interface's center in the part's authored frame; mapped
+    through the part's `placement` (assembled frame, matching the exported STL) and
+    then the chosen print orientation's `rotate` (matching `_analyze_stl`'s posed
+    mesh), so it lands in the same frame as `overhang_metrics`' `worst_location_xyz_mm`.
+    `radius_mm` is the opening's half-diagonal (from `size_mm`) plus a small margin
+    for tessellation/rounding slop; unsized openings fall back to a fixed radius.
+    """
+    from placement import transform_direction, transform_point
+
+    zones = []
+    for interface in part.get("interfaces", []):
+        if interface.get("type") != "clearance_opening":
+            continue
+        position = interface.get("position_mm")
+        if position is None:
+            continue
+        center = transform_point(position, part.get("placement"))
+        if rotate:
+            center = transform_direction(center, {"rotate": rotate})
+        size = interface.get("size_mm")
+        radius = math.hypot(*(s / 2 for s in size)) + 1.0 if size else 5.0
+        zones.append({"center": center, "radius_mm": radius, "name": interface.get("name")})
+    return zones
+
+
+def _analyze_stl(
+    stl_path: str,
+    overhang_deg: float,
+    rotate: list[dict] | None = None,
+    clearance_zones: list[dict] | None = None,
+) -> list[dict]:
+    """Analyze STL geometry and overhangs using trimesh. Returns issues.
+
+    ``rotate`` is the chosen print orientation's `[{axis, angle_deg}, ...]` steps
+    (``print_orientation.py``'s `rotate`, same convention as `placement`). The STL is
+    exported in the part's authored/placement frame, so the overhang test would
+    otherwise judge a face that the optimizer rotated onto the bed (or into a wall)
+    as if it printed in the authored pose -- a false positive whenever the two frames
+    differ. Applying the steps here evaluates overhang at the pose that actually prints.
+    """
     try:
         import trimesh
     except ImportError as exc:
@@ -128,6 +210,10 @@ def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
 
     try:
         tm = trimesh.load(stl_path, force="mesh")
+        if rotate:
+            from placement import to_matrix
+
+            tm.apply_transform(to_matrix({"rotate": rotate}))
     except Exception as exc:
         return [
             {
@@ -173,19 +259,44 @@ def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
     if metrics["worst_angle_deg"] is not None:
         overhang_area = metrics["overhang_area_mm2"]
         worst_angle = metrics["worst_angle_deg"]
+        location = metrics["worst_location_xyz_mm"]
+        zone = next(
+            (
+                z
+                for z in (clearance_zones or [])
+                if math.dist(location, z["center"]) <= z["radius_mm"]
+            ),
+            None,
+        )
+        if zone:
+            severity = "info"
+            message = (
+                f"Worst overhang {worst_angle:.1f}° exceeds limit {overhang_deg}° over "
+                f"{overhang_area:.1f} mm² of faces, at the declared clearance opening "
+                f"'{zone['name']}'"
+            )
+            hint = (
+                "This overhang bounds a declared clearance_opening interface -- see the "
+                "part's engineering_rationale/part_notes for its load path instead of "
+                "adding support here."
+            )
+        else:
+            severity = "warning"
+            message = (
+                f"Worst overhang {worst_angle:.1f}° exceeds limit "
+                f"{overhang_deg}° over {overhang_area:.1f} mm² of faces"
+            )
+            hint = "Add chamfers or redesign overhanging features."
         issues.append(
             {
                 "source": "geometry",
-                "severity": "warning",
+                "severity": severity,
                 "type": "overhang_exceeded",
-                "message": (
-                    f"Worst overhang {worst_angle:.1f}° exceeds limit "
-                    f"{overhang_deg}° over {overhang_area:.1f} mm² of faces"
-                ),
-                "hint": "Add chamfers or redesign overhanging features.",
+                "message": message,
+                "hint": hint,
                 "overhang_area_mm2": overhang_area,
                 "worst_angle_deg": worst_angle,
-                "location_xyz_mm": metrics["worst_location_xyz_mm"],
+                "location_xyz_mm": location,
             }
         )
 
@@ -197,12 +308,24 @@ def _analyze_stl(stl_path: str, overhang_deg: float) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _emit_print_recipe(plan: dict, geometry: dict | None, orientation: dict | None = None) -> dict:
+def _emit_print_recipe(
+    plan: dict,
+    geometry: dict | None,
+    orientation: dict | None = None,
+    needs_support: bool = False,
+) -> dict:
     """Build a recommended print recipe from plan constraints + geometry.
 
     When `orientation` (a print_orientation.py result) is supplied, the recipe's
     `orientation` field carries the computed rotation and its rationale; otherwise
     it falls back to the default flat-bottom-down assumption.
+
+    `needs_support` SHALL be derived from whether the geometry analysis emitted a
+    (non-advisory) `overhang_exceeded` finding at the chosen pose, not guessed --
+    see [Silica Tray support claim](TODO.md#silica-tray-support-claim): this field
+    used to be hardcoded `False` regardless of `orientation["support_score"]` or
+    any overhang finding, so the delivered recipe always claimed no support was
+    needed even when the gate had just flagged one.
     """
     constraints = plan.get("constraints", {})
     wall_min = constraints.get("wall_min_mm", 1.2)
@@ -230,7 +353,7 @@ def _emit_print_recipe(plan: dict, geometry: dict | None, orientation: dict | No
         "top_bottom_layers": 4,
         "infill_percent": 20,
         "infill_pattern": "gyroid",
-        "supports": False,
+        "supports": needs_support,
         "support_threshold_deg": constraints.get("overhang_max_deg", 45),
         "orientation": orientation_field,
     }
@@ -284,10 +407,33 @@ def _render_fix_prompt(script_path: str, issues: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _fix_loop_model() -> str | None:
+    """Read models.fix_loop from ./skill_config.json; None means no --model flag."""
+    try:
+        with open("skill_config.json", encoding="utf-8") as f:
+            config = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    model = (config.get("models") or {}).get("fix_loop", "inline")
+    return None if model == "inline" else model
+
+
 def _call_claude(prompt_text: str) -> str:
-    """Call claude -p with the prompt text, return generated code."""
+    """Call claude -p with the prompt text, return generated code.
+
+    `--tools ""` disables every tool (and, per its own contract, ignores project/local
+    settings files) -- this call's only job is to transcode a prompt into Python text,
+    so it needs no tool access. Without this, a script's exception message embedded
+    verbatim in the prompt (see `_render_fix_prompt`) could steer a `claude -p` that
+    inherits this project's `.claude/settings.local.json` -- including the Bash grants
+    `init_permissions.py` seeds -- into running commands unattended.
+    """
+    cmd = ["claude", "-p", prompt_text, "--tools", ""]
+    model = _fix_loop_model()
+    if model:
+        cmd += ["--model", model]
     result = subprocess.run(
-        ["claude", "-p", prompt_text],
+        cmd,
         capture_output=True,
         text=True,
         timeout=120,
@@ -325,6 +471,121 @@ def _run_plan_validation_stage(plan_path: str) -> list[dict]:
         }
         for err in validate_plan(plan_path)
     ]
+
+
+def _run_telemetry_stage(attempts_log: str) -> list[dict]:
+    """Warn when the per-attempt telemetry log is absent, empty, or unparseable (once,
+    outside the fix loop; advisory only -- geometry is unaffected either way).
+
+    Folds by (part_id, attempt) first, so a base record plus its visual-review
+    follow-up for the same attempt is not mistaken for two records when only one
+    of them would parse (both parse here, but the fold keeps this consistent
+    with every other consumer of attempts.jsonl).
+    """
+    from telemetry import fold_attempts
+    from units import make_issue
+
+    if os.path.isfile(attempts_log):
+        records = []
+        with open(attempts_log, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        if fold_attempts(records):
+            return []
+
+    return [
+        make_issue(
+            "telemetry",
+            "warning",
+            "telemetry_missing",
+            f"No attempt telemetry found at {attempts_log}.",
+            "Attempts are logged by the telemetry.py PostToolUse hook (see init_permissions.py).",
+        )
+    ]
+
+
+def _run_parameters_presence_stage(project_root: str) -> list[dict]:
+    """Warn when Phase 1's dimension checkpoint recorded that real-world sourcing
+    happened (a `phase1/dimensions_approved` line in build/journal.md) but
+    parameters.py is missing or empty at the project root (advisory only -- geometry
+    is unaffected either way)."""
+    from units import make_issue
+
+    journal_path = os.path.join(project_root, "build", "journal.md")
+    if not os.path.isfile(journal_path):
+        return []
+
+    with open(journal_path, encoding="utf-8") as f:
+        sourced = any(line.startswith("- phase1/dimensions_approved") for line in f)
+    if not sourced:
+        return []
+
+    params_path = os.path.join(project_root, "parameters.py")
+    if os.path.isfile(params_path) and os.path.getsize(params_path) > 0:
+        return []
+
+    return [
+        make_issue(
+            "parameters",
+            "warning",
+            "parameters_missing",
+            f"No sourced-measurement provenance found at {params_path}.",
+            "Write parameters.py per skill/phase1_requirements.md's Provenance write, at approval.",
+        )
+    ]
+
+
+def _run_parameters_unresolved_stage(project_root: str) -> list[dict]:
+    """Warn when parameters.py assigns the `-1` unresolved-dimension placeholder.
+
+    parameters.py records the Phase 1 dimension table verbatim; a `-1` there means a
+    `missing` row was approved despite the exit gate forbidding it. Advisory only --
+    the geometry was built from some concrete value regardless.
+    """
+    import ast
+
+    from units import make_issue
+
+    params_path = os.path.join(project_root, "parameters.py")
+    if not os.path.isfile(params_path):
+        return []
+
+    try:
+        with open(params_path, encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=params_path)
+    except SyntaxError:
+        return []
+
+    def _is_neg_one(node: ast.expr) -> bool:
+        return (
+            isinstance(node, ast.UnaryOp)
+            and isinstance(node.op, ast.USub)
+            and isinstance(node.operand, ast.Constant)
+            and node.operand.value == 1
+        )
+
+    issues = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and _is_neg_one(node.value):
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            for name in names:
+                issues.append(
+                    make_issue(
+                        "parameters",
+                        "warning",
+                        "parameters_unresolved",
+                        f"parameters.py assigns the -1 unresolved-dimension placeholder to {name}.",
+                        "Resolve the dimension to a sourced value or record it as `assumed` "
+                        "with a concrete value (skill/phase1_requirements.md exit checkpoint).",
+                    )
+                )
+    return issues
 
 
 def _run_kinematic_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) -> list[dict]:
@@ -401,6 +662,103 @@ def _run_feature_presence_stage(plan: dict, script_path: str) -> list[dict]:
     from feature_presence_check import run_feature_presence_check
 
     return run_feature_presence_check(plan, script_path)
+
+
+def _is_hinge_associated_union(plan: dict, union_id: str) -> bool:
+    """True when `union_id` is the moving_union of a revolute kinematics entry, or is
+    named in a `pin_hinge` joints entry's members[].part (see hinge-guard-lint spec)."""
+    from units import iter_kinematics_entries
+
+    for entry in iter_kinematics_entries(plan.get("kinematics", [])):
+        if entry.get("type") == "revolute" and entry.get("moving_union") == union_id:
+            return True
+    for joint in plan.get("joints", []):
+        if joint.get("block") != "pin_hinge":
+            continue
+        if any(m.get("part") == union_id for m in joint.get("members", [])):
+            return True
+    return False
+
+
+def _run_hinge_guard_stage(plan: dict, script_path: str) -> list[dict]:
+    """Flag a hinge-associated union whose script builds a boolean union but never calls
+    `verify_seated`/`verify_backed`/`pin_hinge` (once, outside the fix loop; advisory).
+
+    Makes a pre-existing, hand-rolled revolute-hinge script's missing guard visible even
+    though it was never re-authored under the guard's own rule (see hinge-guard-lint spec).
+    """
+    from units import iter_unions, make_issue
+
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
+    if part is None:
+        return []
+
+    hinge_unions = sorted(
+        uid
+        for p, uid, _plate in iter_unions(plan)
+        if p is part and _is_hinge_associated_union(plan, uid)
+    )
+    if not hinge_unions:
+        return []
+
+    try:
+        with open(script_path, encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=script_path)
+    except (OSError, SyntaxError):
+        return []
+
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    has_union_call = any(
+        isinstance(c.func, ast.Attribute) and c.func.attr == "union" for c in calls
+    )
+    if not has_union_call:
+        return []
+
+    has_guard_call = any(
+        (isinstance(c.func, ast.Name) and c.func.id in _HINGE_GUARD_CALL_NAMES)
+        or (isinstance(c.func, ast.Attribute) and c.func.attr in _HINGE_GUARD_CALL_NAMES)
+        for c in calls
+    )
+    if has_guard_call:
+        return []
+
+    return [
+        make_issue(
+            "hinge_guard",
+            "warning",
+            "hinge_guard_missing",
+            f"Union(s) {', '.join(hinge_unions)} are hinge-associated (a revolute "
+            "kinematics moving_union or a pin_hinge joints member) but the script has "
+            "no call to verify_seated, verify_backed, or pin_hinge.",
+            "Guard the hinge seating with cq_verify.verify_seated/verify_backed, or "
+            "build the joint via blocks.joints.pin_hinge, per prompts/part.md rule 8.",
+            unions=hinge_unions,
+        )
+    ]
+
+
+def _run_gridfinity_stage(script_path: str) -> list[dict]:
+    """Check Gridfinity conformance for a part built on the Gridfinity blocks (once,
+    outside the fix loop).
+
+    Auto-scoped: no-op unless the part script actually reaches for a Gridfinity block, so
+    ordinary parts never pay for it and a Gridfinity part cannot silently skip it. Grid,
+    height, foot-profile, and mating findings are blocking -- a part that misses the
+    standard does not fit anything, which no amount of print tuning fixes.
+    """
+    try:
+        with open(script_path, encoding="utf-8") as f:
+            source = f.read()
+    except OSError:
+        return []
+    if "gridfinity" not in source:
+        return []
+
+    from gridfinity_check import run_gridfinity_check
+
+    issues, _ = run_gridfinity_check(script_path)
+    return issues
 
 
 def _run_cosmetic_slope_stage(plan: dict, script_path: str, orientation: dict | None) -> list[dict]:
@@ -496,10 +854,11 @@ def run_gate(
     script_path: str,
     plan_path: str,
     stl_path: str | None = None,
-    allow_fix: bool = True,
+    allow_fix: bool = False,
     stl_dir: str | None = None,
     model_3mf_path: str | None = None,
     orientation: dict | None = None,
+    attempts_log: str | None = None,
 ) -> dict:
     """
     Run all quality checks against script_path.
@@ -523,13 +882,38 @@ def run_gate(
     fix_round = 0
     for fix_round in range(MAX_FIX_ROUNDS + 1):
         # ---- wrapper DFM ----
-        wrapper_issues, discovered_stl, geometry = _run_wrapper_check(script_path, plan)
+        wrapper_issues, discovered_stl, geometry, discovered_stls = _run_wrapper_check(
+            script_path, plan
+        )
 
-        effective_stl = stl_path or discovered_stl
+        # An explicit `stl_path` override names one specific STL to analyze. Otherwise
+        # analyze every union STL the wrapper produced -- a multi-union part's `stl`
+        # (== stls[0]) would silently skip the geometry/overhang check for every other
+        # union.
+        effective_stls = (
+            [stl_path]
+            if stl_path
+            else (discovered_stls or ([discovered_stl] if discovered_stl else []))
+        )
+        effective_stls = [p for p in effective_stls if p and os.path.exists(p)]
 
         # ---- geometry + overhang ----
-        if effective_stl and os.path.exists(effective_stl):
-            geo_issues = _analyze_stl(effective_stl, overhang_deg)
+        if effective_stls:
+            rotate = (orientation or {}).get("rotate")
+            stem = os.path.splitext(os.path.basename(script_path))[0]
+            part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
+            clearance_zones = _clearance_opening_zones(plan, part, rotate) if part else []
+            multi = len(effective_stls) > 1
+            geo_issues = []
+            for stl in effective_stls:
+                uid = os.path.splitext(os.path.basename(stl))[0]
+                stl_issues = _analyze_stl(stl, overhang_deg, rotate, clearance_zones)
+                if multi:
+                    stl_issues = [
+                        {**i, "union": uid, "message": f"[{uid}] {i['message']}"}
+                        for i in stl_issues
+                    ]
+                geo_issues.extend(stl_issues)
         else:
             geo_issues = [
                 {
@@ -566,6 +950,18 @@ def run_gate(
     if model_3mf_path and os.path.exists(model_3mf_path):
         all_issues += _analyze_3mf(model_3mf_path)
 
+    # ---- telemetry presence check (once, outside the fix loop; runs unconditionally --
+    # even a malformed plan is exactly when telemetry matters) ----
+    resolved_attempts_log = attempts_log or os.path.join(
+        os.path.dirname(os.path.abspath(script_path)), "attempts.jsonl"
+    )
+    all_issues += _run_telemetry_stage(resolved_attempts_log)
+
+    # ---- parameters.py provenance presence check (once, outside the fix loop) ----
+    project_root = os.path.dirname(os.path.abspath(plan_path))
+    all_issues += _run_parameters_presence_stage(project_root)
+    all_issues += _run_parameters_unresolved_stage(project_root)
+
     # ---- plan validation (once, before any plan-consuming stage) ----
     # The wrapper/geometry stages above read the plan only through defaulted .get
     # lookups, so they are safe on a malformed plan; the kinematic stage raw-indexes
@@ -590,15 +986,24 @@ def run_gate(
         all_issues += _run_edge_treatment_stage(plan, script_path, orientation)
         # ---- feature-presence check (declared interfaces built; once, outside the fix loop) ----
         all_issues += _run_feature_presence_stage(plan, script_path)
+        # ---- hinge-guard-lint (revolute-hinge script missing its seating guard; advisory) ----
+        all_issues += _run_hinge_guard_stage(plan, script_path)
         # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
         all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
+        # ---- Gridfinity conformance (Gridfinity parts only, once, outside the fix loop) ----
+        all_issues += _run_gridfinity_stage(script_path)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
+    needs_support = any(
+        i["type"] == "overhang_exceeded" and i["severity"] == "warning" for i in all_issues
+    )
 
     return {
         "passed": passed,
         "issues": all_issues,
-        "print_recipe": _emit_print_recipe(plan, geometry, orientation) if passed else None,
+        "print_recipe": (
+            _emit_print_recipe(plan, geometry, orientation, needs_support) if passed else None
+        ),
         "fix_rounds": fix_round,
     }
 
@@ -632,9 +1037,15 @@ def main():
         "recipe's orientation field",
     )
     parser.add_argument(
-        "--no-fix",
+        "--attempts-log",
+        default=None,
+        help="Path to the per-attempt telemetry log (default: attempts.jsonl alongside --script)",
+    )
+    parser.add_argument(
+        "--fix",
         action="store_true",
-        help="Report issues only; do not invoke claude for fixes",
+        help="Invoke claude to fix errors (cold-context, no plan/render/attempt history); "
+        "default is report-only",
     )
     args = parser.parse_args()
 
@@ -647,10 +1058,11 @@ def main():
         args.script,
         args.plan,
         stl_path=args.stl,
-        allow_fix=not args.no_fix,
+        allow_fix=args.fix,
         stl_dir=args.stl_dir,
         model_3mf_path=args.model_3mf,
         orientation=orientation,
+        attempts_log=args.attempts_log,
     )
 
     print(json.dumps(report, indent=2))

@@ -205,6 +205,13 @@ def _load_script_result(script_path: str, skill_root: str):
         from units import KEEP_OUT_KEY
 
         union_wps = [wp for uid, wp in result.items() if uid != KEEP_OUT_KEY]
+        if not union_wps:
+            print(
+                "ERROR: `result` dict has no union geometry (only the reserved "
+                f"'{KEEP_OUT_KEY}' key).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         combined = union_wps[0]
         for wp in union_wps[1:]:
             combined = combined.add(wp)
