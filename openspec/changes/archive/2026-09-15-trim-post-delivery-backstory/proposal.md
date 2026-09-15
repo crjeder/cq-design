@@ -21,12 +21,14 @@ doesn't already cover.
 
 ### New Capabilities
 
-None.
+- `skill-post-delivery-correction-rule`: the Phase 3 rule that a post-delivery geometry
+  correction re-opens print-orientation, model export, and quality gate for the affected
+  union(s) before Phase 4 re-reports delivery. Captured as a spec so the rule's substance
+  is pinned independently of how `skill/phase3_build.md` explains its origin.
 
 ### Modified Capabilities
 
-None -- this is an editorial trim of skill documentation, not a change to any
-documented requirement or behavior.
+None.
 
 ## Impact
 
