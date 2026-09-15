@@ -1,0 +1,12 @@
+{
+  "tolerance_mm": 1.0,
+  "expected_parts": 2,
+  "tags": [
+    "hinge",
+    "joints",
+    "kinematics",
+    "shared_pivot",
+    "two",
+    "part"
+  ]
+}

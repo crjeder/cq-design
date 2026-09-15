@@ -16,6 +16,7 @@ from pathlib import Path
 import cadquery as cq
 
 CASES_DIR = Path(__file__).parent / "cases"
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def enclosure_body():
@@ -86,6 +87,39 @@ def box_lid():
     return plate.union(lip)
 
 
+def _hinged_latch_leaves():
+    from blocks.joints import pin_hinge
+
+    return pin_hinge(length=30, knuckles=3, leaf_w=20, leaf_t=4, d_filament=1.9, clearance=0.3)
+
+
+def hinge_leaf_a():
+    return _hinged_latch_leaves()["leaf_a"]
+
+
+def hinge_leaf_b():
+    return _hinged_latch_leaves()["leaf_b"]
+
+
+def corrected_lid():
+    plate = cq.Workplane("XY").box(70, 50, 3, centered=(True, True, False))
+    lip = cq.Workplane("XY").box(66, 46, 2, centered=(True, True, False)).translate((0, 0, -2))
+    return plate.union(lip)
+
+
+def mount_plate():
+    # Boss on the East-facing (+X) edge: right side of the South viewing
+    # station per the fixed North=+Y/East=+X convention (prompts/planning.md).
+    plate = cq.Workplane("XY").box(60, 40, 6, centered=(True, True, False))
+    boss = (
+        cq.Workplane("XY")
+        .workplane(offset=6)
+        .center(22, 0)
+        .cylinder(8, 5, centered=(True, True, False))
+    )
+    return plate.union(boss)
+
+
 # case name -> {part_id: builder}
 GOLDENS = {
     "enclosure-body": {"enclosure_body": enclosure_body},
@@ -98,6 +132,9 @@ GOLDENS = {
     "u-clip": {"u_clip": u_clip},
     "phone-stand": {"phone_stand": phone_stand},
     "two-part-box": {"box_body": box_body, "box_lid": box_lid},
+    "hinged-latch": {"hinge_leaf_a": hinge_leaf_a, "hinge_leaf_b": hinge_leaf_b},
+    "lid-thickness-correction": {"corrected_lid": corrected_lid},
+    "east-side-mount": {"mount_plate": mount_plate},
 }
 
 

@@ -108,13 +108,13 @@ that meet the engineering-rationale trigger (a declared plan `load`, or load-bea
 blocks/archetype). Each engineering row SHALL demand a value and its threshold - e.g.
 "What is rib thickness / wall thickness? Is it <= 0.6?", "What is the snap-arm strain
 at full deflection vs. the material allowable?" - rather than a judgment question.
-Engineering rows SHALL be answered by citing the script's PARAMETERS values, its
-ENGINEERING RATIONALE block, or the wrapper's `geometry` JSON (not a rendered view);
-the checklist SHALL state explicitly that the view-citation rule applies to visual
-rows only, and that numeric rows cite the parameter or geometry value the number came
-from. An engineering row whose re-derived value contradicts the script's rationale
-block, or exceeds its threshold, SHALL be a recorded finding that blocks the pass,
-like any failed question.
+Engineering rows SHALL be answered by citing the script's PARAMETERS values, the part's
+`engineering_rationale` entry in `BUILD_PLAN.json`, or the wrapper's `geometry` JSON (not
+a rendered view); the checklist SHALL state explicitly that the view-citation rule applies
+to visual rows only, and that numeric rows cite the parameter or geometry value the number
+came from. An engineering row whose re-derived value contradicts the part's
+`engineering_rationale`, or exceeds its threshold, SHALL be a recorded finding that blocks
+the pass, like any failed question.
 
 #### Scenario: Ribbed load-bearing part
 
@@ -125,8 +125,8 @@ like any failed question.
 #### Scenario: Rationale contradicted at review
 
 - **WHEN** re-deriving an engineering row's value from the script's parameters gives
-  a result that exceeds the stated allowable, though the rationale block claimed it
-  passed
+  a result that exceeds the stated allowable, though the part's `engineering_rationale`
+  claimed it passed
 - **THEN** the review records a finding naming the row and the discrepancy, and the
   part is not passed on that attempt
 

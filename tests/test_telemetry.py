@@ -1,6 +1,7 @@
 """telemetry.py append helper + CLI -- fast, no CadQuery."""
 
 import json
+import sys
 
 import pytest
 
@@ -121,3 +122,127 @@ def test_cli_invalid_record_exits_nonzero(tmp_path):
     rc = telemetry.main(["append", str(log), '{"attempt": 1}'])
     assert rc == 1
     assert not log.exists()
+
+
+# ---- fold_attempts ----------------------------------------------------------
+
+
+def test_fold_empty_input():
+    assert telemetry.fold_attempts([]) == []
+
+
+def test_fold_single_record():
+    rec = _valid_record()
+    assert telemetry.fold_attempts([rec]) == [rec]
+
+
+def test_fold_same_key_last_wins():
+    base = _valid_record(outcome="pass", error_types=[])
+    followup = _valid_record(
+        outcome="fail", error_types=["visual_mismatch"], visual_review={"passed": False}
+    )
+    folded = telemetry.fold_attempts([base, followup])
+    assert folded == [followup]
+
+
+def test_fold_interleaved_keys_preserve_first_appearance_order():
+    a1 = _valid_record(part_id="a", attempt=1)
+    b1 = _valid_record(part_id="b", attempt=1)
+    a1_followup = _valid_record(part_id="a", attempt=1, outcome="pass", error_types=[])
+    folded = telemetry.fold_attempts([a1, b1, a1_followup])
+    assert [(r["part_id"], r["attempt"]) for r in folded] == [("a", 1), ("b", 1)]
+    assert folded[0] == a1_followup
+
+
+# ---- --hook -----------------------------------------------------------------
+
+
+def _hook_payload(tmp_path, command, stdout, transcript_lines=()):
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text(
+        "".join(json.dumps(line) + "\n" for line in transcript_lines), encoding="utf-8"
+    )
+    return {
+        "session_id": "s1",
+        "transcript_path": str(transcript),
+        "cwd": str(tmp_path),
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": command},
+        "tool_response": {"stdout": stdout, "stderr": "", "exit_code": 0},
+    }
+
+
+def _run_hook_with_payload(monkeypatch, capsys, payload):
+    import io
+
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    return telemetry.main(["--hook"])
+
+
+def test_hook_appends_base_record(tmp_path, monkeypatch):
+    (tmp_path / "build").mkdir()
+    (tmp_path / "build" / "housing_prompt_attempt1.txt").write_text("x" * 500, encoding="utf-8")
+    payload = _hook_payload(
+        tmp_path,
+        command='uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" '
+        "build/housing.py --preview",
+        stdout=json.dumps({"success": False, "errors": [{"type": "thin_interface"}]}),
+        transcript_lines=[
+            {"type": "assistant", "message": {"model": "claude-sonnet-5", "usage": {}}}
+        ],
+    )
+    rc = _run_hook_with_payload(monkeypatch, None, payload)
+    assert rc == 0
+    log = tmp_path / "build" / "attempts.jsonl"
+    (entry,) = _lines(log)
+    assert entry["part_id"] == "housing"
+    assert entry["attempt"] == 1
+    assert entry["outcome"] == "fail"
+    assert entry["error_types"] == ["thin_interface"]
+    assert entry["visual_review"] is None
+    assert entry["model"] == "claude-sonnet-5"
+    assert entry["prompt_chars"] == 500
+
+
+def test_hook_noop_on_non_matching_command(tmp_path, monkeypatch):
+    (tmp_path / "build").mkdir()
+    payload = _hook_payload(tmp_path, command="echo hi", stdout="")
+    rc = _run_hook_with_payload(monkeypatch, None, payload)
+    assert rc == 0
+    assert not (tmp_path / "build" / "attempts.jsonl").exists()
+
+
+def test_hook_noop_when_build_missing(tmp_path, monkeypatch):
+    payload = _hook_payload(
+        tmp_path,
+        command="python run_cadquery_model.py build/housing.py",
+        stdout=json.dumps({"success": True, "errors": []}),
+    )
+    rc = _run_hook_with_payload(monkeypatch, None, payload)
+    assert rc == 0
+    assert not (tmp_path / "build" / "attempts.jsonl").exists()
+
+
+def test_hook_noop_on_malformed_payload(monkeypatch):
+    import io
+
+    monkeypatch.setattr(sys, "stdin", io.StringIO("not json"))
+    rc = telemetry.main(["--hook"])
+    assert rc == 0
+
+
+def test_record_attempt_numbers_attempts_and_skips_stubs(tmp_path):
+    log = tmp_path / "build" / "attempts.jsonl"
+    log.parent.mkdir()
+    (log.parent / "lid_prompt.txt").write_text("x" * 42, encoding="utf-8")
+    fail = {"success": False, "errors": [{"type": "occ_exception"}]}
+    telemetry.record_attempt(log, "lid", fail, "claude-sonnet-5")
+    telemetry.record_attempt(log, "lid", {"success": True, "errors": []}, "claude-sonnet-5")
+    telemetry.record_attempt(log, "lid_stub", {"success": True, "errors": []}, "claude-sonnet-5")
+    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert [(r["attempt"], r["outcome"], r["prompt_chars"]) for r in records] == [
+        (1, "fail", 42),
+        (2, "pass", 42),
+    ]
+    assert records[0]["error_types"] == ["occ_exception"]

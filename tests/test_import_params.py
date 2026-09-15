@@ -14,7 +14,10 @@ from import_params import parse_parameters, reconcile, run  # noqa: E402
 
 VALID_PLAN: dict[str, Any] = {
     "schema_version": 1,
-    "intent": "Arduino Nano enclosure",
+    "intent": (
+        "Open-top enclosure for an Arduino Nano, single body with 1.2 mm walls and a "
+        "USB-C pass-through on the front wall; board seats on internal standoffs."
+    ),
     "printer": "Bambu P1S",
     "material": "PLA",
     "nozzle_mm": 0.4,
