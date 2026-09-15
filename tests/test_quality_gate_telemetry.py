@@ -49,7 +49,7 @@ def test_default_path_resolves_alongside_script(tmp_path, monkeypatch):
     called = {}
 
     def fake_wrapper_check(script_path, plan):
-        return [], None, None
+        return [], None, None, []
 
     def fake_analyze_stl(*a, **k):
         return []
@@ -81,7 +81,7 @@ def test_explicit_override_wins(tmp_path, monkeypatch):
     called = {}
 
     monkeypatch.setattr(
-        quality_gate, "_run_wrapper_check", lambda script_path, plan: ([], None, None)
+        quality_gate, "_run_wrapper_check", lambda script_path, plan: ([], None, None, [])
     )
     monkeypatch.setattr(quality_gate, "_analyze_stl", lambda *a, **k: [])
 
