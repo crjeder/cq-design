@@ -55,9 +55,8 @@ Once the user confirms, append one line to `build/journal.md` (see `skill/resume
 
 Skip this line when the request had no topology ambiguity (nothing was asked).
 
-This confirm stays a separate, earlier round -- it gates which dimensions are worth
-looking up at all, so it cannot be folded into the Phase 1 exit checkpoint below. The
-exit checkpoint is the *second* stop (and the last); it does not re-ask topology.
+This confirm happens before dimension lookups, since it gates which dimensions are
+worth looking up at all.
 
 ## Ask vs. assume
 
@@ -110,12 +109,10 @@ resolve its `conflict`/`missing` rows with the user there.
 ## Phase 1 exit checkpoint
 
 This is the single gate out of Phase 1. It presents two things **in one message** and
-takes **one approval** covering both:
+takes **one approval** covering both -- not two separate approval rounds:
 
 1. A **reformulation of the request** in resolved terms (the content contract is below).
 2. The **dimension table** of every looked-up dimension.
-
-Do not present the reformulation and the table as two separate approval rounds.
 
 ### The dimension table
 
@@ -172,9 +169,8 @@ the corrected value. If the user corrects the reformulation ("the lid snaps on, 
 doesn't screw on"), the corrected reading is what gets written to `intent`, and the
 correction is appended to `request_log` as a `clarification` entry.
 
-**Approval is not accepted while any row reads `-1` / `missing`.** Resolve such a row to
-a sourced value with the user, or convert it to `assumed` with a concrete value the user
-accepts, before proceeding.
+**Approval is not accepted while any row reads `-1` / `missing`** -- see "Ask vs. assume"
+above for how to resolve such a row before proceeding.
 
 The approved reformulation text is written **verbatim** to `BUILD_PLAN.json`'s `intent`
 by the Phase 2 planner (`prompts/planning.md`). `request_log`'s `initial` entry keeps
