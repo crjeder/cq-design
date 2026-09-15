@@ -88,6 +88,36 @@ if ($Link) {
     Get-ChildItem -LiteralPath $Destination -Recurse -Force -Directory -Filter "__pycache__" |
         ForEach-Object { Remove-Item -Recurse -Force $_.FullName }
     Write-Host "Copied skill to $Destination"
+
+    # Stamp the commit that was copied, so `skill_version.py` can tell a stale
+    # install apart from a current one. Skipped for -Link: a symlink is always
+    # as current as its target, so skill_version.py reads the target's live git
+    # HEAD instead.
+    $commit = $null
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        Push-Location $RepoRoot
+        try {
+            $commit = (git rev-parse HEAD 2>$null)
+            if ($LASTEXITCODE -ne 0) { $commit = $null }
+        } finally { Pop-Location }
+    }
+    if ($commit) {
+        Push-Location $RepoRoot
+        try {
+            $commitShort = (git rev-parse --short HEAD)
+            $branch = (git rev-parse --abbrev-ref HEAD)
+            $dirty = [bool](git status --porcelain)
+        } finally { Pop-Location }
+        [ordered]@{
+            commit        = $commit
+            commit_short  = $commitShort
+            branch        = $branch
+            dirty         = $dirty
+            installed_at  = (Get-Date).ToUniversalTime().ToString("o")
+        } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Destination ".version.json") -Encoding utf8
+    } else {
+        Write-Host "Note: $RepoRoot is not a git checkout -- skipping .version.json (skill_version.py will report 'unknown')"
+    }
 }
 
 Write-Host "Provisioning environment with 'uv sync'..."
@@ -95,3 +125,4 @@ uv sync --project $Destination
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Done. cq-design installed at $Destination"
+Write-Host "Check the installed version any time with: python `"$Destination/src/skill_version.py`""

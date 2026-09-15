@@ -48,7 +48,7 @@ def test_default_path_resolves_from_plan_dir(tmp_path, monkeypatch):
     import quality_gate
 
     monkeypatch.setattr(
-        quality_gate, "_run_wrapper_check", lambda script_path, plan: ([], None, None)
+        quality_gate, "_run_wrapper_check", lambda script_path, plan: ([], None, None, [])
     )
     monkeypatch.setattr(quality_gate, "_analyze_stl", lambda *a, **k: [])
 
@@ -101,7 +101,7 @@ def test_finding_surfaces_without_failing_gate(tmp_path, monkeypatch):
     import quality_gate
 
     monkeypatch.setattr(
-        quality_gate, "_run_wrapper_check", lambda script_path, plan: ([], None, None)
+        quality_gate, "_run_wrapper_check", lambda script_path, plan: ([], None, None, [])
     )
     monkeypatch.setattr(quality_gate, "_analyze_stl", lambda *a, **k: [])
 

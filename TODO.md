@@ -31,7 +31,7 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 
 ### From Silica Tray session (`session-export-1786620780455.zip`)
 - [x] LLM claimed "no support needed" despite a nonzero support score -- FIXED 2026-09-15: `print_recipe.supports` was hardcoded `False`; now derived from any non-advisory `overhang_exceeded` finding -- [details](#silica-tray-support-claim)
-- [ ] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- [details](#silica-tray-re-export-coincidence)
+- [x] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- ANSWERED + FIXED 2026-09-15: it was coincidence (no rule required it); `skill/phase3_build.md` now has a "Post-delivery corrections" section requiring re-orientation/export/gate before re-reporting delivery -- [details](#silica-tray-re-export-coincidence)
 
 ### From Hitster Tower
 - [x] Missed the intent of the bottom finger-access opening; over-supported the south wall -- FIXED 2026-09-15: `clearance_opening` interfaces now suppress the overhang finding over the declared void -- [details](#hitstertower-oversupport)
@@ -485,6 +485,27 @@ does not set it. Tests:
 and BUILD_PLAN.json match your hand-edited dimensions: 6mm triangle pitch,
 1mm rib width, 20mm total height." Works, but is it by design or just
 coincidence?
+
+**Investigated and FIXED 2026-09-15.** Traced the deterministic pipeline
+`skill/phase3_build.md` documents: Design approval -> Print-orientation
+optimization -> Model export -> Quality gate -> Phase 4 deliver. Every step is
+written as a linear, once-per-session sequence with no cross-reference for what
+happens when a user asks for a change *after* Phase 4 already reported
+delivery -- a very ordinary flow (this session, and the C5 sessions above, both
+did it). Nothing in `skill/*.md` named that case, so whether the LLM re-ran
+orientation/export/gate was pure judgment -- verified as it did here, but
+nothing stopped a future session from hand-editing `build/<id>.py` and
+reporting "done" against a stale `model.3mf`/STL/`print_recipe`. (The
+mechanism that would have silently caught it for a *standalone*
+`uv run python build/build.py` re-run -- `build_template.resolve_orientations`
+comparing `orientations.json`'s `source_script_hash` stamp against the current
+script -- only covers that later, out-of-session path; it says nothing about
+what this session itself must do before calling a correction delivered.)
+Fix: added a "Post-delivery corrections" section to
+`skill/phase3_build.md` after the Quality gate section, naming the rule
+explicitly -- a correction after delivery re-opens print-orientation (for the
+affected union only), model export, and the quality gate before Phase 4's
+delivery report repeats. Prompt-only change; no code to test.
 
 ### Hitstertower oversupport
 LLM did not get the intent of the opening on the bottom of the tower (finger

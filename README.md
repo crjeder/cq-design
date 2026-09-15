@@ -46,6 +46,28 @@ uv enforces this constraint and downloads the right Python version if needed.
 
 To work in the repo directly without installing, just run `uv sync`.
 
+## Checking what's installed
+
+A copy install can silently go stale -- edits to this repo don't reach
+`~/.claude/skills/cq-design/` until you re-run the installer. Check what's
+actually there:
+
+```bash
+python ~/.claude/skills/cq-design/src/skill_version.py
+```
+
+It reports the commit that was copied (or, for a `--link`/`-Link` install,
+the live commit of the linked repo -- always current by construction). Pass
+`--compare <path-to-this-repo>` to diff the installed commit against the
+repo's current `HEAD`:
+
+```bash
+python ~/.claude/skills/cq-design/src/skill_version.py --compare .
+```
+
+Exits non-zero when the installed copy isn't confirmed up to date, so it
+also works as a quick check in a script.
+
 ## Regenerating the 3MF / STL files
 
 When the skill finishes it turns your working directory into a self-contained
@@ -139,6 +161,7 @@ src/
   cq_compat.py              # CadQuery/cq_warehouse compatibility shims
   init_permissions.py       # seeds .claude/settings.local.json with pipeline permissions
   skill_permissions.json    # permission patterns seeded by init_permissions.py
+  skill_version.py          # reports/compares the installed commit -- see "Checking what's installed"
 
   project_template/
     pyproject.toml          # scaffolded into the working directory as a self-contained uv project
