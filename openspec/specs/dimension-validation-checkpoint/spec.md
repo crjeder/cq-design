@@ -3,18 +3,7 @@
 ## Purpose
 
 TBD - Defines requirements for the dimension-validation checkpoint that occurs before BUILD_PLAN.json is generated, ensuring looked-up dimensions are verified by the user before planning proceeds.
-
 ## Requirements
-
-### Requirement: Dimension lookups are announced before they start
-The skill SHALL output a one-line status message before each Playwright or web search lookup, naming the product or connector being looked up and the source being consulted.
-
-#### Scenario: Lookup announced before navigation
-- **WHEN** the user requests a part that involves a known product (e.g. "iPhone 15 Pro case")
-- **THEN** the skill outputs a message such as "Looking up iPhone 15 Pro dimensions on Apple spec page..." before calling `browser_navigate`
-
----
-
 ### Requirement: Found dimensions are presented in a structured table before plan generation
 After all dimension research is complete and before generating `BUILD_PLAN.json`, the skill SHALL present a markdown table summarising every looked-up dimension with the following columns:
 

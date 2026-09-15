@@ -173,6 +173,30 @@ it. Targeted edits:
 Acceptance: plan-stage eval cases still validate; no increase in clarifying
 questions on the eval corpus requests.
 
+**Result (change `de-prescribe-planning-prompt`, run `evals/runs/c3-planning/`):**
+accepted, with a caveat on measurement completeness. Two edits landed: rule 4a in
+`prompts/planning.md` (the minor-decision carve-out - coined names, table-default
+clearances, plate grouping are decided and recorded in `planning_notes`, not asked;
+rules 1/4/10 unchanged) and deletion of the **Lookup narration** paragraph from
+`skill/phase1_requirements.md` (stale scaffolding - it mandated per-lookup narration
+from an agent the same file says has no user channel). Both mirrored into the installed
+skill copy. A pre-run scan of the ten-case eval corpus found no case that genuinely
+triggers rule 1/4/10 (`openspec/changes/de-prescribe-planning-prompt/
+eval-corpus-ask-triggers.md`), so the corpus cannot show a *change* in ask behavior -
+only that the carve-out introduces no new questions, confirmed by the post-run
+`--generate` transcripts (non-interactive by construction).
+
+Eval measurement: two consecutive `--generate` runs were truncated by the account's
+session usage limit before completing all 10 cases (first run: 4/10 completed; second:
+7/10). The second run's partial result was accepted rather than a third retry: 6/7
+completed cases passed first-shot; `l-bracket` (first-shot 0) matches its already-flaky
+C2 baseline behavior (chamfer improved 12.75mm -> 7.9mm, not worse); `adapter-ring`'s one
+failed attempt was `dimension_mismatch`, a Phase 3 part-authoring error outside this
+change's Phase 1/2 scope. `two-part-box`, `u-clip`, `wall-hook` never ran and have no
+score. No revert - nothing in the completed cases points at this change as the cause of
+a regression, but the run is not a clean before/after comparison the way C2's was, and a
+full 10/10 corpus run remains outstanding.
+
 ## C4. Collapse review layers (= IMPROVEMENT_PLAN item 10) (Opus 5)
 
 The 5-series guidance ("delete verification scaffolding", "report everything,
