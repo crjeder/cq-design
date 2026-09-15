@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -43,15 +44,50 @@ import trimesh
 from scipy.optimize import linear_sum_assignment
 
 EVALS_DIR = Path(__file__).parent
+REPO_ROOT = EVALS_DIR.parent
 CASES_DIR = EVALS_DIR / "cases"
 PRICES_PATH = EVALS_DIR / "model_prices.json"
+SKILL_CONFIG_SRC = (
+    REPO_ROOT / "skill_config.json"
+    if (REPO_ROOT / "skill_config.json").is_file()
+    else REPO_ROOT / "src" / "skill_config.default.json"
+)
 CHAMFER_SAMPLES = 2000
 CHARS_PER_TOKEN = 4
+
+sys.path.insert(0, str(EVALS_DIR.parent / "src"))
+from telemetry import fold_attempts  # noqa: E402
 
 
 def load_prices(path: Path = PRICES_PATH) -> dict:
     prices = json.loads(path.read_text(encoding="utf-8"))
     return {k: v for k, v in prices.items() if not k.startswith("_")}
+
+
+def read_recorded_cost(case_run_dir: Path) -> float | None:
+    """Billed session cost for a case run, or None to fall back to the estimate.
+
+    Prefers `<case>/cost.json` (the `claude -p` result envelope captured at
+    generation), then `<case>/build/cost.json` (the session-cost record's
+    `combined` total).
+    """
+    envelope = case_run_dir / "cost.json"
+    if envelope.is_file():
+        try:
+            data = json.loads(envelope.read_text(encoding="utf-8"))
+            if isinstance(data.get("total_cost_usd"), (int, float)):
+                return float(data["total_cost_usd"])
+        except json.JSONDecodeError:
+            pass
+    record = case_run_dir / "build" / "cost.json"
+    if record.is_file():
+        try:
+            combined = json.loads(record.read_text(encoding="utf-8")).get("combined", {})
+            if isinstance(combined.get("cost_usd"), (int, float)):
+                return float(combined["cost_usd"])
+        except json.JSONDecodeError:
+            pass
+    return None
 
 
 def read_attempts(case_run_dir: Path) -> list[dict] | None:
@@ -64,7 +100,7 @@ def read_attempts(case_run_dir: Path) -> list[dict] | None:
         line = line.strip()
         if line:
             records.append(json.loads(line))
-    return records
+    return fold_attempts(records)
 
 
 def chamfer_mm(produced: trimesh.Trimesh, golden: trimesh.Trimesh) -> float:
@@ -130,13 +166,24 @@ def descriptor_cost(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.sum(np.abs(a - b) / np.maximum(np.maximum(a, b), 1e-9)))
 
 
-def attempt_metrics(attempts: list[dict] | None, prices: dict) -> dict:
-    """First-shot rate, attempts-to-pass, and cost from one case's telemetry."""
+def _input_rate(prices: dict, model: str) -> float:
+    return prices.get(model, prices["default"])["input"]
+
+
+def attempt_metrics(
+    attempts: list[dict] | None, prices: dict, recorded_cost: float | None = None
+) -> dict:
+    """First-shot rate, attempts-to-pass, and cost from one case's telemetry.
+
+    `recorded_cost`, when given, is a billed session cost that replaces the
+    `prompt_chars`-derived estimate; `cost_source` reports which was used.
+    """
     if attempts is None:
         return {
             "first_shot_rate": None,
             "mean_attempts_to_pass": None,
             "cost_per_accepted_part_usd": None,
+            "cost_source": "unavailable",
             "telemetry": "unavailable",
         }
     parts: dict[str, list[dict]] = {}
@@ -160,8 +207,14 @@ def attempt_metrics(attempts: list[dict] | None, prices: dict) -> dict:
             unpassed.append(part_id)
             attempts_to_pass.append(max(r["attempt"] for r in recs) + 1)
         for r in recs:
-            rate = prices.get(r.get("model", "default"), prices["default"])
+            rate = _input_rate(prices, r.get("model", "default"))
             total_cost += (r["prompt_chars"] / CHARS_PER_TOKEN) * rate / 1e6
+
+    if recorded_cost is not None:
+        total_cost = recorded_cost
+        cost_source = "recorded"
+    else:
+        cost_source = "estimate"
 
     n = len(parts)
     return {
@@ -170,6 +223,7 @@ def attempt_metrics(attempts: list[dict] | None, prices: dict) -> dict:
         "unpassed_parts": unpassed,
         "cost_per_accepted_part_usd": total_cost / accepted if accepted else None,
         "total_cost_usd": total_cost,
+        "cost_source": cost_source,
         "telemetry": "ok",
     }
 
@@ -180,7 +234,10 @@ def score_case(case: str, run_dir: Path, prices: dict) -> dict:
     meta = json.loads((case_dir / "case.json").read_text(encoding="utf-8"))
     case_run_dir = run_dir / case
 
-    result = {"case": case, **attempt_metrics(read_attempts(case_run_dir), prices)}
+    result = {
+        "case": case,
+        **attempt_metrics(read_attempts(case_run_dir), prices, read_recorded_cost(case_run_dir)),
+    }
 
     golden_ids = [part["id"] for part in plan["parts"]]
     golden_meshes = [load_mesh(case_dir / "golden" / f"{pid}.stl") for pid in golden_ids]
@@ -215,6 +272,23 @@ def score_case(case: str, run_dir: Path, prices: dict) -> dict:
     return result
 
 
+def _case_tags(case: str) -> set[str]:
+    meta = json.loads((CASES_DIR / case / "case.json").read_text(encoding="utf-8"))
+    return set(meta.get("tags", []))
+
+
+def filter_by_tags(cases: list[str], tags_arg: str | None) -> list[str]:
+    """Cases whose `case.json` `tags` intersect `tags_arg` (comma-separated, OR-matched).
+
+    `tags_arg` of `None`/empty leaves `cases` unchanged. A case with no `tags` key
+    has an empty tag set, so it is excluded by any non-empty filter.
+    """
+    if not tags_arg:
+        return cases
+    wanted = {t.strip() for t in tags_arg.split(",") if t.strip()}
+    return [c for c in cases if _case_tags(c) & wanted]
+
+
 def aggregate(case_results: list[dict]) -> dict:
     def vals_of(key):
         return [r[key] for r in case_results if r.get(key) is not None]
@@ -242,10 +316,11 @@ def render_markdown(scorecard: dict) -> str:
     lines = [
         "# Eval scorecard",
         "",
-        "Cost figures are estimates (tokens ~ prompt_chars / 4).",
+        "Cost is billed when `cost src` is `recorded`, otherwise estimated "
+        "(tokens ~ prompt_chars / 4, input rate only).",
         "",
-        "| case | first-shot | attempts-to-pass | chamfer (mm) | cost/part (USD) |",
-        "|---|---|---|---|---|",
+        "| case | first-shot | attempts-to-pass | chamfer (mm) | cost/part (USD) | cost src |",
+        "|---|---|---|---|---|---|",
     ]
     for r in scorecard["cases"]:
         chamfer_cell = "no artifacts" if r["no_artifacts"] else _fmt(r["mean_chamfer_mm"])
@@ -253,7 +328,8 @@ def render_markdown(scorecard: dict) -> str:
             f"| {r['case']} | {_fmt(r['first_shot_rate'], 2)} "
             f"| {_fmt(r['mean_attempts_to_pass'], 2)} "
             f"| {chamfer_cell} "
-            f"| {_fmt(r['cost_per_accepted_part_usd'], 4)} |"
+            f"| {_fmt(r['cost_per_accepted_part_usd'], 4)} "
+            f"| {r.get('cost_source', 'n/a')} |"
         )
     agg = scorecard["aggregate"]
     lines += [
@@ -269,37 +345,81 @@ def render_markdown(scorecard: dict) -> str:
 
 
 def generate_case(case: str, run_dir: Path, timeout_s: int) -> None:
-    """Run `claude -p` for one case in its own working directory (costs tokens)."""
+    """Run `claude -p` for one case in its own working directory (costs tokens).
+
+    When the case directory has a `seed/` subdirectory (a prior round's accepted
+    `BUILD_PLAN.json` and part script), its contents are copied into the case's
+    working directory first and the request is framed as a correction to that
+    seeded state, instead of a from-scratch request in an empty directory.
+
+    `skill_config.json` is copied into the case's working directory too, from
+    the repo root if present there, else from `src/skill_config.default.json`
+    -- so eval runs pick up the same model routing as an interactive session.
+    """
     case_run_dir = run_dir / case
     case_run_dir.mkdir(parents=True, exist_ok=True)
     request = (CASES_DIR / case / "request.md").read_text(encoding="utf-8")
-    prompt = (
-        "Use the cq-design skill to fulfil this request in the current "
-        "directory. Append telemetry per attempt to build/attempts.jsonl as "
-        "the skill directs. This is an unattended eval run -- there is no "
-        "user to answer clarifying questions. If anything is topology- or "
-        "dimension-ambiguous, pick the most common/standard reading, record "
-        "the assumption in planning_notes, and proceed without asking.\n\n"
-        f"{request}"
-    )
+
+    seed_dir = CASES_DIR / case / "seed"
+    if seed_dir.is_dir():
+        shutil.copytree(seed_dir, case_run_dir, dirs_exist_ok=True)
+        prompt = (
+            "Use the cq-design skill to apply a correction to the existing "
+            "project already present in the current directory (its "
+            "BUILD_PLAN.json and part script(s) are a prior round's accepted "
+            "state). Append telemetry per attempt to build/attempts.jsonl as "
+            "the skill directs. This is an unattended eval run -- there is no "
+            "user to answer clarifying questions. If anything is topology- or "
+            "dimension-ambiguous, pick the most common/standard reading, record "
+            "the assumption in planning_notes, and proceed without asking. "
+            "This is a round-2 correction, not a from-scratch request:\n\n"
+            f"{request}"
+        )
+    else:
+        prompt = (
+            "Use the cq-design skill to fulfil this request in the current "
+            "directory. Append telemetry per attempt to build/attempts.jsonl as "
+            "the skill directs. This is an unattended eval run -- there is no "
+            "user to answer clarifying questions. If anything is topology- or "
+            "dimension-ambiguous, pick the most common/standard reading, record "
+            "the assumption in planning_notes, and proceed without asking.\n\n"
+            f"{request}"
+        )
+    shutil.copyfile(SKILL_CONFIG_SRC, case_run_dir / "skill_config.json")
     try:
-        subprocess.run(
-            ["claude", "-p", prompt, "--dangerously-skip-permissions"],
+        proc = subprocess.run(
+            ["claude", "-p", prompt, "--dangerously-skip-permissions", "--output-format", "json"],
             cwd=case_run_dir,
             timeout=timeout_s,
             check=False,
+            capture_output=True,
+            text=True,
         )
     except subprocess.TimeoutExpired:
         print(
             f"  {case}: timed out after {timeout_s}s -- scoring whatever it produced",
             file=sys.stderr,
         )
+        return
+
+    try:
+        env = json.loads(proc.stdout)
+    except (json.JSONDecodeError, TypeError):
+        print(f"  {case}: unparseable `claude -p` JSON -- no cost.json written", file=sys.stderr)
+        return
+    keys = ("session_id", "num_turns", "duration_ms", "total_cost_usd", "usage")
+    cost = {k: env.get(k) for k in keys}
+    (case_run_dir / "cost.json").write_text(json.dumps(cost, indent=2) + "\n", encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", required=True, help="run directory (one subdir per case)")
     parser.add_argument("--cases", help="comma-separated case subset (default: all)")
+    parser.add_argument(
+        "--tags",
+        help="comma-separated tag filter, OR-matched against each case's case.json tags",
+    )
     parser.add_argument(
         "--generate",
         action="store_true",
@@ -315,6 +435,7 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         print(f"unknown cases: {', '.join(unknown)}", file=sys.stderr)
         return 1
+    cases = filter_by_tags(cases, args.tags)
 
     if args.generate:
         for case in cases:

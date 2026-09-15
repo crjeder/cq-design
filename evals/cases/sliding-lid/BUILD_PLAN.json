@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "Sliding lid: flat plate with an inner locating lip",
+  "intent": "A sliding lid for an open-top box: a flat rectangular top plate with a smaller rectangular lip on its underside that locates inside the box rim as a loose sliding fit. Plate prints top-face-down.",
   "parts": [
     {
       "id": "sliding_lid",
@@ -22,7 +22,8 @@
       ],
       "blocks_needed": [
         "fillet_box"
-      ]
+      ],
+      "engineering_rationale": "no load-bearing features (locating lip is a sliding fit, no sustained load)"
     }
   ],
   "constraints": {

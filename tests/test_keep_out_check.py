@@ -9,21 +9,15 @@ can't drift from the real naming convention.
 import json
 import sys
 
-import trimesh
+from conftest import box_stl
 
 import quality_gate
 from keep_out_check import run_keep_out_check
 from units import keep_out_stl_name
 
 
-def _box_stl(path, center, extents=(10, 10, 10)):
-    mesh = trimesh.creation.box(extents=extents)
-    mesh.apply_translation(center)
-    mesh.export(str(path))
-
-
 def _zone_stl(stl_dir, part_id, zone_name, center, extents=(4, 4, 4)):
-    _box_stl(stl_dir / keep_out_stl_name(part_id, zone_name), center, extents)
+    box_stl(stl_dir / keep_out_stl_name(part_id, zone_name), center, extents)
 
 
 def _plan(part_ids):
@@ -38,8 +32,8 @@ def _violations(issues):
 
 
 def test_foreign_union_intruding_on_zone_flagged(tmp_path):
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))  # declaring part's own union: x in [-5, 5]
-    _box_stl(tmp_path / "b.stl", (12, 0, 0))  # foreign union: x in [7, 17]
+    box_stl(tmp_path / "a.stl", (0, 0, 0))  # declaring part's own union: x in [-5, 5]
+    box_stl(tmp_path / "b.stl", (12, 0, 0))  # foreign union: x in [7, 17]
     _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))  # zone: x in [7, 11] -> overlaps b only
     issues = run_keep_out_check(_plan(["a", "b"]), str(tmp_path))
     flagged = _violations(issues)
@@ -55,8 +49,8 @@ def test_foreign_union_intruding_on_zone_flagged(tmp_path):
 
 
 def test_no_intrusion_passes(tmp_path):
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))  # x in [-5, 5]
-    _box_stl(tmp_path / "b.stl", (30, 0, 0))  # x in [25, 35], nowhere near the zone
+    box_stl(tmp_path / "a.stl", (0, 0, 0))  # x in [-5, 5]
+    box_stl(tmp_path / "b.stl", (30, 0, 0))  # x in [25, 35], nowhere near the zone
     _zone_stl(tmp_path, "a", "clearance", (0, 0, 0))  # x in [-2, 2], inside a's own union
     issues = run_keep_out_check(_plan(["a", "b"]), str(tmp_path))
     assert _violations(issues) == []
@@ -66,7 +60,7 @@ def test_no_intrusion_passes(tmp_path):
 
 
 def test_declaring_parts_own_union_excluded(tmp_path):
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))  # x in [-5, 5]
+    box_stl(tmp_path / "a.stl", (0, 0, 0))  # x in [-5, 5]
     # Zone anchored flush against a's own union: x in [4, 8], overlaps a at [4, 5].
     _zone_stl(tmp_path, "a", "clearance", (6, 0, 0))
     issues = run_keep_out_check(_plan(["a"]), str(tmp_path))
@@ -76,8 +70,8 @@ def test_declaring_parts_own_union_excluded(tmp_path):
 def test_a_different_parts_zone_still_checks_against_first_part(tmp_path):
     """The self-exclusion only applies to the zone's OWN declaring part; a zone
     declared by a different part still checks against this part's union."""
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))  # x in [-5, 5]
-    _box_stl(tmp_path / "b.stl", (30, 0, 0))  # x in [25, 35]
+    box_stl(tmp_path / "a.stl", (0, 0, 0))  # x in [-5, 5]
+    box_stl(tmp_path / "b.stl", (30, 0, 0))  # x in [25, 35]
     # Zone declared by "b", but anchored so it overlaps "a" instead.
     _zone_stl(tmp_path, "b", "reserved", (0, 0, 0))
     issues = run_keep_out_check(_plan(["a", "b"]), str(tmp_path))
@@ -91,8 +85,8 @@ def test_a_different_parts_zone_still_checks_against_first_part(tmp_path):
 
 
 def test_no_zones_declared_returns_empty_without_backend(tmp_path, monkeypatch):
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
-    _box_stl(tmp_path / "b.stl", (30, 0, 0))
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "b.stl", (30, 0, 0))
     monkeypatch.setitem(sys.modules, "trimesh", None)
     assert run_keep_out_check(_plan(["a", "b"]), str(tmp_path)) == []
 
@@ -101,7 +95,7 @@ def test_no_zones_declared_returns_empty_without_backend(tmp_path, monkeypatch):
 
 
 def test_backend_missing_degrades_to_warning(tmp_path, monkeypatch):
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
     _zone_stl(tmp_path, "a", "clearance", (0, 0, 0))
     monkeypatch.setitem(sys.modules, "trimesh", None)
     issues = run_keep_out_check(_plan(["a"]), str(tmp_path))
@@ -111,7 +105,7 @@ def test_backend_missing_degrades_to_warning(tmp_path, monkeypatch):
 
 
 def test_missing_foreign_stl_degrades_to_warning(tmp_path):
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
     _zone_stl(tmp_path, "a", "clearance", (0, 0, 0))
     # "b" is a declared part but its STL was never exported. Without --parts-dir the
     # freshness check also degrades, so both warnings are present.
@@ -139,8 +133,8 @@ def test_stale_foreign_union_flagged_and_excluded(tmp_path):
     from freshness import script_hash
 
     # Foreign union "b" intrudes on a's zone; if b's STL were validated it would flag.
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
-    _box_stl(tmp_path / "b.stl", (12, 0, 0))
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "b.stl", (12, 0, 0))
     _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))
 
     parts_dir = tmp_path / "parts"
@@ -167,8 +161,8 @@ def test_stale_foreign_union_flagged_and_excluded(tmp_path):
 def test_stale_zone_flagged_and_excluded(tmp_path):
     from freshness import script_hash
 
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
-    _box_stl(tmp_path / "b.stl", (12, 0, 0))
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "b.stl", (12, 0, 0))
     _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))
 
     parts_dir = tmp_path / "parts"
@@ -196,8 +190,8 @@ def test_stale_zone_flagged_and_excluded(tmp_path):
 def test_fresh_manifest_passes_through_unaffected(tmp_path):
     from freshness import script_hash
 
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
-    _box_stl(tmp_path / "b.stl", (12, 0, 0))
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "b.stl", (12, 0, 0))
     _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))
 
     parts_dir = tmp_path / "parts"
@@ -228,12 +222,15 @@ def test_fresh_manifest_passes_through_unaffected(tmp_path):
 
 
 def test_gate_surfaces_keep_out_violation(tmp_path, good_script):
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
-    _box_stl(tmp_path / "b.stl", (12, 0, 0))
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "b.stl", (12, 0, 0))
     _zone_stl(tmp_path, "a", "clearance", (9, 0, 0))
     plan = {
         "schema_version": 1,
-        "intent": "keep-out gate fixture",
+        "intent": (
+            "Keep-out gate fixture: two boxes with a declared clearance zone between them, "
+            "assembled as planned to exercise the whole-model keep-out check."
+        ),
         "printer": "Bambu P1S",
         "material": "PLA",
         "nozzle_mm": 0.4,

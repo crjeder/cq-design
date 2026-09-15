@@ -23,6 +23,8 @@ import sys
 from typing import Any
 
 _PERMISSIONS_PATH = os.path.join(os.path.dirname(__file__), "skill_permissions.json")
+_SESSION_COST_PATH = os.path.join(os.path.dirname(__file__), "session_cost.py")
+_TELEMETRY_PATH = os.path.join(os.path.dirname(__file__), "telemetry.py")
 
 
 def load_canonical() -> dict[str, Any]:
@@ -70,6 +72,66 @@ def scaffold_directories(working_dir: str) -> list[str]:
             os.makedirs(path)
             created.append(name)
     return created
+
+
+def _resolve_command(command: str) -> str:
+    """Substitute the `{session_cost_path}`/`{telemetry_path}` placeholders."""
+    return command.replace("{session_cost_path}", _SESSION_COST_PATH).replace(
+        "{telemetry_path}", _TELEMETRY_PATH
+    )
+
+
+def _resolved_hooks() -> dict[str, Any]:
+    """The canonical `hooks` block with path placeholders resolved to absolute
+    script paths. Keys starting with `_` (comments) are dropped."""
+    hooks = load_canonical().get("hooks", {})
+    resolved: dict[str, Any] = {}
+    for event, groups in hooks.items():
+        if event.startswith("_"):
+            continue
+        out_groups = []
+        for group in groups:
+            out_hooks = [
+                {**h, "command": _resolve_command(h["command"])} if "command" in h else h
+                for h in group.get("hooks", [])
+            ]
+            out_groups.append({**group, "hooks": out_hooks})
+        resolved[event] = out_groups
+    return resolved
+
+
+def merge_hooks(working_dir: str) -> bool:
+    """Seed the canonical hooks (session-cost, telemetry, ...) into working_dir's
+    settings.local.json.
+
+    Additive and idempotent: an event's existing hook entries are never removed
+    or reordered, and a canonical entry is added only when its resolved command
+    isn't already present under that event. Returns True only when something
+    was added.
+    """
+    resolved = _resolved_hooks()
+    if not resolved:
+        return False
+    path = settings_path(working_dir)
+    settings = _load_settings(path)
+    hooks = settings.setdefault("hooks", {})
+
+    changed = False
+    for event, groups in resolved.items():
+        existing = hooks.setdefault(event, [])
+        present = " ".join(h.get("command", "") for g in existing for h in g.get("hooks", []))
+        new_commands = [h.get("command", "") for g in groups for h in g.get("hooks", [])]
+        if any(cmd and cmd in present for cmd in new_commands):
+            continue
+        existing.extend(groups)
+        changed = True
+
+    if changed:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+            f.write("\n")
+    return changed
 
 
 def merge_permissions(working_dir: str) -> list[str]:
@@ -126,6 +188,12 @@ def main() -> int:
             print(f"  {pattern}")
     else:
         print(f"No changes; all patterns already present in {settings_path(args.dir)}")
+
+    if merge_hooks(args.dir):
+        print(
+            f"Seeded the session-cost Stop hook (build/cost.json) and the "
+            f"telemetry PostToolUse hook (build/attempts.jsonl) in {settings_path(args.dir)}"
+        )
 
     created = scaffold_directories(args.dir)
     if created:
