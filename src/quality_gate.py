@@ -26,6 +26,7 @@ Usage:
 import argparse
 import ast
 import json
+import math
 import os
 import subprocess
 import sys
@@ -123,8 +124,40 @@ def _run_wrapper_check(script_path: str, plan: dict) -> tuple[list[dict], str | 
 # ---------------------------------------------------------------------------
 
 
+def _clearance_opening_zones(plan: dict, part: dict, rotate: list[dict] | None) -> list[dict]:
+    """Build-frame `{center, radius_mm}` for each of `part`'s `clearance_opening`
+    interfaces (see [Hitstertower oversupport](TODO.md#hitstertower-oversupport)).
+
+    `position_mm` is the interface's center in the part's authored frame; mapped
+    through the part's `placement` (assembled frame, matching the exported STL) and
+    then the chosen print orientation's `rotate` (matching `_analyze_stl`'s posed
+    mesh), so it lands in the same frame as `overhang_metrics`' `worst_location_xyz_mm`.
+    `radius_mm` is the opening's half-diagonal (from `size_mm`) plus a small margin
+    for tessellation/rounding slop; unsized openings fall back to a fixed radius.
+    """
+    from placement import transform_direction, transform_point
+
+    zones = []
+    for interface in part.get("interfaces", []):
+        if interface.get("type") != "clearance_opening":
+            continue
+        position = interface.get("position_mm")
+        if position is None:
+            continue
+        center = transform_point(position, part.get("placement"))
+        if rotate:
+            center = transform_direction(center, {"rotate": rotate})
+        size = interface.get("size_mm")
+        radius = math.hypot(*(s / 2 for s in size)) + 1.0 if size else 5.0
+        zones.append({"center": center, "radius_mm": radius, "name": interface.get("name")})
+    return zones
+
+
 def _analyze_stl(
-    stl_path: str, overhang_deg: float, rotate: list[dict] | None = None
+    stl_path: str,
+    overhang_deg: float,
+    rotate: list[dict] | None = None,
+    clearance_zones: list[dict] | None = None,
 ) -> list[dict]:
     """Analyze STL geometry and overhangs using trimesh. Returns issues.
 
@@ -199,19 +232,44 @@ def _analyze_stl(
     if metrics["worst_angle_deg"] is not None:
         overhang_area = metrics["overhang_area_mm2"]
         worst_angle = metrics["worst_angle_deg"]
+        location = metrics["worst_location_xyz_mm"]
+        zone = next(
+            (
+                z
+                for z in (clearance_zones or [])
+                if math.dist(location, z["center"]) <= z["radius_mm"]
+            ),
+            None,
+        )
+        if zone:
+            severity = "info"
+            message = (
+                f"Worst overhang {worst_angle:.1f}° exceeds limit {overhang_deg}° over "
+                f"{overhang_area:.1f} mm² of faces, at the declared clearance opening "
+                f"'{zone['name']}'"
+            )
+            hint = (
+                "This overhang bounds a declared clearance_opening interface -- see the "
+                "part's engineering_rationale/part_notes for its load path instead of "
+                "adding support here."
+            )
+        else:
+            severity = "warning"
+            message = (
+                f"Worst overhang {worst_angle:.1f}° exceeds limit "
+                f"{overhang_deg}° over {overhang_area:.1f} mm² of faces"
+            )
+            hint = "Add chamfers or redesign overhanging features."
         issues.append(
             {
                 "source": "geometry",
-                "severity": "warning",
+                "severity": severity,
                 "type": "overhang_exceeded",
-                "message": (
-                    f"Worst overhang {worst_angle:.1f}° exceeds limit "
-                    f"{overhang_deg}° over {overhang_area:.1f} mm² of faces"
-                ),
-                "hint": "Add chamfers or redesign overhanging features.",
+                "message": message,
+                "hint": hint,
                 "overhang_area_mm2": overhang_area,
                 "worst_angle_deg": worst_angle,
-                "location_xyz_mm": metrics["worst_location_xyz_mm"],
+                "location_xyz_mm": location,
             }
         )
 
@@ -783,9 +841,11 @@ def run_gate(
 
         # ---- geometry + overhang ----
         if effective_stl and os.path.exists(effective_stl):
-            geo_issues = _analyze_stl(
-                effective_stl, overhang_deg, (orientation or {}).get("rotate")
-            )
+            rotate = (orientation or {}).get("rotate")
+            stem = os.path.splitext(os.path.basename(script_path))[0]
+            part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
+            clearance_zones = _clearance_opening_zones(plan, part, rotate) if part else []
+            geo_issues = _analyze_stl(effective_stl, overhang_deg, rotate, clearance_zones)
         else:
             geo_issues = [
                 {

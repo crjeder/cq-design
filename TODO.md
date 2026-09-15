@@ -24,9 +24,9 @@ All completed tasks are now in `documentation/DONE.md`.
 All three below had a fix merged (Sep 1 / Sep 7) and **all three reproduced on the
 2026-09-08 re-run** (`debug/session-2026-09-08.md`). The shared reason and the
 retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
-- [ ] Compass-language mixup in orientation reasoning -- fix never landed; needs a per-project frame binding -- [details](#c5-compass-language)
-- [ ] Hinge ear: primitive placed center-aligned to another part's edge -- `verify_seated` merged but is opt-in and absent from the pre-existing script; needs a lint that flags its absence -- [details](#c5-hinge-ear-center-vs-edge)
-- [ ] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- `check_shared_interfaces` merged but keys on a non-null shared `interfaces[].name`, which this plan lacks -- [details](#c5-knuckle-pivot-ping-pong)
+- [x] Compass-language mixup in orientation reasoning -- FIXED 2026-09-11: `coordinate_frame` schema field + `plan_validate.check_coordinate_frame_usage` advisory -- [details](#c5-compass-language)
+- [x] Hinge ear: primitive placed center-aligned to another part's edge -- FIXED 2026-09-11: `quality_gate._run_hinge_guard_stage` flags a hinge-associated union missing `verify_seated`/`verify_backed`/`pin_hinge` -- [details](#c5-hinge-ear-center-vs-edge)
+- [x] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- FIXED 2026-09-11: `check_shared_interfaces` broadened to flag coincident unnamed interfaces (positional match), plus `check_hinge_intent_without_joints` -- [details](#c5-knuckle-pivot-ping-pong)
 - [x] Quality-gate overhang check judged the authored-frame STL, not the print pose -- false-positive `overhang_exceeded` whenever the optimizer rotates the part -- FIXED 2026-09-08 -- [details](#c5-quality-gate-overhang-authored-frame)
 
 ### From Silica Tray session (`session-export-1786620780455.zip`)
@@ -34,7 +34,7 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 - [ ] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- [details](#silica-tray-re-export-coincidence)
 
 ### From Hitster Tower
-- [ ] Missed the intent of the bottom finger-access opening; over-supported the south wall -- investigated (transcript not archived); root cause is untyped functional negative space + purely-geometric support verdict -- [details](#hitstertower-oversupport)
+- [x] Missed the intent of the bottom finger-access opening; over-supported the south wall -- FIXED 2026-09-15: `clearance_opening` interfaces now suppress the overhang finding over the declared void -- [details](#hitstertower-oversupport)
 
 ### Independent
 - [x] split `info` directory
@@ -400,6 +400,9 @@ its `BUILD_PLAN.json` and both part scripts predate all three fixes, and nothing
 in `plan_validate.py` / `script_lint.py` / `quality_gate.py` fails a project for
 *missing* the new guard. Evidence per fix is in each section above.
 
+**Items 1-3 landed 2026-09-11** (`openspec/changes/archive/2026-09-11-absence-lints-and-coordinate-frame/`).
+Item 4 (`/retrofit`) is still open.
+
 Proposed retrofit work (all advisory, `check_block_thinness` tier -- printed after
 `BUILD_PLAN OK`, never a hard `plan_invalid`):
 
@@ -518,11 +521,20 @@ Fix direction (cheapest first):
    change (`interfaces[].type` is a free string; `feature_presence_check.py`
    skips unknown types). This alone gives Phase 3 the structured hook it was
    missing when it argued for support.
-2. Still open -- the downstream half: nothing reads `clearance_opening` yet.
-   Implementation note added under
-   [Blocks assembly placeholder](#blocks-assembly-placeholder): route the void
-   through the keep-out-zone export so it suppresses `support_cost` and
-   downgrades `overhang_exceeded` to advisory over the opening.
+2. DONE 2026-09-15 (partial): `quality_gate._clearance_opening_zones` maps each
+   `clearance_opening` interface's `position_mm` through the part's `placement`
+   and the chosen print orientation's `rotate` into the same build frame as
+   `overhang_metrics`' `worst_location_xyz_mm`; `_analyze_stl` downgrades an
+   `overhang_exceeded` finding to `severity: "info"` when its worst face falls
+   within the opening's radius (half-diagonal of `size_mm` + margin), and points
+   the hint at the part's `engineering_rationale`/`part_notes` load path instead
+   of "add chamfers or redesign". This reads the interface directly rather than
+   routing through the keep-out-zone export (below) -- cheaper for the overhang
+   check alone, since it only needs one point + radius, not a meshed zone. The
+   `support_cost` / `print_orientation.py` half (excluding the zone from the
+   orientation optimizer's ranking, not just the gate's report) is still open --
+   that one plausibly does want the keep-out-zone route since it needs an actual
+   volume to subtract, not just a point check.
 
 ### Project regeneration prompt
 Export a prompt which allows the human user to re-generate the whole project
@@ -616,25 +628,26 @@ placeholder. Distinct from the model's own clearance gaps.
 
 **Implementation note -- suppress support/overhang cost over a declared void
 (from [Hitstertower oversupport](#hitstertower-oversupport)).** The
-`clearance_opening` interface type now lands in the plan (`prompts/planning.md`
-rule 5a) but nothing downstream reads it yet. The keep-out machinery is the
-place to close the loop: when a part declares a `clearance_opening` interface
-with `position_mm` + `size_mm` (or a script emits a `result["keep_out"]` zone
-tagged as an opening), extend the existing zone export
-(`units.resolve_keep_out` -> `keep_out__<name>.stl` -> `keep_out_check.py`) so
-the zone volume also feeds two suppressions:
-- `mesh_io.support_cost` / `print_orientation.py`: subtract the down-facing
-  area whose supporting ray passes through the zone before reaching the bed --
-  that material is spanning a deliberate hole, not an accidental overhang.
-- `quality_gate.py` `_analyze_stl`: downgrade an `overhang_exceeded` finding to
-  advisory (severity `info`) when its overhanging faces bound a declared
-  `clearance_opening`, with the message pointing at the interface's load-path
-  note instead of "add chamfers or redesign".
+`clearance_opening` interface type lands in the plan (`prompts/planning.md`
+rule 5a). Two suppressions were planned:
+- `quality_gate.py` `_analyze_stl`: DONE 2026-09-15 -- downgrades an
+  `overhang_exceeded` finding to advisory (severity `info`) when its
+  overhanging faces bound a declared `clearance_opening`, message pointing at
+  the interface's load-path note instead of "add chamfers or redesign". Reads
+  `interfaces[].position_mm`/`size_mm` directly (a point + radius check), no
+  keep-out zone export needed for this half.
+- `mesh_io.support_cost` / `print_orientation.py`: still open -- subtract the
+  down-facing area whose supporting ray passes through the zone before
+  reaching the bed. This one plausibly wants the keep-out-zone route below
+  (an actual volume to subtract from the ray-through-zone test, not just a
+  point-in-radius check).
 The structural half (is 10 mm of wall each side enough for the stated load?)
-stays a `parts[].engineering_rationale` `load_path` entry -- no new gate. Scope
-question to settle first: reuse the `keep_out` result key for openings vs. a
-distinct `opening` key (keep-out zones are currently checked for *intrusion by
-other parts*; an opening is checked for *nothing* -- it only suppresses).
+stays a `parts[].engineering_rationale` `load_path` entry -- no new gate.
+Remaining scope question for the `support_cost` half: extend the existing zone
+export (`units.resolve_keep_out` -> `keep_out__<name>.stl` -> `keep_out_check.py`)
+so a part can emit `result["keep_out"]` tagged as an opening, vs. a distinct
+`opening` key (keep-out zones are currently checked for *intrusion by other
+parts*; an opening is checked for *nothing* -- it only suppresses).
 
 ### Bill of non-printed materials
 Surfaced by the `planning_notes` audit's C5 cross-check (2026-08-12): the
