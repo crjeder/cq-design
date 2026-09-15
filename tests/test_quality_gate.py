@@ -226,6 +226,66 @@ def test_run_gate_threads_orientation_rotate_into_overhang(
     assert _issues_of(report["issues"], "overhang_exceeded") == []
 
 
+def _run_gate_with_geo_issues(monkeypatch, tmp_path, geo_issues, plan_data=None):
+    """run_gate with `_analyze_stl` stubbed to return `geo_issues` verbatim, and every
+    other plan-consuming stage neutralized -- isolates print_recipe.supports derivation
+    from real mesh geometry and plan-schema validation."""
+    plan = tmp_path / "BUILD_PLAN.json"
+    plan.write_text(json.dumps(plan_data or {"constraints": {"overhang_max_deg": OVERHANG_DEG}}))
+    script = tmp_path / "part.py"
+    script.write_text("result = None\n")
+    stl = tmp_path / "part.stl"
+    stl.write_text("solid x\nendsolid x\n")
+    monkeypatch.setattr(quality_gate, "_run_wrapper_check", lambda *a, **k: ([], str(stl), {}))
+    monkeypatch.setattr(quality_gate, "_analyze_stl", lambda *a, **k: geo_issues)
+    monkeypatch.setattr(quality_gate, "_run_plan_validation_stage", lambda *a, **k: [])
+    return quality_gate.run_gate(str(script), str(plan))
+
+
+def test_print_recipe_supports_true_when_overhang_exceeded(monkeypatch, tmp_path):
+    # Regression (silica-tray-support-claim): print_recipe.supports used to be
+    # hardcoded False regardless of any overhang_exceeded finding, so a delivered
+    # recipe always claimed "no support needed" even with a flagged overhang.
+    overhang_warning = [
+        {
+            "source": "geometry",
+            "severity": "warning",
+            "type": "overhang_exceeded",
+            "message": "Worst overhang 90.0° exceeds limit 45.0° over 100.0 mm² of faces",
+            "hint": "Add chamfers or redesign overhanging features.",
+        }
+    ]
+    report = _run_gate_with_geo_issues(monkeypatch, tmp_path, overhang_warning)
+
+    assert report["passed"] is True
+    assert report["print_recipe"]["supports"] is True
+
+
+def test_print_recipe_supports_false_when_self_supporting(monkeypatch, tmp_path):
+    report = _run_gate_with_geo_issues(monkeypatch, tmp_path, [])
+
+    assert report["passed"] is True
+    assert report["print_recipe"]["supports"] is False
+
+
+def test_print_recipe_supports_false_when_overhang_downgraded_to_info(monkeypatch, tmp_path):
+    # An advisory (info-severity) overhang bounding a declared clearance_opening must
+    # not itself claim the model needs support.
+    overhang_info = [
+        {
+            "source": "geometry",
+            "severity": "info",
+            "type": "overhang_exceeded",
+            "message": "over the declared clearance opening 'finger_access'",
+            "hint": "see the part's load path instead of adding support here",
+        }
+    ]
+    report = _run_gate_with_geo_issues(monkeypatch, tmp_path, overhang_info)
+
+    assert report["passed"] is True
+    assert report["print_recipe"]["supports"] is False
+
+
 def test_non_watertight_reports_error(non_watertight_stl):
     issues = quality_gate._analyze_stl(non_watertight_stl, OVERHANG_DEG)
     errors = _issues_of(issues, "non_watertight")
