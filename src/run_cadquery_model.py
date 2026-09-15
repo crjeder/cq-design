@@ -50,31 +50,40 @@ import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # OCC exception → structured hint translation table
 # ---------------------------------------------------------------------------
 _OCC_HINTS = {
     "Standard_ConstructionError": (
+        "construction_error",
         "geometry construction failed — check that boolean bodies overlap "
-        "and no faces are coincident"
+        "and no faces are coincident",
     ),
     "BRep_API": (
+        "command_not_done",
         "boolean operation failed — ensure the inner body extends at least "
-        "0.01 mm past the outer boundary (use inner height = outer height + 0.02)"
+        "0.01 mm past the outer boundary (use inner height = outer height + 0.02)",
     ),
     "StdFail_NotDone": (
+        "fillet_failure",
         "operation left incomplete — fillet radius may exceed an adjacent face "
-        "dimension; reduce the radius or apply fillets before cutting holes"
+        "dimension; reduce the radius or apply fillets before cutting holes",
     ),
     "Standard_NullObject": (
+        "null_object",
         "referenced a shape that does not exist — check selector strings "
-        "('.faces(\">Z\")', etc.) and workplane offsets"
+        "('.faces(\">Z\")', etc.) and workplane offsets",
     ),
-    "Standard_OutOfRange": ("index out of range — check pushPoints list or loop bounds"),
+    "Standard_OutOfRange": (
+        "index_out_of_range",
+        "index out of range — check pushPoints list or loop bounds",
+    ),
     "Standard_TypeMismatch": (
+        "type_mismatch",
         "wrong shape type for this operation — verify the workplane and "
-        "selector are targeting the correct geometry"
+        "selector are targeting the correct geometry",
     ),
 }
 
@@ -109,6 +118,11 @@ _VERIFY_HINTS = {
         "the feature's declared mating face is not fully backed by its named neighbor — "
         "extend the neighboring feature (or reposition this one) so it fully covers the "
         "mating face, not just the shared centerline/axis coordinate"
+    ),
+    "boss_swallowed": (
+        "a flat support body is seated at the round boss's center coordinate, not its "
+        "tangent — offset the support's mating face by the boss radius (pivot ± r), or "
+        "route the join through blocks.joints.pin_hinge which seats at the tangent"
     ),
 }
 
@@ -174,14 +188,15 @@ def _translate_stderr(stderr: str) -> list[dict]:
                 exc_message = parts[1].strip() if len(parts) > 1 else ""
 
     if exc_class:
+        err_type = "occ_exception"
         hint = _OCC_HINT_DEFAULT
-        for key, h in _OCC_HINTS.items():
+        for key, (t, h) in _OCC_HINTS.items():
             if key in exc_class or exc_class in key:
-                hint = h
+                err_type, hint = t, h
                 break
         errors.append(
             {
-                "type": "occ_exception",
+                "type": err_type,
                 "occ_class": exc_class,
                 "message": exc_message or exc_class,
                 "hint": hint,
@@ -312,12 +327,15 @@ def _disconnected_body_error(tm, uid: str, multi: bool) -> dict | None:
 
     summaries = []
     for i, c in enumerate(components, 1):
-        ext = c.bounding_box.extents
+        lo, hi = c.bounds
         try:
             vol = abs(c.volume) / 1000.0 if c.is_volume else None
         except Exception:
             vol = None
-        s = f"body {i}: bbox {ext[0]:.1f}x{ext[1]:.1f}x{ext[2]:.1f} mm"
+        s = (
+            f"body {i}: x {lo[0]:.1f}..{hi[0]:.1f}, y {lo[1]:.1f}..{hi[1]:.1f}, "
+            f"z {lo[2]:.1f}..{hi[2]:.1f} mm"
+        )
         if vol is not None:
             s += f", {vol:.2f} cm3"
         summaries.append(s)
@@ -331,8 +349,11 @@ def _disconnected_body_error(tm, uid: str, multi: bool) -> dict | None:
         "component_count": len(components),
         "message": msg,
         "hint": (
-            "a part expected to be one body split into separate solids — union or "
-            "bridge the pieces so they overlap and fuse into a single component"
+            "a part expected to be one body split into separate solids — compare the "
+            "per-body ranges above first: if they do not overlap on some axis, a body "
+            "is misplaced (a workplane change moves a box's origin) and must be moved "
+            "back, not merely overlapped; only once the pieces do meet should you add "
+            "overlap so they fuse into a single component"
         ),
     }
 
@@ -798,7 +819,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Output directory for --deliver (default: alongside the script)",
     )
+    parser.add_argument(
+        "--attempts-log",
+        default=None,
+        help="Append this run's attempt record to the given attempts.jsonl (part id = script stem)",
+    )
+    parser.add_argument("--model", default=None, help="Model name for the attempt record")
     return parser
+
+
+def _emit(args: argparse.Namespace, result: dict) -> None:
+    """Print the JSON contract; with --attempts-log, also append the attempt record
+    (sub-agent tool calls do not reach the PostToolUse telemetry hook)."""
+    if args.attempts_log:
+        try:
+            from telemetry import record_attempt
+
+            record_attempt(Path(args.attempts_log), Path(args.script).stem, result, args.model)
+        except Exception as exc:  # telemetry must never break a validate run
+            _append_stderr(result, f"attempt telemetry not written: {exc}")
+    print(json.dumps(result, indent=2))
 
 
 def main():
@@ -843,11 +883,11 @@ def main():
             )
         except subprocess.TimeoutExpired as e:
             _append_stderr(result, f"Timeout after {args.timeout}s: {e}")
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(3)
         except FileNotFoundError as e:
             _append_stderr(result, f"Cannot launch interpreter: {e}")
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(2)
 
         result["stdout"] = proc.stdout
@@ -860,7 +900,7 @@ def main():
             result["errors"].extend(_translate_stderr(proc.stderr))
 
         if not result["success"]:
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(1)
 
         # Find STLs written to run_dir
@@ -879,7 +919,7 @@ def main():
                 }
             )
             result["success"] = False
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(1)
 
         # Geometry analysis. A part may emit several union STLs (one per named union);
@@ -890,7 +930,7 @@ def main():
             strict_fail = _run_geometry_checks(sorted(stls_in_temp), args, result)
             if strict_fail:
                 result["success"] = False
-                print(json.dumps(result, indent=2))
+                _emit(args, result)
                 sys.exit(1)
 
         # Preview rendering via render_preview.py subprocess (CQ-native, no OpenGL)
@@ -899,7 +939,7 @@ def main():
             and stls_in_temp
             and _handle_preview(args, script_path, skill_root, env, result)
         ):
-            print(json.dumps(result, indent=2))
+            _emit(args, result)
             sys.exit(1)
 
         # --deliver: run modular exporter and expose output paths
@@ -921,7 +961,7 @@ def main():
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)
 
-    print(json.dumps(result, indent=2))
+    _emit(args, result)
     sys.exit(0 if result["success"] else 1)
 
 

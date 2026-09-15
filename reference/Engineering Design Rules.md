@@ -1,6 +1,6 @@
 # Engineering Design Rules
 
-Numeric-only reference for the ENGINEERING RATIONALE block (see `prompts/part.md`).
+Numeric-only reference for the `engineering_rationale` plan entry (see `prompts/part.md`).
 Each `##` section is tagged `<!-- applies_to: ... -->`, same convention as
 `FDM 3D Print Design Guidelines.md`: inject a section only if its tag is `always`
 or lists a block in the part's `blocks_needed`, plus any load-relevant section when
@@ -57,3 +57,27 @@ Deltas not already in `hardware_dims.md`:
 | Self-tapping pilot hole vs. screw major diameter | screw_d - 0.3 mm |
 | Press-fit pin vs. socket (loose) | +0.2 mm clearance |
 | Press-fit pin vs. socket (firm) | +0.05 mm clearance |
+
+## Flush-Fold Hinge Standoff
+<!-- applies_to: pin_hinge, living_hinge -->
+
+Scope: a hinged (clevis/tongue) part that must close to an exact +-90deg fold and
+land flush (coplanar) against a target plane. Does not apply to fold angles other
+than 90deg, or to joints with no flush-close requirement.
+
+```
+standoff = perpendicular_distance(axis, target_plane)
+```
+
+`standoff` is the perpendicular distance from the pivot axis to the plane of the
+folding face (in its flat, unfolded rest pose) - i.e. how far the clevis/tongue
+knuckle sits proud of the face it's attached to. Rotation about the axis preserves
+every point's distance to the axis; for the folded face to coincide with the
+target plane (not just touch it at an angle), its own axis-standoff must equal the
+axis's standoff from the target plane. Get either distance wrong and the fold
+either overshoots past flush or stops short of it.
+
+Worked example (C5 Phone-Holder cradle/plate hinge): target plane is the plate's
+front face; axis is 5mm behind it. The folding leg's top face must therefore sit
+5mm proud of the pivot axis (`PIVOT_Y = 5.0` standing off the leg's own attachment
+plane) for the fold to close exactly flush at 90deg.

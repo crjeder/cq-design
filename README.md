@@ -46,6 +46,28 @@ uv enforces this constraint and downloads the right Python version if needed.
 
 To work in the repo directly without installing, just run `uv sync`.
 
+## Checking what's installed
+
+A copy install can silently go stale -- edits to this repo don't reach
+`~/.claude/skills/cq-design/` until you re-run the installer. Check what's
+actually there:
+
+```bash
+python ~/.claude/skills/cq-design/src/skill_version.py
+```
+
+It reports the commit that was copied (or, for a `--link`/`-Link` install,
+the live commit of the linked repo -- always current by construction). Pass
+`--compare <path-to-this-repo>` to diff the installed commit against the
+repo's current `HEAD`:
+
+```bash
+python ~/.claude/skills/cq-design/src/skill_version.py --compare .
+```
+
+Exits non-zero when the installed copy isn't confirmed up to date, so it
+also works as a quick check in a script.
+
 ## Regenerating the 3MF / STL files
 
 When the skill finishes it turns your working directory into a self-contained
@@ -80,6 +102,32 @@ when your layout differs:
 uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out build
 ```
 
+## Regenerating the project with a fresh session
+
+Alongside the model files, delivery writes `REGENERATE.md` at the project root: a
+self-contained prompt that rebuilds the *design* from scratch, as opposed to `build.py`,
+which rebuilds the *geometry* from the scripts you already have. Paste it into a new
+session -- a better model, a newer version of this skill, a different skill -- when you
+want the design re-derived rather than re-exported.
+
+It carries what the plan's structured fields cannot be re-narrated from memory: the
+approved intent (what is being built, in resolved terms), the verbatim request history
+including every correction, `parameters.py` inlined whole so the measured real-world
+numbers and their provenance travel along, the print target, and the previous parts and
+joints -- labelled reference, so the new session is free to decompose the request
+differently. Images cannot be inlined; the prompt lists the `sketches/` paths and asks you
+to re-attach those files.
+
+The skill rewrites the file on every delivery, so it always reflects the latest
+corrections. To re-export it by hand after editing `BUILD_PLAN.json` (the script is
+stdlib-only -- no `uv sync` needed):
+
+```bash
+python <skill-dir>/src/regen_prompt.py --plan BUILD_PLAN.json --out REGENERATE.md
+```
+
+Omit `--out` to print it to stdout.
+
 ## Files
 
 ```
@@ -109,9 +157,11 @@ src/
   keep_out_check.py         # whole-model keep-out-zone check (trimesh + python-fcl)
   print_orientation.py      # auto-rotation optimizer for print orientation
   build_template.py         # build.py template copied into build/ to regenerate plates
+  regen_prompt.py           # exports REGENERATE.md: a fresh-session prompt to re-derive the design
   cq_compat.py              # CadQuery/cq_warehouse compatibility shims
   init_permissions.py       # seeds .claude/settings.local.json with pipeline permissions
   skill_permissions.json    # permission patterns seeded by init_permissions.py
+  skill_version.py          # reports/compares the installed commit -- see "Checking what's installed"
 
   project_template/
     pyproject.toml          # scaffolded into the working directory as a self-contained uv project
@@ -164,88 +214,16 @@ tests/
   test_stl_to_3mf.py
 ```
 
-## Prior art
+## Related projects
+Projects surveyed for ideas -- see [`info/related_projects.md`](documentation/related_projects.md).
+Adoption status/tracking lives in `TODO.md`.
 
-Related projects surveyed for ideas, sorted by relevance. The "Relevance" column
-rates how directly each one's ideas apply to this skill: "high"/"medium"/"low".
+## Part Libraries
+Libraries which could be usefull are in [`Block_Sources.md`](documentation/Block_Sources.md)
 
-| Project | What it is | Relevance | Ideas worth adapting |
-|---------|-----------|-------------|----------------------|
-| [thereprocase/cad-skill](https://github.com/thereprocase/cad-skill) | Claude Code CadQuery skill with a phased checkpoint pipeline and DFM checks | integrated? | Dimensioned cross-section rendering at critical features; `cq_debug_helpers.py` catching silent boolean failures / workplane drift; dual-layer (construction-time + post-export) validation |
-| [vericontext/cadgate](https://github.com/vericontext/cadgate) | Quality gate / PR reviewer for AI-generated CadQuery / build123d | high | Differential geometry comparison (volume / bbox / wall-thickness delta vs base); optional LLM-judge intent match (geometry vs description); per-class exit codes for CI gating; sticky PR comments with 6-view renders |
-| [jmwright/cadquery-llm-skill](https://github.com/jmwright/cadquery-llm-skill) | Maintainer-authored skill teaching LLMs idiomatic CadQuery | integrated | Anti-patterns integrated as `reference/CadQuery Anti-Patterns.md` (kernel / stateful-context / API-mechanic tiers) + fluent recipes folded into the pattern reference (change `add-cadquery-anti-patterns`); Free Function API content excluded (pipeline is fluent-only) |
-| [ChristophSchranz/Tweaker-3](https://github.com/ChristophSchranz/Tweaker-3) | Auto-rotation optimizer for 3D print orientation | high | Progressive overhang penalty (severity exponent `OV_H`); area-cumulation candidate generation; a build-height / volume minimization objective -- all for `print_orientation.py` and `mesh_io.overhang_metrics` |
-| [Text-to-CadQuery (arXiv 2505.06507 + code)](https://github.com/Text-to-CadQuery) | Research generating CadQuery code directly (not command sequences); ~170k text->CadQuery pairs, finetuned 124M-7B models | high | Chamfer distance as mesh-vs-reference regression metric; render-then-VLM-judge eval (Gemini visual assessment); validates this skill's direct-CadQuery-codegen design over intermediate B-rep command sequences |
-| [cyberchitta/cad-khana](https://github.com/cyberchitta/cad-khana) | build123d CLI / agent skill with a diagnostics-first (not vision-first) loop | high | Assertions-as-constraints that fail the build when geometry is out of spec; `diagnostics.json` of interferences / clearances / wall thickness / overhangs (parallels `quality_gate` + `measure_stl`); HLR orthographic line-art drawings for shape questions renders can't answer |
-| [jacksonferrigno/cad-llm](https://github.com/jacksonferrigno/cad-llm) | Local desktop app: NL -> CadQuery code -> 3D preview / STEP, Qwen 4B via MLX, sandbox-and-self-correct loop | high | Explicit exploratory-prompt vs build-prompt routing (clarify/options vs straight to code), mirroring this skill's planning -> part loop; sandbox-execute-read-error-retry loop; on-device model option |
-| [Rahix/FusedFilamentDesign](https://github.com/Rahix/FusedFilamentDesign) | FreeCAD PartDesign addon of parametric FDM design-for-printing features | high | Concrete printable-feature blocks and DFM rules: teardrop horizontal holes, counterbore/roof bridges for overhang-free holes, thread-forming ribs, zip-tie channels, auto-fillet on vertical edges -- upgrade material for `blocks/` and the DFM gate |
-| [partcad/partcad](https://github.com/partcad/partcad) | Package manager for hardware / manufacturable products across CAD kernels (CadQuery, build123d, OpenSCAD), YAML assembly format, BOM, AI-assisted workflows | high | Package-manager framing for reusable, versioned part definitions with declared metadata (parallels `blocks/inventory.json`); YAML assembly format tracking BOM and part relationships across CAD kernels; caching rendered models to speed iteration |
-| [r3c0nshade/CADForge](https://github.com/r3c0nshade/CADForge) | Prompt-to-CAD web app: multi-provider LLM (Claude / GPT / GLM / NVIDIA / Ollama) writes CadQuery, sandboxed execution, Three.js preview, STEP/STL/OBJ/DXF export | high | Automatic error-feedback self-correction pass on generation failure (parallels this skill's part loop); per-part version history across iterative edits; provider-agnostic LLM backend design |
-| [w1ne/kernelCAD-web](https://github.com/w1ne/kernelCAD-web) | Agent-native CAD: design brief -> editable `.kcad.ts` -> evaluated model -> deterministic validation (OpenCASCADE via Replicad) | high | "Editable source is truth, renders are artifacts" framing matches this skill's philosophy; deterministic validation (constraints, hardware fit, clearance) run before visual inspection, not after; importing vendor STEP geometry for real hardware instead of placeholder primitives, parallel to `blocks/hardware.py`'s cq_warehouse fasteners |
-| [pzfreo/build123d-mcp](https://github.com/pzfreo/build123d-mcp) | MCP server letting an assistant build a build123d part incrementally with render/measure/validate after every step ("eyes for the AI") | high | Reported CADGenBench accuracy jump (36%->46%) from per-step visual+measured feedback validates this skill's per-part render+validate loop; `install_skill`-style guidance tooling that scaffolds correct workflow order |
-| [CadQuery/cadquery-contrib mcp-server](https://github.com/CadQuery/cadquery-contrib/tree/master/mcp-server) | Official CadQuery MCP server (render / inspect / get_parameters / export) | medium | `get_parameters` style extraction of customizable script params for a parametric re-run UX (this skill avoids MCP by design) |
-| [mikekuniavsky/mcp-cadquery-server-public](https://github.com/mikekuniavsky/mcp-cadquery-server-public) | MCP server executing CadQuery in sandboxed subprocesses, exporting 3MF/PNG/GLB via cloud storage | medium | AST-based allowlist validation before executing generated code (safer than bare `exec`); export-format selection by result type (`cq.Assembly` -> GLB for per-part color, `cq.Workplane` -> 3MF), parallel to this skill's `dict[str, Workplane]` union-splitting |
-| [Kevoyuan/AgentSCAD](https://github.com/Kevoyuan/AgentSCAD) | NL -> validated OpenSCAD artifacts, cost-conscious progressive pipeline (generate once, validate deterministically, repair only on failure) | medium | Repair-only-on-failure gating (skip the fix round entirely on a clean first pass) as a cost optimization for `quality_gate.py`'s `claude -p` fix rounds; parsing SCAD assignments into user-editable constrained parameters |
-| [deGravity/aidl](https://github.com/deGravity/aidl) | Research DSL (AI Design Language) standardizing CAD construction into a hierarchical Structure/Geometry/Constraint tree for more reliable LLM generation | medium | Semantic dot-notation auto-naming of every generated entity for clearer error feedback; designing for iterative *appending* to a construction tree rather than editing existing statements, relevant if `part.md` prompts move toward incremental edits |
-| [Hiram31/CADialogue](https://github.com/Hiram31/CADialogue) | Research: multimodal (text/voice/image) conversational assistant driving FreeCAD via generated Python macros | medium | Macro caching with vector-similarity retrieval of previously-confirmed designs (reported 85x speedup vs regenerating from scratch) -- a pattern for caching known-good part scripts by description similarity |
-| [BenCaunt/SynthCAD](https://github.com/BenCaunt/SynthCAD) | Framework wrapping build123d with CLIs/registries/export tooling, packaged as reusable "skills" for coding agents (Codex etc.) | medium | PR-integrated interactive CAD diff viewer so an agent (or reviewer) can inspect its own geometry changes inline; scoped CI that fans framework changes across sibling projects while containing project-local ones |
-| [Svetlana-DAO-LLC/cad-agent](https://github.com/Svetlana-DAO-LLC/cad-agent) | Containerized build123d rendering server: agent sends commands, gets back PNG/STL/STEP/3MF, decides next step | low | Technical/blueprint-style 2D dimensioned-drawing renders alongside 3D views, distinct from this skill's multi-view PNG preview |
-| [testingacount2026-ui/cadx-local](https://github.com/testingacount2026-ui/cadx-local) | Local Ollama + CadQuery + Flask web app for NL -> CadQuery, no cloud dependency | low | Auto-computed volume/surface-area/bbox property panel alongside the generated model, echoing `measure_stl.py`'s feature extraction but surfaced directly in the iterate UX |
-| [earthtojake/text-to-cad](https://github.com/earthtojake/text-to-cad) (forks: [cedrickchee](https://github.com/cedrickchee/text-to-cad), [costrict mirror](https://github.com/costrict-plugins-repo/earthtojake-text-to-cad-cad); web wrapper [CodeEagle/text-to-cad-web](https://github.com/CodeEagle/text-to-cad-web)) | build123d agent-skills library (CAD + URDF + G-code + DXF skills) for Claude / Codex | medium | Skill decomposition into CAD / slicing / URDF / DXF sub-skills; multi-format export pipeline (STEP / 3MF / GLB) beyond STL |
-| [rawwerks/VibeCAD](https://github.com/rawwerks/VibeCAD) | build123d skills library plus render-glb and gltf-transform plugins | medium | IoU / Dice / precision-recall mesh metrics for AI-output regression; `bd_warehouse` fasteners and `gggears` parametric gears (parallel to `blocks/hardware`) |
-| [lwidm/cq_gears](https://github.com/lwidm/cq_gears) | Parametric involute spur/helical gear generator for CadQuery (exact analytical curve equations, no boolean approximation) | medium | Fills the gap in `blocks/` for gear geometry; upstream declares no license, so it's referenced as a downloadable external resource in `planning_notes` rather than pinned or vendored |
-| [outerreaches/talkcad](https://github.com/outerreaches/talkcad) | Conversational OpenSCAD Electron app with orchestrator/builder/researcher agents | medium | Spec tracking with explicit/inferred/default values plus per-spec verification status; web research for real-world dimensions; vision-based verification of rendered models |
-| [lightoshadow/text-to-openscad](https://github.com/lightoshadow/text-to-openscad) | Claude Code plugin: plan -> write `.scad` -> render -> iterate up to N rounds | medium | Manifold genus / facet stats as a geometry sanity check; color-coded multi-part renders to spot clipping and gaps; standard multi-view grid (iso/top/front/right) |
-| [rohittp0/ClaudeCAD](https://github.com/rohittp0/ClaudeCAD) | Claude Code + OpenSCAD plugin, Interview -> Design -> Code -> Validate -> Export | medium | `admesh` mesh-integrity validation as an export-time gate; explicit interview phase before modeling |
-| [levkropp/ClawSCAD](https://github.com/levkropp/ClawSCAD) | Electron app gluing OpenSCAD + Claude Code via an OpenSCAD MCP subprocess | medium | Checkpoint branching (immutable model tree, revert + branch alternatives); auto error-feedback loop from render failures |
-| [Masoudjafaripour/Vibe_CADing](https://github.com/Masoudjafaripour/Vibe_CADing) | Multi-agent generative pipeline: Planner / Retriever / Generator / Critic | medium | Critic with manufacturability heuristics (symmetry, center-of-mass, structural validity); RAG retrieval of CAD examples to ground generation |
-| [OpenOrion/CQAsk](https://github.com/OpenOrion/CQAsk) (fork [alexmao1024/CQAsk-Pro](https://github.com/alexmao1024/CQAsk)) | CadQuery chat web app (React + Python + OpenAI) | medium | Chat-driven iterate UX; validates inline CadQuery codegen with STL/STEP export straight from the UI |
-| [ankurhanda/claude-cad](https://github.com/ankurhanda/claude-cad) | build123d models built from image-derived construction prompts | medium | Image -> structured construction-prompt intermediary (vs direct image->CAD); named multi-part assembly modeling (42- and 74-part examples) |
-| [fa-mc/vibe-cading](https://github.com/fa-mc/vibe-cading) | AI-friendly parametric CadQuery component library | medium | Reusable AI-oriented CadQuery component set, a direct parallel to this skill's `blocks/` |
-| [ConAcademy/WeaselToonCadova](https://github.com/ConAcademy/WeaselToonCadova) | Experiment: Claude generates Cadova (Swift CSG) code from reference images, exports 3MF | medium | Automated visual self-correction loop (render 3MF -> PNG via `f3d`, analyze, fix, re-render); image-reference-driven modeling (Cadova/Swift itself not applicable) |
-| [AkBKukU/scad-HirthJoint](https://github.com/AkBKukU/scad-HirthJoint) | Parametric Hirth face-spline coupling in OpenSCAD | medium | A Hirth coupling block extending `blocks/joints`; quarter-tooth rotation offset so mating halves self-align |
-| [raybellis/hingefold](https://github.com/raybellis/hingefold) | Print-in-place latching fold/living-hinge joints for OpenSCAD | medium | A print-in-place latching fold-hinge block; print-in-place joints are exactly what `kinematic_check` already sweeps without special-casing |
-| [CameronBrooks11/panel-cube-joints](https://github.com/CameronBrooks11/panel-cube-joints) | Parametric panel / cube joinery in OpenSCAD (base shell, connectors, cube cluster) | medium | Parametric panel-connector blocks for box / enclosure assemblies |
-| [Rahix/FreeCAD-Macros](https://github.com/Rahix/FreeCAD-Macros) | FreeCAD macros generating parametric FDM geometry (same author as FusedFilamentDesign) | medium | Overhanging-counterbore and rib-forming-thread generators; a macro that exports parametric part variants |
-| [RareSense/Nova3D](https://github.com/RareSense/Nova3D) | Code-native 3D asset gen: text/image -> executable Blender Python -> structured GLB with named parts, assembly tree, joint pivots | medium | "Program is the source of truth, mesh is the compiled output" principle (matches this skill); exporting named, separately addressable parts plus assembly hierarchy and joint pivots, paralleling the named-object 3MF + `kinematics` design |
-| [BaLaurent/ClawdCAD](https://github.com/BaLaurent/ClawdCAD) | Electron app: Claude Agent SDK + OpenSCAD, offline-first, git-native | medium | Dual compile (STL + OFF) to carry per-face color for visual diffing; git-native model history with temporal 3D preview/diff (compare to ClawSCAD's checkpoint branching) |
-| [WKJBryan/cadquery-library](https://github.com/WKJBryan/cadquery-library) | CadQuery fine-tuning dataset: 2600+ parametric 3D part examples | medium | Large corpus of parametric CadQuery examples usable as few-shot references or golden-mesh regression fixtures (parallels the Text-to-CadQuery dataset) |
-| [intuitia/CadQuery-Project](https://github.com/intuitia/CadQuery-Project) | LEGO / CaDA / COBI-compatible building-block part designs in CadQuery | medium | Reusable, domain-specific parametric block library (LEGO-style connectors), a direct parallel to this skill's `blocks/` |
-| [WyNo22/IA2CAD](https://github.com/WyNo22/IA2CAD) | FastAPI + GPT-4o-mini NL-to-CadQuery assistant with clarifying-question wizard and live Three.js/STL preview | medium | Structured-JSON spec intermediary between NL prompt and CadQuery code; clarifying questions asked before modeling begins (parallels talkcad's spec tracking) |
-| [rishigundakaram/cad-query-workspace](https://github.com/rishigundakaram/cad-query-workspace) | MCP-driven conversational CadQuery workspace | low | Searchable API-docs layer + few-shot examples folder (this skill's `reference/` already covers it); validates the inline-vs-MCP choice |
-| [rundiwu/DeepCAD](https://github.com/rundiwu/DeepCAD) | ML model representing CAD as sketch+extrude command sequences | low | Chamfer distance as a mesh-vs-reference similarity metric for golden-mesh regression tests (skip the ML pipeline) |
-| [CodeGraphContext/CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext) | Code knowledge-graph MCP server / CLI | low | Repo navigation and impact analysis during development; not part of the CAD pipeline |
-| [Aryo-Zare/cq](https://github.com/Aryo-Zare/cq) | Early-stage single-part CadQuery example | low | Nothing actionable (one file, no docs) |
-| [welch52553-byte/Vibe-Cading](https://github.com/welch52553-byte/Vibe-Cading) | OpenSCAD-wasm + Three.js viewer where you click faces to name them | low | Face-naming JSON annotations giving the model stable geometric references for edits |
-| [SadilKhan/Text2CAD](https://github.com/SadilKhan/Text2CAD) | NeurIPS 2024 transformer generating B-rep sketch+extrude sequences from text | low | Beginner-to-expert multi-level prompt annotations for prompt design; dataset for eval (skip the ML pipeline) |
-| [yas1nsyed/CADomatic](https://github.com/yas1nsyed/CADomatic) | FreeCAD parametric Python script generation via Gemini | low | Planned VLM image-similarity feedback loop; parametric editable-script output (FreeCAD API differs from CadQuery) |
-| [rystm01/text-to-cad](https://github.com/rystm01/text-to-cad) | Plain NL -> OpenSCAD web app | low | Minimal; basic NL-to-code round-trip only |
-| [niklasmh/ClaudeCAD](https://github.com/niklasmh/ClaudeCAD) | Web multimodal (sketch / text / voice) 3D-print assistant | low | Normal maps to aid the model's spatial understanding; draw-on-model feedback for refinement |
-| [lauvww/VibeCading](https://github.com/lauvww/VibeCading) | Local AI workbench driving SolidWorks via structured CAD operations | low | Backend-agnostic CAD-operation abstraction (proprietary backend, not applicable here) |
-| [ierror/synaps-cad](https://github.com/ierror/synaps-cad) | Rust OpenSCAD IDE (Bevy / csgrs / genai) with AI chat | low | IDE-level concerns; nothing actionable for a code-gen skill |
-| [AnCode666/multiCAD-mcp](https://github.com/AnCode666/multiCAD-mcp) | MCP server controlling AutoCAD / ZWCAD / GstarCAD / BricsCAD via COM | low | Consolidating many commands into a few "unified" tools to cut token overhead (this skill avoids MCP by design) |
-| [materializr-cad/materializr](https://github.com/materializr-cad/materializr) | Manual OpenCASCADE (B-rep) parametric CAD app for makers, C++/ImGui, not AI-driven | low | Validation-first operations that refuse to execute on bad geometry (parallels this skill's gate); otherwise GUI-app concerns |
-| [PenTest-duck/VibeCAD](https://github.com/PenTest-duck/VibeCAD) | HackHarvard 2025 "Cursor for CAD": sketch + voice + gesture -> OpenSCAD | low | Multimodal inputs (sketch-to-3D, voice editing) as a front-end idea; not core to a code-gen pipeline |
-| [prashanthbestha480-stack/VibeCAD](https://github.com/prashanthbestha480-stack/VibeCAD) | FastAPI + Three.js + Claude Sonnet 4.5 NL-to-model with a custom (non-CadQuery) representation | low | Minimal; reinforces the case for a real code-CAD kernel over a bespoke representation |
-| [AkytharPandaaa/PandaAidedDesign](https://github.com/AkytharPandaaa/PandaAidedDesign) | Collection of parametric OpenSCAD print models (cable-tie brackets, etc.) | low | Example parametric part patterns; not a tool or library |
-| [Rahix/FreeCAD-addons](https://github.com/Rahix/FreeCAD-addons) | Curated directory of community FreeCAD plugins | low | Nothing actionable (plugin index, no 3D-print or AI focus) |
-| [theosib/FreeCAD-MCP-Server](https://github.com/theosib/FreeCAD-MCP-Server) | FreeCAD MCP server exposing live document state (topology, sketch DOF, recompute diffs, viewport PNG) | low | Before/after recompute diffs to track what a change actually did (parallels cadgate's differential comparison); sketch-constraint DOF/conflict analysis -- MCP/FreeCAD-specific |
-| [blwfish/freecad-mcp](https://github.com/blwfish/freecad-mcp) | FreeCAD MCP server (32 tools) framed as a "thinking partner", multi-instance via UUID sockets | low | Integrated diagnostics that turn cryptic FreeCAD report-view errors into structured agent context (echoes this skill's typed `errors`) -- otherwise MCP/FreeCAD-specific |
-| [mehsenazizi/mecagent-test-Mehsen-AZIZI](https://github.com/mehsenazizi/mecagent-test-Mehsen-AZIZI) | Take-home test solution: image -> CadQuery via CLIP + GPT-2, syntax + IOU evaluation, CPU-only | low | IOU-based eval metric (already covered by the VibeCAD entry); otherwise a scoped take-home exercise with no reusable tooling |
-| [thereprocase/novel-cad-skill](https://github.com/thereprocase/novel-cad-skill) | Redesign of thereprocase/cad-skill swapping CadQuery for build123d (`ARCHITECTURE.md`): context-manager scoping, attribute selectors, STEP-as-checkpoint between phases, Manifold3d topology validation, a programmatic `gate_enforcer.py` state machine, and a build123d->CadQuery->OpenSCAD fallback router | low (build123d, not this skill's kernel) | Revisit if this skill ever migrates off CadQuery: STEP-as-checkpoint to cut context bloat between phases, Manifold3d validation as a topology check beyond watertightness, and the executable-gate pattern (`.gate.json`) over doc-only checkpoints |
-| [yacine-baghli/im2D2code3D](https://github.com/yacine-baghli/im2D2code3D) | 7-hour hackathon exercise: best-effort 2D-image -> CadQuery code generator | low | Minimal; time-boxed exercise with no reusable tooling beyond validating the image->CadQuery-code framing |
-| Proprietary-CAD MCP ecosystem (surveyed via [cyberchitta.cc/cad-llm-tools](https://www.cyberchitta.cc/articles/cad-llm-tools.html): dozens of MCP servers for Fusion 360, SolidWorks, Rhino/Grasshopper, Onshape, AutoCAD, SketchUp, Blender) | Human-directed MCP bridges exposing a proprietary CAD app's native API/COM interface to an AI client | low | None targets a code-CAD kernel this skill can adopt; they confirm the human-directed-MCP-bridge pattern is well covered elsewhere and reinforce (with rishigundakaram/cad-query-workspace, CadQuery/cadquery-contrib mcp-server, multiCAD-mcp above) that this skill's inline, MCP-free design is the deliberate outlier |
-
-## B-Rep Part Libraries
-
-| Catalog | Format | Re-usability Rating | Best Use Case & CadQuery Integration Notes |
-| --- | --- | --- | --- |
-| TraceParts / GrabCAD Open STEP Archives | `.step`, `.stp` | high | **Standard Hardware Components.** Consuming vendor-neutral ISO 10303 (STEP) files is natively supported by CadQuery's underlying OpenCascade kernel. You lose parametric variation at runtime, but you gain exact, un-triangulated math representations for mates, fillets, and CNC work. |
-| FreeCAD Standard Parts Library (`Macro_PartsLibrary`) | `.fcstd`, `.step` | high | **Fasteners & Bearings.** Because FreeCAD also uses the OpenCascade kernel, its internal geometries map 1:1 to CadQuery. Many FreeCAD catalog macros can either be exported directly to standard STEP or read via raw Python tables to reconstruct parts. |
-| OpenCascade Community Catalogs | `.brep` | high | **Core Geometric Primitives.** Native OpenCascade `.brep` file catalogs are fully open and can be directly loaded into CadQuery without any translations using `cq.Shape.cast(OCC.Core.BRepTools...)`. |
-| Misumi / McMaster-Carr Open Data | `.step`, `.iges` | medium | **Industrial Hardware.** While hosted by commercial entities, their standardized STEP downloads are perfectly formatted. You can build a local cache folder and use a Python dictionary script to match part numbers to `importStep()` paths. |
-| https://github.com/adafruit/Adafruit_CAD_Parts | `.step` | | **Adafruit products** | 
-
+## Software Bill of Materials
+Third-party dependencies and credit for code/ideas adapted from other
+projects -- see [`SBOM.md`](documentation/SBOM.md).
 
 ## License
 

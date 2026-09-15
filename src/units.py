@@ -17,6 +17,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -201,14 +202,34 @@ def resolve_keep_out(part: dict, result: Any) -> list[tuple[str, Any]]:
     return list(zones.items())
 
 
+def _sanitize_zone_name(zone_name: str) -> str:
+    """Author-supplied zone names are not filename-safe; collapse to `[A-Za-z0-9_-]`."""
+    return re.sub(r"[^A-Za-z0-9_-]", "_", zone_name)
+
+
 def keep_out_stl_name(part_id: str, zone_name: str) -> str:
     """Filename for a declared zone's assembled-pose STL, used by both the writer
     (`model_export.export_model`) and the reader (`keep_out_check`).
 
     Prefixed and part-qualified so it is unambiguous in a shared STL directory and never
-    collides with a real union's `<union_id>.stl`.
+    collides with a real union's `<union_id>.stl`. `zone_name` is author-supplied (a dict
+    key from a part script's `result["keep_out"]`), so it is sanitized to a safe filename
+    component before use -- otherwise a path separator or `..` segment could escape
+    `stl_dir`.
     """
-    return f"{KEEP_OUT_KEY}__{part_id}__{zone_name}.stl"
+    return f"{KEEP_OUT_KEY}__{part_id}__{_sanitize_zone_name(zone_name)}.stl"
+
+
+def keep_out_zone_key(part_id: str, zone_name: str) -> str:
+    """Export-manifest / staleness key for a declared zone.
+
+    `keep_out_check.py` can only ever recover the *sanitized* zone name (it discovers
+    zones by parsing `keep_out_stl_name`'s filename, which is a lossy many-to-one map),
+    so the writer (`model_export.py`) must key the manifest the same sanitized way, or a
+    zone name containing any non-identifier character never matches between the two and
+    staleness detection silently never fires for it.
+    """
+    return f"{part_id}::{_sanitize_zone_name(zone_name)}"
 
 
 def iter_kinematics_entries(kinematics: list[dict]) -> Iterator[dict]:

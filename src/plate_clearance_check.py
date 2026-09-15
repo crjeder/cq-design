@@ -26,7 +26,7 @@ Usage:
 
 import os
 from itertools import combinations
-from typing import cast
+from typing import Any, cast
 
 from freshness import read_manifest, stale_ids
 from units import iter_unions, make_issue, run_stl_dir_check_cli, stl_path
@@ -42,6 +42,131 @@ def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
     for _part, uid, plate in iter_unions(plan):
         plates.setdefault(plate, []).append(uid)
     return {plate: ids for plate, ids in plates.items() if len(ids) > 1}
+
+
+def _load_geometry_backend() -> tuple[Any, Any, dict | None]:
+    """Try to load the geometry backend. Returns (trimesh, CollisionManager, issue).
+
+    `trimesh.collision` swallows a missing `fcl` internally (`except BaseException`),
+    so importing it alone always succeeds; the actual failure only surfaces later, as a
+    `ValueError` from `CollisionManager()`. Import `fcl` directly here, matching
+    `interference.load_backend`, so a missing python-fcl degrades to `check_skipped`
+    instead of crashing the check.
+    """
+    try:
+        import fcl  # noqa: F401
+        import trimesh
+        from trimesh.collision import CollisionManager
+
+        return trimesh, CollisionManager, None
+    except ImportError as exc:
+        return (
+            None,
+            None,
+            make_issue(
+                "geometry",
+                "warning",
+                "check_skipped",
+                f"Geometry backend unavailable for plate-clearance check: {exc}",
+                "Install trimesh and python-fcl to enable the plate-clearance check.",
+            ),
+        )
+
+
+def _compute_staleness(
+    plan: dict, plates: dict[str, list[str]], stl_dir: str, parts_dir: str | None
+) -> tuple[set[str], dict | None]:
+    """Returns (stale union ids, warning issue if the manifest is unavailable)."""
+    manifest = read_manifest(stl_dir) if parts_dir else None
+    if parts_dir is None or manifest is None:
+        return set(), make_issue(
+            "geometry",
+            "warning",
+            "check_skipped",
+            "Export manifest not available; cannot verify exported STLs are current.",
+            "Run the model export (writes export_manifest.json) and pass --parts-dir "
+            "to enable staleness detection.",
+        )
+
+    plated_ids = {uid for ids in plates.values() for uid in ids}
+    uid_to_script = {
+        uid: os.path.join(parts_dir, f"{part['id']}.py")
+        for part, uid, _plate in iter_unions(plan)
+        if uid in plated_ids
+    }
+    return stale_ids(manifest.get("unions", {}), uid_to_script), None
+
+
+def _check_plate(
+    plate: str,
+    ids: list[str],
+    stale: set[str],
+    stl_dir: str,
+    threshold: float,
+    trimesh: Any,
+    collision_manager_cls: Any,
+) -> list[dict]:
+    """Check every pair of co-plated unions on one plate. Returns the issues produced."""
+    issues: list[dict] = []
+
+    for uid in ids:
+        if uid in stale:
+            issues.append(
+                make_issue(
+                    "geometry",
+                    "error",
+                    "stale_artifact",
+                    f"Union '{uid}' on plate '{plate}': exported STL is stale -- its "
+                    "source script changed since the model was last exported.",
+                    "Re-run the model export so this union's STL reflects the current "
+                    "script, then re-run the quality gate.",
+                    plate=plate,
+                    union=uid,
+                )
+            )
+    ids = [uid for uid in ids if uid not in stale]
+    if len(ids) < 2:
+        return issues
+
+    missing = [uid for uid in ids if not os.path.exists(stl_path(stl_dir, uid))]
+    if missing:
+        issues.append(
+            make_issue(
+                "geometry",
+                "warning",
+                "check_skipped",
+                f"Plate '{plate}': assembled union STL not found ({', '.join(missing)})",
+                "Run the model export so each union has an assembled STL.",
+                plate=plate,
+            )
+        )
+        return issues
+
+    meshes = {uid: trimesh.load(stl_path(stl_dir, uid), force="mesh") for uid in ids}
+    for a, b in combinations(ids, 2):
+        manager = collision_manager_cls()
+        manager.add_object(a, meshes[a])
+        # No return flags -> min_distance_single returns the scalar distance.
+        gap = round(cast(float, manager.min_distance_single(meshes[b])), 3)
+        if gap <= threshold:
+            issues.append(
+                make_issue(
+                    "geometry",
+                    "error",
+                    "plate_clearance",
+                    f"Unions '{a}' and '{b}' on plate '{plate}' are {gap} mm apart "
+                    f"(<= {threshold} mm layer height); they will fuse in the print.",
+                    "Increase the gap between these unions to more than one layer "
+                    "height, or move one to a separate plate.",
+                    plate=plate,
+                    union_a=a,
+                    union_b=b,
+                    gap_mm=gap,
+                    threshold_mm=threshold,
+                )
+            )
+
+    return issues
 
 
 def run_plate_clearance_check(
@@ -61,104 +186,23 @@ def run_plate_clearance_check(
         return []
 
     # Geometry backend is optional, matching the kinematic check's degrade path.
-    try:
-        import trimesh
-        from trimesh.collision import CollisionManager
-    except ImportError as exc:
-        return [
-            make_issue(
-                "geometry",
-                "warning",
-                "check_skipped",
-                f"Geometry backend unavailable for plate-clearance check: {exc}",
-                "Install trimesh and python-fcl to enable the plate-clearance check.",
-            )
-        ]
+    trimesh, collision_manager_cls, backend_issue = _load_geometry_backend()
+    if backend_issue:
+        return [backend_issue]
 
     nozzle = plan.get("nozzle_mm", 0.4)
     threshold = round(nozzle * 0.5, 2)  # one layer height, as in the print recipe
 
     issues: list[dict] = []
 
-    manifest = read_manifest(stl_dir) if parts_dir else None
-    if parts_dir is None or manifest is None:
-        issues.append(
-            make_issue(
-                "geometry",
-                "warning",
-                "check_skipped",
-                "Export manifest not available; cannot verify exported STLs are current.",
-                "Run the model export (writes export_manifest.json) and pass --parts-dir "
-                "to enable staleness detection.",
-            )
-        )
-        stale: set[str] = set()
-    else:
-        plated_ids = {uid for ids in plates.values() for uid in ids}
-        uid_to_script = {
-            uid: os.path.join(parts_dir, f"{part['id']}.py")
-            for part, uid, _plate in iter_unions(plan)
-            if uid in plated_ids
-        }
-        stale = stale_ids(manifest.get("unions", {}), uid_to_script)
+    stale, staleness_issue = _compute_staleness(plan, plates, stl_dir, parts_dir)
+    if staleness_issue:
+        issues.append(staleness_issue)
 
     for plate, ids in plates.items():
-        for uid in ids:
-            if uid in stale:
-                issues.append(
-                    make_issue(
-                        "geometry",
-                        "error",
-                        "stale_artifact",
-                        f"Union '{uid}' on plate '{plate}': exported STL is stale -- its "
-                        "source script changed since the model was last exported.",
-                        "Re-run the model export so this union's STL reflects the current "
-                        "script, then re-run the quality gate.",
-                        plate=plate,
-                        union=uid,
-                    )
-                )
-        ids = [uid for uid in ids if uid not in stale]
-        if len(ids) < 2:
-            continue
-
-        missing = [uid for uid in ids if not os.path.exists(stl_path(stl_dir, uid))]
-        if missing:
-            issues.append(
-                make_issue(
-                    "geometry",
-                    "warning",
-                    "check_skipped",
-                    f"Plate '{plate}': assembled union STL not found ({', '.join(missing)})",
-                    "Run the model export so each union has an assembled STL.",
-                    plate=plate,
-                )
-            )
-            continue
-
-        meshes = {uid: trimesh.load(stl_path(stl_dir, uid), force="mesh") for uid in ids}
-        for a, b in combinations(ids, 2):
-            manager = CollisionManager()
-            manager.add_object(a, meshes[a])
-            # No return flags -> min_distance_single returns the scalar distance.
-            gap = round(cast(float, manager.min_distance_single(meshes[b])), 3)
-            if gap <= threshold:
-                issues.append(
-                    make_issue(
-                        "geometry",
-                        "error",
-                        "plate_clearance",
-                        f"Unions '{a}' and '{b}' on plate '{plate}' are {gap} mm apart "
-                        f"(<= {threshold} mm layer height); they will fuse in the print.",
-                        "Increase the gap between these unions to more than one layer "
-                        "height, or move one to a separate plate.",
-                        plate=plate,
-                        union_a=a,
-                        union_b=b,
-                        gap_mm=gap,
-                        threshold_mm=threshold,
-                    )
-                )
+        issues.extend(
+            _check_plate(plate, ids, stale, stl_dir, threshold, trimesh, collision_manager_cls)
+        )
 
     return issues
 

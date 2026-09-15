@@ -11,16 +11,10 @@ import json
 import sys
 
 import pytest
-import trimesh
+from conftest import box_stl
 
 import quality_gate
 from plate_clearance_check import run_plate_clearance_check
-
-
-def _box_stl(path, center):
-    mesh = trimesh.creation.box(extents=(10, 10, 10))
-    mesh.apply_translation(center)
-    mesh.export(str(path))
 
 
 def _plan(parts, nozzle_mm=0.4):
@@ -29,8 +23,8 @@ def _plan(parts, nozzle_mm=0.4):
 
 def _two_on_one_plate(tmp_path, cx):
     """Two unions sharing plate 'shared'; box B placed so the gap is cx - 10 mm."""
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
-    _box_stl(tmp_path / "b.stl", (cx, 0, 0))
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "b.stl", (cx, 0, 0))
     return _plan([{"id": "a", "plate": "shared"}, {"id": "b", "plate": "shared"}])
 
 
@@ -41,8 +35,8 @@ def _clearance_issues(issues):
 def test_multi_union_part_co_plated_unions_flagged(tmp_path):
     """Two unions of ONE part sharing a plate are grouped and clearance-checked, just like
     two separate parts -- the per-union plate grouping uses the shared union expansion."""
-    _box_stl(tmp_path / "leaf_a.stl", (0, 0, 0))
-    _box_stl(tmp_path / "leaf_b.stl", (10.1, 0, 0))  # gap 0.1 < 0.2 layer height
+    box_stl(tmp_path / "leaf_a.stl", (0, 0, 0))
+    box_stl(tmp_path / "leaf_b.stl", (10.1, 0, 0))  # gap 0.1 < 0.2 layer height
     plan = _plan(
         [
             {
@@ -102,8 +96,8 @@ def test_gap_exactly_at_threshold_flagged(tmp_path):
 
 def test_single_union_plate_skipped(tmp_path):
     # Two parts, each on its own (implicit) plate -> no co-plated pair to compare.
-    _box_stl(tmp_path / "a.stl", (0, 0, 0))
-    _box_stl(tmp_path / "b.stl", (10.1, 0, 0))  # close, but not co-plated
+    box_stl(tmp_path / "a.stl", (0, 0, 0))
+    box_stl(tmp_path / "b.stl", (10.1, 0, 0))  # close, but not co-plated
     plan = _plan([{"id": "a"}, {"id": "b"}])
     issues = run_plate_clearance_check(plan, str(tmp_path))
     assert issues == []
@@ -215,7 +209,10 @@ def test_gate_surfaces_plate_clearance(tmp_path, good_script):
     plan.update(
         {
             "schema_version": 1,
-            "intent": "plate clearance gate fixture",
+            "intent": (
+                "Plate clearance gate fixture: two parts co-plated on one build plate, "
+                "laid out as planned to exercise the co-plated union clearance check."
+            ),
             "printer": "Bambu P1S",
             "material": "PLA",
             "constraints": {

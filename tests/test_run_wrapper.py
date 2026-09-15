@@ -217,6 +217,10 @@ def test_disconnected_body_single_union_reported(tmp_path):
     assert len(disc) == 1
     assert disc[0]["component_count"] == 2
     assert disc[0]["union"] == "split"
+    # Per-body ranges, not extents: the 40 mm X gap between the two boxes has to be
+    # readable off the message, or a misplaced body reads as a fusion failure.
+    assert "x -5.0..5.0" in disc[0]["message"]
+    assert "x 45.0..55.0" in disc[0]["message"]
 
 
 def test_disconnected_body_fails_under_strict(tmp_path):
@@ -249,15 +253,41 @@ def test_translate_stderr_ignores_plain_capitalized_lines():
 
 
 def test_translate_stderr_detects_real_exceptions():
-    """Genuine Python and OCC exception lines still translate to occ_exception."""
+    """Genuine Python exceptions not in the OCC table translate to occ_exception."""
     from run_cadquery_model import _translate_stderr
 
     py = _translate_stderr("ValueError: bad radius")
     assert len(py) == 1 and py[0]["type"] == "occ_exception"
     assert py[0]["occ_class"] == "ValueError"
 
-    occ = _translate_stderr("StdFail_NotDone: operation incomplete")
-    assert len(occ) == 1 and occ[0]["occ_class"] == "StdFail_NotDone"
+
+def test_translate_stderr_maps_known_occ_classes_to_typed_errors():
+    """Each known OCC class in _OCC_HINTS gets its own error type, not occ_exception."""
+    from run_cadquery_model import _translate_stderr
+
+    for occ_class, expected_type in (
+        ("Standard_ConstructionError", "construction_error"),
+        ("BRep_API", "command_not_done"),
+        ("StdFail_NotDone", "fillet_failure"),
+        ("Standard_NullObject", "null_object"),
+        ("Standard_OutOfRange", "index_out_of_range"),
+        ("Standard_TypeMismatch", "type_mismatch"),
+    ):
+        errs = _translate_stderr(f"{occ_class}: operation incomplete")
+        assert len(errs) == 1
+        assert errs[0]["type"] == expected_type
+        assert errs[0]["occ_class"] == occ_class
+        assert errs[0]["hint"]
+
+
+def test_translate_stderr_unmapped_occ_class_falls_back():
+    """An OCC exception class not in _OCC_HINTS still reports occ_exception."""
+    from run_cadquery_model import _translate_stderr
+
+    errs = _translate_stderr("Standard_DomainError: unmapped class")
+    assert len(errs) == 1
+    assert errs[0]["type"] == "occ_exception"
+    assert errs[0]["occ_class"] == "Standard_DomainError"
 
 
 def test_translate_stderr_classifies_verify_markers():
@@ -270,6 +300,7 @@ def test_translate_stderr_classifies_verify_markers():
         ("workplane_drift", "lid_top"),
         ("stage_mismatch", "base_shell"),
         ("unbacked_mate", "standoff_to_leg"),
+        ("boss_swallowed", "hinge_ear"),
     ):
         stderr = (
             "Traceback (most recent call last):\n"
@@ -377,6 +408,25 @@ def test_unbacked_mate_reach_failure_end_to_end(tmp_path):
     assert data["success"] is False
     assert len(sb) == 1
     assert "contact plane" in sb[0]["message"]
+
+
+def test_boss_swallowed_end_to_end(tmp_path):
+    """The C5 hinge-ear bug: a riser box seated at the knuckle disc's center (not its
+    tangent) fires verify_seated, yielding a typed boss_swallowed error."""
+    rc, data, sb = _run_typed_errors(
+        tmp_path,
+        "swallowed.py",
+        "import cadquery as cq\n"
+        "from cq_verify import verify_seated\n"
+        "knuckle = cq.Workplane('YZ').circle(2.6).extrude(10).translate((-5, 5, 13.5))\n"
+        "riser = cq.Workplane('XY').box(10, 4, 5).translate((0, 3, 11.0))\n"  # top at Z=13.5
+        "result = verify_seated(riser, knuckle, '-z', 'hinge_ear')\n",
+        "boss_swallowed",
+    )
+    assert rc == 1
+    assert data["success"] is False
+    assert len(sb) == 1
+    assert sb[0]["label"] == "hinge_ear"
 
 
 def test_verify_backed_passes_when_fully_backed(tmp_path):
