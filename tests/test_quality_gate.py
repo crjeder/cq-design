@@ -216,7 +216,9 @@ def test_run_gate_threads_orientation_rotate_into_overhang(
     script = tmp_path / "part.py"
     script.write_text("result = None\n")
     monkeypatch.setattr(
-        quality_gate, "_run_wrapper_check", lambda *a, **k: ([], multi_overhang_stl, {})
+        quality_gate,
+        "_run_wrapper_check",
+        lambda *a, **k: ([], multi_overhang_stl, {}, [multi_overhang_stl]),
     )
     monkeypatch.setattr(quality_gate, "_run_plan_validation_stage", lambda *a, **k: [])
 
@@ -236,7 +238,9 @@ def _run_gate_with_geo_issues(monkeypatch, tmp_path, geo_issues, plan_data=None)
     script.write_text("result = None\n")
     stl = tmp_path / "part.stl"
     stl.write_text("solid x\nendsolid x\n")
-    monkeypatch.setattr(quality_gate, "_run_wrapper_check", lambda *a, **k: ([], str(stl), {}))
+    monkeypatch.setattr(
+        quality_gate, "_run_wrapper_check", lambda *a, **k: ([], str(stl), {}, [str(stl)])
+    )
     monkeypatch.setattr(quality_gate, "_analyze_stl", lambda *a, **k: geo_issues)
     monkeypatch.setattr(quality_gate, "_run_plan_validation_stage", lambda *a, **k: [])
     return quality_gate.run_gate(str(script), str(plan))
@@ -328,7 +332,7 @@ def test_typed_occ_error_classified_as_severity_error(monkeypatch):
         stderr = ""
 
     monkeypatch.setattr(quality_gate.subprocess, "run", lambda *a, **k: _FakeResult())
-    issues, _, _ = quality_gate._run_wrapper_check("script.py", {})
+    issues, _, _, _ = quality_gate._run_wrapper_check("script.py", {})
     assert len(issues) == 1
     assert issues[0]["type"] == "command_not_done"
     assert issues[0]["severity"] == "error"
@@ -377,7 +381,15 @@ def test_call_claude_appends_model_flag_when_configured(monkeypatch, tmp_path):
 
     monkeypatch.setattr(quality_gate.subprocess, "run", _fake_run)
     quality_gate._call_claude("fix this")
-    assert captured["cmd"] == ["claude", "-p", "fix this", "--model", "claude-sonnet-5"]
+    assert captured["cmd"] == [
+        "claude",
+        "-p",
+        "fix this",
+        "--tools",
+        "",
+        "--model",
+        "claude-sonnet-5",
+    ]
 
 
 def test_call_claude_no_model_flag_when_inline(monkeypatch, tmp_path):
@@ -395,7 +407,7 @@ def test_call_claude_no_model_flag_when_inline(monkeypatch, tmp_path):
 
     monkeypatch.setattr(quality_gate.subprocess, "run", _fake_run)
     quality_gate._call_claude("fix this")
-    assert captured["cmd"] == ["claude", "-p", "fix this"]
+    assert captured["cmd"] == ["claude", "-p", "fix this", "--tools", ""]
 
 
 def test_default_run_gate_reports_without_fixing(monkeypatch, tmp_path):
@@ -415,7 +427,7 @@ def test_default_run_gate_reports_without_fixing(monkeypatch, tmp_path):
         "hint": "fix it",
     }
     monkeypatch.setattr(
-        quality_gate, "_run_wrapper_check", lambda *a, **k: ([error_issue], None, None)
+        quality_gate, "_run_wrapper_check", lambda *a, **k: ([error_issue], None, None, [])
     )
 
     def _unexpected_call(*a, **k):
