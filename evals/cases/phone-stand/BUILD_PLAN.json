@@ -3,7 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
-  "intent": "Wedge phone stand with inclined back face",
+  "intent": "A solid wedge phone stand printed as a single part: a right-triangular block whose sloped back face leans a phone at a fixed rake, resting on the long bottom face which prints flat on the bed.",
   "parts": [
     {
       "id": "phone_stand",
@@ -19,7 +19,8 @@
           "description": "Phone leans on the incline"
         }
       ],
-      "blocks_needed": []
+      "blocks_needed": [],
+      "engineering_rationale": "no load-bearing features (solid wedge, load passes through bulk material, no thin section)"
     }
   ],
   "constraints": {

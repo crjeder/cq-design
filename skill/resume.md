@@ -38,11 +38,11 @@ user or re-paying for research and part attempts already done.
 |-------|---------------|--------------|
 | 0 | `rung_decision` | The sourcing ladder resolves — records the chosen rung, source, and license verdict |
 | 1 | `topology_confirmed` | The user confirms a topology reading at the clarification step |
-| 1 | `dimensions_approved` | The user approves/corrects the Dimension validation checkpoint table (`parameters.py` is written in the same turn — see `skill/phase1_requirements.md`) |
+| 1 | `dimensions_approved` | The user approves/corrects the Phase 1 exit checkpoint (`parameters.py` is written in the same turn — see `skill/phase1_requirements.md`) |
 | 2 | `plan_written` | `BUILD_PLAN.json` passes `plan_validate.py` |
 | 2 | `plan_approved` | The user approves the Phase 2 plan summary |
-| 3 | `stub_approved:<part_id>` | The user approves (or the run self-reviews, under `minimal`) a part's Step 0 profile stub |
-| 3 | `part_accepted:<part_id>` | A part passes progressive Step 4's full review, or the Implementation audit, for an autonomous part |
+| 3 | `stub_approved:<part_id>` | The user approves a part's `profile_stub` stage |
+| 3 | `part_accepted:<part_id>` | A part passes the Implementation audit (or is accepted as-is at escalation) |
 | 3 | `escalation:<part_id>` | The user resolves a blocked-builder escalation — records the outcome (hint verbatim / accepted as-is / skipped) |
 | 3 | `design_approved` | The user approves the Design approval checkpoint (all parts done) |
 | 3 | `orientation_chosen` | Print-orientation optimization completes for every union |
@@ -67,7 +67,8 @@ user or re-paying for research and part attempts already done.
    yet in the journal. Do not re-run a phase whose milestone is already recorded — e.g.
    `dimensions_approved` present means skip straight past the checkpoint into Phase 2;
    `part_accepted:<id>` present for a part means skip its part loop and move to the
-   next part.
+   next part. A part that was mid-build has no live builder agent after an interruption:
+   spawn a new one; it starts from the script already in `build/<id>.py`.
 5. **Declined (start over):** restart the pipeline from Phase 0. Keep appending to the
    existing journal rather than truncating it — the old lines remain a true record of
    the prior attempt.

@@ -21,12 +21,22 @@
     },
     "intent": {
       "type": "string",
-      "minLength": 5,
-      "description": "Plain-English description of what is being built and why"
+      "minLength": 120,
+      "description": "The user-approved reformulation written at the Phase 1 exit checkpoint (see the approved-intent spec). States what is being built and why, the confirmed reading of any shape the request left ambiguous, the fit type of every mating surface, every assumption Phase 1 made rather than asked about (each with its concrete value), and the repo-relative sketches/ path of every user-supplied image the design is based on. Does not restate values a structured field already carries in full (dimension table -> parameters.py / parts[].dimensions; printer/material/nozzle -> the plan's own fields). Phase 2 copies this text verbatim and does not author it. minLength 120: excludes a bare noun phrase (shortest eval-corpus reformulation is a two-clause sentence) while a genuinely simple one-part request still passes."
     },
     "printer": {
       "type": "string",
       "description": "Printer model, e.g. 'Bambu P1S', 'Prusa MK4', 'Ender 3'"
+    },
+    "coordinate_frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Resolved compass-to-axis binding for this project's prose and review interpretation only (does not alter placement.rotate or joint dof.direction sign conventions). Defaults to the standard binding (east: +x, north: +y, up: +z, per prompts/planning.md's Coordinate vocabulary table) when absent.",
+      "properties": {
+        "east": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]},
+        "north": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]},
+        "up": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]}
+      }
     },
     "material": {
       "type": "string",
@@ -210,6 +220,38 @@
               }
             }
           },
+          "engineering_rationale": {
+            "description": "The part's load reasoning: the single home of the ENGINEERING RATIONALE the part author derives while writing the script, written back into BUILD_PLAN.json after the script is accepted (not authored at plan time). A load-bearing part (declared `load`, or a load-bearing block/archetype -- see the trigger set in plan_validate.py) takes the object form; every other part takes the string form.",
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^no load-bearing features \\(.+\\)$",
+                "description": "One-line form for a part with no load-bearing features, e.g. 'no load-bearing features (static cosmetic part)'."
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["load_path", "worst_case_stress", "check"],
+                "properties": {
+                  "load_path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Where the load enters the part and how it travels through it."
+                  },
+                  "worst_case_stress": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The specific location that sees the highest stress."
+                  },
+                  "check": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A formula evaluated with the script's own parameter names (not free-standing constants), compared against a stated material allowable, e.g. 'strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)'."
+                  }
+                }
+              }
+            ]
+          },
           "optimize_for": {
             "type": "string",
             "enum": ["strength", "min_support", "visual_quality"],
@@ -248,7 +290,7 @@
     },
     "request_log": {
       "type": "array",
-      "description": "Append-only verbatim request history: the initial request plus every clarification/correction that shaped the plan. The exclusive place for round-by-round build history -- planning_notes and part_notes describe only the current design state. Optional; absent plans (including eval-corpus goldens) stay valid. When present, exactly one `initial` entry, first in the array (enforced by plan_validate.py, not expressible cleanly in draft-7).",
+      "description": "Append-only verbatim request history: the initial request plus every clarification/correction that shaped the plan. The exclusive place for round-by-round build history -- planning_notes and part_notes describe only the current design state. Optional; absent plans (including eval-corpus goldens) stay valid. When present, exactly one `initial` entry, first in the array (enforced by plan_validate.py, not expressible cleanly in draft-7). `level` and `targets` are optional and independent -- entries written before typed request_log carry neither and stay valid; carried-forward entries are never back-filled.",
       "items": {
         "type": "object",
         "required": ["ts", "kind", "text"],
@@ -262,6 +304,17 @@
             "minItems": 1,
             "items": {"type": "string", "minLength": 1},
             "description": "Repo-relative paths to sketch/annotated-image files (copied into sketches/) that motivated this entry"
+          },
+          "level": {
+            "type": "string",
+            "enum": ["functional", "operation", "parameter"],
+            "description": "Intent granularity (LLM4CAD-Editor): functional = adds/removes/reshapes a part or capability; operation = changes how an existing feature is made (a joint, a cut, a pattern); parameter = a dimension/literal change with the design otherwise fixed"
+          },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1},
+            "description": "Affected part ids and/or `part.feature` / parameter names this entry names"
           }
         }
       }

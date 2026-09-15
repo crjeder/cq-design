@@ -116,7 +116,16 @@ Projects surveyed for ideas relevant to this skill. Status/adoption tracking liv
 | https://github.com/OzAILabs/Claude-To-Print | multi-color | High -- READMEd in full: a close, substantive analog (a Claude Code skill using build123d instead of CadQuery, with a staged design-brief -> parametric-script -> deterministic-export -> mesh-QA -> visual-feedback pipeline nearly identical to this skill's own). Concretely adoptable: **multi-color/multi-material 3MF export** via `lib3mf`, splitting a part into named color regions and exporting a pre-colored 3MF for AMS-style multi-filament printers -- a genuine capability gap in `threemf_multi.py`, which currently tracks named unions/plates but not per-region color |
 | https://github.com/natgluons/CAD-modeling-app | GUI (or point-and-click) interactions | Low -- READMEd in full: this repo is effectively a fork/mirror of Zoo's (KittyCAD) `modeling-app`. GUI point-and-click and code editing both mutate the same underlying KCL code representation, rendered via a remote GPU geometry-engine service over WebSockets. "Code representation is the single source of truth even for GUI actions" validates this skill's own design but adds nothing new; the hosted-rendering-service dependency is the opposite of this skill's offline, subprocess-based approach |
 | https://github.com/SmartAI/Chamfer | benchmarks | Medium-High -- READMEd in full: not a distance metric but a lean TypeScript CLI agent (multi-provider LLM, build123d/Fusion backends) that validates output with an objective "geometry-kernel oracle" grading exported STEP files, and reports large efficiency gains over Claude-Code-style agents on identical prompts (5.9x cheaper, 3.2x faster, 6.3x fewer tool calls). Worth studying specifically for cutting this skill's own tool-call/round-trip overhead in the part loop, not just for its benchmark methodology |
-
+| https://github.com/SpatiaOS/Procedura | | |
+| https://github.com/gizmuf/voice-to-3d-print | | | 
+| https://github.com/SpatiaOS/P3D-Bench | | | 
+| bernhard-42/jupyter-cadquery | | |
+| https://github.com/filaPro/cad-recode |
+| https://github.com/JBpeople/ai-cadquery | 
+| https://github.com/Mr-Though/cadquery-skills |
+| https://github.com/danwahl/cadqueryeval |
+| https://github.com/filaPro/cad-recode |
+| https://github.com/Text-to-CadQuery/Text-to-CadQuery |
 
 
 https://github.com/topics/text-to-cad?o=asc&s=forks

@@ -16,7 +16,10 @@ def _valid_plan():
     """A schema-valid plan with one valid revolute joint (arm about Z)."""
     return {
         "schema_version": 1,
-        "intent": "gate plan-validation fixture",
+        "intent": (
+            "Two-part revolute test fixture for the gate: a base and an arm joined by a "
+            "pin hinge about Y, built as separate bodies for the kinematic sweep."
+        ),
         "printer": "Bambu P1S",
         "material": "PLA",
         "nozzle_mm": 0.4,

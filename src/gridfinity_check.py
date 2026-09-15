@@ -28,6 +28,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 from typing import Any
 
@@ -409,12 +410,12 @@ def run_gridfinity_check(
         ], {}
 
     workplanes = result.items() if isinstance(result, dict) else [(None, result)]
-    stem = script_path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    stem = os.path.splitext(os.path.basename(script_path))[0]
 
     issues: list[dict] = []
     detected: dict = {}
     for union_id, workplane in workplanes:
-        solids = workplane.vals() if hasattr(workplane, "vals") else [workplane]
+        solids: list[Any] = workplane.vals() if hasattr(workplane, "vals") else [workplane]
         solids = [s for s in solids if hasattr(s, "BoundingBox")]
         if not solids:
             continue

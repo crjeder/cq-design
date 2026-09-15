@@ -60,9 +60,12 @@ default tile stays `previews[0]`).
 The part-authoring procedure SHALL select which named+positioned `interfaces[]`
 entries become `--extra-section` cuts by tier, most specific first: (1) entries whose
 `name` matches a `request_log` entry with `kind: clarification`; (2) entries matching
-a `kind: correction` entry; (3) all remaining named+positioned entries. Matching SHALL
-use `request_log_search.py BUILD_PLAN.json --query "<name>"` (case-insensitive
-substring against `request_log.text`). Within a tier, entries matching a `request_log`
+a `kind: correction` entry; (3) all remaining named+positioned entries. An interface
+matches a `request_log` entry when the interface `name` (or `<part>.<name>`) appears
+in that entry's `targets` array (case-insensitive); for a `request_log` entry that
+carries no `targets`, matching SHALL fall back to
+`request_log_search.py BUILD_PLAN.json --query "<name>"` (case-insensitive substring
+against `request_log.text`). Within a tier, entries matching a `request_log`
 entry SHALL be ordered by that entry's array position descending (most recent first);
 unmatched tier-3 entries SHALL keep plan declaration order. The selected list SHALL be
 capped at 3 entries, filling tiers in order (tier 1 entries first, then tier 2, then
@@ -75,6 +78,18 @@ largest-magnitude component relative to the part bounding-box center.
 - **WHEN** a part has one named interface matched by a `kind: clarification`
   `request_log` entry and another matched by a `kind: correction` entry
 - **THEN** the clarification-matched interface's position is selected first
+
+#### Scenario: Targets membership matches ahead of a text substring
+
+- **WHEN** an interface `name` appears in a `clarification` entry's `targets`
+  array but that word does not appear in the entry's `text`
+- **THEN** the interface is treated as matched to that entry (tier 1)
+
+#### Scenario: Untyped entry still matches by text substring
+
+- **WHEN** an interface `name` appears in the `text` of a `correction` entry that
+  carries no `targets`
+- **THEN** the interface is treated as matched to that entry (tier 2)
 
 #### Scenario: Cap stops selection at 3 even with more candidates
 

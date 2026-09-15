@@ -2,7 +2,7 @@
 
 **Sourcing search vs. dimension lookup:** Phase 0 (`skill/phase0_sourcing.md`) already
 runs a full-model search — "does a usable model already exist for this request" —
-before Phase 1 starts. The "Dimension lookup with Playwright" workflow below answers a
+before Phase 1 starts. The "Dimension lookup" step below answers a
 narrower question — "what are the exact dimensions of a named real-world product or
 component" — and is not a repeat of Phase 0's search. **No second sweep:** if Phase 0
 ran and fell through to Phase 1 (rung 5, nothing usable), reuse its search results
@@ -55,16 +55,35 @@ Once the user confirms, append one line to `build/journal.md` (see `skill/resume
 
 Skip this line when the request had no topology ambiguity (nothing was asked).
 
-## Dimension lookup with Playwright
+This confirm stays a separate, earlier round -- it gates which dimensions are worth
+looking up at all, so it cannot be folded into the Phase 1 exit checkpoint below. The
+exit checkpoint is the *second* stop (and the last); it does not re-ask topology.
 
-When a real product is mentioned, run the lookup workflow below in a **research agent**
-before writing a single dimension into the plan.
+## Ask vs. assume
 
-**Gate: only spawn the research agent when a real-world lookup is actually needed** — a
+Phase 1 must not leave an ambiguity unresolved when guessing it wrong would cost a
+rebuild. It may leave one resolved by a stated assumption when guessing it wrong costs
+only a parameter edit. This is the same cost axis as "a wrong dimension is a parameter
+edit; a wrong topology is a full rebuild" above, and the same axis as the `request_log`
+`level` enum:
+
+- **Ask the user** when the unknown is `functional` or `operation` level -- whether a
+  part exists at all, what a part's overall shape is, how two parts join, which fit type
+  a mating surface takes.
+- **May assume** when the unknown is `parameter` level -- a dimension or literal with the
+  design otherwise fixed. Pick a concrete value, record it in the approved reformulation
+  as an explicit assumption ("legs 24 mm to start -- assumed, adjust after a test fit"),
+  and let the exit checkpoint be where a wrong assumption is caught.
+
+No dimension may leave Phase 1 as `-1`: a row that could not be sourced is either
+resolved with the user or converted to `assumed` with a concrete value the user accepts.
+
+## Dimension lookup
+
+**Gate: only spawn the research agent when a real-world lookup is actually needed** -- a
 real product, PCB, or connector is named and its dimensions are not already fully known
-from the user or `printer_profile.json`. A request with no external product reference
-(pure user-stated dimensions) never spawns this agent — skip straight to the checkpoint
-below with an empty table, or skip the checkpoint entirely per its own rule.
+from the user or `printer_profile.json`. With no external product reference, skip straight
+to the exit checkpoint with an empty table.
 
 A **Gridfinity** request is dimensioned by the standard, not by a lookup: the grid pitch,
 height unit, foot profile, and hole sizes are in `reference/gridfinity.md`, so never
@@ -72,69 +91,33 @@ research or guess them. Ask only what the standard cannot supply — how many un
 tall, and what goes in — and still look up any real object the bin has to hold, whose size
 then picks the unit count via `gridfinity_units_for`.
 
-**Research agent.** Spawn one agent whose task is the full lookup workflow below (web
-search, spec pages, community model pages, STL download + `measure_stl.py`) for every
-dimension this request needs looked up. Model override: session default — this role does
-not carry the topology/rebuild cost that justifies the planner's strong-model override.
-The agent has no user channel: it never asks the user anything and never presents the
-checkpoint. It returns exactly two things as its final message:
-
-- The dimension validation table (Item / Value / Source / Status — the same shape as the
-  Dimension validation checkpoint table below).
-- The list of source URLs it consulted.
-
-Everything else the lookup workflow touches — page snapshots, screenshots, downloaded
-STLs, intermediate search results — stays inside the agent; main receives only the table
-and the sources. Main then runs the Dimension validation checkpoint below exactly as
-written, using the returned table.
-
-**Workflow (followed by the research agent):**
-
-1. Navigate to the manufacturer spec page or a reliable secondary source:
-   - Phones / tablets: manufacturer product page, then GSMArena as a cross-check
-   - PCBs / SBCs: official documentation or schematic PDF
-   - Connectors / ICs: manufacturer datasheet (Mouser, DigiKey, or vendor site)
-   - General hardware: iFixit teardown, or search `"<product name> dimensions mm filetype:pdf"`
-   - **Proprietary mechanical interfaces** (appliance bowl adapters, twist-lock mounts, bayonet couplings, vacuum ports, tool chucks, coffee machine portafilters, etc.): manufacturer documentation almost never covers these. Use this search sequence:
-     1. Web search: `"<product name>" adapter OR compatible STL 3D print dimensions mm` -- catches forum posts, Reddit threads, and blog teardowns that state measured values.
-     2. Search Thingiverse: `thingiverse.com/search?q=<product+name>+adapter` -- also try `compatible`, `plate`, `replacement`.
-     3. Search Printables: `printables.com/search/models?q=<product+name>+adapter`
-     4. Search MakerWorld: `makerworld.com/en/search/models?keyword=<product+name>`
-     5. Open the most-downloaded matching model on each platform. Read the full description and all comments -- community designers routinely state the key dimensions they measured.
-     6. If a parametric source (OpenSCAD, FreeCAD, CadQuery) is linked, navigate to it and read the parameter block for exact values.
-     7. If only an STL download is available and no dimensions are stated, download the file and run `python "$SKILL_DIR/src/measure_stl.py" <path>` to extract bounding box, layer heights, and cylinder diameters automatically. Record those values in `planning_notes`.
-     8. Cross-check two sources (or two found models) before committing any dimension.
-2. Call `browser_snapshot` (or `browser_take_screenshot` if the page is image-heavy) to extract the spec table.
-3. Record the dimensions. Repeat for the second source and confirm they agree within 0.5 mm.
-4. If sources conflict or a dimension is absent, set it to `-1` and ask the user.
-
-**Tool usage pattern:**
-
-```
-web_search        →  "<product> adapter STL dimensions mm"
-browser_navigate  →  thingiverse / printables / makerworld search results
-browser_snapshot  →  read model description and comments
-[if STL only]     →  download STL, run: python "$SKILL_DIR/src/measure_stl.py" reference.stl
-browser_navigate  →  manufacturer spec URL (for non-proprietary dims)
-browser_snapshot  →  read dimension values from accessibility tree
-```
-
-**Downloading an STL for measurement:**
+**Research agent.** Write the lookup targets (one bullet per item to look up and what it
+is for) to `build/lookup_targets.md`, and, when there is prior context, the known
+dimensions (user-stated dimensions plus any Phase 0 search results already in context, as
+URL + what it gave) to `build/known_context.md`. Render the prompt:
 
 ```bash
-python -c "import urllib.request; urllib.request.urlretrieve('<direct-stl-url>', 'reference.stl')"
-python "$SKILL_DIR/src/measure_stl.py" reference.stl
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" research \
+    --targets-file build/lookup_targets.md [--known-file build/known_context.md]
 ```
 
-The output JSON contains `bounding_box_mm`, `flat_faces` (Z heights and radii of each horizontal layer), and `cylinders` (boss/hole diameter, height, and Z position). Use these as the primary dimension source when no stated values are available.
+It writes `build/research_prompt.txt` and prints `{"out", "chars"}`. Spawn one agent with
+the prompt `Read <out> in full and follow it. Working directory: <absolute cwd>.` on the
+session default model. It returns the dimension table and its sources; page snapshots and
+downloads stay inside the agent. Use the returned table in the exit checkpoint below and
+resolve its `conflict`/`missing` rows with the user there.
 
-Use `browser_take_screenshot` only when the spec is in an image or the snapshot returns no useful text. Prefer `browser_snapshot` - it is faster and more token-efficient.
+## Phase 1 exit checkpoint
 
-**Lookup narration:** Before each lookup, note internally what is being looked up and which source is being consulted (e.g., "Looking up Bosch MUM9 bowl dimensions on bosch-home.com..."). After each lookup, note the value found and the source URL (e.g., "Found bowl diameter: 220 mm -- bosch-home.com/en/product/..."). This narration lives inside the research agent's own reasoning — it has no user channel, so none of it reaches the user directly; the user-visible summary is the Dimension validation checkpoint table main presents after the agent returns.
+This is the single gate out of Phase 1. It presents two things **in one message** and
+takes **one approval** covering both:
 
-## Dimension validation checkpoint
+1. A **reformulation of the request** in resolved terms (the content contract is below).
+2. The **dimension table** of every looked-up dimension.
 
-After all dimension lookups are complete and **before generating `BUILD_PLAN.json`**, present a summary table of every looked-up dimension:
+Do not present the reformulation and the table as two separate approval rounds.
+
+### The dimension table
 
 | Item | Value (mm) | Source | Status |
 |------|-----------|--------|--------|
@@ -144,11 +127,59 @@ After all dimension lookups are complete and **before generating `BUILD_PLAN.jso
 - `confirmed` -- found in two sources that agree within 0.5 mm
 - `single-source` -- found in only one source
 - `conflict` -- two sources disagree; show both values
+- `assumed` -- no source; a concrete starting value the skill picked per **Ask vs.
+  assume** (the reformulation names it as an assumption)
 - `missing` -- could not be found; value is `-1`
 
-**Do not generate `BUILD_PLAN.json` until the user has explicitly approved or corrected the table.** If the user corrects a value (e.g., "the depth is 8.5, not 8.0"), record the correction and use the corrected value in the plan. If any rows are `missing` or `conflict`, ask the user for the correct value before continuing.
+If no real-world dimension lookups were performed (all dimensions user-stated), the
+table may be empty or omitted -- but the reformulation is still presented and approved.
 
-Skip this checkpoint entirely if no real-world dimension lookups were performed (i.e., all dimensions were provided directly by the user).
+### The reformulation
+
+Write the reformulation as prose. It **must** state:
+
+- what is being built and why;
+- the confirmed reading of any shape the request left ambiguous (from the
+  topology-clarification step);
+- the fit type of every mating surface (press / snap / sliding / loose);
+- every assumption Phase 1 made rather than asked about, each with its concrete assumed
+  value;
+- the repo-relative `sketches/` path of every user-supplied image the design is based on;
+- when the user's wording implies a non-standard compass binding (e.g. "East is the
+  side the logo faces" not matching the standard East=+X table in
+  `prompts/planning.md`), the resolved binding to write into `BUILD_PLAN.json`'s
+  `coordinate_frame` -- read any `coordinate_frame` already on the plan (a re-plan)
+  before asking again. Omit this when the request used no compass language, or used it
+  consistently with the standard table.
+
+It **must not** restate values a structured field already carries in full -- the
+dimension table (it lives in `parameters.py` and, later, `parts[].dimensions`), or the
+printer / material / nozzle fields.
+
+Worked example:
+
+> Wall-mounted J-hook for a broom handle, printed as a single part. Mounting plate is
+> screwed to the wall through two countersunk holes; the hook curls up from the plate's
+> lower edge with a retaining lip so the handle cannot lift out. Handle diameter assumed
+> 24 mm (no source -- adjust after a test fit). Based on the user's sketch,
+> `sketches/broom-hook-2026-09-01T10-00-00Z.jpg`.
+
+### Approval
+
+**Do not generate `BUILD_PLAN.json` until the user has explicitly approved or corrected
+the checkpoint.** If the user corrects a dimension ("the depth is 8.5, not 8.0"), use
+the corrected value. If the user corrects the reformulation ("the lid snaps on, it
+doesn't screw on"), the corrected reading is what gets written to `intent`, and the
+correction is appended to `request_log` as a `clarification` entry.
+
+**Approval is not accepted while any row reads `-1` / `missing`.** Resolve such a row to
+a sourced value with the user, or convert it to `assumed` with a concrete value the user
+accepts, before proceeding.
+
+The approved reformulation text is written **verbatim** to `BUILD_PLAN.json`'s `intent`
+by the Phase 2 planner (`prompts/planning.md`). `request_log`'s `initial` entry keeps
+the user's original opening wording unchanged -- the resolved reading lives in `intent`,
+never in place of the verbatim entry.
 
 ## Provenance write, at approval
 
@@ -173,11 +204,12 @@ USB_C_PORT_MM = (9.0, 3.5)  # USB-IF spec, single-source
 ```
 
 Include every dimension from the table regardless of its status (note
-`single-source`/`conflict`/`missing` in the comment as-is), plus any measurement the
-user stated directly that never went through a web lookup. Skip this file only when the
-design has no sourced real-world measurements whatsoever. Phase 2
-(`skill/phase2_planning.md`) updates this same file later only if planning introduces or
-changes a measurement -- it does not write it from scratch.
+`single-source`/`conflict`/`assumed`/`missing` in the comment as-is -- an `assumed` row
+is recorded with its concrete value exactly as `single-source` and `conflict` are),
+plus any measurement the user stated directly that never went through a web lookup.
+Skip this file only when the design has no sourced real-world measurements whatsoever.
+Phase 2 (`skill/phase2_planning.md`) updates this same file later only if planning
+introduces or changes a measurement -- it does not write it from scratch.
 
 Then append one line to `build/journal.md` (see `skill/resume.md`):
 
@@ -188,63 +220,14 @@ Then append one line to `build/journal.md` (see `skill/resume.md`):
 If the checkpoint was skipped entirely (no lookups performed), skip this journal line
 too -- Phase 2's plan-approval milestone is the next one recorded.
 
-## Requirements spec write, at approval
+## Sketches attached to the opening request
 
-Immediately after the provenance write above (same turn), write `REQUIREMENTS.md` at
-the project root: the durable, human-readable spec this design is built from. Where
-`parameters.py` documents the sourced numbers, this file documents everything else
-Phase 1 resolved -- what the part is for, which shape reading was confirmed, what fit
-types apply, and which constraints came from a stated exception vs. the printer
-profile default. It is the reviewable artifact a user (or a later session) can read to
-understand *why* the plan looks the way it does, without replaying the conversation.
-Phase 2 does not parse this file -- it reads `BUILD_PLAN.json` -- so nothing about the
-build pipeline depends on its exact wording; it exists for human review before
-planning commits everything to a schema.
-
-Template:
-
-```markdown
-# Requirements: <request title>
-
-## Intent
-<what the part is for, its primary function>
-
-## Topology
-<confirmed reading of any ambiguous shape, from the topology-clarification step -- or
-"No topology ambiguity in this request.">
-
-## Dimensions
-<the same table shown at the Dimension validation checkpoint, or "All dimensions
-user-stated; no lookups performed.">
-
-## Fit requirements
-<mating surface fit types per interface -- press/snap/sliding/loose -- or "No mating
-surfaces in this request.">
-
-## Printer & DFM constraints
-- Printer: <model>, Material: <material>, Nozzle: <mm>
-- wall_min_mm / overhang_max_deg / dimension_tolerance_mm: <values>, noting whether
-  each came from `printer_profile.json`'s default or a user-stated one-time exception
-
-## Open questions / assumptions
-<anything left as -1, or resolved by assumption rather than explicit confirmation --
-or "None.">
-```
-
-Include every section even when a given section has nothing to report (use the
-placeholder text shown) -- a reader should never have to guess whether a section was
-omitted because it was empty or because it was forgotten.
-
-**Skip this file only** when the request had no topology ambiguity, no real-world
-dimension lookups, and no stated fit type -- i.e., Phase 1 resolved nothing beyond bare
-user-stated numbers already inline in the request. Phase 2
-(`skill/phase2_planning.md`) amends this same file later, in place, only if planning
-introduces or changes a requirement -- it does not write it from scratch.
-
-Then append one line to `build/journal.md`:
-
-```
-- phase1/requirements_written: REQUIREMENTS.md written
-```
-
-Skip this journal line whenever the file itself was skipped.
+If the user's opening request (or a Phase 1 clarification) attaches an image -- a
+hand-drawn sketch, a photo of the object to be fitted, an annotated screenshot -- copy
+it into a `sketches/` directory at the project root before the request_log `initial`
+entry is written, named `<slug>-<ts>.<ext>` (a short slug from the request text, or
+`sketch` if none is obvious; `ts` is the entry's timestamp with `:` replaced by `-`).
+The copied repo-relative path goes into that entry's `images` field, and the same path
+is named inline in the approved reformulation. This is the same rule
+`skill/phase3_build.md` applies to an image attached to a mid-build correction -- it
+covers the `initial` entry too.
