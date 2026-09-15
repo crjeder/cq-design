@@ -126,7 +126,7 @@ From the accepted contract, into that part's `BUILD_PLAN.json` entry:
 - `engineering_rationale`, exactly as returned.
 
 If a part script's `PARAMETERS` block was hand-edited, reconcile with
-`python "$SKILL_DIR/src/import_params.py" build/<part_id>.py --part <part_id> --write`
+`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/import_params.py" build/<part_id>.py --part <part_id> --write`
 instead of hand-editing the plan.
 
 ## Design approval checkpoint

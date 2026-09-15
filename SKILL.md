@@ -34,14 +34,11 @@ background.
 
 Python 3.10-3.12 required (CadQuery has no wheels for 3.13+). Before running any skill
 commands, establish `SKILL_DIR` — the absolute path to the directory containing this
-file — since every `src/` script is invoked via `$SKILL_DIR/src/...`:
-
-```bash
-# macOS / Linux
-SKILL_DIR="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
-# Windows (PowerShell)
-$SKILL_DIR = Split-Path -Parent (Resolve-Path $PSCommandPath)
-```
+file — since every `src/` script is invoked via `$SKILL_DIR/src/...`. Take it from the
+"Base directory for this skill" line shown when the skill loaded; `$BASH_SOURCE` /
+`$PSCommandPath` are empty in a one-off shell command and resolve to the working
+directory instead. Substitute the literal path into each command (shell variables do not
+persist between calls).
 
 Every script's invocation is documented at the step that uses it — never run `--help`
 to discover parameters. Generated output writes to the working directory, not
@@ -70,10 +67,10 @@ rebuild), and the mandatory license check.
 
 Collect the part's function, dimensions (or a product to look up), printer/material/DFM
 constraints, and fit type; resolve topology ambiguity before generating a plan.
-Real-world dimensions must be verified via web/Playwright lookup, never guessed.
+Real-world dimensions must be verified via the research agent's web lookup, never guessed.
 
 **Before starting Phase 1, read `skill/phase1_requirements.md` in full** — topology
-clarification, the Playwright lookup procedure, and the dimension validation checkpoint
+clarification, the research-agent dimension lookup, and the exit checkpoint
 the user must approve before any plan is generated.
 
 ## Phase 2: Planning

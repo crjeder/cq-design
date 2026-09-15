@@ -38,7 +38,7 @@ user or re-paying for research and part attempts already done.
 |-------|---------------|--------------|
 | 0 | `rung_decision` | The sourcing ladder resolves — records the chosen rung, source, and license verdict |
 | 1 | `topology_confirmed` | The user confirms a topology reading at the clarification step |
-| 1 | `dimensions_approved` | The user approves/corrects the Dimension validation checkpoint table (`parameters.py` is written in the same turn — see `skill/phase1_requirements.md`) |
+| 1 | `dimensions_approved` | The user approves/corrects the Phase 1 exit checkpoint (`parameters.py` is written in the same turn — see `skill/phase1_requirements.md`) |
 | 2 | `plan_written` | `BUILD_PLAN.json` passes `plan_validate.py` |
 | 2 | `plan_approved` | The user approves the Phase 2 plan summary |
 | 3 | `stub_approved:<part_id>` | The user approves a part's `profile_stub` stage |
