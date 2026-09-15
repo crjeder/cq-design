@@ -10,17 +10,11 @@ import json
 import sys
 
 import pytest
-import trimesh
+from conftest import box_stl
 
 import kinematic_check
 from kinematic_check import _sweep_values, iter_poses, run_kinematic_check, travel_arms
 from plan_validate import validate_plan
-
-
-def _box_stl(path, extents, center):
-    mesh = trimesh.creation.box(extents=extents)
-    mesh.apply_translation(center)
-    mesh.export(str(path))
 
 
 def _revolute_entry(required_range, step=5, moving="arm", **extra):
@@ -46,16 +40,16 @@ def _plan(kinematics, part_ids=("base", "arm")):
 @pytest.fixture
 def clear_stls(tmp_path):
     """Fixed box well outside the moving box's orbit -> collision-free sweep."""
-    _box_stl(tmp_path / "base.stl", (10, 10, 10), (0, 0, 0))
-    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
+    box_stl(tmp_path / "base.stl", (0, 0, 0))
+    box_stl(tmp_path / "arm.stl", (20, 0, 0))
     return tmp_path
 
 
 @pytest.fixture
 def blocking_stls(tmp_path):
     """Fixed wall to the north that the orbiting arm swings into past ~60 deg."""
-    _box_stl(tmp_path / "base.stl", (10, 10, 10), (0, 14, 0))
-    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
+    box_stl(tmp_path / "base.stl", (0, 14, 0))
+    box_stl(tmp_path / "arm.stl", (20, 0, 0))
     return tmp_path
 
 
@@ -145,9 +139,9 @@ def test_binding_within_range_names_collider(blocking_stls):
 
 def test_fixed_set_is_all_other_unions(tmp_path):
     # arm orbits clear of `base`, but a third union `wall` sits in the arc.
-    _box_stl(tmp_path / "base.stl", (10, 10, 10), (0, 0, 0))
-    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
-    _box_stl(tmp_path / "wall.stl", (10, 10, 10), (0, 14, 0))
+    box_stl(tmp_path / "base.stl", (0, 0, 0))
+    box_stl(tmp_path / "arm.stl", (20, 0, 0))
+    box_stl(tmp_path / "wall.stl", (0, 14, 0))
     plan = _plan([_revolute_entry([0, 90])], part_ids=("base", "arm", "wall"))
     issues = run_kinematic_check(plan, str(tmp_path))
     collisions = [i for i in issues if i["type"] == "motion_collision"]
@@ -179,8 +173,8 @@ def test_child_union_carried_along_no_false_collision(tmp_path):
     # have reported a false collision against the swept shoulder (same geometry as
     # blocking_stls above). Nested as a child of shoulder, it must be carried along
     # instead of treated as a fixed obstacle.
-    _box_stl(tmp_path / "shoulder.stl", (10, 10, 10), (20, 0, 0))
-    _box_stl(tmp_path / "forearm.stl", (10, 10, 10), (0, 14, 0))
+    box_stl(tmp_path / "shoulder.stl", (20, 0, 0))
+    box_stl(tmp_path / "forearm.stl", (0, 14, 0))
     # required_range [0, 0]: only the identity pose is evaluated for the child's own
     # independent sweep (every entry is still checked on its own), which keeps this
     # fixture focused on the parent's carry-along behavior.
@@ -197,9 +191,9 @@ def test_unrelated_fixed_union_still_collides_child_excluded(tmp_path):
     # torso is unrelated and fixed, sitting in shoulder's swept arc: it must still be
     # reported. forearm is a child (rides along) placed clear of everything, so it must
     # NOT appear in the fixed set or in any collision report.
-    _box_stl(tmp_path / "shoulder.stl", (10, 10, 10), (20, 0, 0))
-    _box_stl(tmp_path / "forearm.stl", (10, 10, 10), (100, 100, 0))
-    _box_stl(tmp_path / "torso.stl", (10, 10, 10), (0, 14, 0))
+    box_stl(tmp_path / "shoulder.stl", (20, 0, 0))
+    box_stl(tmp_path / "forearm.stl", (100, 100, 0))
+    box_stl(tmp_path / "torso.stl", (0, 14, 0))
     child = _revolute_entry([0, 0], moving="forearm", step=5, joint_id="elbow")
     shoulder = _revolute_entry(
         [0, 90], moving="shoulder", joint_id="shoulder_joint", children=[child]
@@ -216,8 +210,8 @@ def test_unrelated_fixed_union_still_collides_child_excluded(tmp_path):
 def test_no_children_field_is_unaffected(tmp_path):
     # Regression: a plan with no `children` fields (today's flat kinematics array)
     # behaves exactly as before -- fixed set is every other union in the model.
-    _box_stl(tmp_path / "base.stl", (10, 10, 10), (0, 0, 0))
-    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
+    box_stl(tmp_path / "base.stl", (0, 0, 0))
+    box_stl(tmp_path / "arm.stl", (20, 0, 0))
     plan = _plan([_revolute_entry([0, 90])])
     issues = run_kinematic_check(plan, str(tmp_path))
     assert not [i for i in issues if i["type"] == "motion_collision"]
@@ -227,8 +221,8 @@ def test_pin_hinge_leaf_swept_against_other_leaf(tmp_path):
     # A print-in-place pin_hinge part declares its two leaf unions (leaf_a, leaf_b) on
     # one plate; the sweep runs leaf_a against leaf_b -- the hinge's own motion -- rather
     # than seeing them as one frozen blob.
-    _box_stl(tmp_path / "leaf_a.stl", (10, 10, 10), (20, 0, 0))  # orbits the Z axis
-    _box_stl(tmp_path / "leaf_b.stl", (10, 10, 10), (0, 14, 0))  # sits in leaf_a's arc
+    box_stl(tmp_path / "leaf_a.stl", (20, 0, 0))  # orbits the Z axis
+    box_stl(tmp_path / "leaf_b.stl", (0, 14, 0))  # sits in leaf_a's arc
     plan = {
         "parts": [
             {
@@ -297,8 +291,8 @@ def test_flush_contact_does_not_bind(tmp_path):
     # Two boxes in exact face contact through the whole sweep: the broadphase reports
     # contact but the intersection volume is zero. Under depth thresholding this was a
     # false motion_collision; it must now sweep clean.
-    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
-    _box_stl(tmp_path / "base.stl", (10, 10, 10), (20, 10, 0))  # abuts arm at y=5
+    box_stl(tmp_path / "arm.stl", (20, 0, 0))
+    box_stl(tmp_path / "base.stl", (20, 10, 0))  # abuts arm at y=5
     plan = _plan([_revolute_entry([0, 0])])  # identity pose only: the contact pose
     issues = run_kinematic_check(plan, str(tmp_path))
     assert [i for i in issues if i["type"] == "motion_collision"] == []
@@ -340,8 +334,8 @@ def test_straddling_range_splits_into_two_arms_from_zero():
 def test_straddling_stop_on_one_side_leaves_other_side_reported(tmp_path):
     # Wall sits in the positive arc only; the negative arc is clear to -30. The stop on
     # the positive side must not misreport the negative side as unreachable.
-    _box_stl(tmp_path / "arm.stl", (10, 10, 10), (20, 0, 0))
-    _box_stl(tmp_path / "base.stl", (10, 10, 10), (0, 14, 0))
+    box_stl(tmp_path / "arm.stl", (20, 0, 0))
+    box_stl(tmp_path / "base.stl", (0, 14, 0))
     # Block-less: pin_hinge's [0, 180] limit would reject a negative bound outright.
     entry = _revolute_entry([-30, 90], step=5, mechanical_limit=[-90, 90])
     del entry["block"]
