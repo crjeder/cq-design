@@ -48,9 +48,11 @@ reference from the user, restate it with the plan name and its callout badge num
 
 ## Routing
 
-- **Model.** `models.part_author` in `skill_config.json` (absent: Sonnet-class). Value
-  `"inline"`: do not spawn; follow the rendered builder prompt yourself, returning the
-  same contract to yourself. Auditors always run as fresh agents on the session default.
+- **Model.** The `model` field of Step 1's render output (resolved from
+  `models.part_author` in `skill_config.json`; absent: Sonnet-class). Do not read
+  `skill_config.json` yourself for this. Value `"inline"`: do not spawn; follow the
+  rendered builder prompt yourself, returning the same contract to yourself. Auditors
+  always run as fresh agents on the session default.
 - **Stages** come from the plan's `review_policy` (default `every_stage`): `every_stage`
   stages every part; `checkpoints` stages parts with an interface or 3+ blocks;
   `minimal` stages nothing and skips the profile stub. A user request for "show me each
