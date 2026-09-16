@@ -59,16 +59,15 @@ and tell the user ("Updated printer_profile.json: nozzle_mm -> 0.6").
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_summary.py" BUILD_PLAN.json
 ```
 
-Show its Markdown output (never raw JSON), then add:
+Show its Markdown output (never raw JSON) -- it already includes **Names I chose** (every
+part id / interface name not found in `request_log`) and **Open questions** (every
+`OPEN:` item in `planning_notes`) when applicable. Then add:
 
-- **Names I chose:** every part id or interface name that is not the user's own word, e.g.
-  "I'm calling the bottom part `base`", and any suffix disambiguation ("the second `hole`
-  is `hole_2`").
 - **Design proposals:** anything `planning_notes` proposes on the planner's initiative
   (e.g. `shadow_gap` on a visible seam), one line each, to accept or decline.
-- **Open questions:** every `OPEN:` item in `planning_notes` (an unverified `-1` dimension,
-  an unclear fit or load, ...). Resolve each with the user, then resume the planner with
-  the answers and re-validate before Phase 3.
+
+Resolve each open question with the user, then resume the planner with the answers and
+re-validate before Phase 3.
 
 Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk, re-validate
 first. On approval append `- phase2/plan_approved: <n> parts, review_policy <policy>` to
