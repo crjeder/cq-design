@@ -1,13 +1,14 @@
 # Phase 1: Requirements gathering
 
 **Sourcing search vs. dimension lookup:** Phase 0 (`skill/phase0_sourcing.md`) already
-runs a full-model search — "does a usable model already exist for this request" —
-before Phase 1 starts. The "Dimension lookup" step below answers a
-narrower question — "what are the exact dimensions of a named real-world product or
-component" — and is not a repeat of Phase 0's search. **No second sweep:** if Phase 0
-ran and fell through to Phase 1 (rung 5, nothing usable), reuse its search results
-already in context instead of re-running the platform searches from scratch; only look
-up dimensions genuinely still missing.
+dispatches a sourcing agent that runs a full-model search — "does a usable model already
+exist for this request" — before Phase 1 starts. The "Dimension lookup" step below
+answers a narrower question — "what are the exact dimensions of a named real-world
+product or component" — and is not a repeat of Phase 0's search. **No second sweep:** if
+Phase 0 ran and fell through to Phase 1 (rung 5, nothing usable), reuse the sourcing
+agent's returned candidate table as known context for the research agent below instead
+of re-running the platform searches from scratch; only look up dimensions genuinely
+still missing.
 
 Collect the following before generating the plan. Ask if any are missing:
 
@@ -92,8 +93,8 @@ then picks the unit count via `gridfinity_units_for`.
 
 **Research agent.** Write the lookup targets (one bullet per item to look up and what it
 is for) to `build/lookup_targets.md`, and, when there is prior context, the known
-dimensions (user-stated dimensions plus any Phase 0 search results already in context, as
-URL + what it gave) to `build/known_context.md`. Render the prompt:
+dimensions (user-stated dimensions plus any rows from the sourcing agent's candidate
+table, as URL + what it gave) to `build/known_context.md`. Render the prompt:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" research \

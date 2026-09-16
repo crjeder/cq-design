@@ -20,6 +20,7 @@ config:
 ---
 flowchart TB
     subgraph MAIN["MAIN SESSION - orchestrator. Owns every user checkpoint. Holds only: plan, verdicts, tables, final preview paths."]
+        RUNG0{"Phase 0: classify<br>the five-rung ladder"}
         REQ["Phase 1: requirements Q&A,<br>topology clarification"]
         CK1{"Dimension table<br>approved?"}
         CK2{"BUILD_PLAN.json<br>approved?"}
@@ -30,6 +31,7 @@ flowchart TB
         FINISH["Deterministic finish - programs, no LLM:<br>print orientation, model export +<br>whole-model checks (kinematic, plate<br>clearance, keep-out), quality gate, deliver"]
     end
 
+    SOURCING["SOURCING AGENT<br>web search, Thingiverse/Printables/MakerWorld,<br>reads descriptions/comments/license.<br>Returns a candidate table only -<br>page snapshots die here."]
     RESEARCH["RESEARCH AGENT<br>web search, spec pages, community models,<br>measure_stl reverse-engineering.<br>Returns the validation table only -<br>page snapshots die here."]
     PLANNER["PLANNER AGENT - strong model (Fable/Opus)<br>rendered prompts/planning.md in,<br>BUILD_PLAN.json out.<br>Topology errors cost a full rebuild,<br>so this is where model strength pays."]
     PV["plan_validate.py<br>(program)"]
@@ -37,6 +39,9 @@ flowchart TB
     DET["script_lint.py,<br>run_cadquery_model.py<br>(programs)"]
     AUDITOR["IMPLEMENTATION AUDITOR AGENT<br>fresh context - never sees the scripts.<br>Judges plan entry vs rendered views,<br>answers the visual checklist citing views.<br>Deterministic backstop: feature_presence_check.py"]
 
+    SOURCING --> RUNG0
+    RUNG0 -- "rung 5: nothing usable" --> REQ
+    RUNG0 -- "rung 3: mesh fits as-is,<br>vetted + user confirms" --> FINISH
     REQ --> RESEARCH --> CK1
     CK1 -- "corrections" --> RESEARCH
     CK1 -- "approved" --> PLANNER --> PV
@@ -58,12 +63,14 @@ flowchart TB
     FINISH -- "orientation demands a<br>geometry edit" --> BUILDER
 
     style REQ fill:#FFE0B2,stroke:#FF6D00
+    style RUNG0 stroke:#f87171,fill:#fef2f2
     style CK1 stroke:#f87171,fill:#fef2f2
     style CK2 stroke:#f87171,fill:#fef2f2
     style CK3 stroke:#f87171,fill:#fef2f2
     style ROUTE stroke:#f87171,fill:#fef2f2
     style HINT fill:#FFE0B2,stroke:#FF6D00
     style PROG fill:#FFE0B2,stroke:#FF6D00
+    style SOURCING stroke:#818cf8,fill:#eef2ff
     style RESEARCH stroke:#818cf8,fill:#eef2ff
     style PLANNER stroke:#818cf8,fill:#eef2ff
     style BUILDER stroke:#818cf8,fill:#eef2ff
@@ -80,6 +87,7 @@ gate, orange = main-session user interaction.
 
 | Agent | Model | Input | Output | Why it is an agent |
 |---|---|---|---|---|
+| Sourcing | default | rendered `prompts/sourcing.md` by `src/render_prompt.py` | candidate table (source, platform, kind, license, notes) | page snapshots across Thingiverse/Printables/MakerWorld/GitHub are huge; main gets a table and classifies it against the five-rung ladder |
 | Research | default | rendered `prompts/research.md` by `src/render_prompt.py` | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
 | Planner | `skill_config.json`'s `models.planner` (default strong, e.g. Opus) | rendered `prompts/planning.md` by `src/render_prompt.py` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
 | Part builder (x N) | `skill_config.json`'s `models.part_author` (default mid-tier, e.g. Sonnet; `"inline"` skips the spawn) | `build/<id>_prompt.txt` = `prompts/builder.md` + `prompts/part.md`, rendered by `src/render_prompt.py` | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
@@ -138,7 +146,7 @@ Remarks:
 
 ## Sequencing
 
-Agent instructions live in `prompts/research.md`, `prompts/planning.md`,
+Agent instructions live in `prompts/sourcing.md`, `prompts/research.md`, `prompts/planning.md`,
 `prompts/builder.md` + `prompts/part.md`, and `prompts/audit.md`; the
 `skill/phase*.md` files hold only main-session orchestration.
 
