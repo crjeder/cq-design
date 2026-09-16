@@ -27,10 +27,12 @@ stage). The orchestrator resumes you with one of:
 ```bash
 # lint (stdlib AST, milliseconds): fix every finding before validating
 uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/script_lint.py" build/{{PART_ID}}.py
+```
 
-# validate + render
-uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/run_cadquery_model.py" \
-    build/{{PART_ID}}.py {{VALIDATE_ARGS}}
+Validate + render, one command per stage (only the final stage checks dimensions):
+
+```bash
+{{VALIDATE_ARGS}}
 ```
 
 Add `--detail "name=<feature>;center=<x>,<y>,<z>;size=<mm>[;section=<axis>=<pos>]"` when a
@@ -46,9 +48,8 @@ a message asks for a view that no current file shows.
    - From scratch with no blocks: open with a construction plan, one `verify_stage` per
      stage (see the part specification).
 2. **Lint**, then **validate**.
-3. **Blocking:** `success: false`. Exception: when every error is `dimension_mismatch` and
-   this is a `base_shape`/`features` stage still missing later geometry, carry on. Read
-   each error's `hint`; do not guess from the type name.
+3. **Blocking:** `success: false`. Read each error's `hint`; do not guess from the type
+   name.
    - `disconnected_body`: read the per-body axis ranges first. Bodies that do not overlap
      on some axis mean one is misplaced (often an `"XZ"`/`"YZ"` workplane sign): move it
      back and re-check every coordinate authored in that frame. Add overlap only when the

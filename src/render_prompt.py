@@ -135,12 +135,16 @@ def part_author_model() -> str:
     return "unknown"
 
 
-def validate_args(plan: dict, part: dict) -> str:
+def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
     dims = part["dimensions"]
     cons = plan["constraints"]
-    args = [
-        f"--expected-dims {dims['w_mm']:g},{dims['d_mm']:g},{dims['h_mm']:g}",
-        f"--dim-tolerance {cons['dimension_tolerance_mm']:g}",
+    args = []
+    if is_final:
+        args += [
+            f"--expected-dims {dims['w_mm']:g},{dims['d_mm']:g},{dims['h_mm']:g}",
+            f"--dim-tolerance {cons['dimension_tolerance_mm']:g}",
+        ]
+    args += [
         f"--wall-min {cons['wall_min_mm']:g}",
         "--strict --preview --preview-dir preview --cross-sections",
         f"--attempts-log build/attempts.jsonl --model {part_author_model()}",
@@ -292,13 +296,20 @@ def render_builder(
     plan: dict, part: dict, override: str | None, attempts: Path | None
 ) -> tuple[str, list[str]]:
     part_stages = stages(plan, part, override)
+    skill_dir = SKILL_DIR.as_posix()
+    validate_commands = "\n\n".join(
+        f"# {stage}\n"
+        f'uv run --project "{skill_dir}" python "{skill_dir}/src/run_cadquery_model.py" \\\n'
+        f"    build/{part['id']}.py {validate_args(plan, part, stage == part_stages[-1])}"
+        for stage in part_stages
+    )
     text = fill(
         _read(SKILL_DIR / "prompts/builder.md"),
         {
             "PART_ID": part["id"],
             "SKILL_DIR": SKILL_DIR.as_posix(),
             "STAGES": " -> ".join(part_stages),
-            "VALIDATE_ARGS": validate_args(plan, part),
+            "VALIDATE_ARGS": validate_commands,
             "START_POINT": start_point(part),
             "PITFALLS": pitfalls(attempts),
             "PART_SPEC": part_spec(plan, part),
