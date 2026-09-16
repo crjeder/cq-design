@@ -13,20 +13,20 @@ token and iteration cost and inherits already-verified topology.
   Phase 1.
 - **Quick-pass heuristic:** if the request is dominated by user-specific dimensions or
   interfaces (the core cq-design case — a custom bracket sized to the user's own
-  measurements, a one-off enclosure for a project the user is building), run a single
-  quick search pass (one web search, one platform search) rather than the full ladder
-  below. If that quick pass finds nothing rung-1-3 usable, fall through to Phase 1
-  immediately — do not exhaustively search every platform for a request that is
-  inherently custom.
+  measurements, a one-off enclosure for a project the user is building), tell the
+  sourcing agent (see "Sourcing agent" below) to run a single quick search pass (one web
+  search, one platform search) rather than the full ladder. If that quick pass finds
+  nothing rung-1-3 usable, fall through to Phase 1 immediately — do not exhaustively
+  search every platform for a request that is inherently custom.
 
 ## Collect-then-classify
 
-Search first, classify second. Run the model-platform search workflow (see
-"Search workflow" below) and collect every plausible candidate — parametric sources,
-BREP/STEP files, meshes — before picking one. A worse-rung find from the first source
+Search first, classify second. The sourcing agent (see "Sourcing agent" below) collects
+every plausible candidate — parametric sources, BREP/STEP files, meshes — before you
+pick one; do not stop it at the first hit. A worse-rung find from the first source
 checked must not block a better-rung find turned up later in the same search. Classify
-the full candidate set against the ladder below and take the best (lowest-numbered)
-rung that fits.
+the full candidate set it returns against the ladder below and take the best
+(lowest-numbered) rung that fits.
 
 ## The five-rung decision ladder
 
@@ -143,22 +143,31 @@ page.
   summary shown to the user instead. Either way, state the license and source to the
   user at the point they confirm reuse — never reuse silently.
 
-## Search workflow
+## Sourcing agent
 
-1. One web search for the part (plus "STL", "STEP", or "CadQuery"/"OpenSCAD" as useful).
-2. Search Thingiverse, Printables, and MakerWorld for the same terms.
-3. On each platform, open the most-downloaded matching result and read its description,
-   comments (print-failure reports, fit complaints), license, and any linked parametric
-   source.
+Write the user's request to `build/sourcing_request.md`. Render the prompt:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" sourcing \
+    --request-file build/sourcing_request.md
+```
+
+It writes `build/sourcing_prompt.txt` and prints `{"out", "chars"}`. Spawn one agent with
+the prompt `Read <out> in full and follow it. Working directory: <absolute cwd>.` on the
+session default model. It runs one web search plus Thingiverse/Printables/MakerWorld
+searches (a single quick pass on the quick-pass heuristic above), opens the
+most-downloaded match on each platform, and returns a candidate table (source, platform,
+kind, license, notes); page snapshots and downloads stay inside the agent. Classify the
+returned candidates against the decision ladder above.
 
 Run this search once, in Phase 0, framed around "does a model already exist for this
-request" rather than "what are this request's dimensions." **No second sweep:** if
-Phase 0 ran and fell through to rung 5, Phase 1's own dimension lookup (when a real
-product is still named in the request) reuses the same search results already in
-context instead of repeating the platform searches from scratch — only fill genuinely
+request" rather than "what are this request's dimensions." **No second sweep:** if Phase
+0 ran and fell through to rung 5, Phase 1's own dimension lookup (when a real product is
+still named in the request) reuses the sourcing agent's returned candidate table as known
+context instead of dispatching a fresh platform search from scratch — only fill genuinely
 missing dimensions with new lookups.
 
 If a full-model search (Phase 0's framing) turns up nothing but a component-level
 lookup is still needed in Phase 1 (e.g. the request needs a USB-C connector's specs,
-not a whole enclosure model), that is a normal Phase 1 dimension lookup, not a second
-Phase 0 pass.
+not a whole enclosure model), that is a normal Phase 1 dimension lookup via the research
+agent (`skill/phase1_requirements.md`), not a second Phase 0 sourcing-agent dispatch.
