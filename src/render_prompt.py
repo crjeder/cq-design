@@ -10,10 +10,11 @@ Usage:
         [--plan BUILD_PLAN.json] [--profile printer_profile.json] [--out PATH]
     python render_prompt.py research --targets-file build/lookup_targets.md \
         [--known-file build/known_context.md] [--out PATH]
+    python render_prompt.py sourcing --request-file build/request.md [--out PATH]
 
 Writes the prompt to --out (default build/<part>_prompt.txt / build/<part>_audit_prompt.txt /
-build/planning_prompt.txt / build/research_prompt.txt) and prints {"out", "chars", ...} as
-JSON. Exit 1 on an unknown part or unfilled placeholder.
+build/planning_prompt.txt / build/research_prompt.txt / build/sourcing_prompt.txt) and
+prints {"out", "chars", ...} as JSON. Exit 1 on an unknown part or unfilled placeholder.
 """
 
 from __future__ import annotations
@@ -408,6 +409,23 @@ def render_research(targets: str, known: str | None) -> str:
     )
 
 
+def sourcing_corpus() -> str:
+    """The 'Phase 0 sourcing corpus' section of documentation/Block_Sources.md."""
+    md = _read(SKILL_DIR / "documentation/Block_Sources.md")
+    section = re.search(r"(?m)^## 2\. Phase 0 sourcing corpus\n(.*)", md, re.DOTALL)
+    return section.group(1).strip() if section else "(none)"
+
+
+def render_sourcing(request: str) -> str:
+    return fill(
+        _read(SKILL_DIR / "prompts/sourcing.md"),
+        {
+            "REQUEST_TEXT": request,
+            "SOURCING_CORPUS": sourcing_corpus(),
+        },
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -432,6 +450,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("research")
     p.add_argument("--targets-file", required=True, type=Path)
     p.add_argument("--known-file", type=Path)
+    p.add_argument("--out")
+
+    p = sub.add_parser("sourcing")
+    p.add_argument("--request-file", required=True, type=Path)
     p.add_argument("--out")
 
     args = parser.parse_args(argv)
@@ -465,7 +487,7 @@ def main(argv: list[str] | None = None) -> int:
         extra["profile"] = status
         if errors:
             extra["profile_errors"] = errors
-    else:
+    elif args.kind == "research":
         try:
             text = render_research(
                 _read(args.targets_file), _read(args.known_file) if args.known_file else None
@@ -474,6 +496,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"render_prompt: {exc}", file=sys.stderr)
             return 1
         out = Path(args.out or "build/research_prompt.txt")
+    else:
+        try:
+            text = render_sourcing(_read(args.request_file))
+        except ValueError as exc:
+            print(f"render_prompt: {exc}", file=sys.stderr)
+            return 1
+        out = Path(args.out or "build/sourcing_prompt.txt")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")

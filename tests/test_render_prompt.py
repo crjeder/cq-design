@@ -145,6 +145,20 @@ def test_fill_raises_on_unfilled_placeholder():
         rp.fill("hello {{MISSING}}", {})
 
 
+def test_render_sourcing_includes_request_and_corpus():
+    text = rp.render_sourcing("a wall mount for an iPhone 15")
+    assert "a wall mount for an iPhone 15" in text
+    assert "Adafruit_CAD_Parts" in text
+    assert "{{" not in text
+
+
+def test_sourcing_corpus_extracts_phase0_section():
+    corpus = rp.sourcing_corpus()
+    assert "Hardware & component archives" in corpus
+    assert "Finished models by domain" in corpus
+    assert "Blocks library candidates" not in corpus
+
+
 def test_audit_parameters_block_skips_calls(tmp_path):
     script = tmp_path / "lid.py"
     script.write_text(
