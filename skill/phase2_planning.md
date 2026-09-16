@@ -20,16 +20,21 @@ yourself.
 
 Spawn one agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
 on `models.planner` from `skill_config.json` (absent: the strongest available model -- a
-topology error here costs a rebuild of every part). It has no user channel and returns the
-plan JSON as its final message. Write that to `BUILD_PLAN.json` (indent 2), then:
+topology error here costs a rebuild of every part). It has no user channel. It writes
+`BUILD_PLAN.json` (indent 2) itself, runs `plan_validate.py` itself, and retries against
+its own validator errors internally (up to 3 attempts, same convention as the builder
+agent in Phase 3) before returning its status contract (`status`, `parts`, `attempts`,
+`open_items`, `error_summary`) as its final message -- never the plan JSON.
 
-```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
-```
+- `status: "valid"` -> append `- phase2/plan_written: BUILD_PLAN.json validated, <n>
+  parts` to `build/journal.md` and proceed to the plan summary checkpoint below.
+- `status: "blocked"` -> the agent exhausted its retries with validator errors remaining
+  (`error_summary`). Summarize the errors to the user, get a decision, and resume the same
+  planner agent with it -- never spawn a second planner.
 
-On rejection, resume the same planner agent with the error list; repeat until it validates
-or needs a user decision. Then append `- phase2/plan_written: BUILD_PLAN.json validated, <n>
-parts` to `build/journal.md`.
+Read `BUILD_PLAN.json` from disk only if you need to inspect it yourself; the plan summary
+checkpoint below reads it through `plan_summary.py`, not through this session parsing the
+agent's reply.
 
 **`parameters.py`:** add or amend a sourced constant (with its source comment) only when
 planning introduced a real-world measurement Phase 1 did not capture.
@@ -66,9 +71,11 @@ part id / interface name not found in `request_log`) and **Open questions** (eve
 - **Design proposals:** anything `planning_notes` proposes on the planner's initiative
   (e.g. `shadow_gap` on a visible seam), one line each, to accept or decline.
 
-Resolve each open question with the user, then resume the planner with the answers and
-re-validate before Phase 3.
+Resolve each open question with the user, then resume the planner agent with the answers;
+it re-writes and re-validates `BUILD_PLAN.json` itself and returns an updated status
+contract. Re-run `plan_summary.py` against the file before Phase 3.
 
-Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk, re-validate
-first. On approval append `- phase2/plan_approved: <n> parts, review_policy <policy>` to
+Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk directly, run
+`plan_validate.py` on it yourself before proceeding (no agent involved for a user's own
+edit). On approval append `- phase2/plan_approved: <n> parts, review_policy <policy>` to
 `build/journal.md`.
