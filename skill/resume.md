@@ -8,7 +8,9 @@ directory with no journal, skip this file entirely; it costs nothing to a normal
 
 `build/journal.md` is an append-only, human-readable milestone log. It exists so an
 interrupted run (usage limit, compaction, crash) can be resumed without re-asking the
-user or re-paying for research and part attempts already done.
+user or re-paying for research and part attempts already done. Every phase appends via
+`src/journal.py append <journal_path> <milestone> <text>` rather than hand-composing the
+line; the format below is what that command writes.
 
 - **Path:** `build/journal.md` in the caller's working directory. `build/` is created
   at pipeline start (`init_permissions.py`, see SKILL.md Prerequisites), so it exists before
