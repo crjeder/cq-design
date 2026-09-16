@@ -28,8 +28,11 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLA
 ```
 
 On rejection, resume the same planner agent with the error list; repeat until it validates
-or needs a user decision. Then append `- phase2/plan_written: BUILD_PLAN.json validated, <n>
-parts` to `build/journal.md`.
+or needs a user decision. Then:
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+    phase2/plan_written "BUILD_PLAN.json validated, <n> parts"
+```
 
 **`parameters.py`:** add or amend a sourced constant (with its source comment) only when
 planning introduced a real-world measurement Phase 1 did not capture.
@@ -70,5 +73,8 @@ Resolve each open question with the user, then resume the planner with the answe
 re-validate before Phase 3.
 
 Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk, re-validate
-first. On approval append `- phase2/plan_approved: <n> parts, review_policy <policy>` to
-`build/journal.md`.
+first. On approval:
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+    phase2/plan_approved "<n> parts, review_policy <policy>"
+```

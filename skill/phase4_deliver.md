@@ -52,6 +52,7 @@ If the quality gate failed, summarize the remaining errors and offer to fix the 
 Once delivery is reported and `README.md` / `REGENERATE.md` are written, append one line to
 `build/journal.md` (see `skill/resume.md`):
 
-```
-- phase4/delivered: README.md + REGENERATE.md written
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+    phase4/delivered "README.md + REGENERATE.md written"
 ```

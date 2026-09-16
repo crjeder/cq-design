@@ -1,25 +1,37 @@
 #!/usr/bin/env python3
-"""Search a BUILD_PLAN.json's request_log without reading the whole array.
+"""Search and append entries in a BUILD_PLAN.json's request_log.
 
-Stdlib only. Filters request_log entries by a case-insensitive substring
-match on `text` (--query), an exact `kind` match (--kind), an exact `level`
-match (--level), and/or a `targets` membership substring (--target), printing
-only the entries matching every supplied filter as JSON.
+Stdlib only (jsonschema is only imported by the `add` subcommand, which validates
+against build_plan_schema.json before writing).
+
+`search` filters request_log entries by a case-insensitive substring match on `text`
+(--query), an exact `kind` match (--kind), an exact `level` match (--level), and/or a
+`targets` membership substring (--target), printing only the entries matching every
+supplied filter as JSON.
+
+`add` appends one `clarification`/`correction` entry with `ts` set to the current UTC
+time, validating the result against build_plan_schema.json before writing.
 
 Usage:
-    python request_log_search.py BUILD_PLAN.json --query hinge
-    python request_log_search.py BUILD_PLAN.json --kind correction
-    python request_log_search.py BUILD_PLAN.json --level parameter --target cradle
+    python request_log_search.py search BUILD_PLAN.json --query hinge
+    python request_log_search.py search BUILD_PLAN.json --kind correction
+    python request_log_search.py search BUILD_PLAN.json --level parameter --target cradle
+    python request_log_search.py add BUILD_PLAN.json --kind correction \
+        --text "widen the hinge pin hole" --level parameter --target cradle
 
-Exit codes: 0 success (including no matches), 1 on error (missing file,
-invalid JSON).
+Exit codes: 0 success (search: including no matches), 1 on error (missing file,
+invalid JSON, failed schema validation).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from datetime import datetime, timezone
+
+_SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "build_plan_schema.json")
 
 
 def search_request_log(
@@ -51,26 +63,51 @@ def search_request_log(
     return results
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("plan", help="Path to BUILD_PLAN.json")
-    parser.add_argument("--query", help="Case-insensitive substring match against entry text")
-    parser.add_argument(
-        "--kind",
-        choices=["initial", "clarification", "correction"],
-        help="Exact match against entry kind",
-    )
-    parser.add_argument(
-        "--level",
-        choices=["functional", "operation", "parameter"],
-        help="Exact match against entry level",
-    )
-    parser.add_argument(
-        "--target",
-        help="Case-insensitive substring match against any string in entry targets",
-    )
-    args = parser.parse_args(argv)
+def add_request_log_entry(
+    plan: dict,
+    *,
+    kind: str,
+    text: str,
+    level: str | None = None,
+    targets: list[str] | None = None,
+) -> dict:
+    """Return a new plan dict with one entry appended to request_log.
 
+    Raises ValueError if kind is 'initial' or the resulting request_log fails
+    schema validation. Does not mutate the input plan.
+    """
+    if kind == "initial":
+        raise ValueError("add does not accept --kind initial (written once by the planner)")
+
+    entry: dict = {
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "kind": kind,
+        "text": text,
+    }
+    if level is not None:
+        entry["level"] = level
+    if targets:
+        entry["targets"] = targets
+
+    new_plan = dict(plan)
+    new_plan["request_log"] = [*(plan.get("request_log") or []), entry]
+
+    import jsonschema
+
+    with open(_SCHEMA_PATH, encoding="utf-8") as f:
+        schema = json.load(f)
+    validator = jsonschema.Draft7Validator(schema)
+    problems = []
+    for err in validator.iter_errors(new_plan):
+        path = " -> ".join(str(p) for p in err.absolute_path) or "(root)"
+        problems.append(f"Schema error at {path}: {err.message}")
+    if problems:
+        raise ValueError("; ".join(problems))
+
+    return new_plan
+
+
+def _cmd_search(args: argparse.Namespace) -> int:
     try:
         with open(args.plan, encoding="utf-8") as f:
             plan = json.load(f)
@@ -86,6 +123,77 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(json.dumps(results, indent=2))
     return 0
+
+
+def _cmd_add(args: argparse.Namespace) -> int:
+    try:
+        with open(args.plan, encoding="utf-8") as f:
+            plan = json.load(f)
+    except OSError as exc:
+        print(f"request_log_search: {exc}", file=sys.stderr)
+        return 1
+    except json.JSONDecodeError as exc:
+        print(f"request_log_search: invalid JSON: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        new_plan = add_request_log_entry(
+            plan, kind=args.kind, text=args.text, level=args.level, targets=args.target
+        )
+    except ValueError as exc:
+        print(f"request_log_search: {exc}", file=sys.stderr)
+        return 1
+
+    with open(args.plan, "w", encoding="utf-8") as f:
+        json.dump(new_plan, f, indent=2)
+        f.write("\n")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sp = sub.add_parser("search", help="filter request_log entries")
+    sp.add_argument("plan", help="Path to BUILD_PLAN.json")
+    sp.add_argument("--query", help="Case-insensitive substring match against entry text")
+    sp.add_argument(
+        "--kind",
+        choices=["initial", "clarification", "correction"],
+        help="Exact match against entry kind",
+    )
+    sp.add_argument(
+        "--level",
+        choices=["functional", "operation", "parameter"],
+        help="Exact match against entry level",
+    )
+    sp.add_argument(
+        "--target",
+        help="Case-insensitive substring match against any string in entry targets",
+    )
+    sp.set_defaults(func=_cmd_search)
+
+    ap = sub.add_parser("add", help="append one request_log entry")
+    ap.add_argument("plan", help="Path to BUILD_PLAN.json")
+    ap.add_argument(
+        "--kind",
+        required=True,
+        choices=["initial", "clarification", "correction"],
+        help="'initial' is rejected -- written once by the planner, not appended",
+    )
+    ap.add_argument("--text", required=True, help="the user's wording, verbatim")
+    ap.add_argument("--level", choices=["functional", "operation", "parameter"])
+    ap.add_argument(
+        "--target",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="a part id or part.feature/parameter name this entry affects (repeatable)",
+    )
+    ap.set_defaults(func=_cmd_add)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
 
 
 if __name__ == "__main__":
