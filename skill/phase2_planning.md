@@ -69,12 +69,11 @@ part id / interface name not found in `request_log`) and **Open questions** (eve
 - **Design proposals:** anything `planning_notes` proposes on the planner's initiative
   (e.g. `shadow_gap` on a visible seam), one line each, to accept or decline.
 
-Resolve each open question with the user, then resume the planner with the answers and
-re-validate before Phase 3.
+Resolve each open question with the user, then resume the planner agent with the answers;
+it re-writes and re-validates `BUILD_PLAN.json` itself and returns an updated status
+contract. Re-run `plan_summary.py` against the file before Phase 3.
 
-Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk, re-validate
-first. On approval:
-```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
-    phase2/plan_approved "<n> parts, review_policy <policy>"
-```
+Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk directly, run
+`plan_validate.py` on it yourself before proceeding (no agent involved for a user's own
+edit). On approval append `- phase2/plan_approved: <n> parts, review_policy <policy>` to
+`build/journal.md`.
