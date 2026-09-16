@@ -11,7 +11,7 @@ interrupted run (usage limit, compaction, crash) can be resumed without re-askin
 user or re-paying for research and part attempts already done.
 
 - **Path:** `build/journal.md` in the caller's working directory. `build/` is created
-  at pipeline start (`skill/setup.md`'s permission-bootstrap step), so it exists before
+  at pipeline start (`init_permissions.py`, see SKILL.md Prerequisites), so it exists before
   Phase 0's first possible milestone.
 - **Append-only.** One line is appended at the moment a durable fact is established —
   never batched to the end of a phase, never rewritten, reordered, or removed. If a

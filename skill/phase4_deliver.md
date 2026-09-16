@@ -22,7 +22,15 @@ Report to the user:
      holds the editable part scripts and everything else regenerates from them
    - A one-line pointer to `parameters.py` for the sourced real-world measurements this
      design is based on (see Phase 2)
-   - The directory layout (mirror the tree in **Model export** in `skill/phase3_build.md`)
+   - The directory layout:
+     ```
+     README.md, REGENERATE.md, parameters.py, model.3mf, BUILD_PLAN.json, printer_profile.json
+     pyproject.toml, .python-version, uv.lock
+     build/   <part_id>.py (editable part scripts), build.py, orientations.json, *.orientation.json
+     lib/     bundled build tooling
+     stl/     <part_id>.stl (assembled pose), plate_<n>.stl (print pose)
+     preview/ <part_id>_preview.png, _section_*.png, _detail_*.png
+     ```
    - A one-line pointer to `REGENERATE.md` (see step 6)
 6. **Write `REGENERATE.md`** at the project root -- the prompt that lets the user rebuild
    this design from scratch in a fresh session (a better model, a newer skill, a different

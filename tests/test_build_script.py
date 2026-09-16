@@ -8,39 +8,19 @@ CadQuery-backed, so integration-speed.
 """
 
 import json
-import shutil
 import subprocess
 import sys
 
 import trimesh
 from conftest import minimal_plan
 
-# Tooling build.py imports, bundled into lib/ (a sibling of build/, mirrors the skill).
-_BUNDLE_MODULES = (
-    "mesh_io.py",
-    "model_export.py",
-    "print_orientation.py",
-    "placement.py",
-    "mate_chain.py",
-    "units.py",
-    "freshness.py",
-)
-_BUNDLE_PACKAGES = ("exporters", "blocks")
+from bundle_project import bundle
 
 
-def _render_build_py(build_dir, skill_src):
-    """Copy build.py verbatim into build_dir and bundle the tooling into ../lib."""
-    build_py = build_dir / "build.py"
-    build_py.write_text(
-        (skill_src / "build_template.py").read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    lib_dir = build_dir.parent / "lib"
-    lib_dir.mkdir()
-    for module in _BUNDLE_MODULES:
-        shutil.copy(skill_src / module, lib_dir / module)
-    for package in _BUNDLE_PACKAGES:
-        shutil.copytree(skill_src / package, lib_dir / package)
-    return build_py
+def _render_build_py(build_dir):
+    """Bundle build.py and the lib/ tooling the way the skill ships it."""
+    bundle(build_dir.parent)
+    return build_dir / "build.py"
 
 
 def _write_part(build_dir, pid, body):
@@ -54,7 +34,7 @@ def _setup(tmp_path, skill_src, parts, part_bodies):
     (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(minimal_plan(parts)), encoding="utf-8")
     for pid, body in part_bodies.items():
         _write_part(build_dir, pid, body)
-    _render_build_py(build_dir, skill_src)
+    _render_build_py(build_dir)
     return build_dir
 
 

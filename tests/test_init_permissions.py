@@ -142,3 +142,13 @@ def test_scaffold_directories_preserves_existing_contents(tmp_path):
 
     assert "build" not in created
     assert (build_dir / "body.py").exists()
+
+
+def test_seed_default_files_creates_then_never_overwrites(tmp_path):
+    created = init_permissions.seed_default_files(str(tmp_path))
+    assert set(created) == {"printer_profile.json", "skill_config.json"}
+    json.loads((tmp_path / "printer_profile.json").read_text(encoding="utf-8"))
+
+    (tmp_path / "skill_config.json").write_text("{}", encoding="utf-8")
+    assert init_permissions.seed_default_files(str(tmp_path)) == []
+    assert (tmp_path / "skill_config.json").read_text(encoding="utf-8") == "{}"
