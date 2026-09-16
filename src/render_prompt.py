@@ -482,6 +482,7 @@ def main(argv: list[str] | None = None) -> int:
                 text, part_stages = render_builder(plan, part, args.override, args.attempts)
                 out = Path(args.out or f"build/{part['id']}_prompt.txt")
                 extra["stages"] = part_stages
+                extra["model"] = part_author_model()
             else:
                 text = render_audit(plan, part, args.script, args.previews)
                 out = Path(args.out or f"build/{part['id']}_audit_prompt.txt")
