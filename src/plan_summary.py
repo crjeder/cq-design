@@ -7,6 +7,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -42,6 +43,35 @@ def _load(part: dict) -> str:
 def _blocks(part: dict) -> str:
     names = [b if isinstance(b, str) else b["name"] for b in part.get("blocks_needed") or []]
     return ", ".join(names) or "(none)"
+
+
+def _tokens(text: str) -> set[str]:
+    """Non-numeric word tokens (numeric suffixes like the '2' in hole_2 disambiguate,
+    they don't need to match user wording)."""
+    return {t for t in re.findall(r"[a-z0-9]+", text.lower()) if not t.isdigit()}
+
+
+def _open_questions(plan: dict) -> list[str]:
+    lines = (plan.get("planning_notes") or "").split("\n")
+    stripped = [re.sub(r"^[-*+]\s+", "", line.strip()) for line in lines]
+    return [line for line in stripped if line.startswith("OPEN:")]
+
+
+def _coined_names(plan: dict) -> list[str]:
+    log_words: set[str] = set()
+    for entry in plan.get("request_log") or []:
+        log_words |= _tokens(entry.get("text", ""))
+    if not log_words:
+        return []
+    flagged = []
+    for part in plan["parts"]:
+        if not _tokens(part["id"]) <= log_words:
+            flagged.append(f"`{part['id']}` (part)")
+        for i in part.get("interfaces") or []:
+            name = i.get("name")
+            if name and not _tokens(name) <= log_words:
+                flagged.append(f"`{name}` (interface on `{part['id']}`)")
+    return flagged
 
 
 def summarize(plan: dict, plan_path: Path) -> str:
@@ -116,6 +146,14 @@ def summarize(plan: dict, plan_path: Path) -> str:
             _table(["Part", "Name", "Type", "Connector", "Wall", "Position (mm)"], interfaces),
             "",
         ]
+
+    coined = _coined_names(plan)
+    if coined:
+        out += ["**Names I chose**", "", *[f"- {c}" for c in coined], ""]
+
+    open_questions = _open_questions(plan)
+    if open_questions:
+        out += ["**Open questions**", "", *[f"- {q}" for q in open_questions], ""]
 
     cons = plan["constraints"]
     out += [

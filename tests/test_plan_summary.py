@@ -50,3 +50,55 @@ def test_summary_load_pose_interfaces_and_policy(tmp_path):
     assert "`base` show_face inferred" in text
     assert "**Review policy:** `minimal`" in text
     assert "| base | usb | port_cutout |  | south | 1,0,2.5 |" in text
+
+
+def _base_plan(**overrides) -> dict:
+    plan = {
+        "material": "PETG",
+        "nozzle_mm": 0.4,
+        "constraints": {"wall_min_mm": 1.2, "overhang_max_deg": 45, "dimension_tolerance_mm": 0.5},
+        "parts": [
+            {
+                "id": "bracket",
+                "description": "mounting bracket",
+                "dimensions": {"w_mm": 40, "d_mm": 30, "h_mm": 5},
+                "interfaces": [{"type": "hole", "name": "hole_2", "position_mm": [1, 0, 0]}],
+            }
+        ],
+    }
+    plan.update(overrides)
+    return plan
+
+
+def test_open_questions_section_present_for_plain_and_bulleted_lines(tmp_path):
+    plan = _base_plan(
+        planning_notes="OPEN: hinge pin diameter unverified\n- OPEN: unclear if lid snaps or screws"
+    )
+    text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Open questions**" in text
+    assert "- OPEN: hinge pin diameter unverified" in text
+    assert "- OPEN: unclear if lid snaps or screws" in text
+
+
+def test_open_questions_section_absent_when_no_open_lines(tmp_path):
+    plan = _base_plan(planning_notes="the enclosure stays open on the east face")
+    text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Open questions**" not in text
+
+
+def test_names_i_chose_flags_unmatched_and_skips_matched(tmp_path):
+    plan = _base_plan(
+        request_log=[
+            {"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": "add a hole for a screw"}
+        ]
+    )
+    text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Names I chose**" in text
+    assert "`bracket` (part)" in text
+    assert "`hole_2`" not in text.split("**Names I chose**", 1)[1]
+
+
+def test_names_i_chose_absent_without_request_log(tmp_path):
+    plan = _base_plan()
+    text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Names I chose**" not in text
