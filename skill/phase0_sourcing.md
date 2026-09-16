@@ -21,12 +21,8 @@ token and iteration cost and inherits already-verified topology.
 
 ## Collect-then-classify
 
-Search first, classify second. The sourcing agent (see "Sourcing agent" below) collects
-every plausible candidate — parametric sources, BREP/STEP files, meshes — before you
-pick one; do not stop it at the first hit. A worse-rung find from the first source
-checked must not block a better-rung find turned up later in the same search. Classify
-the full candidate set it returns against the ladder below and take the best
-(lowest-numbered) rung that fits.
+The sourcing agent (below) returns every plausible candidate. Classify the whole set
+against the ladder and take the best (lowest-numbered) rung that fits.
 
 ## The five-rung decision ladder
 
@@ -145,7 +141,8 @@ page.
 
 ## Sourcing agent
 
-Write the user's request to `build/sourcing_request.md`. Render the prompt:
+Write the user's request to `build/sourcing_request.md` (on the quick-pass heuristic, append
+"Quick pass: one web search and one platform search only."). Render the prompt:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" sourcing \
@@ -154,20 +151,8 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" sourcing 
 
 It writes `build/sourcing_prompt.txt` and prints `{"out", "chars"}`. Spawn one agent with
 the prompt `Read <out> in full and follow it. Working directory: <absolute cwd>.` on the
-session default model. It runs one web search plus Thingiverse/Printables/MakerWorld
-searches (a single quick pass on the quick-pass heuristic above), opens the
-most-downloaded match on each platform, and returns a candidate table (source, platform,
-kind, license, notes); page snapshots and downloads stay inside the agent. Classify the
-returned candidates against the decision ladder above.
+session default model. It returns a candidate table (source,
+platform, kind, license, notes); classify it against the ladder above.
 
-Run this search once, in Phase 0, framed around "does a model already exist for this
-request" rather than "what are this request's dimensions." **No second sweep:** if Phase
-0 ran and fell through to rung 5, Phase 1's own dimension lookup (when a real product is
-still named in the request) reuses the sourcing agent's returned candidate table as known
-context instead of dispatching a fresh platform search from scratch — only fill genuinely
-missing dimensions with new lookups.
-
-If a full-model search (Phase 0's framing) turns up nothing but a component-level
-lookup is still needed in Phase 1 (e.g. the request needs a USB-C connector's specs,
-not a whole enclosure model), that is a normal Phase 1 dimension lookup via the research
-agent (`skill/phase1_requirements.md`), not a second Phase 0 sourcing-agent dispatch.
+A later component-level dimension need is a Phase 1 research-agent lookup, not a second
+sourcing dispatch.

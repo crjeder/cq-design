@@ -142,7 +142,7 @@ def validate_args(plan: dict, part: dict) -> str:
         f"--expected-dims {dims['w_mm']:g},{dims['d_mm']:g},{dims['h_mm']:g}",
         f"--dim-tolerance {cons['dimension_tolerance_mm']:g}",
         f"--wall-min {cons['wall_min_mm']:g}",
-        "--preview --preview-dir preview --cross-sections",
+        "--strict --preview --preview-dir preview --cross-sections",
         f"--attempts-log build/attempts.jsonl --model {part_author_model()}",
     ]
     for itf in part.get("interfaces") or []:

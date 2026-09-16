@@ -46,13 +46,9 @@ a message asks for a view that no current file shows.
    - From scratch with no blocks: open with a construction plan, one `verify_stage` per
      stage (see the part specification).
 2. **Lint**, then **validate**.
-3. **Blocking errors:** `success: false`, or any of `non_manifold_edge`,
-   `non_watertight`, `disconnected_body`, `dimension_mismatch`, `occ_exception`,
-   `construction_error`, `command_not_done`, `fillet_failure`, `null_object`,
-   `index_out_of_range`, `type_mismatch`, `silent_boolean`, `feature_overflow`,
-   `workplane_drift`, `unbacked_mate`, `boss_swallowed`, `stage_mismatch`. Read each
-   error's `hint`; do not guess from the type name. `dimension_mismatch` does not apply
-   to the stub or to `base_shape`/`features` stages missing later geometry.
+3. **Blocking:** `success: false`. Exception: when every error is `dimension_mismatch` and
+   this is a `base_shape`/`features` stage still missing later geometry, carry on. Read
+   each error's `hint`; do not guess from the type name.
    - `disconnected_body`: read the per-body axis ranges first. Bodies that do not overlap
      on some axis mean one is misplaced (often an `"XZ"`/`"YZ"` workplane sign): move it
      back and re-check every coordinate authored in that frame. Add overlap only when the

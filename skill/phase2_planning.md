@@ -1,201 +1,75 @@
 # Phase 2: Planning
 
-**Prerequisite:** The Phase 1 exit checkpoint must be approved before this phase begins. If user-corrected values were provided during the checkpoint, use those values -- not the originally looked-up values -- when populating `BUILD_PLAN.json`.
+Starts only after the Phase 1 exit checkpoint is approved; user-corrected values win over
+looked-up ones.
 
-**Render** the planning prompt: write the user's full description of the part to
-`build/request.md`, then run
+## Planner agent
+
+Write `build/request.md`: the user's original request, the approved Phase 1 reformulation
+(labelled as such), and each Phase 1 clarification verbatim with its UTC time. Then render:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" planning \
     --request-file build/request.md [--plan BUILD_PLAN.json] [--profile printer_profile.json]
 ```
 
-Pass `--plan BUILD_PLAN.json` only on a re-plan (an existing validated plan in the working
-directory); it adds that plan's `blocks_needed` union to the FDM guideline sections, on top
-of the always-applicable ones a fresh plan gets. `--profile` defaults to
-`printer_profile.json` in the working directory. It writes `build/planning_prompt.txt` and
-prints `{"out", "chars", "profile"[, "profile_errors"]}`. `profile` is `loaded`, `absent`,
-or `invalid` -- when it is not `loaded`, ask the user for printer, material, nozzle, and
-constraints as Phase 1 would; do not open `printer_profile.json` yourself to check.
+Pass `--plan` only on a re-plan. It writes `build/planning_prompt.txt` and prints
+`{"out", "chars", "profile"[, "profile_errors"]}`. When `profile` is not `loaded`, ask the
+user for printer, material, nozzle, and constraints; do not open `printer_profile.json`
+yourself.
 
-## Planner agent
-
-Spawn a single agent (Agent tool) with the prompt
-`Read <out> in full and follow it. Working directory: <absolute cwd>.`, model override:
-read `models.planner` from `skill_config.json` in the working directory; if the file or key
-is absent, fall back to the strongest available model. A topology or interface-tree error
-in the plan costs a full rebuild of every part downstream of it, which is why this role
-defaults to the strongest model rather than the builder's mid-tier default. The agent has
-no user channel — everything user-facing (topology clarification, dimension checkpoint
-approval, the plan summary below) already happened in main before this call, or happens in
-main after it returns.
-
-The agent returns the plan JSON as its final message. Parse it, write it to disk, and
-validate exactly as below. **`plan_validate.py` rejection re-enters the planner agent**:
-resume the same agent (not a fresh one) with the validator's error list as the next
-message — it keeps its own reasoning and the rejected draft in context, so a targeted fix
-is cheaper than a cold re-generation. Repeat until the plan validates or the loop needs a
-user decision (e.g. a genuinely ambiguous schema conflict), in which case fall back to
-asking the user in main.
-
-Follow the planning prompt instructions to produce `BUILD_PLAN.json`. The plan must conform to `src/build_plan_schema.json`.
-
-Write the plan to disk, then validate:
-
-```python
-import json
-with open("BUILD_PLAN.json", "w", encoding="utf-8") as f:
-    json.dump(plan, f, indent=2)
-```
+Spawn one agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
+on `models.planner` from `skill_config.json` (absent: the strongest available model -- a
+topology error here costs a rebuild of every part). It has no user channel and returns the
+plan JSON as its final message. Write that to `BUILD_PLAN.json` (indent 2), then:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
 ```
 
-If the write fails (e.g. the working directory is not writable), surface the error and ask the user to confirm or change the working directory before continuing.
+On rejection, resume the same planner agent with the error list; repeat until it validates
+or needs a user decision. Then append `- phase2/plan_written: BUILD_PLAN.json validated, <n>
+parts` to `build/journal.md`.
 
-Once `plan_validate.py` passes, append one line to `build/journal.md` (see
-`skill/resume.md`):
+**`parameters.py`:** add or amend a sourced constant (with its source comment) only when
+planning introduced a real-world measurement Phase 1 did not capture.
 
-```
-- phase2/plan_written: BUILD_PLAN.json validated, <n> parts
-```
-
-**Update `parameters.py`** at the project root alongside `BUILD_PLAN.json`, only if
-planning introduced or changed a measurement not already captured when Phase 1's
-exit checkpoint was approved (`skill/phase1_requirements.md` writes the
-file from scratch at that point, before this phase starts). Add or amend named
-constants the same way, each commented with its source; leave the rest of the file
-untouched. Skip this step entirely when planning added nothing new -- which is the
-common case, since almost every sourced measurement was already captured at the
-checkpoint.
-
-**Carry `intent` forward unchanged.** The approved reformulation Phase 1 wrote is
-copied verbatim into the plan's `intent` (`prompts/planning.md` rule 16) and is not
-authored, paraphrased, or amended here. If the decomposition would build something the
-approved `intent` does not describe, revise the decomposition -- never edit `intent` to
-match it. Only an approved correction rewrites `intent`, in Phase 3.
-
-This file is separate from each part script's own internal `PARAMETERS` block (which
-holds resolved/derived geometry values, not necessarily the raw sourced ones) -- and
-separate from `planning_notes`, which is bounded to decisions-against, cross-part
-invariants, and assembly procedure/hardware (`prompts/planning.md` rule above the
-numbered rules) rather than listing values for reuse, and describes only the current
-design state (never a round-by-round changelog -- that history belongs exclusively in
-`request_log`).
-
-**Printer profile write-back:** if the plan's `printer`, `material`, `nozzle_mm`, or any
-`constraints` field differs from `printer_profile.json` and the user did not flag the value as
-a one-time exception during Phase 1, write the changed field(s) back so the profile stays the
-project default:
+**Printer profile write-back:** for each `printer`, `material`, `nozzle_mm`, or
+`constraints` value that differs from `printer_profile.json` and was not flagged as a
+one-time exception:
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json --set nozzle_mm=0.6
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json --set nozzle_mm=0.6 --set constraints.overhang_max_deg=50
 ```
 
-Repeat `--set` for each changed field (dotted for constraints, e.g.
-`--set constraints.overhang_max_deg=50`). Announce the update to the user in the same turn
-("Updated printer_profile.json: nozzle_mm -> 0.6"). Skip this step entirely when the plan
-matches the profile, or when the user asked for a one-time exception.
+and tell the user ("Updated printer_profile.json: nozzle_mm -> 0.6").
 
-**Vocabulary rules for all user-facing text in this phase (and Phase 3):**
+## Vocabulary (all user-facing text in Phases 2 and 3)
 
-- Use compass/up-down terms (North/South/East/West, up/down) for any spatial
-  reference, per the coordinate table in `prompts/planning.md`. Use
-  left/right/front/back only when directly quoting the user's own words.
-- Describe a partial revolution (a hinge sweep, a dial or screw-pattern angular
-  position) as a clock position on the view whose sight-line is the rotation
-  axis -- above<->Z, South<->Y, West<->X (e.g. "swings to the 90° position in
-  the above view") -- never as "clockwise"/"counterclockwise": right-hand-rule-
-  positive rotation reads clockwise on South/West but counterclockwise on
-  above, so a bare direction word has no axis-independent correct sign. For an
-  axis not aligned to X/Y/Z, name the start and end reference features instead
-  of a clock position.
-- Every part id or interface name the planner coined (rule 2a in
-  `prompts/planning.md`) -- i.e. not a word the user themselves used -- must be
-  introduced explicitly in the summary below, e.g. "I'm calling the bottom part
-  `base`." so the user can correct it before Phase 3 starts. A colliding user
-  noun that got a disambiguating suffix is introduced the same way (state the
-  mapping, e.g. "two features are both called `hole` -- the second is `hole_2`").
+- Spatial references use compass/up-down terms (North = +Y, East = +X, Up = +Z);
+  left/right/front/back only when quoting the user.
+- A partial revolution is a clock position on the view looking down the rotation axis
+  (above <-> Z, South <-> Y, West <-> X), e.g. "swings to the 90° position in the above
+  view" -- never "clockwise", whose sign flips between views. For an off-axis rotation,
+  name the start and end reference features.
 
-Display a human-readable Markdown summary of the validated plan (do not show raw JSON in chat) and confirm the write path using the absolute path:
+## Plan summary checkpoint
 
-> Written to: `/absolute/path/to/BUILD_PLAN.json`
-
-(Use `os.path.abspath("BUILD_PLAN.json")` or `Path("BUILD_PLAN.json").resolve()` to obtain the absolute path before displaying it.)
-
-The summary must include:
-
-**Printer / Material**
-
-| Printer | Material | Nozzle |
-|---------|----------|--------|
-| `<printer>` | `<material>` | `<nozzle_mm>` mm |
-
-**Parts**
-
-| # | ID | Description | W x D x H (mm) | Orientation | Load | Pose | Blocks |
-|---|-----|-------------|----------------|-------------|------|------|--------|
-| 1 | ... | ... | ... x ... x ... | ... | ... | ... | ... |
-
-(The `Load` column shows each part's `load.dir` hint (plus `load.type` when it differs
-from the `tension` default, e.g. `compression`), or `inferred` when the part omits it —
-it drives print-orientation strength scoring. The `Pose` column shows each part's
-`pose_intent` verbatim, or `(none)` when absent -- never render `rotate`/`translate_mm`
-values here; the part author supplies and writes back `placement` in Phase 3.)
-
-**Print optimization**
-
-State the plan-level `optimize_for` (`strength` default, `min_support`, or
-`visual_quality`) and call out any part that overrides it. For `visual_quality`, note each
-part's `show_face.dir` (or `inferred`). This is the objective the print-orientation step
-uses.
-
-**Review policy**
-
-State the plan's effective `review_policy` (`every_stage` default, `checkpoints`, or
-`minimal`) and one line on what it means for this build: `every_stage` -- every part
-shows a profile-stub checkpoint and then a checkpoint per stage (base shape, features,
-finishing); `checkpoints` -- every part shows the stub checkpoint, but only parts with an
-interface or 3+ blocks get per-stage checkpoints; `minimal` -- no stub and no stage
-checkpoints. This is the setting the Phase 3 part loop reads to decide when to
-pause for review.
-
-**Interfaces** (omit section if no part has any interfaces)
-
-| Part | Name | Type | Connector | Wall | Position (mm) |
-|------|------|------|-----------|------|---------------|
-| ... | ... | ... | ... | ... | ... |
-
-(The `Name` column is the agreed vocabulary word -- `interfaces[].name` verbatim,
-whether it came from the user or was coined by the planner and introduced above.
-This table is what the checkpoint preview's callout legend will echo once a
-callout-annotated render exists, so names here should match exactly.)
-
-**Constraints**
-
-| Wall min | Overhang max | Dim tolerance |
-|----------|-------------|---------------|
-| `<wall_min_mm>` mm | `<overhang_max_deg>` deg | `<dimension_tolerance_mm>` mm |
-
-**Design proposals** (omit section if `planning_notes` proposes nothing)
-
-Surface any proposal the planning step made on its own initiative — most commonly the
-`shadow_gap` block (`blocks.joints`) on a visible multi-part seam (see
-`prompts/planning.md` rule 12) — as an explicit line the user can accept or decline,
-e.g.:
-
-> Proposed: `shadow_gap` along the quadrant seams (visible on the finished piece) —
-> a return-lip on the front member with a ~1 mm reveal, so fit tolerance shows as a
-> deliberate line instead of a raw gap. Reply to decline for a flush seam.
-
-Do not let this sit silently inside `planning_notes` where the user won't see it —
-it must appear in the chat-visible summary.
-
-After displaying the summary, wait for the user to approve or request edits. If the user edits `BUILD_PLAN.json` on disk before confirming, re-validate from disk before proceeding to Phase 3.
-
-Once approved, append one line to `build/journal.md` (see `skill/resume.md`):
-
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_summary.py" BUILD_PLAN.json
 ```
-- phase2/plan_approved: <n> parts, review_policy <policy>
-```
+
+Show its Markdown output (never raw JSON), then add:
+
+- **Names I chose:** every part id or interface name that is not the user's own word, e.g.
+  "I'm calling the bottom part `base`", and any suffix disambiguation ("the second `hole`
+  is `hole_2`").
+- **Design proposals:** anything `planning_notes` proposes on the planner's initiative
+  (e.g. `shadow_gap` on a visible seam), one line each, to accept or decline.
+- **Open questions:** every `OPEN:` item in `planning_notes` (an unverified `-1` dimension,
+  an unclear fit or load, ...). Resolve each with the user, then resume the planner with
+  the answers and re-validate before Phase 3.
+
+Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk, re-validate
+first. On approval append `- phase2/plan_approved: <n> parts, review_policy <policy>` to
+`build/journal.md`.
