@@ -476,11 +476,13 @@ When the user has named a part or feature in their request or during the
 conversation, `prompts/planning.md` SHALL instruct the planner to use that word as the
 corresponding part `id` or `interfaces[].name`, normalized only mechanically
 (lowercased, spaces and hyphens to underscores) -- never replaced by a synonym. The
-planner SHALL coin names only for parts and features the user never named, and the
-plan-summary checkpoint SHALL introduce every coined name explicitly so the user can
-correct it before the build loop starts. When normalization produces a collision with
-an existing id, the planner SHALL disambiguate with a suffix and surface the rename in
-the summary.
+planner SHALL coin names only for parts and features the user never named. Every coined
+name SHALL be introduced to the user before the build loop starts via `plan_summary.py`'s
+**Names I chose** section (see `plan-summary-checkpoint` spec), which detects a coined
+name automatically by checking each part id and interface name against `request_log`
+rather than requiring the reviewing session to spot it by reading `planning_notes`. When
+normalization produces a collision with an existing id, the planner SHALL disambiguate
+with a suffix and surface the rename in the summary.
 
 #### Scenario: User noun becomes the plan name
 
@@ -491,14 +493,15 @@ the summary.
 #### Scenario: Coined names are introduced at the checkpoint
 
 - **WHEN** the plan contains a part the user never named
-- **THEN** the plan summary states the coined name for it (e.g. "the bottom part is
-  called `base`") before the user is asked to approve the plan
+- **THEN** `plan_summary.py`'s **Names I chose** section lists that part's id before the
+  user is asked to approve the plan
 
 #### Scenario: Colliding user nouns are disambiguated visibly
 
 - **WHEN** the user names two distinct features with the same word
-- **THEN** the plan disambiguates them with suffixes and the summary states the
-  mapping, rather than silently renaming one
+- **THEN** the plan disambiguates them with suffixes and the plan summary states the
+  mapping (in `planning_notes`, surfaced at the checkpoint), rather than silently
+  renaming one
 
 ---
 
