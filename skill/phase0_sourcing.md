@@ -114,8 +114,9 @@ Phase 1 (`skill/phase1_requirements.md`).
 Once the ladder resolves (any rung, including rung 5), append one line to
 `build/journal.md` (see `skill/resume.md` for the contract):
 
-```
-- phase0/rung_decision: rung <n>, source <url or "none">, license <verdict or "n/a">
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+    phase0/rung_decision "rung <n>, source <url or \"none\">, license <verdict or \"n/a\">"
 ```
 
 ## License check (mandatory at rungs 1-4)
