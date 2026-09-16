@@ -129,10 +129,10 @@ or calling any script listed below.
     build_template.py        # build.py template copied to build/; regenerates plates in print orientation
     telemetry.py             # Append-only per-attempt log -> build/attempts.jsonl
                               # (append CLI, fold_attempts, --hook PostToolUse entry point)
-                              # (build/journal.md is a milestone log the orchestrator appends to
-                              # directly per skill/resume.md -- no dedicated script)
+    journal.py                # Append-only milestone log -> build/journal.md (append CLI, see skill/resume.md)
     session_cost.py          # Session transcript -> billed token cost in build/cost.json (Stop hook)
-    request_log_search.py    # Search BUILD_PLAN.json's request_log by keyword/kind
+    request_log_search.py    # BUILD_PLAN.json's request_log: search (keyword/kind/level/target) and
+                              # add (append a clarification/correction with an auto-stamped ts) subcommands
     regen_prompt.py          # BUILD_PLAN.json + parameters.py + sketches/ -> REGENERATE.md (Phase 4)
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer

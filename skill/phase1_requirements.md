@@ -21,8 +21,11 @@ When the request's shape has more than one plausible reading (a recessed pit vs.
 rim, which end of a taper is wide, a bare dimension with no stated reference, a feature on
 top of vs. inside another), resolve it before any dimension lookup: draw a small labeled
 cross-section (a diagram tool if available, else ASCII) and ask a direct either/or
-question naming both readings. Wait for the answer, then append
-`- phase1/topology_confirmed: <confirmed reading>` to `build/journal.md`.
+question naming both readings. Wait for the answer, then:
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+    phase1/topology_confirmed "<confirmed reading>"
+```
 
 ## Ask vs. assume
 
@@ -96,5 +99,8 @@ TV_BASE_WIDTH_MM = 385.0   # user-stated
 IPHONE_15_PRO_WIDTH_MM = 70.6  # apple.com/iphone-15-pro/specs, confirmed vs. gsmarena.com
 ```
 
-Then append `- phase1/dimensions_approved: parameters.py written, <n> dimensions recorded`
-to `build/journal.md` (skip when nothing was looked up).
+Then (skip when nothing was looked up):
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+    phase1/dimensions_approved "parameters.py written, <n> dimensions recorded"
+```

@@ -20,21 +20,19 @@ yourself.
 
 Spawn one agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
 on `models.planner` from `skill_config.json` (absent: the strongest available model -- a
-topology error here costs a rebuild of every part). It has no user channel. It writes
-`BUILD_PLAN.json` (indent 2) itself, runs `plan_validate.py` itself, and retries against
-its own validator errors internally (up to 3 attempts, same convention as the builder
-agent in Phase 3) before returning its status contract (`status`, `parts`, `attempts`,
-`open_items`, `error_summary`) as its final message -- never the plan JSON.
+topology error here costs a rebuild of every part). It has no user channel and returns the
+plan JSON as its final message. Write that to `BUILD_PLAN.json` (indent 2), then:
 
-- `status: "valid"` -> append `- phase2/plan_written: BUILD_PLAN.json validated, <n>
-  parts` to `build/journal.md` and proceed to the plan summary checkpoint below.
-- `status: "blocked"` -> the agent exhausted its retries with validator errors remaining
-  (`error_summary`). Summarize the errors to the user, get a decision, and resume the same
-  planner agent with it -- never spawn a second planner.
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json
+```
 
-Read `BUILD_PLAN.json` from disk only if you need to inspect it yourself; the plan summary
-checkpoint below reads it through `plan_summary.py`, not through this session parsing the
-agent's reply.
+On rejection, resume the same planner agent with the error list; repeat until it validates
+or needs a user decision. Then:
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+    phase2/plan_written "BUILD_PLAN.json validated, <n> parts"
+```
 
 **`parameters.py`:** add or amend a sourced constant (with its source comment) only when
 planning introduced a real-world measurement Phase 1 did not capture.
