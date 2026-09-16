@@ -393,6 +393,7 @@ def render_planning(
             "ARCHETYPE_INDEX": _index_lines(archetypes, with_file=True),
             "FDM_GUIDELINES": fdm,
             "PRINTER_PROFILE": profile_text,
+            "SKILL_DIR": SKILL_DIR.as_posix(),
         },
     )
     return text, status, profile_errors
