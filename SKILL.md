@@ -7,7 +7,7 @@ description: Design or redesign 3D-printable parts as parametric CadQuery models
 
 | Command | Action |
 |---------|--------|
-| `/cq-design` or a natural-language trigger | Full pipeline (phases 0-4) |
+| `/cq-design` | Full pipeline (phases 0-4) |
 | `/cq-plan` | Phases 1-2 only; stop once `BUILD_PLAN.json` is approved |
 | `/deliver <script.py>` | Export STL and 3MF for an existing script |
 | `/render <script.py>` | Render a multi-view preview PNG for an existing script |
