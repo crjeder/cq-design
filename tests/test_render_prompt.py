@@ -64,6 +64,25 @@ def test_validate_args_callouts_and_unlocated():
     assert "--attempts-log build/attempts.jsonl --model " in args
 
 
+def test_validate_args_expected_dims_only_when_final():
+    plan, part = _plan()
+    final = rp.validate_args(plan, part, True)
+    non_final = rp.validate_args(plan, part, False)
+    assert "--expected-dims" in final and "--dim-tolerance" in final
+    assert "--expected-dims" not in non_final and "--dim-tolerance" not in non_final
+    assert "--wall-min" in non_final and "--strict" in non_final
+
+
+def test_render_builder_checks_dims_only_on_final_stage():
+    plan, part = _plan()
+    text, part_stages = rp.render_builder(plan, part, None, None)
+    assert part_stages == ["profile_stub", "base_shape", "features", "finishing"]
+    commands = text.split("# profile_stub", 1)[1]
+    non_final_block, final_block = commands.rsplit("# finishing", 1)
+    assert "--expected-dims" not in non_final_block
+    assert "--expected-dims 80,50,4" in final_block
+
+
 def test_builder_cli_prints_configured_model(tmp_path, monkeypatch, capsys):
     plan, _ = _plan()
     (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
