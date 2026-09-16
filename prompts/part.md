@@ -13,41 +13,30 @@ parameters, or guards beyond what the part specification and the required `cq_ve
 points call for, and do not substitute a different structure for the one specified.
 
 ### Contract rules
-1. Import `cadquery as cq`, then `from blocks import <function>` for each block listed under Available blocks (flat package import; never `from blocks.<module> import ...`)
-2. Define all dimensions in a PARAMETERS section at the top, never magic numbers in geometry
-3. Assign the final result to a top-level variable named `result` -- a single
-   `Workplane`, or, if this part declares unions (see Part specification below), a dict
-   mapping each union id to its own `Workplane`, e.g.
-   `result = {"leaf_a": <wp>, "leaf_b": <wp>}` for one script building several
-   rigid bodies in one coordinate frame
-4. Guard silent-failure points with `cq_verify` assertions (see below)
-5. Write a comment only to record a constraint, intent, or derivation the code cannot
-   show on its own -- a tolerance's origin, why a dimension is what it is, a
-   non-obvious ordering. A comment never restates what the following line does.
-   The construction-plan `verify_stage` labels are required content, not narration,
-   and are exempt from this rule.
+`script_lint.py` enforces rules 1-3 and the no-export rule mechanically.
+
+1. `import cadquery as cq`, then a flat `from blocks import <function>` per block under
+   Available blocks (never `from blocks.<module> import ...`).
+2. Every dimension is a named parameter in a `PARAMETERS` section at the top; no magic
+   numbers in geometry.
+3. Assign a top-level `result`: one `Workplane`, or, when this part declares unions, a dict
+   keyed by exactly those union ids (`result = {"leaf_a": <wp>, "leaf_b": <wp>}`).
+4. Guard silent-failure points with `cq_verify` (see below).
+5. Comment only a constraint, intent, or derivation the code cannot show (a tolerance's
+   origin, a non-obvious ordering), describing the current state only -- never restate
+   the next line, never a round-by-round changelog. `verify_stage` labels are exempt.
 6. Report `placement`: the transform carrying the part frame into the stated **Pose
    intent** in the assembled frame -- an ordered `rotate` list (`{axis, angle_deg}`
    steps, applied in that order) followed by `translate_mm`. Rotation and translation
    only, never a mirror. Report `null` when the part frame already equals the stated
    pose, or when the pose intent says the part is mate-chained.
-7. Report the engineering rationale (see Engineering rationale below) -- derived from the
-   script you just wrote, never embedded in the script itself.
-8. Build a print-in-place revolute knuckle hinge via `blocks.joints.pin_hinge` (it
-   already seats its leaves at the knuckle tangent), not hand-rolled from primitives.
-   Only hand-roll the knuckle when the part's geometry is incompatible with
-   `pin_hinge`'s two-leaf shape -- and then declare the flat-support-to-round-knuckle
-   join with `verify_seated` (see below).
-
-### Do not:
-1. call cq.exporters.export() -- the runner handles export
-2. Perform engineering validation (FEA, dynamics, etc.)
-3. Make aesthetic judgments
-4. Assume GUI operation capabilities
-5. Write OpenSCAD (.scad) -- this pipeline requires Python/CadQuery only
-6. Write round-by-round changelog narrative in comments (e.g. "ROUND 2: changed X",
-   "SUPERSEDED by round N") -- comments describe only the current state of this script;
-   delete a stale comment rather than annotating it as superseded.
+7. Report the engineering rationale (see below), derived from the script; never embed it
+   in the script.
+8. Build a print-in-place revolute knuckle hinge with `blocks.joints.pin_hinge`. Hand-roll
+   one only when the geometry cannot take its two-leaf shape, and then declare the
+   flat-support-to-knuckle join with `verify_seated`.
+9. Never call `cq.exporters.export()`; the runner exports. CadQuery/Python only, no
+   OpenSCAD.
 
 ## Coordinate frames
 
@@ -85,28 +74,6 @@ South -Y, West -X, Up +Z, Down -Z.
 - Wall minimum: {{WALL_MIN_MM}} mm
 - Overhang maximum: {{OVERHANG_MAX_DEG}} degrees
 - Material: {{MATERIAL}}, nozzle: {{NOZZLE_MM}} mm
-
-## Script structure
-
-```python
-import cadquery as cq
-
-# ============================================================
-# PARAMETERS
-# ============================================================
-width = {{W_MM}}
-depth = {{D_MM}}
-height = {{H_MM}}
-wall = {{WALL_MIN_MM}}
-# ... other parameters
-
-# ============================================================
-# MODEL
-# ============================================================
-result = (
-    # ... geometry here
-)
-```
 
 ## Engineering rationale
 

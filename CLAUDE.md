@@ -10,7 +10,7 @@ Sourcing Triage -> Planning -> Part Loop -> Model Export -> Quality Gate.
 
 The skill definition lives in `SKILL.md` (trigger, contracts, and per-phase pointers)
 with phase detail split into `skill/phase1_requirements.md` through
-`skill/phase4_deliver.md`, plus `skill/phase0_sourcing.md` and `skill/setup.md`,
+`skill/phase4_deliver.md`, plus `skill/phase0_sourcing.md` and `skill/resume.md`,
 read on demand as each phase starts.
 Claude itself drives
 the pipeline inline (reads `BUILD_PLAN.json`, writes each part script, runs the tool
@@ -23,7 +23,7 @@ execute in sub-agents rather than inline in the main session -- see `ARCHITECTUR
 for the agent roster and `skill/phase1_requirements.md` / `skill/phase2_planning.md` /
 `skill/phase3_build.md` for the invocation, return-contract, and escalation details.
 The agent-routing gate itself (autonomous vs. progressive per part) lives in
-`skill/phase3_build.md`'s Agent routing gate section; user checkpoints always stay in
+`skill/phase3_build.md`'s Routing section; user checkpoints always stay in
 the main session regardless of routing.
 
 ## Python Version Constraint
@@ -108,7 +108,9 @@ or calling any script listed below.
     print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost
     convert_build123d.py     # Phase 0 sourcing aid: build123d -> CadQuery conversion
     cq_compat.py             # Compatibility shim neutralizing a cq_warehouse shape-copy patch
-    init_permissions.py      # Seeds a working directory's .claude/settings.local.json (permission patterns + the session-cost Stop hook)
+    init_permissions.py      # Seeds a working directory: .claude/settings.local.json (patterns + hooks), build/stl/preview dirs, default printer_profile.json + skill_config.json
+    bundle_project.py        # Copies build.py, lib/ tooling, and the uv project template into a working directory
+    plan_summary.py          # BUILD_PLAN.json -> Phase 2 checkpoint Markdown tables
     printer_profile_validate.py # printer_profile.json schema validation + field write-back
     import_params.py         # Reconcile a part script's PARAMETERS block back into BUILD_PLAN.json
     kinematic_check.py       # Whole-model range-of-motion sweep (trimesh + fcl)
@@ -182,7 +184,7 @@ or calling any script listed below.
     gridfinity_bin.py, gridfinity_baseplate.py   # Known-good, pre-verified whole-part templates,
                                     # one per archetype (builder start points)
 
-  skill/                 # Per-phase SKILL.md detail (setup, phase0-4, resume), read on demand
+  skill/                 # Per-phase SKILL.md detail (phase0-4, resume), read on demand
   reference/             # Injected design references (CadQuery patterns, FDM DFM, hardware_dims)
   openspec/              # OpenSpec specs and change history
 
@@ -196,6 +198,7 @@ or calling any script listed below.
     test_stl_to_3mf.py               # 3MF export path
     test_cq_warehouse_integration.py # cq_warehouse fastener integration
     test_plan_validate.py            # Schema validation -- fast, no CadQuery
+    test_plan_summary.py             # Phase 2 summary rendering -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
     test_render_prompt.py            # Builder/audit/planning/research prompt rendering -- fast, no CadQuery
