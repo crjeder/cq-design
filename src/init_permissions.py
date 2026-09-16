@@ -2,7 +2,8 @@
 """Seed a working directory's .claude/settings.local.json with the cq-design skill's
 permission allow-patterns, so the user is not prompted for each skill-issued tool call.
 Also scaffolds the documented top-level working-directory tree (build/, stl/, preview/)
-so it exists up front instead of appearing piecemeal as different pipeline scripts run.
+so it exists up front instead of appearing piecemeal as different pipeline scripts run,
+and seeds printer_profile.json and skill_config.json from their defaults when absent.
 
 The canonical pattern list lives in skill_permissions.json beside this file. The merge
 is additive and order-preserving: existing entries and other settings keys are never
@@ -19,6 +20,7 @@ Exit codes (--check mode): 0 if the sentinel pattern is already present, 1 if no
 import argparse
 import json
 import os
+import shutil
 import sys
 from typing import Any
 
@@ -70,6 +72,26 @@ def scaffold_directories(working_dir: str) -> list[str]:
         path = os.path.join(working_dir, name)
         if not os.path.isdir(path):
             os.makedirs(path)
+            created.append(name)
+    return created
+
+
+_SEEDED_FILES = {
+    "printer_profile.json": "printer_profile.default.json",
+    "skill_config.json": "skill_config.default.json",
+}
+
+
+def seed_default_files(working_dir: str) -> list[str]:
+    """Copy each default config into working_dir when absent; never overwrite.
+
+    Returns the file names actually created.
+    """
+    created = []
+    for name, default in _SEEDED_FILES.items():
+        path = os.path.join(working_dir, name)
+        if not os.path.exists(path):
+            shutil.copyfile(os.path.join(os.path.dirname(__file__), default), path)
             created.append(name)
     return created
 
@@ -199,6 +221,9 @@ def main() -> int:
     if created:
         noun = "directory" if len(created) == 1 else "directories"
         print(f"Created {len(created)} {noun}: {', '.join(created)}")
+
+    for name in seed_default_files(args.dir):
+        print(f"Seeded {name} with defaults -- edit it to match your printer / model routing.")
 
     return 0
 

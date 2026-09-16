@@ -30,7 +30,7 @@ role runs in the calling session with no spawn and no `--model` flag.
 
 ### Requirement: The config is seeded, never overwritten
 
-`skill/setup.md` SHALL copy `src/skill_config.default.json` to `./skill_config.json`
+`src/init_permissions.py` SHALL copy `src/skill_config.default.json` to `./skill_config.json`
 only when no `skill_config.json` exists in the working directory, mirroring the
 `printer_profile.json` seeding step. An existing file SHALL NOT be overwritten,
 re-seeded, or merged.
