@@ -64,6 +64,27 @@ def test_validate_args_callouts_and_unlocated():
     assert "--attempts-log build/attempts.jsonl --model " in args
 
 
+def test_builder_cli_prints_configured_model(tmp_path, monkeypatch, capsys):
+    plan, _ = _plan()
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+    (tmp_path / "skill_config.json").write_text(
+        json.dumps({"models": {"part_author": "claude-haiku-4-5-20251001"}}), encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    assert rp.main(["builder", "--plan", "BUILD_PLAN.json", "--part", "lid"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["model"] == "claude-haiku-4-5-20251001"
+
+
+def test_builder_cli_prints_default_model_without_config(tmp_path, monkeypatch, capsys):
+    plan, _ = _plan()
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert rp.main(["builder", "--plan", "BUILD_PLAN.json", "--part", "lid"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["model"] == "claude-sonnet-5"
+
+
 def test_every_eval_case_renders_without_placeholders(tmp_path):
     for case in sorted(p for p in CASES.iterdir() if p.is_dir()):
         plan = json.loads((case / "BUILD_PLAN.json").read_text(encoding="utf-8"))
