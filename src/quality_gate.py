@@ -42,6 +42,23 @@ _HINGE_GUARD_CALL_NAMES = {"verify_seated", "verify_backed", "pin_hinge"}
 # as trivial. Advisory only, so this is tunable without affecting pass/fail.
 COSMETIC_SLOPE_MIN_AREA_MM2 = 20.0
 
+# Per-type overrides for the caller's routing action, keyed by finding `type`. Every
+# type not listed here takes the severity default (see _DEFAULT_ACTION): a single
+# mechanical fix isn't the right response for these -- see design.md's Decisions.
+_ACTION_OVERRIDE = {
+    "stale_artifact": "re_export",
+    "motion_collision": "ask_user",
+    "range_exceeds_limit": "ask_user",
+    "contact_limited_stop": "ask_user",
+}
+_DEFAULT_ACTION = {"error": "fix", "warning": "warn_only", "info": "warn_only"}
+
+
+def _classify_action(issue: dict) -> str:
+    """Caller-routing action for a finding, derived from its `type` and `severity`."""
+    return _ACTION_OVERRIDE.get(issue["type"], _DEFAULT_ACTION[issue["severity"]])
+
+
 # ---------------------------------------------------------------------------
 # DFM check via wrapper
 # ---------------------------------------------------------------------------
@@ -992,6 +1009,8 @@ def run_gate(
         all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
         # ---- Gridfinity conformance (Gridfinity parts only, once, outside the fix loop) ----
         all_issues += _run_gridfinity_stage(script_path)
+    for issue in all_issues:
+        issue["action"] = _classify_action(issue)
     errors = [i for i in all_issues if i["severity"] == "error"]
     passed = not errors
     needs_support = any(
