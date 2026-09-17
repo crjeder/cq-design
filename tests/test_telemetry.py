@@ -246,3 +246,54 @@ def test_record_attempt_numbers_attempts_and_skips_stubs(tmp_path):
         (2, "pass", 42),
     ]
     assert records[0]["error_types"] == ["occ_exception"]
+
+
+def test_audit_fail_appends_derived_record(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    log = tmp_path / "build" / "attempts.jsonl"
+    log.parent.mkdir()
+    (log.parent / "lid_prompt_attempt2.txt").write_text("x" * 77, encoding="utf-8")
+    (tmp_path / "skill_config.json").write_text(
+        json.dumps({"models": {"part_author": "claude-sonnet-5"}}), encoding="utf-8"
+    )
+    telemetry.append_attempt(log, _valid_record(part_id="lid", attempt=1, outcome="pass"))
+    telemetry.append_attempt(log, _valid_record(part_id="lid", attempt=2, outcome="pass"))
+    audit_path = tmp_path / "lid_audit.json"
+    audit_path.write_text(
+        json.dumps({"verdict": "fail", "failed_questions": ["Does the lid seat flush?"]}),
+        encoding="utf-8",
+    )
+    telemetry.audit_fail(log, "lid", audit_path)
+    records = [r for r in _lines(log) if r["part_id"] == "lid"]
+    folded = telemetry.fold_attempts(records)
+    (entry,) = [r for r in folded if r["attempt"] == 2]
+    assert entry["outcome"] == "fail"
+    assert entry["error_types"] == ["visual_mismatch"]
+    assert entry["model"] == "claude-sonnet-5"
+    assert entry["prompt_chars"] == 77
+    assert entry["visual_review"] == {
+        "passed": False,
+        "failed_question": "Does the lid seat flush?",
+    }
+
+
+def test_audit_fail_errors_without_prior_attempt(tmp_path):
+    log = tmp_path / "build" / "attempts.jsonl"
+    audit_path = tmp_path / "lid_audit.json"
+    audit_path.write_text(
+        json.dumps({"verdict": "fail", "failed_questions": ["q"]}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError):
+        telemetry.audit_fail(log, "lid", audit_path)
+    assert not log.exists()
+
+
+def test_audit_fail_errors_on_no_failed_questions(tmp_path):
+    log = tmp_path / "build" / "attempts.jsonl"
+    log.parent.mkdir()
+    telemetry.append_attempt(log, _valid_record(part_id="lid", attempt=1))
+    audit_path = tmp_path / "lid_audit.json"
+    audit_path.write_text(json.dumps({"verdict": "fail", "failed_questions": []}), encoding="utf-8")
+    with pytest.raises(ValueError):
+        telemetry.audit_fail(log, "lid", audit_path)
+    assert len(_lines(log)) == 1

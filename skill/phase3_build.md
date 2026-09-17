@@ -119,12 +119,11 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/jo
        phase3/part_accepted:<part_id> "audit passed"
    ```
    and report any `findings` to the user under their own "Advisory" heading.
-3. **`verdict: fail`** -> record the verdict on the builder's last attempt:
+3. **`verdict: fail`** -> write the auditor's JSON contract to `build/<part_id>_audit.json`,
+   then record the verdict on the builder's last attempt:
    ```bash
-   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" append build/attempts.jsonl \
-       --field 'part_id=<part_id>' --field 'attempt=<contract attempts>' --field 'outcome=fail' \
-       --field 'error_types=["visual_mismatch"]' --field 'prompt_chars=<chars>' --field 'model=<builder model>' \
-       --field 'visual_review={"passed": false, "failed_question": "<first failed question>"}'
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" audit-fail \
+       --part <part_id> --audit build/<part_id>_audit.json
    ```
    Resume the builder with `fix:` listing each failed question, its view, discrepancy, and
    any `missing_views`, then re-audit its new contract with a fresh auditor. One such
