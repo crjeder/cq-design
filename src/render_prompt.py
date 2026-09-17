@@ -30,7 +30,7 @@ from pathlib import Path
 from plan_validate import _is_load_bearing
 from printer_profile_validate import validate_profile
 from request_log_search import search_request_log
-from telemetry import _read_records, fold_attempts
+from telemetry import _read_records, fold_attempts, part_author_model
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 REF = SKILL_DIR / "reference"
@@ -123,16 +123,6 @@ def section_cuts(plan: dict, part: dict) -> list[str]:
         ranked.append((key, f"{axis}={pos['xyz'.index(axis)]:g}"))
     ranked.sort(key=lambda r: r[0])
     return [cut for _, cut in ranked[:MAX_SECTIONS]]
-
-
-def part_author_model() -> str:
-    """`models.part_author` from ./skill_config.json, else the seeded default."""
-    for path in (Path("skill_config.json"), SKILL_DIR / "src/skill_config.default.json"):
-        if path.is_file():
-            model = json.loads(_read(path)).get("models", {}).get("part_author")
-            if model and model != "inline":
-                return model
-    return "unknown"
 
 
 def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
