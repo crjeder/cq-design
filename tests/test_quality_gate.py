@@ -410,6 +410,52 @@ def test_call_claude_no_model_flag_when_inline(monkeypatch, tmp_path):
     assert captured["cmd"] == ["claude", "-p", "fix this", "--tools", ""]
 
 
+# ---- finding action classification ----------------------------------------
+
+
+def test_classify_action_error_defaults_to_fix():
+    issue = {"type": "non_watertight", "severity": "error"}
+    assert quality_gate._classify_action(issue) == "fix"
+
+
+def test_classify_action_warning_defaults_to_warn_only():
+    issue = {"type": "edge_treatment", "severity": "warning"}
+    assert quality_gate._classify_action(issue) == "warn_only"
+
+
+def test_classify_action_info_defaults_to_warn_only():
+    issue = {"type": "overhang_exceeded", "severity": "info"}
+    assert quality_gate._classify_action(issue) == "warn_only"
+
+
+@pytest.mark.parametrize("severity", ["error", "warning"])
+def test_classify_action_stale_artifact_always_re_export(severity):
+    issue = {"type": "stale_artifact", "severity": severity}
+    assert quality_gate._classify_action(issue) == "re_export"
+
+
+@pytest.mark.parametrize(
+    "type_", ["motion_collision", "range_exceeds_limit", "contact_limited_stop"]
+)
+@pytest.mark.parametrize("severity", ["error", "warning"])
+def test_classify_action_ambiguous_remedy_types_always_ask_user(type_, severity):
+    issue = {"type": type_, "severity": severity}
+    assert quality_gate._classify_action(issue) == "ask_user"
+
+
+def test_run_gate_sets_action_on_every_issue(monkeypatch, tmp_path):
+    error_issue = {
+        "source": "wrapper",
+        "severity": "error",
+        "type": "non_watertight",
+        "message": "not watertight",
+        "hint": "fix it",
+    }
+    report = _run_gate_with_geo_issues(monkeypatch, tmp_path, [error_issue])
+    assert all("action" in i for i in report["issues"])
+    assert next(i for i in report["issues"] if i["type"] == "non_watertight")["action"] == "fix"
+
+
 def test_default_run_gate_reports_without_fixing(monkeypatch, tmp_path):
     # Regression: allow_fix defaults to False, so an erroring script must be left
     # byte-identical and no fix round should run.

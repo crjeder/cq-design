@@ -234,22 +234,19 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/quality_gate.py" \
     --stl-dir stl --orientation build/<part_id>.orientation.json
 ```
 
-Read `build/quality_gate.json`. The gate is report-only (never pass `--fix`).
+Read `build/quality_gate.json`. The gate is report-only (never pass `--fix`). Route each
+finding by its own `action` field, not by its `type`:
 
-- **`severity: error`** -> resume the part's builder with `fix: <type>: <message> (hint:
-  <hint>)`, re-audit if geometry changed, re-export, re-run the gate. At most 2 rounds per
-  part; then summarize the remaining errors to the user.
-- **`stale_artifact`** -> the STL predates an edit: re-run the model export, then the gate.
-- **`motion_collision`** -> names the binding value and `colliding_union`: relieve that
-  geometry, or fix the plan's `kinematics` entry if the declared range is wrong.
-- **`plate_clearance`** -> co-plated unions within one layer height fuse: widen the gap.
-- **`range_exceeds_limit`** -> the required range exceeds the joint's mechanical limit:
-  change the range or the joint.
-- **Warnings** (`contact_limited_stop`, `range_check_not_applicable`, `edge_treatment`,
-  `cosmetic_slope`, `check_skipped`) never trigger a fix round; show them with the print
-  recipe. For `contact_limited_stop`, ask whether the natural stop is the intended rest
-  position (then narrow `required_range`) or should be relieved. Describe ranges as clock
-  positions per the vocabulary rules.
+- **`fix`** -> resume the part's builder with `fix: <type>: <message> (hint: <hint>)`,
+  re-audit if geometry changed, re-export, re-run the gate. At most 2 rounds per part;
+  then summarize the remaining findings to the user.
+- **`re_export`** -> the STL predates an edit: re-run the model export, then the gate. No
+  builder involved.
+- **`ask_user`** -> surface the finding's `message` and `hint` and ask before doing
+  anything; the gate can't pick the remedy on its own (e.g. relieve geometry vs. fix the
+  plan's `kinematics` entry; narrow `required_range` vs. relieve a limited stop). Describe
+  ranges as clock positions per the vocabulary rules.
+- **`warn_only`** -> never triggers a fix round; show it with the print recipe.
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
