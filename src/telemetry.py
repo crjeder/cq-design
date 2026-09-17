@@ -28,6 +28,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+SKILL_DIR = Path(__file__).resolve().parent.parent
+
 _REQUIRED_FIELDS = {
     "part_id": str,
     "attempt": int,
@@ -163,6 +165,27 @@ def _run_hook() -> int:
     return 0
 
 
+def part_author_model() -> str:
+    """`models.part_author` from ./skill_config.json, else the seeded default."""
+    for path in (Path("skill_config.json"), SKILL_DIR / "src/skill_config.default.json"):
+        if path.is_file():
+            model = (
+                json.loads(path.read_text(encoding="utf-8")).get("models", {}).get("part_author")
+            )
+            if model and model != "inline":
+                return model
+    return "unknown"
+
+
+def _prompt_chars(build_dir: Path, part_id: str, attempt: int) -> int | None:
+    """Length of the attempt's rendered prompt file, if one exists on disk."""
+    for name in (f"{part_id}_prompt_attempt{attempt}.txt", f"{part_id}_prompt.txt"):
+        prompt_path = build_dir / name
+        if prompt_path.is_file():
+            return len(prompt_path.read_text(encoding="utf-8"))
+    return None
+
+
 def record_attempt(attempts_log: Path, part_id: str, result: dict, model: str | None) -> None:
     """Append the base record for one run_cadquery_model.py result; skips stubs and
     records missing a required field (fail-open, like the hook)."""
@@ -181,14 +204,40 @@ def record_attempt(attempts_log: Path, part_id: str, result: dict, model: str | 
     }
     if model:
         record["model"] = model
-    build_dir = attempts_log.parent
-    for name in (f"{part_id}_prompt_attempt{attempt}.txt", f"{part_id}_prompt.txt"):
-        prompt_path = build_dir / name
-        if prompt_path.is_file():
-            record["prompt_chars"] = len(prompt_path.read_text(encoding="utf-8"))
-            break
+    prompt_chars = _prompt_chars(attempts_log.parent, part_id, attempt)
+    if prompt_chars is not None:
+        record["prompt_chars"] = prompt_chars
     if not validate_attempt(record):
         append_attempt(attempts_log, record)
+
+
+def audit_fail(attempts_log: str | Path, part_id: str, audit_path: str | Path) -> dict:
+    """Append the visual-review-failure follow-up record for part_id's latest attempt,
+    deriving prompt_chars and model from disk. Raises ValueError if there is no prior
+    attempt for part_id, or the audit JSON has no failed_questions."""
+    attempts_log = Path(attempts_log)
+    audit = json.loads(Path(audit_path).read_text(encoding="utf-8"))
+    failed_questions = audit.get("failed_questions") or []
+    if not failed_questions:
+        raise ValueError(f"audit at {audit_path} has no failed_questions")
+    existing = fold_attempts(
+        [r for r in _read_records(attempts_log) if r.get("part_id") == part_id]
+    )
+    if not existing:
+        raise ValueError(f"no prior attempt for part_id {part_id!r} in {attempts_log}")
+    attempt = max(r["attempt"] for r in existing)
+    record: dict = {
+        "part_id": part_id,
+        "attempt": attempt,
+        "outcome": "fail",
+        "error_types": ["visual_mismatch"],
+        "visual_review": {"passed": False, "failed_question": failed_questions[0]},
+        "model": part_author_model(),
+    }
+    prompt_chars = _prompt_chars(attempts_log.parent, part_id, attempt)
+    if prompt_chars is not None:
+        record["prompt_chars"] = prompt_chars
+    return append_attempt(attempts_log, record)
 
 
 def _parse_field(spec: str) -> tuple[str, object]:
@@ -219,12 +268,28 @@ def main(argv: list[str] | None = None) -> int:
         metavar="K=V",
         help="set/override one field (value parsed as JSON, else string)",
     )
+    af = sub.add_parser("audit-fail", help="append a visual-review-failure follow-up record")
+    af.add_argument("--part", required=True, help="part_id")
+    af.add_argument("--audit", required=True, help="path to the auditor's JSON output")
+    af.add_argument(
+        "--file",
+        default="build/attempts.jsonl",
+        help="JSONL file to append to (default: %(default)s)",
+    )
     args = parser.parse_args(argv)
 
     if args.hook:
         return _run_hook()
     if not args.command:
         parser.error("a command is required without --hook")
+
+    if args.command == "audit-fail":
+        try:
+            audit_fail(args.file, args.part, args.audit)
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            print(f"telemetry: {exc}", file=sys.stderr)
+            return 1
+        return 0
 
     record: dict = {}
     if args.json:
