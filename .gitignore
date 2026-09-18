@@ -22,6 +22,8 @@ __pycache__/
 # Golden meshes for the eval corpus are committed artifacts
 !evals/cases/*/golden/*.stl
 evals/runs/
+build/
+
 .codegraph
 .fossil
 
