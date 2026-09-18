@@ -36,18 +36,40 @@ later. Do not classify candidates onto the five-rung ladder yourself; that judgm
   finished-model hit (rung 1/3/4 material) are both valid candidates for the same
   request -- return both when found.
 
+## License reusability verdict
+
+For each candidate, apply these rules to the license text you read and report the result
+in the `Reusable` column. You are not choosing the candidate's rung (see above) -- only
+whether its license permits reuse at all, and under what constraint.
+
+- **No license stated**: verdict `no (none stated)`. Never assume permissive.
+- **Permissive or explicit license with no no-derivatives (ND) restriction**: verdict
+  `yes`.
+- **ND (no-derivatives) license, non-mesh kind** (`cadquery`, `build123d`, `openscad`,
+  `freecad`, `step`, `brep`, `iges`): verdict `no (ND)` -- reuse at these kinds always
+  derives a new work (convert/re-author, or boolean-modify), which ND forbids outright.
+- **ND license, mesh kind, license text permits unmodified redistribution**: verdict
+  `rung-3-only (ND, redistribution permitted)` -- usable only as an unmodified file
+  handed to the user as-is, never as a rebuild source.
+- **ND license, mesh kind, license text does not permit redistribution**: verdict
+  `rung-3-only (ND, link only)` -- not usable as a delivered file at all; only the source
+  link may be given to the user.
+
 ## Return contract
 
 A Markdown table, then a source list, nothing else:
 
-| Source | Platform | Kind | License | Notes |
-|--------|----------|------|---------|-------|
-| github.com/example/case | github | cadquery | MIT | Parametric case, adapt width param |
+| Source | Platform | Kind | License | Reusable | Notes |
+|--------|----------|------|---------|----------|-------|
+| github.com/example/case | github | cadquery | MIT | yes | Parametric case, adapt width param |
 
 - `Platform`: `github`, `thingiverse`, `printables`, `makerworld`, or `other`.
 - `Kind`: the source's form -- `cadquery`, `build123d`, `openscad`, `freecad`, `step`,
   `brep`, `iges`, or `mesh`.
 - `License`: exactly as stated, or `none stated`.
+- `Reusable`: the verdict from "License reusability verdict" above -- `yes`,
+  `no (none stated)`, `no (ND)`, `rung-3-only (ND, redistribution permitted)`, or
+  `rung-3-only (ND, link only)`.
 - `Notes`: what you read -- fit to the request, comments/failure reports, a linked
   parametric source, or why a candidate is close but not exact.
 

@@ -57,15 +57,18 @@ def union_ids(part: dict) -> set[str]:
 
 
 def tagged_sections(
-    md: str, blocks: set[str], extra_titles: frozenset[str] | set[str] = frozenset()
+    md: str,
+    blocks: set[str],
+    extra_titles: frozenset[str] | set[str] = frozenset(),
+    scope: str = "always",
 ) -> str:
-    """`## ` sections whose applies_to tag is `always`, names a block, or whose title is extra."""
+    """`## ` sections whose applies_to tag is `scope`, names a block, or whose title is extra."""
     kept = []
     for chunk in re.split(r"(?m)^(?=## )", md)[1:]:
         title = chunk.splitlines()[0][3:].strip()
         tag = re.search(r"<!--\s*applies_to:\s*(.*?)\s*-->", chunk)
         tags = {t.strip() for t in tag.group(1).split(",")} if tag else set()
-        if "always" in tags or tags & blocks or title in extra_titles:
+        if scope in tags or tags & blocks or title in extra_titles:
             kept.append(chunk.rstrip())
     return "\n\n".join(kept) or "(none)"
 
@@ -367,7 +370,9 @@ def render_planning(
         for part in (plan or {}).get("parts", [])
         for b in part.get("blocks_needed") or []
     }
-    fdm = tagged_sections(_read(REF / "FDM 3D Print Design Guidelines.md"), blocks)
+    fdm = tagged_sections(
+        _read(REF / "FDM 3D Print Design Guidelines.md"), blocks, scope="planning"
+    )
 
     profile_errors: list[str] = []
     if not profile_path.is_file():

@@ -121,24 +121,22 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/jo
 
 ## License check (mandatory at rungs 1-4)
 
-Before reusing anything at rungs 1-4, identify the source's license from the model
-page.
+The sourcing agent already read each candidate's license off its source page and
+classified it (see `prompts/sourcing.md`'s "License reusability verdict"); trust its
+`Reusable` column rather than re-deriving the verdict from the raw license string.
 
-- **No license stated = all-rights-reserved.** Treat the candidate as not reusable;
-  the rung does not fit for that candidate — move to the next candidate or the next
-  rung.
-- **ND (No-Derivatives) licenses block rungs 1, 2, and 4** — all three involve
-  deriving a new work (convert/re-author, boolean-modify, partial rebuild).
-- **Rung 3 ND exception:** an ND-licensed mesh MAY be delivered **unmodified** if the
-  license permits redistribution in that unmodified form. If the license does not
-  permit redistribution either, do not deliver the file — give the user the source
-  link instead and let them download it directly.
+- A candidate whose verdict is `no (none stated)` or `no (ND)` does not fit any rung —
+  move to the next candidate or the next rung.
+- A candidate whose verdict is `rung-3-only (ND, redistribution permitted)` may only be
+  delivered unmodified at rung 3, never rebuilt or boolean-modified at rungs 1, 2, or 4.
+- A candidate whose verdict is `rung-3-only (ND, link only)` does not fit rung 3 either —
+  give the user the source link instead and let them download it directly.
 - **Provenance recording:** when a `BUILD_PLAN.json` is produced (rung 1 reuse
   expressed as a plan, rung 4 partial rebuild), record the license name, source URL,
-  and rung in `planning_notes` per the Phase 2 provenance rule. When no plan is
-  produced (rung 3 mesh delivery), record the same three facts in the delivery
-  summary shown to the user instead. Either way, state the license and source to the
-  user at the point they confirm reuse — never reuse silently.
+  rung, and verdict in `planning_notes` per the Phase 2 provenance rule. When no plan is
+  produced (rung 3 mesh delivery), record the same facts in the delivery summary shown
+  to the user instead. Either way, state the license and source to the user at the point
+  they confirm reuse — never reuse silently.
 
 ## Sourcing agent
 
