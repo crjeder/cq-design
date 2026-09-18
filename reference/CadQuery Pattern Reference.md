@@ -1,6 +1,14 @@
 # CadQuery Pattern Reference
 
+Each `##` section is tagged `<!-- applies_to: ... -->`, same convention as
+`FDM 3D Print Design Guidelines.md`: inject a section only if its tag is
+`always` or lists a block in the part's `blocks_needed`, or (`adv3d`,
+`multi_union`) one of the feature signals `render_prompt.py` derives from the
+part's description/notes/interfaces/unions.
+
 ## CadQuery Workplane Naming (XY/XZ/YZ)
+<!-- applies_to: always -->
+
 
 `cq.Workplane("XY")`, `"XZ"`, `"YZ"` name the sketch plane, not a world-frame
 convention (that's `prompts/planning.md`'s separate North/East/Up vocabulary for
@@ -31,6 +39,7 @@ Basic shapes (`.box(w,d,h)`, `.cylinder(h,r)`, `.sphere(r)`, `.polygon(n,d)`,
 `.wedge(dx,dy,dz,xmin,zmin,xmax,zmax)`.
 
 ## Face & Edge Selectors
+<!-- applies_to: always -->
 
 ### Basic Selectors
 
@@ -120,6 +129,7 @@ Tags are stored on the Workplane, not the shape; `.end()` returns to the solid
 context after tagging (`reference/CadQuery Anti-Patterns.md`, Tier 2).
 
 ## 2D Construction / Sketch API
+<!-- applies_to: always -->
 
 ```python
 # Closed wires: .rect(xLen,yLen) .circle(r) .ellipse(rx,ry) .polygon(nSides,diameter)
@@ -143,6 +153,7 @@ result = (cq.Workplane("XY").box(40, 20, 8).faces(">Z").workplane()
 ```
 
 ## Machining Operations (Holes, Shell, Fillet)
+<!-- applies_to: always -->
 
 ```python
 .edges("|Z").fillet(radius)            # vertical edges; .edges().fillet(r) = all
@@ -161,6 +172,7 @@ result = (cq.Workplane("XY").box(40, 20, 8).faces(">Z").workplane()
 ```
 
 ## Advanced 3D Operations (Loft, Sweep, Revolve)
+<!-- applies_to: adv3d -->
 
 ```python
 # Loft (ruled=True for straight loft): cross-sections connected smoothly
@@ -179,6 +191,7 @@ result = cq.Workplane("XY").polygon(6, 10).twistExtrude(20, 90)
 polar arrays.
 
 ## Transform & Boolean Operations
+<!-- applies_to: always -->
 
 ```python
 # .translate() applies to a built Shape/finished result, moving it in the GLOBAL frame --
@@ -197,6 +210,7 @@ result = wp.combine()              # union everything on the stack
 ```
 
 ## Non-Overlapping Part Assembly (Performance)
+<!-- applies_to: multi_union -->
 
 For plates/arrays where parts don't touch, skip `.union()` (O(n^2) OCCT booleans)
 and combine into one compound instead -- 5-10x faster than unioning for 20+ parts:
@@ -212,6 +226,7 @@ cq.exporters.export(compound, "plate.stl")
 solids build a `TopoDS_Compound` via `BRep_Builder` instead.
 
 ## Center Selection
+<!-- applies_to: always -->
 
 `centerOption` controls where `.workplane()` puts the origin on a selected face:
 
@@ -222,10 +237,11 @@ solids build a `TopoDS_Compound` via `BRep_Builder` instead.
 | `"ProjectedOrigin"` | Parent workplane's origin projected onto the new plane (**default**) |
 
 Never assume the default matches your intent -- on an irregular face
-`ProjectedOrigin` can land far from where you expect (see
-`reference/CadQuery Anti-Patterns.md`, Tier 2, origin drift).
+`ProjectedOrigin` can land far from where you expect (see "Workplane Context
+Stacking (Origin Drift)" below).
 
 ## Common Gotchas
+<!-- applies_to: always -->
 
 1. **Outer edge fillets before shell, small/detail fillets after** -- pre-existing
    small fillets can cause shell to fail.
@@ -268,6 +284,7 @@ Never assume the default matches your intent -- on an irregular face
     feature -- exterior renders look identical either way.
 
 ## Workplane Context Stacking (Origin Drift)
+<!-- applies_to: always -->
 
 `.center(x, y)` calls `plane.setOrigin2d()`, which **permanently mutates** the
 workplane origin. A later `.faces(">Z").workplane()` with the default
@@ -294,8 +311,12 @@ result = (
   ```
 - **Prevention:** use `.moveTo()` instead of `.center()` for a single feature --
   `.moveTo()` does not mutate the plane origin.
+- **Catch it at build time:** `wp = check_workplane(wp, "lid_top",
+  expected_origin=(0,0,12))` (`cq_verify`) fails as a typed `workplane_drift`
+  error instead of silently misplacing geometry.
 
 ## The Fresh Workplane Pattern
+<!-- applies_to: always -->
 
 To place a feature at a known global coordinate, bypass `.faces().workplane()`
 entirely rather than track accumulated origin/orientation state:
@@ -316,4 +337,5 @@ mid-chain `.translate()`.
 Text/emboss-specific gotchas (deboss silent failures, additive overflow,
 measuring text bounding boxes) live in `reference/emboss_text.md`, appended only
 for a part involving text/emboss. The negative-space anti-pattern catalog lives
-in `reference/CadQuery Anti-Patterns.md`, appended for every part.
+in `reference/CadQuery Anti-Patterns.md`, tag-filtered the same way as this
+document.

@@ -39,6 +39,7 @@ WALL_AXIS = {
     "top": "z", "bottom": "z", "up": "z", "down": "z",
 }  # fmt: skip
 TEXT_RE = re.compile(r"text|engrave|emboss|label", re.IGNORECASE)
+ADV3D_RE = re.compile(r"revolve|loft|sweep|twist", re.IGNORECASE)
 LOAD_SECTIONS = {"Snap-Fit Strain Formula", "Rib / Boss / Gusset Ratios"}
 MIN_INTENT_CHARS = 120
 MAX_SECTIONS = 3
@@ -227,16 +228,17 @@ def fill(template: str, values: dict[str, str]) -> str:
 
 def part_spec(plan: dict, part: dict) -> str:
     blocks = {block_name(b) for b in part.get("blocks_needed") or []}
-    textish = TEXT_RE.search(
-        " ".join(
-            [part["description"], part.get("part_notes", ""), json.dumps(part.get("interfaces"))]
-        )
+    part_text = " ".join(
+        [part["description"], part.get("part_notes", ""), json.dumps(part.get("interfaces"))]
     )
-    cq_ref = (
-        _read(REF / "CadQuery Pattern Reference.md")
-        + "\n\n"
-        + _read(REF / "CadQuery Anti-Patterns.md")
-    )
+    textish = TEXT_RE.search(part_text)
+    cq_blocks = set(blocks)
+    if ADV3D_RE.search(part_text):
+        cq_blocks.add("adv3d")
+    if len(part.get("unions") or []) > 1:
+        cq_blocks.add("multi_union")
+    cq_ref = tagged_sections(_read(REF / "CadQuery Pattern Reference.md"), cq_blocks)
+    cq_ref += "\n\n" + tagged_sections(_read(REF / "CadQuery Anti-Patterns.md"), cq_blocks)
     if textish:
         cq_ref += "\n\n" + _read(REF / "emboss_text.md")
     inventory = {b["name"]: b for b in json.loads(_read(SKILL_DIR / "src/blocks/inventory.json"))}
