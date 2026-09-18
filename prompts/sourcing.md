@@ -55,13 +55,31 @@ whether its license permits reuse at all, and under what constraint.
   `rung-3-only (ND, link only)` -- not usable as a delivered file at all; only the source
   link may be given to the user.
 
+## Rung assignment
+
+For each candidate, apply these rules to the `Kind` you recorded and, for meshes, to what
+you read on the page, and report the result in the `Rung` column. This is a first-pass
+classification, not the final reuse decision -- rungs 1 and 2 are deterministic from
+`Kind` and are trusted as-is downstream; rungs 3 and 4 are provisional and get confirmed
+or downgraded later through local measurement, the quality gate, and user confirmation
+(you have no tools for either, so don't attempt them).
+
+- **`Kind` in {cadquery, build123d, openscad, freecad}**: `1`.
+- **`Kind` in {step, brep, iges}**: `2`.
+- **`Kind: mesh`, stated dimensions/description appear to match the request as-is**:
+  `3?`.
+- **`Kind: mesh`, a tractable discrepancy is named** (wrong hole position, different
+  extrusion height, a boss that needs moving): `4?`.
+- **`Kind: mesh`, the mismatch looks freeform/organic** (curved surfaces, sculpted
+  features) rather than a hole/extrusion/axis-aligned difference: `n/a`.
+
 ## Return contract
 
 A Markdown table, then a source list, nothing else:
 
-| Source | Platform | Kind | License | Reusable | Notes |
-|--------|----------|------|---------|----------|-------|
-| github.com/example/case | github | cadquery | MIT | yes | Parametric case, adapt width param |
+| Source | Platform | Kind | License | Reusable | Rung | Notes |
+|--------|----------|------|---------|----------|------|-------|
+| github.com/example/case | github | cadquery | MIT | yes | 1 | Parametric case, adapt width param |
 
 - `Platform`: `github`, `thingiverse`, `printables`, `makerworld`, or `other`.
 - `Kind`: the source's form -- `cadquery`, `build123d`, `openscad`, `freecad`, `step`,
@@ -70,6 +88,7 @@ A Markdown table, then a source list, nothing else:
 - `Reusable`: the verdict from "License reusability verdict" above -- `yes`,
   `no (none stated)`, `no (ND)`, `rung-3-only (ND, redistribution permitted)`, or
   `rung-3-only (ND, link only)`.
+- `Rung`: the verdict from "Rung assignment" above -- `1`, `2`, `3?`, `4?`, or `n/a`.
 - `Notes`: what you read -- fit to the request, comments/failure reports, a linked
   parametric source, or why a candidate is close but not exact.
 
