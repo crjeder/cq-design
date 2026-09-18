@@ -26,12 +26,16 @@ against the ladder and take the best (lowest-numbered) rung that fits.
 
 ## The five-rung decision ladder
 
-Evaluated top-down; take the first rung that fits.
+Evaluated top-down; take the first rung that fits. The Sourcing agent already assigns
+each candidate a `Rung` in its return table (see "Sourcing agent" below). Trust a `1` or
+`2` outright — it's deterministic from the candidate's `Kind`, the same way the license
+`Reusable` verdict is trusted rather than re-derived. A `3?` or `4?` is provisional: it
+still needs the local vetting below before it becomes final.
 
 ### Rung 1: Found parametric source
 
-A CadQuery, build123d, OpenSCAD, or FreeCAD source that models the requested part (or
-close enough to adapt).
+Taken once a candidate's agent-assigned `Rung` is `1` (CadQuery, build123d, OpenSCAD, or
+FreeCAD source).
 
 - **CadQuery**: reuse directly, adapting parameters to the request. It already runs
   through the normal wrapper/gate like any generated script — no special handling.
@@ -55,8 +59,8 @@ close enough to adapt).
 
 ### Rung 2: Found STEP/BREP/IGES
 
-A found STEP/BREP/IGES file for the part or a mating component, with no parametric
-source available.
+Taken once a candidate's agent-assigned `Rung` is `2` (STEP/BREP/IGES file for the part
+or a mating component, with no parametric source available).
 
 - Import with `cq.importers.importStep(path)` (or the matching IGES/BREP importer).
 - Scope it as **exactly** a dumb solid: a mating reference to measure against, or a
@@ -68,8 +72,9 @@ source available.
 
 ### Rung 3: Found mesh that fits as-is
 
-A found STL/mesh that appears to match the request's dimensions and function without
-modification.
+A candidate whose agent-assigned `Rung` is `3?` — a found STL/mesh that appears to match
+the request's dimensions and function without modification. The `?` is provisional; this
+rung isn't final until it clears the vetting below.
 
 - **Never deliver a found mesh blind** — found models are frequently wrong or
   unprintable. Run it through the same vetting a generated part gets:
@@ -88,9 +93,10 @@ modification.
 
 ### Rung 4: Found mesh that's close
 
-A found mesh that is close to the request but has some tractable discrepancy — a hole
-pattern in the wrong place, a slightly different extrusion height, a boss that needs
-moving.
+A candidate whose agent-assigned `Rung` is `4?` — a found mesh that is close to the
+request but has some tractable discrepancy — a hole pattern in the wrong place, a
+slightly different extrusion height, a boss that needs moving. A `3?` candidate that
+failed rung 3's vetting also lands here rather than being reclassified from scratch.
 
 - Limit the rebuild to what `measure_stl.py` actually detects and characterizes:
   extrusions, revolutions, axis-aligned features (bosses, holes, flat layers). Use the
@@ -150,8 +156,9 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" sourcing 
 
 It writes `build/sourcing_prompt.txt` and prints `{"out", "chars"}`. Spawn one agent with
 the prompt `Read <out> in full and follow it. Working directory: <absolute cwd>.` on the
-session default model. It returns a candidate table (source,
-platform, kind, license, notes); classify it against the ladder above.
+session default model. It returns a candidate table (source, platform, kind, license,
+reusable, rung, notes) with each candidate already assigned a rung — take the best
+(lowest-numbered) fitting rung per the ladder above.
 
 A later component-level dimension need is a Phase 1 research-agent lookup, not a second
 sourcing dispatch.
