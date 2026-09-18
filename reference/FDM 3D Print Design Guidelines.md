@@ -1,13 +1,15 @@
 # FDM 3D Print Design Guidelines
 
-Each `##` section is tagged `<!-- applies_to: ... -->`. Inject a section only if its tag
-is `always` or lists a block in the part's `blocks_needed`. Most bullets follow
+Each `##` section is tagged `<!-- applies_to: ... -->`. Inject a section into a part
+prompt only if its tag is `always` or lists a block in the part's `blocks_needed`; inject
+a section into the planner prompt only if its tag includes `planning` (a section may
+carry both). Most bullets follow
 `Rule: value — why`; some are freeform where a single value doesn't capture the guidance.
 Numbers are portable FDM-safe defaults; `planning.md` clearances override where they differ.
 Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for-3d-printing).
 
 ## Baseline & Tolerances
-<!-- applies_to: always -->
+<!-- applies_to: always, planning -->
 
 - Reference printer: 0.4 mm nozzle, 0.2 mm layer height.
 - Expectable accuracy: ±0.1 mm per surface. Design for this; never exploit one printer's precision.
@@ -81,7 +83,7 @@ from edge treatment.
 - Retention barb: 0.3–0.5 mm.
 
 ## Print Orientation
-<!-- applies_to: always -->
+<!-- applies_to: always, planning -->
 
 Priority order:
 1. Stable base — largest flat face on the bed (wide, low, won't tip).
@@ -136,7 +138,7 @@ Self-supporting horizontal features — pick by function:
   it self-supports and prints along a stronger direction instead of stacking straight up.
 
 ## Strength & Load Orientation
-<!-- applies_to: always -->
+<!-- applies_to: always, planning -->
 
 - Align tensile/primary loads PARALLEL to the bed (in-plane) — ~3x stronger than across layers.
 - **This rule is about tension/bending/shear, not compression.** Those stress the
@@ -157,7 +159,7 @@ Self-supporting horizontal features — pick by function:
   machining-era instinct that doesn't apply here.
 
 ## Make It Adjustable (Tolerance Compensation)
-<!-- applies_to: always -->
+<!-- applies_to: always, planning -->
 
 When you can't hit a dimension, design in adjustment:
 - Position: oblong/slotted screw holes. Height: opposing screws or spring-opposed grub screws.
