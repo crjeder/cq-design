@@ -112,6 +112,30 @@ def test_every_eval_case_renders_without_placeholders(tmp_path):
             assert "{{PART_ID}}" not in text and "{{VALIDATE_ARGS}}" not in text, case.name
 
 
+def test_cq_reference_default_part_gets_only_always_sections():
+    plan, part = _plan()
+    text, _ = rp.render_builder(plan, part, None, None)
+    assert "## CadQuery Workplane Naming" in text
+    assert "## Advanced 3D Operations" not in text
+    assert "## Non-Overlapping Part Assembly" not in text
+    assert "Booleans are expensive" not in text
+    assert "Origin drift after" not in text
+
+
+def test_cq_reference_multi_union_part_gets_compound_assembly_section():
+    plan, part = _plan()
+    part = {**part, "unions": [{"id": "a"}, {"id": "b"}]}
+    text, _ = rp.render_builder(plan, part, None, None)
+    assert "## Non-Overlapping Part Assembly" in text
+
+
+def test_cq_reference_revolve_description_gets_adv3d_section():
+    plan, part = _plan()
+    part = {**part, "description": "a knob you revolve around its axis"}
+    text, _ = rp.render_builder(plan, part, None, None)
+    assert "## Advanced 3D Operations" in text
+
+
 def test_text_part_injects_emboss_reference_without_placeholder_error():
     plan, part = _plan()
     text, _ = rp.render_builder(
