@@ -4,10 +4,18 @@ Mistakes LLMs make generating CadQuery, and how to fix them. Tiers: **1 Kernel-l
 (OCCT)** -- geometry facts true in any OpenCASCADE-backed API. **2 Stateful-context**
 -- bugs from the fluent API's persistent origin and selection stack. **3 API
 mechanics** -- method-specific semantics. Millimeters; fluent API only
-(`cadquery.func` not covered).
+(`cadquery.func` not covered). Each `##` section is tagged
+`<!-- applies_to: ... -->`, same convention as `CadQuery Pattern Reference.md`.
+Two mistakes that used to have a dedicated entry here -- looping a boolean, and
+an unresolved `.center()`/`.hole()` origin shift -- are now caught mechanically
+by `script_lint.py` (`boolean_in_loop`, `unanchored_feature`) with a fix hint,
+and are explained in full in `CadQuery Pattern Reference.md` ("Non-Overlapping
+Part Assembly" and "Workplane Context Stacking" respectively), so their entries
+were removed here rather than kept as a third copy.
 
 
 ## Tier 1 -- Kernel-level (OCCT geometry truths)
+<!-- applies_to: always -->
 
 ### Feature operations vs. booleans -- and when each is right
 
@@ -28,20 +36,6 @@ bosses/holes/pockets/edges on an existing solid; booleans for combining separate
 solids, AND for cavities where `.shell()` is fragile on filleted bodies -- model the
 cavity as its own solid and `.cut()` it (what `hollow_box` does; see Gotcha #10).
 "Avoid booleans" means don't use one for a single boss/hole, not "never cut a cavity."
-
-### Booleans are expensive -- never loop them
-
-Each boolean recomputes the full boundary; N sequential cuts is O(N) rebuilds.
-Combine tools into one compound and subtract once (same principle as the pattern
-reference's "Non-Overlapping Part Assembly"):
-
-```python
-# Wrong: result = body; for h in holes: result = result.cut(h)
-# Right:
-from cadquery import Compound
-tool = Compound.makeCompound([h.val() for h in holes])
-result = body.cut(tool)
-```
 
 ### A wire must be closed before it can bound a solid
 
@@ -74,16 +68,7 @@ result = cq.Workplane("XY").box(20,20,5).edges("|Z").fillet(1).edges(">Z").fille
 
 
 ## Tier 2 -- Stateful-context footguns
-
-### Origin drift after `.center()`
-
-`.center(x, y)` permanently mutates the workplane origin. A later `.faces(">Z").workplane()`
-inherits that shifted origin (`centerOption="ProjectedOrigin"`) -- NOT the face
-center -- misplacing subsequent features. Full treatment in the pattern reference's
-"Workplane Context Stacking (Origin Drift)" and "The Fresh Workplane Pattern."
-Prefer `.moveTo()` (no origin mutation) for a single feature. Catch drift at build
-time: `wp = check_workplane(wp, "lid_top", expected_origin=(0,0,12))` (`cq_verify`)
--- fails as a typed `workplane_drift` error instead of silently misplacing geometry.
+<!-- applies_to: always -->
 
 ### Losing the solid context after a selector
 
@@ -154,6 +139,8 @@ Pattern (`transformed(offset=...)`) -- still through a workplane frame.
 
 
 ## Tier 3 -- CadQuery API mechanics
+<!-- applies_to: always -->
+
 
 ### `.extrude()` defaults to `combine=True`
 
