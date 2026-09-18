@@ -169,6 +169,8 @@ def test_render_planning_fresh_plan_lists_inventory_and_archetypes(tmp_path):
     assert "enclosure-body" in text
     assert "Prusa MK4" in text
     assert "{{" not in text
+    assert "## Print Orientation" in text
+    assert "## Vase Mode" not in text
 
 
 def test_render_planning_replan_includes_block_tagged_fdm_section():
@@ -214,6 +216,8 @@ def test_render_sourcing_includes_request_and_corpus():
     assert "a wall mount for an iPhone 15" in text
     assert "Adafruit_CAD_Parts" in text
     assert "{{" not in text
+    assert "| Reusable |" in text
+    assert "rung-3-only (ND, redistribution permitted)" in text
 
 
 def test_sourcing_corpus_extracts_phase0_section():
