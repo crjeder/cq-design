@@ -1,0 +1,258 @@
+Baseline test run Fri Sep 18 12:06:53     2026
+=== tests/test_block_imports.py ===
+.......................................                                  [100%]
+39 passed in 11.94s
+exit=0
+
+=== tests/test_blocks.py ===
+........................................................................ [ 80%]
+..................                                                       [100%]
+90 passed in 8.98s
+exit=0
+
+=== tests/test_build_script.py ===
+........                                                                 [100%]
+8 passed in 29.10s
+exit=0
+
+=== tests/test_convert_build123d.py ===
+....                                                                     [100%]
+4 passed in 6.36s
+exit=0
+
+=== tests/test_cosmetic_slope_gate.py ===
+.......                                                                  [100%]
+7 passed in 0.06s
+exit=0
+
+=== tests/test_cq_compat.py ===
+.....                                                                    [100%]
+5 passed in 2.44s
+exit=0
+
+=== tests/test_cq_verify.py ===
+.................                                                        [100%]
+17 passed in 1.85s
+exit=0
+
+=== tests/test_cq_warehouse_integration.py ===
+...                                                                      [100%]
+3 passed in 10.37s
+exit=0
+
+=== tests/test_edge_treatment_check.py ===
+.........                                                                [100%]
+9 passed in 2.04s
+exit=0
+
+=== tests/test_eval_corpus.py ===
+........................................                                 [100%]
+40 passed in 2.11s
+exit=0
+
+=== tests/test_exporters.py ===
+..........                                                               [100%]
+10 passed in 1.95s
+exit=0
+
+=== tests/test_feature_presence_check.py ===
+......                                                                   [100%]
+6 passed in 1.73s
+exit=0
+
+=== tests/test_freshness.py ===
+........                                                                 [100%]
+8 passed in 0.12s
+exit=0
+
+=== tests/test_gate_freshness.py ===
+.                                                                        [100%]
+1 passed in 7.95s
+exit=0
+
+=== tests/test_gate_plan_validation.py ===
+.....                                                                    [100%]
+5 passed in 32.71s
+exit=0
+
+=== tests/test_gridfinity.py ===
+................................                                         [100%]
+32 passed in 33.51s
+exit=0
+
+=== tests/test_hardware_lazy_import.py ===
+..                                                                       [100%]
+2 passed in 5.80s
+exit=0
+
+=== tests/test_import_external_corpus.py ===
+.....                                                                    [100%]
+5 passed in 10.58s
+exit=0
+
+=== tests/test_import_params.py ===
+............                                                             [100%]
+12 passed in 1.97s
+exit=0
+
+=== tests/test_init_permissions.py ===
+............                                                             [100%]
+12 passed in 0.18s
+exit=0
+
+=== tests/test_interference.py ===
+.............                                                            [100%]
+13 passed in 0.11s
+exit=0
+
+=== tests/test_journal.py ===
+.....                                                                    [100%]
+5 passed in 0.09s
+exit=0
+
+=== tests/test_keep_out_check.py ===
+...........                                                              [100%]
+11 passed in 7.97s
+exit=0
+
+=== tests/test_kinematic_check.py ===
+.....................................                                    [100%]
+37 passed in 3.41s
+exit=0
+
+=== tests/test_mate_chain.py ===
+.....                                                                    [100%]
+5 passed in 0.04s
+exit=0
+
+=== tests/test_mesh_io.py ===
+.............                                                            [100%]
+13 passed in 2.45s
+exit=0
+
+=== tests/test_minimal_cutout_search.py ===
+..........                                                               [100%]
+10 passed in 14.92s
+exit=0
+
+=== tests/test_model_export.py ===
+.........................                                                [100%]
+25 passed in 3.52s
+exit=0
+
+=== tests/test_placement.py ===
+.......                                                                  [100%]
+7 passed in 1.83s
+exit=0
+
+=== tests/test_plan_summary.py ===
+......                                                                   [100%]
+6 passed in 0.08s
+exit=0
+
+=== tests/test_plan_validate.py ===
+........................................................................ [ 56%]
+........................................................                 [100%]
+128 passed in 2.82s
+exit=0
+
+=== tests/test_plate_clearance_check.py ===
+...........                                                              [100%]
+11 passed in 8.04s
+exit=0
+
+=== tests/test_preview.py ===
+.....................                                                    [100%]
+21 passed in 5.57s
+exit=0
+
+=== tests/test_print_orientation.py ===
+..................................                                       [100%]
+34 passed in 3.62s
+exit=0
+
+=== tests/test_printer_profile_validate.py ===
+.......                                                                  [100%]
+7 passed in 0.18s
+exit=0
+
+=== tests/test_quality_gate.py ===
+...........................................                              [100%]
+43 passed in 0.40s
+exit=0
+
+=== tests/test_quality_gate_parameters.py ===
+...........                                                              [100%]
+11 passed in 0.21s
+exit=0
+
+=== tests/test_quality_gate_telemetry.py ===
+........                                                                 [100%]
+8 passed in 0.17s
+exit=0
+
+=== tests/test_regen_prompt.py ===
+.......                                                                  [100%]
+7 passed in 0.08s
+exit=0
+
+=== tests/test_render_prompt.py ===
+....................                                                     [100%]
+20 passed in 0.29s
+exit=0
+
+=== tests/test_request_log_search.py ===
+.....................                                                    [100%]
+21 passed in 0.27s
+exit=0
+
+=== tests/test_run_evals.py ===
+.......................                                                  [100%]
+23 passed in 1.37s
+exit=0
+
+=== tests/test_run_wrapper.py ===
+...............................................                          [100%]
+47 passed in 158.59s (0:02:38)
+exit=0
+
+=== tests/test_script_lint.py ===
+.........................                                                [100%]
+25 passed in 0.60s
+exit=0
+
+=== tests/test_session_cost.py ===
+......                                                                   [100%]
+6 passed in 0.11s
+exit=0
+
+=== tests/test_skill_version.py ===
+...s.......                                                              [100%]
+10 passed, 1 skipped in 3.07s
+exit=0
+
+=== tests/test_stl_to_3mf.py ===
+..                                                                       [100%]
+2 passed in 2.49s
+exit=0
+
+=== tests/test_telemetry.py ===
+......................                                                   [100%]
+22 passed in 0.21s
+exit=0
+
+=== tests/test_templates.py ===
+............................                                             [100%]
+28 passed in 50.28s
+exit=0
+
+=== tests/test_thin_interfaces.py ===
+.......                                                                  [100%]
+7 passed in 4.39s
+exit=0
+
+=== tests/test_units.py ===
+.........                                                                [100%]
+9 passed in 0.04s
+exit=0
+
