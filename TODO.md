@@ -7,45 +7,16 @@ Each item below is a one-line pointer. Rationale, investigation notes, and
 strategy discussion live in [Details](#details) at the end of this document,
 linked from the item.
 
-# Feature freeze for V1.0
-As of 12.08.2026 only defects will be corrected, no new features introduced.
-All completed tasks are now in `documentation/DONE.md`.
+# V1.1.0
+V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 
-## Test cases 
+## Carried over from V1.0
 - [ ] Salacia case
 - [ ] [SUP Silencer](https://makerworld.com/de/models/2871437-paddleboard-sup-deflation-silencer#profileId-3205902)
 - [ ] beamer-halter
 - [ ] Katzenwendeltreppe
 
-## V1 defects
-
-- [x] Implement typed `request_log` entries -- [details](#typed-request_log-entries)
-
-### From C5 Phone-Holder session (`session-export-1786538430013.zip` in `./debug`)
-All three below had a fix merged (Sep 1 / Sep 7) and **all three reproduced on the
-2026-09-08 re-run** (`debug/session-2026-09-08.md`). The shared reason and the
-retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
-- [x] Compass-language mixup in orientation reasoning -- FIXED 2026-09-11: `coordinate_frame` schema field + `plan_validate.check_coordinate_frame_usage` advisory -- [details](#c5-compass-language)
-- [x] Hinge ear: primitive placed center-aligned to another part's edge -- FIXED 2026-09-11: `quality_gate._run_hinge_guard_stage` flags a hinge-associated union missing `verify_seated`/`verify_backed`/`pin_hinge` -- [details](#c5-hinge-ear-center-vs-edge)
-- [x] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- FIXED 2026-09-11: `check_shared_interfaces` broadened to flag coincident unnamed interfaces (positional match), plus `check_hinge_intent_without_joints` -- [details](#c5-knuckle-pivot-ping-pong)
-- [x] Quality-gate overhang check judged the authored-frame STL, not the print pose -- false-positive `overhang_exceeded` whenever the optimizer rotates the part -- FIXED 2026-09-08 -- [details](#c5-quality-gate-overhang-authored-frame)
-
-### From Silica Tray session (`session-export-1786620780455.zip`)
-- [x] LLM claimed "no support needed" despite a nonzero support score -- FIXED 2026-09-15: `print_recipe.supports` was hardcoded `False`; now derived from any non-advisory `overhang_exceeded` finding -- [details](#silica-tray-support-claim)
-- [x] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- ANSWERED + FIXED 2026-09-15: it was coincidence (no rule required it); `skill/phase3_build.md` now has a "Post-delivery corrections" section requiring re-orientation/export/gate before re-reporting delivery -- [details](#silica-tray-re-export-coincidence)
-
-### From Hitster Tower
-- [x] Missed the intent of the bottom finger-access opening; over-supported the south wall -- FIXED 2026-09-15: `clearance_opening` interfaces now suppress the overhang finding over the declared void -- [details](#hitstertower-oversupport)
-
-### Independent
-- [x] split `info` directory
-- [x] code quality audit
-- [x] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- DONE: rationale now lives in `parts[].engineering_rationale`, written back in Phase 3 and checked by `plan_validate.py --require-rationale` (`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`) -- [details](#engineering-rationale-consolidation)
-- [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
-- [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](#intent-based-prompt-reformulation)
-- [x] Export a project-regeneration prompt for a fresh LLM session -- DONE: `src/regen_prompt.py` writes `REGENERATE.md` at Phase 4 delivery -- [details](#project-regeneration-prompt)
-
-# Tasks for next version
+## Backlog
 
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d modells
@@ -55,7 +26,6 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 - [ ] show differences: https://github.com/bdlucas1/diff3d
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-sets]
 - [ ] for selectors: evaluate https://github.com/voneiden/cq-filter and https://github.com/jmwright/selector_synthesis
-- [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
 - [ ] optimisation: https://github.com/yeicor-3d/dl4to4ocp
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] Read back parameters on any user-initiated planning/authoring round
@@ -77,8 +47,6 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 - [ ] HitsterTower: dovetail-corner-joint disassembly form fell outside the joints schema's single-rooted tree -- [details](#hitstertower-dovetail-form)
 - [ ] Deduplicate pairwise-mirrored parts into one script/STL -- [details](#mirrored-parts-dedup)
 - [ ] A minimal deliverable for a parametric part -- just the code, not the full `/lib`
-- [x] Intent-based prompt reformulation -- DONE, merged into item 4 below and shipped
-      as `REQUIREMENTS.md` -- [details](#intent-based-prompt-reformulation)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
@@ -96,10 +64,8 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 Survey of external libraries/tools and whether/how to integrate each --
 strategies defined in [Details](#integration-strategies).
 
-- [x] Gear geometry (lwidm/cq_gears) -- DONE -- [details](#gear-geometry)
 
 ### Parametric CAD library survey (2026-07)
-- [x] `cq-gridfinity` -- DONE (reimplemented as `blocks/gridfinity.py`; see the gridfinity tool item above) -- [details](#cq-gridfinity)
 - [ ] `vibe-cading` -- [details](#vibe-cading)
 - [ ] `cadqueryhelper` -- [details](#cadqueryhelper)
 - BOSL2 / NopSCADlib / MCAD -- reference only, no action -- [details](#openscad-libraries-reference-only)
@@ -116,18 +82,14 @@ Clean-room reimplementation (GPL-incompatible upstream) -- see [details](#print-
 - [ ] `FIRST_LAY_H` band for bottom-contact (replaces tight `CONTACT_Z_EPS_MM`)
 
 ### CadQuery authoring guidance (jmwright/cadquery-llm-skill)
-- [x] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly local doc snapshot -- DONE -- [details](#cadquery-authoring-guidance)
 
 ### Independent changes
 - [ ] OCC deepcopy crash on print-orientation rotation -- [details](#occ-deepcopy-crash)
 - [ ] cadgate-style gate checks (differential geometry + LLM intent-match) -- [details](#cadgate-style-gate-checks)
 - [ ] `get_parameters`: extract customizable params from a script for parametric re-runs -- [details](#get_parameters)
-- [x] DeepCAD Chamfer-distance golden-mesh regression metric -- DONE -- [details](#chamfer-distance-metric)
 
 ### Benchmark corpora for `evals/`
 Survey of prompt-to-result corpora usable to seed `evals/cases/` -- see [details](#benchmark-corpora-survey).
-- [x] Text-to-CadQuery corpus import (arXiv 2505.06507) -- importer landed, `evals/import_external_corpus.py` -- [details](#text-to-cadquery-corpus)
-- [x] WKJBryan/cadquery-library import -- importer landed, `evals/import_external_corpus.py` -- [details](#wkjbryancadquery-library)
 - [ ] SadilKhan/Text2CAD (blocked on a DeepCAD-sketch->CadQuery converter) -- [details](#text2cad)
 - rundiwu/DeepCAD -- low priority, no action -- [details](#deepcad-no-action)
 - mehsenazizi/mecagent-test -- low priority, no action -- [details](#mecagent-test-no-action)
@@ -155,8 +117,6 @@ discussion (items 1 and 3 are arguably V1 defect fixes; not decided).
 - [ ] 1. Typed `request_log` entries (`level` + `targets`) -- [details](#typed-request_log-entries)
 - [ ] 2. Spec audit with named ambiguity categories -- [details](#spec-audit-ambiguity-categories)
 - [ ] 3. Request-relative acceptance in the implementation audit -- [details](#request-relative-acceptance)
-- [x] 4. Canonical intent restatement artifact -- DONE, shipped ahead of the freeze
-      status below as `REQUIREMENTS.md` -- [details](#canonical-intent-restatement)
 - [ ] 5. Under-specified eval cases -- [details](#under-specified-eval-cases)
 
 ### From SmartAI/Chamfer's efficiency study (github.com/SmartAI/Chamfer @ a8f1c59, read 2026-08)
