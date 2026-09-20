@@ -380,3 +380,4 @@
 - [x] WKJBryan/cadquery-library import -- importer landed, `evals/import_external_corpus.py` -- [details](../TODO.md#wkjbryancadquery-library)
 - [x] 4. Canonical intent restatement artifact -- DONE, shipped ahead of the freeze
       status below as `REQUIREMENTS.md` -- [details](../TODO.md#canonical-intent-restatement)
+- [x] code quality audit
