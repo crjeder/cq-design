@@ -11,10 +11,11 @@ linked from the item.
 As of 12.08.2026 only defects will be corrected, no new features introduced.
 All completed tasks are now in `documentation/DONE.md`.
 
-## V1 Test cases 
+## Test cases 
 - [ ] Salacia case
 - [ ] [SUP Silencer](https://makerworld.com/de/models/2871437-paddleboard-sup-deflation-silencer#profileId-3205902)
 - [ ] beamer-halter
+- [ ] Katzenwendeltreppe
 
 ## V1 defects
 
@@ -38,7 +39,7 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
 
 ### Independent
 - [x] split `info` directory
-- [ ] code quality audit
+- [x] code quality audit
 - [x] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- DONE: rationale now lives in `parts[].engineering_rationale`, written back in Phase 3 and checked by `plan_validate.py --require-rationale` (`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`) -- [details](#engineering-rationale-consolidation)
 - [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
 - [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](#intent-based-prompt-reformulation)
@@ -86,7 +87,9 @@ retrofit gap are in [details](#c5-fixes-did-not-take-2026-09-08).
       `REQUIREMENTS.md`, see item 4 below -- but nothing checks the generation loop's
       output against it; still no invariant) -- [details](#intent-as-invariant)
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
-- [ ] tool to produce cable traces where cables are held press fit for enclosure
+- [ ] tool to produce cable traces where cables are held press fit for 
+- [ ] integrate a FEM-simulation for strenght optimisation stub in `src/FEM.py
+- [ ] integrate a G-code interpreter for optimsation for print speed
 
 ## Related ideas
 
@@ -1612,3 +1615,19 @@ unit is "one point" (w * l * h): 8 * 8 * (3 * 3,2) ; center point (r * h): 2,4 *
 reference:
 - https://brickipedia.fandom.com/wiki/LEGO_Brick?file=Brick-in-mm.svg
 - https://www.bartneck.de/2019/04/21/lego-brick-dimensions-and-measurements/
+
+### G-code simmulator
+Print analysis script (time, weight, slow segments) 
+
+- [ ] Copy `src/print_analysis/` to `cq-design/scripts/` and add a SKILL.md step that runs it after slicing (`python -m print_analysis summary|slow <file.gcode>`)
+- [ ] Install `klipper_estimator` (Windows binary) and check the config flag names with `--help` (`--config_file`, `--config_moonraker_url`)
+- [ ] Pull limits (accel, velocity) from the U1 Moonraker config and pass them to the estimator
+- [ ] Measure the startup offset (PRINT_START, heat-up, homing) on 2-3 real prints and set it as the default `--offset`
+- [ ] Compare estimated time and weight with the real print time and spool weight, then adjust density and offset
+- [ ] Add G2/G3 arc support in `parser.py` (moves are currently skipped with a warning)
+- [ ] Use `klipper_estimator dump-moves` in `slow_segments.py` for the real planned speed (acceleration-limited)
+- [ ] Report min-layer-time slowdowns separately from deliberately slow features (bridge, overhang)
+- [ ] Set the material per tool (T0-T3) from the U1 spool/RFID data instead of the `--material` flag
+- [ ] Test with a real multi-tool U1 G-code (tool changes, prime tower)
+- [ ] Optional: expose `mcp_server.py` as an MCP server (`pip install "mcp[cli]"`) and register it in Claude Code
+
