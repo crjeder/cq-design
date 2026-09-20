@@ -353,3 +353,30 @@
       `RuntimeError` that `run_cadquery_model.py` maps to typed `silent_boolean` /
       `feature_overflow` / `workplane_drift` errors; prompt + reference guidance on when to
       wrap. `StepExporter` deliberately left out of scope.
+
+## Closed at V1.0 release (from TODO.md)
+
+- [x] Implement typed `request_log` entries -- [details](../TODO.md#typed-request_log-entries)
+- [x] Compass-language mixup in orientation reasoning -- FIXED 2026-09-11: `coordinate_frame` schema field + `plan_validate.check_coordinate_frame_usage` advisory -- [details](../TODO.md#c5-compass-language)
+- [x] Hinge ear: primitive placed center-aligned to another part's edge -- FIXED 2026-09-11: `quality_gate._run_hinge_guard_stage` flags a hinge-associated union missing `verify_seated`/`verify_backed`/`pin_hinge` -- [details](../TODO.md#c5-hinge-ear-center-vs-edge)
+- [x] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- FIXED 2026-09-11: `check_shared_interfaces` broadened to flag coincident unnamed interfaces (positional match), plus `check_hinge_intent_without_joints` -- [details](../TODO.md#c5-knuckle-pivot-ping-pong)
+- [x] Quality-gate overhang check judged the authored-frame STL, not the print pose -- false-positive `overhang_exceeded` whenever the optimizer rotates the part -- FIXED 2026-09-08 -- [details](../TODO.md#c5-quality-gate-overhang-authored-frame)
+- [x] LLM claimed "no support needed" despite a nonzero support score -- FIXED 2026-09-15: `print_recipe.supports` was hardcoded `False`; now derived from any non-advisory `overhang_exceeded` finding -- [details](../TODO.md#silica-tray-support-claim)
+- [x] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- ANSWERED + FIXED 2026-09-15: it was coincidence (no rule required it); `skill/phase3_build.md` now has a "Post-delivery corrections" section requiring re-orientation/export/gate before re-reporting delivery -- [details](../TODO.md#silica-tray-re-export-coincidence)
+- [x] Missed the intent of the bottom finger-access opening; over-supported the south wall -- FIXED 2026-09-15: `clearance_opening` interfaces now suppress the overhang finding over the declared void -- [details](../TODO.md#hitstertower-oversupport)
+- [x] split `info` directory
+- [x] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- DONE: rationale now lives in `parts[].engineering_rationale`, written back in Phase 3 and checked by `plan_validate.py --require-rationale` (`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`) -- [details](../TODO.md#engineering-rationale-consolidation)
+- [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
+- [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](../TODO.md#intent-based-prompt-reformulation)
+- [x] Export a project-regeneration prompt for a fresh LLM session -- DONE: `src/regen_prompt.py` writes `REGENERATE.md` at Phase 4 delivery -- [details](../TODO.md#project-regeneration-prompt)
+- [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
+- [x] Intent-based prompt reformulation -- DONE, merged into item 4 below and shipped
+      as `REQUIREMENTS.md` -- [details](../TODO.md#intent-based-prompt-reformulation)
+- [x] Gear geometry (lwidm/cq_gears) -- DONE -- [details](../TODO.md#gear-geometry)
+- [x] `cq-gridfinity` -- DONE (reimplemented as `blocks/gridfinity.py`; see the gridfinity tool item above) -- [details](../TODO.md#cq-gridfinity)
+- [x] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly local doc snapshot -- DONE -- [details](../TODO.md#cadquery-authoring-guidance)
+- [x] DeepCAD Chamfer-distance golden-mesh regression metric -- DONE -- [details](../TODO.md#chamfer-distance-metric)
+- [x] Text-to-CadQuery corpus import (arXiv 2505.06507) -- importer landed, `evals/import_external_corpus.py` -- [details](../TODO.md#text-to-cadquery-corpus)
+- [x] WKJBryan/cadquery-library import -- importer landed, `evals/import_external_corpus.py` -- [details](../TODO.md#wkjbryancadquery-library)
+- [x] 4. Canonical intent restatement artifact -- DONE, shipped ahead of the freeze
+      status below as `REQUIREMENTS.md` -- [details](../TODO.md#canonical-intent-restatement)
