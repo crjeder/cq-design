@@ -1,0 +1,277 @@
+{
+  "run_dir": "D:\\Code\\cq-design\\build\\eval_run",
+  "cases": [
+    {
+      "case": "adapter-ring",
+      "first_shot_rate": 0.0,
+      "mean_attempts_to_pass": 2.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 4.8391803499999995,
+      "total_cost_usd": 4.8391803499999995,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "adapter_ring": 6.014375804310781e-15
+      },
+      "matched_to": {
+        "adapter_ring": "adapter_ring.stl"
+      },
+      "mean_chamfer_mm": 6.014375804310781e-15,
+      "surplus_produced": 0,
+      "within_tolerance": true
+    },
+    {
+      "case": "boss-plate",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 6.336664900000002,
+      "total_cost_usd": 6.336664900000002,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "boss_plate": 0.0305124481409316
+      },
+      "matched_to": {
+        "boss_plate": "mounting_plate.stl"
+      },
+      "mean_chamfer_mm": 0.0305124481409316,
+      "surplus_produced": 0,
+      "within_tolerance": true
+    },
+    {
+      "case": "east-side-mount",
+      "first_shot_rate": 0.0,
+      "mean_attempts_to_pass": 2.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 1.2759817,
+      "total_cost_usd": 1.2759817,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "mount_plate": 2.6737679504141343
+      },
+      "matched_to": {
+        "mount_plate": "plate.stl"
+      },
+      "mean_chamfer_mm": 2.6737679504141343,
+      "surplus_produced": 0,
+      "within_tolerance": false
+    },
+    {
+      "case": "enclosure-body",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 0.5675124,
+      "total_cost_usd": 0.5675124,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "enclosure_body": 0.012860114015445527
+      },
+      "matched_to": {
+        "enclosure_body": "enclosure_body.stl"
+      },
+      "mean_chamfer_mm": 0.012860114015445527,
+      "surplus_produced": 0,
+      "within_tolerance": true
+    },
+    {
+      "case": "hinged-latch",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 1.5588948000000007,
+      "total_cost_usd": 1.5588948000000007,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "hinge_leaf_a": 0.02359029627814714,
+        "hinge_leaf_b": 0.0505452787301679
+      },
+      "matched_to": {
+        "hinge_leaf_a": "leaf_a.stl",
+        "hinge_leaf_b": "leaf_b.stl"
+      },
+      "mean_chamfer_mm": 0.03706778750415752,
+      "surplus_produced": 0,
+      "within_tolerance": true
+    },
+    {
+      "case": "l-bracket",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 1.9930334500000004,
+      "total_cost_usd": 1.9930334500000004,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "l_bracket": 12.709290689924863
+      },
+      "matched_to": {
+        "l_bracket": "l_bracket.stl"
+      },
+      "mean_chamfer_mm": 12.709290689924863,
+      "surplus_produced": 0,
+      "within_tolerance": false
+    },
+    {
+      "case": "lid-thickness-correction",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 0.3340796,
+      "total_cost_usd": 0.3340796,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": true,
+      "chamfer_mm": {
+        "corrected_lid": null
+      },
+      "matched_to": {
+        "corrected_lid": null
+      },
+      "mean_chamfer_mm": null,
+      "surplus_produced": 0,
+      "within_tolerance": false
+    },
+    {
+      "case": "phone-stand",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 1.7858618999999998,
+      "total_cost_usd": 1.7858618999999998,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "phone_stand": 8.551904993641866
+      },
+      "matched_to": {
+        "phone_stand": "phone_stand.stl"
+      },
+      "mean_chamfer_mm": 8.551904993641866,
+      "surplus_produced": 0,
+      "within_tolerance": false
+    },
+    {
+      "case": "sliding-lid",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 1.8734370500000006,
+      "total_cost_usd": 1.8734370500000006,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "sliding_lid": 1.0566983255464064
+      },
+      "matched_to": {
+        "sliding_lid": "lid.stl"
+      },
+      "mean_chamfer_mm": 1.0566983255464064,
+      "surplus_produced": 0,
+      "within_tolerance": false
+    },
+    {
+      "case": "snap-lid",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 2.17901225,
+      "total_cost_usd": 2.17901225,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "snap_lid": 1.0372181696651914
+      },
+      "matched_to": {
+        "snap_lid": "lid.stl"
+      },
+      "mean_chamfer_mm": 1.0372181696651914,
+      "surplus_produced": 0,
+      "within_tolerance": false
+    },
+    {
+      "case": "two-part-box",
+      "first_shot_rate": 0.5,
+      "mean_attempts_to_pass": 1.5,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 1.580373749999999,
+      "total_cost_usd": 3.160747499999998,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "box_body": 0.0045934636311175964,
+        "box_lid": 0.8626091438474563
+      },
+      "matched_to": {
+        "box_body": "body.stl",
+        "box_lid": "lid.stl"
+      },
+      "mean_chamfer_mm": 0.43360130373928696,
+      "surplus_produced": 0,
+      "within_tolerance": true
+    },
+    {
+      "case": "u-clip",
+      "first_shot_rate": 1.0,
+      "mean_attempts_to_pass": 1.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 2.1244592499999997,
+      "total_cost_usd": 2.1244592499999997,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "u_clip": 4.212525300469769
+      },
+      "matched_to": {
+        "u_clip": "u_clip.stl"
+      },
+      "mean_chamfer_mm": 4.212525300469769,
+      "surplus_produced": 0,
+      "within_tolerance": false
+    },
+    {
+      "case": "wall-hook",
+      "first_shot_rate": 0.0,
+      "mean_attempts_to_pass": 4.0,
+      "unpassed_parts": [],
+      "cost_per_accepted_part_usd": 3.2909368999999997,
+      "total_cost_usd": 3.2909368999999997,
+      "cost_source": "recorded",
+      "telemetry": "ok",
+      "no_artifacts": false,
+      "chamfer_mm": {
+        "wall_hook": 6.636039844336402
+      },
+      "matched_to": {
+        "wall_hook": "wall_hook.stl"
+      },
+      "mean_chamfer_mm": 6.636039844336402,
+      "surplus_produced": 0,
+      "within_tolerance": false
+    }
+  ],
+  "aggregate": {
+    "cases_scored": 13,
+    "first_shot_rate": 0.7307692307692307,
+    "mean_attempts_to_pass": 1.4230769230769231,
+    "mean_chamfer_mm": 3.1159572439498717,
+    "chamfer_cases": 12,
+    "cost_per_accepted_part_usd": 2.2876483307692306
+  }
+}
