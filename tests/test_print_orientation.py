@@ -405,3 +405,34 @@ def test_cli_without_source_script_is_unstamped(tmp_path):
     assert proc.returncode == 0, proc.stderr
     result = json.loads(proc.stdout)
     assert "source_script_hash" not in result
+
+
+def _bridge_slab(gap):
+    """Base + two pillars + slab: a `gap` mm bridge in the authored pose."""
+    box = trimesh.creation.box
+    parts = []
+    for size, at in (
+        ([60.0, 20.0, 2.0], [30.0, 10.0, 1.0]),
+        ([10.0, 20.0, 10.0], [5.0, 10.0, 7.0]),
+        ([10.0, 20.0, 10.0], [15.0 + gap, 10.0, 7.0]),
+        ([20.0 + gap, 20.0, 2.0], [(20.0 + gap) / 2, 10.0, 13.0]),
+    ):
+        b = box(size)
+        b.apply_translation(at)
+        parts.append(b)
+    return trimesh.boolean.union(parts, engine="manifold")
+
+
+def test_short_bridge_costs_far_less_than_long_span():
+    short, _ = _support_metrics(_bridge_slab(6.0), 45.0)
+    long_, _ = _support_metrics(_bridge_slab(25.0), 45.0)
+    assert short < 0.15 * long_
+    assert _support_metrics(_bridge_slab(25.0), 45.0, bridge_max_mm=30.0)[0] < 0.15 * long_
+
+
+def test_optimize_orientation_is_deterministic():
+    mesh = _bridge_slab(6.0)
+    a = optimize_orientation(mesh, 45.0)
+    b = optimize_orientation(mesh.copy(), 45.0)
+    assert a["rotate"] == b["rotate"]
+    assert a["support_score"] == b["support_score"]

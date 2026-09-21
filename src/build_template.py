@@ -68,7 +68,11 @@ from units import load_plan, resolve_unions
 
 
 def _orientation_for(
-    result: cq.Workplane, part: dict, overhang_deg: float, optimize_for: str
+    result: cq.Workplane,
+    part: dict,
+    overhang_deg: float,
+    optimize_for: str,
+    bridge_max_mm: float = 10.0,
 ) -> dict:
     """Recommended print orientation for one union's authored geometry.
 
@@ -94,6 +98,7 @@ def _orientation_for(
         optimize_for=optimize_for,
         show_face=show_dir,
         load_type=load_type,
+        bridge_max_mm=bridge_max_mm,
     )
 
 
@@ -119,6 +124,7 @@ def resolve_orientations(
             accepted = json.load(f)
 
     overhang_deg = plan["constraints"]["overhang_max_deg"]
+    bridge_max_mm = plan["constraints"].get("bridge_max_mm", 10.0)
     plan_mode = plan.get("optimize_for", "strength")
     orientations: dict[str, dict] = {}
     summary: dict[str, dict] = {}
@@ -138,7 +144,9 @@ def resolve_orientations(
                 try:
                     if wp_by_uid is None:
                         wp_by_uid = dict(resolve_unions(part, _load_result(script)))
-                    chosen = _orientation_for(wp_by_uid[uid], part, overhang_deg, optimize_for)
+                    chosen = _orientation_for(
+                        wp_by_uid[uid], part, overhang_deg, optimize_for, bridge_max_mm
+                    )
                 except Exception as exc:
                     raise RuntimeError(f"union {uid!r}: {exc}") from exc
                 chosen = {**chosen, "source_script_hash": script_hash(script)}
