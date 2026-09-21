@@ -13,6 +13,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 import jsonschema
@@ -131,6 +132,7 @@ def validate_plan(
     errors.extend(_check_kinematics(plan, inventory_path))
     errors.extend(_check_joints(plan, inventory_path))
     errors.extend(_check_request_log(plan))
+    errors.extend(_check_intent_reconciled(plan))
 
     return errors
 
@@ -521,6 +523,47 @@ def _check_request_log(plan: dict[str, Any]) -> list[str]:
     if initial_idxs[0] != 0:
         return ["request_log's 'initial' entry must be first"]
     return []
+
+
+def _parse_ts(value: str) -> datetime:
+    """Parse an ISO-8601 timestamp (trailing `Z` allowed on Python 3.10); naive means UTC."""
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _check_intent_reconciled(plan: dict[str, Any]) -> list[str]:
+    """Fail when a clarification/correction entry is newer than `intent_ts` (or the stamp
+    is absent while such entries exist): `intent` was not reconciled against the log."""
+    entries = [e for e in plan.get("request_log") or [] if e.get("kind") != "initial"]
+    if not entries:
+        return []
+    fix = (
+        "rewrite `intent` if the design changed, then set `intent_ts` "
+        "(request_log_search.py add --reconciled)"
+    )
+    stamp = plan.get("intent_ts")
+    try:
+        cutoff = _parse_ts(stamp) if stamp is not None else None
+    except ValueError:
+        return [f"intent_ts {stamp!r} is not an ISO-8601 timestamp"]
+    errors = []
+    stale = []
+    for e in entries:
+        try:
+            ts = _parse_ts(e["ts"])
+        except ValueError:
+            errors.append(f"request_log entry ts {e['ts']!r} is not an ISO-8601 timestamp")
+            continue
+        if cutoff is None or ts > cutoff:
+            stale.append(f"[{e['kind']} {e['ts']}] {e['text'][:60]}")
+    if stale:
+        errors.append(
+            f"intent not reconciled with request_log ({len(stale)} entr"
+            f"{'y' if len(stale) == 1 else 'ies'} newer than intent_ts={stamp}): "
+            + "; ".join(stale)
+            + f" -- {fix}"
+        )
+    return errors
 
 
 def check_deferred_axis_arms(

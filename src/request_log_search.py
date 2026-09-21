@@ -10,7 +10,9 @@ against build_plan_schema.json before writing).
 supplied filter as JSON.
 
 `add` appends one `clarification`/`correction` entry with `ts` set to the current UTC
-time, validating the result against build_plan_schema.json before writing.
+time, validating the result against build_plan_schema.json before writing. `--reconciled`
+also sets the plan's `intent_ts` to that `ts`; an unflagged `add` deliberately leaves the
+plan failing plan_validate.py until `intent` is dealt with.
 
 Usage:
     python request_log_search.py search BUILD_PLAN.json --query hinge
@@ -70,6 +72,7 @@ def add_request_log_entry(
     text: str,
     level: str | None = None,
     targets: list[str] | None = None,
+    reconciled: bool = False,
 ) -> dict:
     """Return a new plan dict with one entry appended to request_log.
 
@@ -91,6 +94,8 @@ def add_request_log_entry(
 
     new_plan = dict(plan)
     new_plan["request_log"] = [*(plan.get("request_log") or []), entry]
+    if reconciled:
+        new_plan["intent_ts"] = entry["ts"]
 
     import jsonschema
 
@@ -138,7 +143,12 @@ def _cmd_add(args: argparse.Namespace) -> int:
 
     try:
         new_plan = add_request_log_entry(
-            plan, kind=args.kind, text=args.text, level=args.level, targets=args.target
+            plan,
+            kind=args.kind,
+            text=args.text,
+            level=args.level,
+            targets=args.target,
+            reconciled=args.reconciled,
         )
     except ValueError as exc:
         print(f"request_log_search: {exc}", file=sys.stderr)
@@ -189,6 +199,12 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         metavar="NAME",
         help="a part id or part.feature/parameter name this entry affects (repeatable)",
+    )
+    ap.add_argument(
+        "--reconciled",
+        action="store_true",
+        help="set intent_ts to this entry's ts; pass only after rewriting `intent` (or "
+        "deciding no rewrite is needed). Without it the plan fails validation",
     )
     ap.set_defaults(func=_cmd_add)
 

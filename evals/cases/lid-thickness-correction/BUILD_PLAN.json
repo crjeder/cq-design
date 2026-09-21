@@ -3,6 +3,7 @@
   "printer": "Bambu P1S",
   "material": "PLA",
   "nozzle_mm": 0.4,
+  "intent_ts": "2026-09-02T09:30:00Z",
   "intent": "A standalone lid plate with an inner locating lip that seats inside a box rim as a loose sliding fit. The lip wall was corrected from 1 mm to 2 mm in round 2; the plate footprint (70x50x3 mm) and lip footprint (66x46 mm) are unchanged from the user's original request.",
   "planning_notes": "Round 2 (accepted): lip wall corrected 1.0 -> 2.0 mm per the user's follow-up. Plate and lip footprint unchanged.",
   "request_log": [
