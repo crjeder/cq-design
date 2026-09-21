@@ -31,6 +31,9 @@ cq-warehouse = { git = "https://github.com/gumyr/cq_warehouse.git" }
 
 [tool.uv]
 package = false
+# dev tooling (pytest, ruff, mypy, basedpyright + its ~110 MB node runtime) is opt-in:
+# `uv sync --group dev`. Keeps the installed skill env lean.
+default-groups = []
 
 [dependency-groups]
 dev = [

@@ -34,7 +34,7 @@ This is enforced by `requires-python` in `pyproject.toml`; uv handles version se
 ## Setup
 
 ```bash
-uv sync
+uv sync --group dev   # dev group (pytest, ruff, mypy, basedpyright) is opt-in; installs omit it
 ```
 
 Python 3.12 is pinned in `.python-version`. uv downloads it if not present.

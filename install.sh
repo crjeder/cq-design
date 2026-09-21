@@ -26,6 +26,7 @@ EXCLUDES=(
     ".sentrux"
     ".playwright-mcp"
     ".vscode"
+    "debug"
     "build"
     "BUILD_PLAN.json"
 )
