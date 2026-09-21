@@ -116,3 +116,72 @@ def test_load_mesh_empty_file(tmp_path):
 def test_load_mesh_no_pyrender_import():
     """mesh_io must not pull in pyrender (it's the whole point of the split)."""
     assert "pyrender" not in dir(mesh_io), "mesh_io should not reference pyrender"
+
+
+def _slab_on_pillars(gap, overhang_right=None):
+    """Base plate with two pillars and a slab across them (a bridge over `gap` mm).
+
+    With `overhang_right` set, a single pillar carries a slab that projects that far
+    beyond it (a one-sided cantilever ledge) instead.
+    """
+    box = trimesh.creation.box
+    base = box([60.0, 20.0, 2.0])
+    base.apply_translation([30.0, 10.0, 1.0])
+    parts = [base]
+    if overhang_right is None:
+        for x0, x1 in ((0.0, 10.0), (10.0 + gap, 20.0 + gap)):
+            p = box([x1 - x0, 20.0, 10.0])
+            p.apply_translation([(x0 + x1) / 2, 10.0, 7.0])
+            parts.append(p)
+        x_end = 20.0 + gap
+    else:
+        p = box([10.0, 20.0, 10.0])
+        p.apply_translation([5.0, 10.0, 7.0])
+        parts.append(p)
+        x_end = 10.0 + overhang_right
+    slab = box([x_end, 20.0, 2.0])
+    slab.apply_translation([x_end / 2, 10.0, 13.0])
+    parts.append(slab)
+    return trimesh.boolean.union(parts, engine="manifold")
+
+
+def test_short_supported_ceiling_is_a_bridge():
+    m = mesh_io.overhang_metrics(_slab_on_pillars(6.0), 45.0, bridge_max_mm=10.0)
+    assert m["overhang_area_mm2"] == 0.0
+    assert m["bridge_count"] == 1
+    assert m["bridge_area_mm2"] == pytest.approx(6.0 * 20.0, rel=1e-3)
+
+
+def test_long_span_is_an_overhang():
+    m = mesh_io.overhang_metrics(_slab_on_pillars(25.0), 45.0, bridge_max_mm=10.0)
+    assert m["bridge_count"] == 0
+    assert m["overhang_area_mm2"] == pytest.approx(25.0 * 20.0, rel=1e-3)
+
+
+def test_short_one_sided_ledge_is_an_overhang():
+    m = mesh_io.overhang_metrics(_slab_on_pillars(0.0, overhang_right=6.0), 45.0)
+    assert m["bridge_count"] == 0
+    assert m["overhang_area_mm2"] == pytest.approx(6.0 * 20.0, rel=1e-3)
+
+
+def test_bridge_cost_is_discounted():
+    mesh = _slab_on_pillars(6.0)
+    bed = mesh_io.bed_contact_mask(mesh)
+    bridge = mesh_io.support_cost(mesh, 45.0, 2.0, bed)
+    span = mesh_io.support_cost(mesh, 45.0, 2.0, bed, bridge_max_mm=0.0)
+    assert 0.0 < bridge == pytest.approx(span * mesh_io.BRIDGE_COST_FACTOR, rel=1e-3)
+
+
+def test_overhang_area_independent_of_tessellation():
+    mesh = _slab_on_pillars(0.0, overhang_right=30.0)
+    fine = mesh.subdivide().subdivide()
+    a = mesh_io.overhang_metrics(mesh, 45.0)["overhang_area_mm2"]
+    b = mesh_io.overhang_metrics(fine, 45.0)["overhang_area_mm2"]
+    assert b == pytest.approx(a, rel=0.01)
+
+
+def test_support_cost_has_no_cliff_at_limit():
+    below = mesh_io.support_cost(_downward_tri(90.0 - 44.9), 45.0, 2.0)
+    above = mesh_io.support_cost(_downward_tri(90.0 - 45.1), 45.0, 2.0)
+    assert below == 0.0
+    assert above < 1e-3

@@ -90,3 +90,25 @@ def test_write_profile_fields_rejects_invalid_value_without_writing(profile_file
     with open(path, encoding="utf-8") as f:
         unchanged = json.load(f)
     assert unchanged["nozzle_mm"] == VALID_PROFILE["nozzle_mm"]
+
+
+def test_bridge_max_mm_optional_and_non_negative(tmp_path):
+    import json
+
+    import printer_profile_validate as ppv
+
+    path = tmp_path / "printer_profile.json"
+    prof: dict[str, Any] = {
+        "printer": "x",
+        "material": "PLA",
+        "nozzle_mm": 0.4,
+        "constraints": {"wall_min_mm": 1.2, "overhang_max_deg": 45, "dimension_tolerance_mm": 0.5},
+    }
+    path.write_text(json.dumps(prof))
+    assert ppv.validate_profile(str(path)) == []
+    prof["constraints"]["bridge_max_mm"] = 10.0
+    path.write_text(json.dumps(prof))
+    assert ppv.validate_profile(str(path)) == []
+    prof["constraints"]["bridge_max_mm"] = -1
+    path.write_text(json.dumps(prof))
+    assert ppv.validate_profile(str(path)) != []

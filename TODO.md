@@ -17,7 +17,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [x] Katzenwendeltreppe
 
 ## Defects
-- [ ] bridges are treated as overhangs -> ignore bridges of lengt l (l: printer parameter)
+- [x] bridges are treated as overhangs -> ignore bridges of lengt l (l: printer parameter) -- `constraints.bridge_max_mm`, supported on >= 2 sides
 
 ## Backlog
 
@@ -78,10 +78,10 @@ strategies defined in [Details](#integration-strategies).
 
 ### Print orientation (Tweaker-3)
 Clean-room reimplementation (GPL-incompatible upstream) -- see [details](#print-orientation-tweaker-3).
-- [ ] progressive overhang penalty (severity exponent `OV_H`)
+- [x] progressive overhang penalty (severity exponent `OV_H`)
 - [ ] area-cumulation candidate generation as a fallback/supplement
 - [ ] `min_build_height` / volume-minimization mode
-- [ ] `FIRST_LAY_H` band for bottom-contact (replaces tight `CONTACT_Z_EPS_MM`)
+- [x] `FIRST_LAY_H` band for bottom-contact (replaces tight `CONTACT_Z_EPS_MM`)
 
 ### CadQuery authoring guidance (jmwright/cadquery-llm-skill)
 
