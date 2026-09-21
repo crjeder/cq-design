@@ -5,6 +5,7 @@
   "constraints": {
     "wall_min_mm": 1.2,
     "overhang_max_deg": 45,
+    "bridge_max_mm": 10.0,
     "dimension_tolerance_mm": 0.5
   }
 }
