@@ -38,6 +38,11 @@ Validate + render, one command per stage (only the final stage checks dimensions
 Add `--detail "name=<feature>;center=<x>,<y>,<z>;size=<mm>[;section=<axis>=<pos>]"` when a
 message names one small feature (frame 2-4x its size), and `--extra-section axis=mm` when
 a message asks for a view that no current file shows.
+Section cuts are chosen in this order: plan/request-driven `--extra-section` cuts, then
+geometry-driven `--auto-sections` cuts through bore/boss axes (already in the command, 3 cuts
+total), then bounding-box centers. To pick a `--detail` `section=` position for a bore, run
+`uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/section_select.py" build/{{PART_ID}}.py`
+and use its `extra_section_args`.
 
 ## Procedure (each stage)
 
