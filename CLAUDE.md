@@ -137,6 +137,7 @@ or calling any script listed below.
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer
     render_preview.py        # Subprocess entry point for preview.py
+    section_select.py        # Picks axis-aligned section planes through bore/boss axes (--auto-sections; standalone CLI)
     mesh_io.py               # Trimesh loader + watertightness validation
     build_plan_schema.json   # JSON Schema draft-7 for BUILD_PLAN.json
     printer_profile_schema.json  # JSON Schema draft-7 for printer_profile.json

@@ -14,14 +14,14 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Salacia case
 - [ ] [SUP Silencer](https://makerworld.com/de/models/2871437-paddleboard-sup-deflation-silencer#profileId-3205902)
 - [ ] beamer-halter
-- [ ] Katzenwendeltreppe
+- [x] Katzenwendeltreppe
 
 ## Defects
 - [ ] bridges are treated as overhangs -> ignore bridges of lengt l (l: printer parameter)
 
 ## Backlog
 
-- [ ] cross section selection tool. important features should show up in the cross section
+- [x] cross section selection tool. important features should show up in the cross section
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d modells
 - [ ] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit)
@@ -64,10 +64,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] integrate a G-code interpreter for optimsation for print speed
 
 ## Related ideas
-
 Survey of external libraries/tools and whether/how to integrate each --
 strategies defined in [Details](#integration-strategies).
-
 
 ### Parametric CAD library survey (2026-07)
 - [ ] `vibe-cading` -- [details](#vibe-cading)
