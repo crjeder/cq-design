@@ -269,3 +269,20 @@ def test_add_creates_request_log_when_absent(tmp_path):
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     assert len(plan["request_log"]) == 1
     assert plan["request_log"][0]["text"] == "widen the base"
+
+
+def _add(tmp_path, *extra):
+    plan_path = tmp_path / "BUILD_PLAN.json"
+    plan_path.write_text(json.dumps(_minimal_plan(list(_ENTRIES))), encoding="utf-8")
+    argv = ["add", str(plan_path), "--kind", "correction", "--text", "x", *extra]
+    assert request_log_search.main(argv) == 0
+    return json.loads(plan_path.read_text(encoding="utf-8"))
+
+
+def test_add_reconciled_stamps_intent_ts(tmp_path):
+    plan = _add(tmp_path, "--reconciled")
+    assert plan["intent_ts"] == plan["request_log"][-1]["ts"]
+
+
+def test_add_without_reconciled_leaves_intent_ts(tmp_path):
+    assert "intent_ts" not in _add(tmp_path)
