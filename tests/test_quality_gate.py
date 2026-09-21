@@ -617,3 +617,13 @@ def test_hinge_guard_flags_pin_hinge_joint_member(tmp_path):
     issues = quality_gate._run_hinge_guard_stage(plan, str(script))
     assert len(issues) == 1
     assert issues[0]["unions"] == ["door"]
+
+
+def test_bridge_only_part_emits_no_overhang_warning(tmp_path):
+    from test_print_orientation import _bridge_slab  # type: ignore[attr-defined]  # noqa: PLC0415
+
+    stl = tmp_path / "bridge.stl"
+    _bridge_slab(6.0).export(str(stl))
+    issues = quality_gate._analyze_stl(str(stl), OVERHANG_DEG)
+    assert not _issues_of(issues, "overhang_exceeded")
+    assert _issues_of(issues, "bridges_detected")[0]["severity"] == "info"
