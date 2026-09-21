@@ -202,6 +202,7 @@ def _analyze_stl(
     overhang_deg: float,
     rotate: list[dict] | None = None,
     clearance_zones: list[dict] | None = None,
+    bridge_max_mm: float = 10.0,
 ) -> list[dict]:
     """Analyze STL geometry and overhangs using trimesh. Returns issues.
 
@@ -272,7 +273,21 @@ def _analyze_stl(
     # the print-orientation optimizer (mesh_io.overhang_metrics).
     from mesh_io import overhang_metrics
 
-    metrics = overhang_metrics(tm, overhang_deg)
+    metrics = overhang_metrics(tm, overhang_deg, bridge_max_mm)
+    if metrics["bridge_count"]:
+        issues.append(
+            {
+                "source": "geometry",
+                "severity": "info",
+                "type": "bridges_detected",
+                "message": (
+                    f"{metrics['bridge_count']} bridge(s) up to {bridge_max_mm:g} mm over "
+                    f"{metrics['bridge_area_mm2']:.1f} mm2 -- printable without support"
+                ),
+                "hint": "Bridges are not counted as overhangs.",
+                "bridge_area_mm2": metrics["bridge_area_mm2"],
+            }
+        )
     if metrics["worst_angle_deg"] is not None:
         overhang_area = metrics["overhang_area_mm2"]
         worst_angle = metrics["worst_angle_deg"]
@@ -891,6 +906,7 @@ def run_gate(
     with open(plan_path, encoding="utf-8") as f:
         plan = json.load(f)
     overhang_deg = plan.get("constraints", {}).get("overhang_max_deg", 45)
+    bridge_max_mm = plan.get("constraints", {}).get("bridge_max_mm", 10.0)
     if stl_dir is None:
         stl_dir = os.path.dirname(os.path.abspath(script_path))
 
@@ -924,7 +940,7 @@ def run_gate(
             geo_issues = []
             for stl in effective_stls:
                 uid = os.path.splitext(os.path.basename(stl))[0]
-                stl_issues = _analyze_stl(stl, overhang_deg, rotate, clearance_zones)
+                stl_issues = _analyze_stl(stl, overhang_deg, rotate, clearance_zones, bridge_max_mm)
                 if multi:
                     stl_issues = [
                         {**i, "union": uid, "message": f"[{uid}] {i['message']}"}
