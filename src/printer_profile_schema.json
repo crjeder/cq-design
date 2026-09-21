@@ -36,6 +36,11 @@
           "maximum": 90,
           "description": "Maximum overhang angle before support required"
         },
+        "bridge_max_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Longest span (mm), supported on two or more sides, printed as a bridge without support (default 10)"
+        },
         "dimension_tolerance_mm": {
           "type": "number",
           "minimum": 0,

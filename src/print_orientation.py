@@ -55,7 +55,13 @@ from scipy.spatial import ConvexHull
 from trimesh.transformations import euler_from_matrix
 
 from freshness import script_hash
-from mesh_io import load_mesh, support_cost, up_facing_incline_area
+from mesh_io import (
+    BRIDGE_MAX_MM,
+    bed_contact_mask,
+    load_mesh,
+    support_cost,
+    up_facing_incline_area,
+)
 
 # A candidate primary score within this band of the best is treated as tied, so the
 # decision falls to the next key. Prevents jitter between near-identical poses.
@@ -68,12 +74,10 @@ VISUAL_BAND = 0.02
 BUILD_HEIGHT_BAND_MM = 0.5
 # Two bed-down normals within this angle are the same resting face.
 NORMAL_MERGE_DEG = 5.0
-# Face counts as bed contact when nearly flat-down and within one first-layer
-# height of the floor (a marginally non-coplanar resting face still contacts).
-FIRST_LAYER_BAND_MM = 0.3
-# Severity exponent for the weighted support cost: > 1 so near-horizontal
+# Severity exponent (OV_H) for the weighted support cost: > 1 so near-horizontal
 # overhangs cost disproportionately more than ones just past the limit.
-SUPPORT_EXPONENT = 2.0
+OV_H = 2.0
+SUPPORT_EXPONENT = OV_H
 # Area-dominant directions added as orientation candidates (top-N by area).
 AREA_CUMULATION_TOP_N = 10
 # Slopes shallower than this (from horizontal) are effectively flat: no stepping.
@@ -184,14 +188,12 @@ def _strength_score(
     return round(1.0 - abs(float(load_after[2])), 6)
 
 
-def _bed_contact_mask(posed: trimesh.Trimesh) -> np.ndarray:
-    """Faces counted as bed contact: near flat-down, within one first-layer height."""
-    min_z = float(posed.vertices[:, 2].min())
-    centroids_z = posed.triangles.mean(axis=1)[:, 2]
-    return (posed.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
+_bed_contact_mask = bed_contact_mask
 
 
-def _support_metrics(posed: trimesh.Trimesh, overhang_deg: float) -> tuple[float, float]:
+def _support_metrics(
+    posed: trimesh.Trimesh, overhang_deg: float, bridge_max_mm: float = BRIDGE_MAX_MM
+) -> tuple[float, float]:
     """Return (support_cost, bed_contact_area) for the mesh already posed.
 
     The support cost is severity-weighted (steeper overhangs cost more; see
@@ -202,7 +204,7 @@ def _support_metrics(posed: trimesh.Trimesh, overhang_deg: float) -> tuple[float
     """
     contact_mask = _bed_contact_mask(posed)
     bed_contact = float(posed.area_faces[contact_mask].sum())
-    cost = support_cost(posed, overhang_deg, SUPPORT_EXPONENT, exclude_mask=contact_mask)
+    cost = support_cost(posed, overhang_deg, OV_H, contact_mask, bridge_max_mm)
     return round(cost, 3), round(bed_contact, 3)
 
 
@@ -239,9 +241,7 @@ def _gentle_incline_fraction(posed: trimesh.Trimesh) -> float:
     slope = np.degrees(np.arccos(np.clip(np.abs(nz), 0.0, 1.0)))
     gentle = (slope > FLAT_EPS_DEG) & (slope < GENTLE_INCLINE_MAX_DEG)
 
-    min_z = float(posed.vertices[:, 2].min())
-    centroids_z = posed.triangles.mean(axis=1)[:, 2]
-    on_bed = (nz < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
+    on_bed = bed_contact_mask(posed)
 
     bad_area = float(posed.area_faces[gentle & ~on_bed].sum())
     return round(bad_area / total, 6)
@@ -353,6 +353,7 @@ def optimize_orientation(
     optimize_for: str = "strength",
     show_face: list[float] | None = None,
     load_type: str = "tension",
+    bridge_max_mm: float = BRIDGE_MAX_MM,
 ) -> dict:
     """Choose the print orientation for a union mesh under the requested mode.
 
@@ -384,7 +385,7 @@ def optimize_orientation(
         posed = mesh.copy()
         posed.apply_transform(rotation)
         strength = _strength_score(rotation, load_vec, load_type)
-        support, bed_contact = _support_metrics(posed, overhang_deg)
+        support, bed_contact = _support_metrics(posed, overhang_deg, bridge_max_mm)
         visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec)
         stable = _stability_metrics(posed)
         candidates.append(
@@ -497,6 +498,12 @@ def main() -> None:
         help="Overhang angle above which support is needed (plan constraint)",
     )
     parser.add_argument(
+        "--bridge-max-mm",
+        type=float,
+        default=BRIDGE_MAX_MM,
+        help="Longest supported-both-sides span (mm) treated as a bridge, not an overhang",
+    )
+    parser.add_argument(
         "--load",
         default=None,
         help="Principal load direction 'x,y,z' in the authored frame; omit for a "
@@ -547,6 +554,7 @@ def main() -> None:
         optimize_for=args.optimize_for,
         show_face=show_face,
         load_type=args.load_type,
+        bridge_max_mm=args.bridge_max_mm,
     )
     if args.source_script:
         result["source_script_hash"] = script_hash(args.source_script)

@@ -72,89 +72,180 @@ def nonmanifold_edges(mesh, max_report=5):
 
 # A steeply down-facing face whose centroid sits within this height of the mesh's
 # lowest point is resting on the print bed: the bed supports it, so it is never an
-# unsupported overhang. Matches print_orientation.py's FIRST_LAYER_BAND_MM.
-BED_CONTACT_BAND_MM = 0.3
+# unsupported overhang. One first-layer height; shared with print_orientation.py.
+FIRST_LAYER_BAND_MM = 0.3
+# Default longest span (mm) an FDM printer bridges without support.
+BRIDGE_MAX_MM = 10.0
+# A region is only a bridge candidate when its mean overhang angle is this steep
+# (near-horizontal ceiling).
+BRIDGE_MIN_DEG = 80.0
+# Fraction of a rectangle side that must be anchored for that side to count as supported.
+BRIDGE_SIDE_COVERAGE = 0.5
+# Bridge regions keep this fraction of their normal support cost.
+BRIDGE_COST_FACTOR = 0.1
 
 
-def overhang_metrics(mesh, overhang_deg):
+def bed_contact_mask(mesh):
+    """Faces resting on the bed: steeply down-facing, within one first-layer height of the floor."""
+    min_z = float(mesh.vertices[:, 2].min())
+    centroids_z = mesh.triangles.mean(axis=1)[:, 2]
+    return (mesh.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
+
+
+def _overhang_angles(mesh):
+    return np.degrees(np.arcsin(np.clip(-mesh.face_normals[:, 2], 0.0, 1.0)))
+
+
+def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm):
+    """True when the region is a near-horizontal ceiling, at most `bridge_max_mm` across,
+    supported on at least two sides of its oriented XY rectangle.
+
+    A region boundary edge is anchored when the face across it descends from the edge
+    (a wall the ceiling rests on); a wall rising from the edge is the region's own free
+    lip. Anchored edges are binned to the 4 rectangle sides; a side counts as supported
+    when anchored length covers BRIDGE_SIDE_COVERAGE of it.
+    """
+    area = mesh.area_faces[faces]
+    if np.average(angles[faces], weights=area) < BRIDGE_MIN_DEG:
+        return False
+    tri = mesh.faces[faces]
+    pts = mesh.vertices[np.unique(tri)][:, :2]
+    if len(pts) < 3:
+        return False
+    to_rect, rect = trimesh.bounds.oriented_bounds_2D(pts)
+    short = float(rect.min())
+    if short > bridge_max_mm or short <= 0.0:
+        return False
+
+    # Region boundary edges: appear once among the region's own faces.
+    edges = np.sort(tri[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2), axis=1)
+    owner = np.repeat(faces, 3)
+    _, inv, cnt = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
+    boundary = cnt[inv.reshape(-1)] == 1
+
+    # Face across each boundary edge, via the mesh's edge -> face map.
+    adj_edges = np.sort(mesh.face_adjacency_edges, axis=1)
+    lookup = {
+        tuple(e): (int(f[0]), int(f[1]))
+        for e, f in zip(adj_edges, mesh.face_adjacency, strict=True)
+    }
+    centroids_z = mesh.triangles.mean(axis=1)[:, 2]
+    side_len = [rect[1], rect[1], rect[0], rect[0]]  # sides +x, -x, +y, -y
+    covered = np.zeros(4)
+    for e, f, is_b in zip(edges, owner, boundary, strict=True):
+        if not is_b:
+            continue
+        pair = lookup.get(tuple(e))
+        if pair is None:
+            continue
+        other = pair[1] if pair[0] == f else pair[0]
+        if in_region[other]:
+            continue
+        mid = mesh.vertices[e].mean(axis=0)
+        if centroids_z[other] >= mid[2] - 1e-6:
+            continue  # wall rises from the edge: the region's own free lip
+        x, y, _ = to_rect @ np.array([mid[0], mid[1], 1.0])
+        if abs(x) / (rect[0] / 2) >= abs(y) / (rect[1] / 2):
+            side = 0 if x > 0 else 1
+        else:
+            side = 2 if y > 0 else 3
+        covered[side] += np.linalg.norm(mesh.vertices[e[0]] - mesh.vertices[e[1]])
+    supported = sum(
+        1 for c, n in zip(covered, side_len, strict=True) if c >= BRIDGE_SIDE_COVERAGE * n
+    )
+    return supported >= 2
+
+
+def overhang_regions(
+    mesh, overhang_deg, exclude_mask=None, bridge_max_mm=BRIDGE_MAX_MM, exclude_bed=False
+):
+    """Connected regions of unsupported down-facing faces, each flagged as bridge or not.
+
+    Returns a list of dicts {faces, area_mm2, bridge}. Faces in `exclude_mask`, and bed-contact
+    faces when `exclude_bed`, are dropped first. Build direction
+    is +Z, so this is pose-dependent.
+    """
+    angles = _overhang_angles(mesh)
+    sel = (mesh.face_normals[:, 2] < 0) & (angles > overhang_deg)
+    if exclude_bed:
+        sel = sel & ~bed_contact_mask(mesh)
+    if exclude_mask is not None:
+        sel = sel & ~exclude_mask
+    if not np.any(sel):
+        return []
+    adj = mesh.face_adjacency
+    linked = adj[sel[adj[:, 0]] & sel[adj[:, 1]]]
+    groups = trimesh.graph.connected_components(linked, nodes=np.nonzero(sel)[0], min_len=1)
+    regions = []
+    for faces in groups:
+        faces = np.asarray(faces)
+        bridge = _is_bridge(mesh, faces, sel, angles, bridge_max_mm)
+        regions.append(
+            {"faces": faces, "area_mm2": float(mesh.area_faces[faces].sum()), "bridge": bridge}
+        )
+    return regions
+
+
+def overhang_metrics(mesh, overhang_deg, bridge_max_mm=BRIDGE_MAX_MM):
     """Overhang area and worst face for a mesh at its current pose.
 
     A face is an unsupported overhang when its normal points downward (nz < 0)
     and its angle from horizontal -- arcsin(-nz) for a unit normal -- exceeds
-    `overhang_deg`. Faces resting on the print bed are NOT overhangs (the bed
-    supports them, not support material): a steeply down-facing face whose centroid
-    sits within `BED_CONTACT_BAND_MM` of the mesh's lowest point is excluded. This
-    is what keeps a part's flat bottom (a 90-degree downward face at Z=0) from being
-    reported as a 90-degree overhang. Returns a dict with the total overhang area,
-    and the steepest remaining face's angle and centroid (both None when nothing
-    exceeds the threshold). The build direction is +Z, so this is pose-dependent:
-    rotate the mesh to score a different print orientation.
+    `overhang_deg`. Faces resting on the print bed are NOT overhangs (see
+    `bed_contact_mask`). Connected overhang faces form regions; a region that is a
+    bridge (near-horizontal, at most `bridge_max_mm` across, supported on two or more
+    sides -- see `_is_bridge`) prints without support, so it is reported in
+    `bridge_area_mm2` / `bridge_count` and excluded from the overhang area and worst
+    face. Returns a dict with the overhang area, the steepest remaining face's angle
+    and centroid (None when nothing exceeds the threshold), and the bridge totals. The
+    build direction is +Z, so this is pose-dependent: rotate the mesh to score a
+    different print orientation.
     """
-    normals = mesh.face_normals
-    downward_mask = normals[:, 2] < 0
-
-    # Exclude bed-contact faces: steeply down-facing and at the mesh's lowest level.
-    min_z = float(mesh.vertices[:, 2].min())
-    centroids_z = mesh.triangles.mean(axis=1)[:, 2]
-    bed_mask = (normals[:, 2] < -0.5) & (centroids_z <= min_z + BED_CONTACT_BAND_MM)
-    downward_mask = downward_mask & ~bed_mask
-
-    if not np.any(downward_mask):
-        return {
-            "overhang_area_mm2": 0.0,
-            "worst_angle_deg": None,
-            "worst_location_xyz_mm": None,
-        }
-
-    angles = np.degrees(np.arcsin(np.clip(-normals[:, 2], 0.0, 1.0)))
-    support_mask = downward_mask & (angles > overhang_deg)
-    if not np.any(support_mask):
-        return {
-            "overhang_area_mm2": 0.0,
-            "worst_angle_deg": None,
-            "worst_location_xyz_mm": None,
-        }
-
-    overhang_area = float(mesh.area_faces[support_mask].sum())
-    support_indices = np.nonzero(support_mask)[0]
-    worst_face = int(support_indices[int(angles[support_indices].argmax())])
-    centroid = mesh.triangles[worst_face].mean(axis=0)
-    return {
-        "overhang_area_mm2": round(overhang_area, 3),
-        "worst_angle_deg": round(float(angles[worst_face]), 3),
-        "worst_location_xyz_mm": [round(float(c), 3) for c in centroid],
+    regions = overhang_regions(mesh, overhang_deg, bridge_max_mm=bridge_max_mm, exclude_bed=True)
+    bridges = [r for r in regions if r["bridge"]]
+    real = [r for r in regions if not r["bridge"]]
+    out = {
+        "overhang_area_mm2": 0.0,
+        "worst_angle_deg": None,
+        "worst_location_xyz_mm": None,
+        "bridge_area_mm2": round(sum(r["area_mm2"] for r in bridges), 3),
+        "bridge_count": len(bridges),
     }
+    if not real:
+        return out
+    faces = np.concatenate([r["faces"] for r in real])
+    angles = _overhang_angles(mesh)
+    worst_face = int(faces[int(angles[faces].argmax())])
+    centroid = mesh.triangles[worst_face].mean(axis=0)
+    out["overhang_area_mm2"] = round(float(mesh.area_faces[faces].sum()), 3)
+    out["worst_angle_deg"] = round(float(angles[worst_face]), 3)
+    out["worst_location_xyz_mm"] = [round(float(c), 3) for c in centroid]
+    return out
 
 
-def support_cost(mesh, overhang_deg, exponent, exclude_mask=None):
+def support_cost(mesh, overhang_deg, exponent, exclude_mask=None, bridge_max_mm=BRIDGE_MAX_MM):
     """Severity-weighted unsupported-overhang cost at the mesh's current pose.
 
-    Unlike `overhang_metrics`' flat area sum, each unsupported downward face
-    contributes its area scaled by how far it leans past `overhang_deg`
-    (normalized to [0, 1] across the limit-to-horizontal range) raised to
-    `exponent`. With `exponent > 1` a near-horizontal face costs
-    disproportionately more than one just past the limit, matching the real
-    cost of support material. Build direction is +Z, so this is pose-dependent.
-    `exclude_mask` drops faces from the cost (e.g. the face resting on the bed,
-    which is supported by the bed, not by support material). Used for
-    print-orientation ranking only; `overhang_metrics` is left unchanged so the
-    quality gate keeps reporting true overhang area.
+    Each unsupported down-facing face contributes its area scaled by how far it leans
+    past `overhang_deg` (normalized to [0, 1] over the limit-to-horizontal range) raised
+    to `exponent` (`OV_H`). The ramp is zero at the limit, so the cost is continuous
+    there; with `exponent > 1` a near-horizontal face costs disproportionately more
+    than one just past the limit. Faces of bridge regions keep only
+    `BRIDGE_COST_FACTOR` of their cost. `exclude_mask` drops faces (e.g. those resting
+    on the bed). Used for print-orientation ranking; `overhang_metrics` reports the
+    true overhang area.
     """
-    nz = mesh.face_normals[:, 2]
-    downward_mask = nz < 0
-    if exclude_mask is not None:
-        downward_mask = downward_mask & ~exclude_mask
-    if not np.any(downward_mask):
+    regions = overhang_regions(mesh, overhang_deg, exclude_mask, bridge_max_mm)
+    if not regions:
         return 0.0
-
-    angles = np.degrees(np.arcsin(np.clip(-nz, 0.0, 1.0)))
-    support_mask = downward_mask & (angles > overhang_deg)
-    if not np.any(support_mask):
-        return 0.0
-
-    lean = (angles[support_mask] - overhang_deg) / (90.0 - overhang_deg)
-    weighted = mesh.area_faces[support_mask] * np.power(lean, exponent)
-    return round(float(weighted.sum()), 3)
+    angles = _overhang_angles(mesh)
+    total = 0.0
+    for r in regions:
+        f = r["faces"]
+        lean = (angles[f] - overhang_deg) / (90.0 - overhang_deg)
+        cost = float((mesh.area_faces[f] * np.power(lean, exponent)).sum())
+        total += cost * (BRIDGE_COST_FACTOR if r["bridge"] else 1.0)
+    return round(total, 3)
 
 
 def up_facing_incline_area(mesh, min_deg, max_deg):
