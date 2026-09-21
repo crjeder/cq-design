@@ -891,6 +891,7 @@ def test_well_formed_request_log_validates(plan_file):
         {"ts": "2026-07-19T10:05:00Z", "kind": "clarification", "text": "USB-C on the south wall"},
         {"ts": "2026-07-19T11:00:00Z", "kind": "correction", "text": "Actually make it 5mm taller"},
     ]
+    plan["intent_ts"] = "2026-07-19T11:00:00Z"
     assert validate_plan(plan_file(plan)) == []
 
 
@@ -905,6 +906,7 @@ def test_request_log_entry_with_images_validates(plan_file):
             "images": ["sketches/ear-placement-2026-07-19T11-00-00Z.png"],
         },
     ]
+    plan["intent_ts"] = max(e["ts"] for e in plan["request_log"])
     assert validate_plan(plan_file(plan)) == []
 
 
@@ -995,6 +997,7 @@ def test_request_log_level_and_targets_validate(plan_file):
             "targets": ["cradle", "cradle.saddle_width"],
         },
     ]
+    plan["intent_ts"] = max(e["ts"] for e in plan["request_log"])
     assert validate_plan(plan_file(plan)) == []
 
 
@@ -1011,6 +1014,7 @@ def test_request_log_mixed_typed_and_untyped_entries_validate(plan_file):
             "targets": ["base"],
         },
     ]
+    plan["intent_ts"] = max(e["ts"] for e in plan["request_log"])
     assert validate_plan(plan_file(plan)) == []
 
 
@@ -1295,3 +1299,43 @@ def test_positional_coincidence_after_placement_transform():
     _round_interface(plan, "wall", [10, 0, 0], 5.0, placement={"translate_mm": [-10, 0, 0]})
     findings = check_shared_interfaces(plan)
     assert len(findings) == 1
+
+
+# ---- intent_ts reconciliation -------------------------------------------
+
+
+def _log_plan(*entries, intent_ts=None):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make an enclosure"},
+        *entries,
+    ]
+    if intent_ts is not None:
+        plan["intent_ts"] = intent_ts
+    return plan
+
+
+_FIX = {"ts": "2026-07-19T11:00:00Z", "kind": "correction", "text": "5mm taller"}
+
+
+def test_initial_only_needs_no_intent_ts(plan_file):
+    assert validate_plan(plan_file(_log_plan())) == []
+
+
+def test_unreconciled_correction_fails(plan_file):
+    errors = validate_plan(plan_file(_log_plan(_FIX, intent_ts="2026-07-19T10:00:00Z")))
+    assert len(errors) == 1 and "5mm taller" in errors[0]
+
+
+def test_missing_intent_ts_with_entries_fails(plan_file):
+    errors = validate_plan(plan_file(_log_plan(_FIX)))
+    assert any("not reconciled" in e for e in errors)
+
+
+def test_intent_ts_equal_to_newest_entry_passes(plan_file):
+    assert validate_plan(plan_file(_log_plan(_FIX, intent_ts=_FIX["ts"]))) == []
+
+
+def test_unparseable_intent_ts_fails(plan_file):
+    errors = validate_plan(plan_file(_log_plan(_FIX, intent_ts="yesterday")))
+    assert any("not an ISO-8601" in e for e in errors)

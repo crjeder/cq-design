@@ -821,6 +821,12 @@ give the generation loop something to check *against* -- `REQUIREMENTS.md`/
 `BUILD_PLAN.json`'s `intent` field, or `request_log`'s targeted entries --
 rather than only auditing conformance to the plan's structure.
 
+Update (change `intent-staleness-gate`): the mechanical half is closed -- the plan's
+`intent_ts` stamp plus a blocking `plan_validate.py` check fail any plan whose
+`request_log` has moved past the last reconciliation of `intent`. Still open: a
+model-level conformance bar before delivery, promoting request-conformance findings from
+advisory to blocking (eval-gated), and the ambiguity re-audit of mid-build corrections.
+
 ### Knowledge domain activation audit
 Audited `documentation/Knowledge Domains.md` (an external survey of what a
 text-to-CadQuery LLM needs: 3D/B-Rep/CSG spatial reasoning, the fluent

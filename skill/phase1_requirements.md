@@ -84,7 +84,9 @@ One message, one approval, covering:
 Do not start Phase 2 until the user approves or corrects it. Corrections replace the
 looked-up values; a corrected reading becomes the approved text. The approved reformulation
 is copied verbatim into `BUILD_PLAN.json`'s `intent` by the planner; `request_log`'s
-`initial` entry keeps the user's original wording.
+`initial` entry keeps the user's original wording. If the log already holds
+clarification entries at that point, the planner also sets `intent_ts` to the newest
+entry's `ts`; with only an `initial` entry, no stamp is needed.
 
 ## At approval
 

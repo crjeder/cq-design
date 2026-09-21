@@ -25,7 +25,9 @@ existing entries. Skip if the plan has no `request_log`.
 **Current state only.** When a correction changes the design, in the same turn rewrite
 `intent` to the new approved reading and update the affected `part_notes`, deleting
 superseded wording (no "ROUND 2", no "previously"). History lives only in `request_log`.
-A correction that changes nothing leaves `intent` unchanged.
+A correction that changes nothing leaves `intent` unchanged. Either way, advance
+`intent_ts` in the same turn -- pass `--reconciled` to the `add` above (after rewriting
+`intent`); without it `plan_validate.py` and the gate fail with `intent not reconciled`.
 
 **Parameter scope.** A `parameter`-level entry changes literals only in the parts it
 targets. A value that must agree across parts routes through `joints` / `mate_chain.py`,

@@ -44,8 +44,8 @@ Report to the user:
    ```
 
    Read the result before reporting: if the `What to build` section is a bare noun phrase
-   rather than the approved reformulation, the plan's `intent` was never updated by a
-   Phase 3 correction -- fix `intent` and re-run rather than editing `REGENERATE.md`.
+   rather than the approved reformulation, fix `intent` and re-run rather than editing
+   `REGENERATE.md` (an unreconciled correction is already caught by `plan_validate.py`).
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually.
 
