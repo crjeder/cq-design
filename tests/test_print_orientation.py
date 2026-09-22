@@ -436,3 +436,95 @@ def test_optimize_orientation_is_deterministic():
     b = optimize_orientation(mesh.copy(), 45.0)
     assert a["rotate"] == b["rotate"]
     assert a["support_score"] == b["support_score"]
+
+
+def _fem_stress_result(normal_to_fi_p99: dict) -> dict:
+    """A minimal fem_check.py-shaped result: status ok, one candidate per normal with
+    the given fi_p99 (fi_max set equal -- not used by the orientation lookup)."""
+    return {
+        "status": "ok",
+        "candidates": [
+            {"normal": list(normal), "fi_max": fi, "fi_p99": fi}
+            for normal, fi in normal_to_fi_p99.items()
+        ],
+    }
+
+
+def test_fem_stress_overrides_strength_for_matching_candidate():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    # box(0,0,1) is the lowest-cost bed-down face by support (flat top/bottom); making
+    # its fi_p99 the worst (0.9) and every other axis normal the best (0.05) should flip
+    # the strength winner away from it relative to the neutral (no fem_stress) case.
+    fem_stress = _fem_stress_result(
+        {
+            (1.0, 0.0, 0.0): 0.05,
+            (-1.0, 0.0, 0.0): 0.05,
+            (0.0, 1.0, 0.0): 0.05,
+            (0.0, -1.0, 0.0): 0.05,
+            (0.0, 0.0, 1.0): 0.9,
+            (0.0, 0.0, -1.0): 0.9,
+        }
+    )
+    result = optimize_orientation(box, overhang_deg=45.0, fem_stress=fem_stress)
+    assert result["strength_source"] == "fem"
+    assert result["strength_score"] == pytest.approx(0.95)
+    assert "FEM failure index" in result["rationale"]
+
+
+def test_fem_stress_skipped_result_is_byte_identical_to_absent_flag():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    without_flag = optimize_orientation(box, overhang_deg=45.0, load_dir=[1.0, 0.0, 0.0])
+    with_skipped = optimize_orientation(
+        box, overhang_deg=45.0, load_dir=[1.0, 0.0, 0.0], fem_stress={"status": "skipped"}
+    )
+    assert without_flag == with_skipped
+    assert with_skipped["strength_source"] == "declared_load"
+
+
+def test_fem_stress_no_matching_candidates_falls_back_to_declared_load():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    # An oblique normal far outside every axis-aligned candidate's merge tolerance.
+    fem_stress = _fem_stress_result({(1.0, 1.0, 1.0): 0.01})
+    without_flag = optimize_orientation(box, overhang_deg=45.0, load_dir=[1.0, 0.0, 0.0])
+    with_unmatched = optimize_orientation(
+        box, overhang_deg=45.0, load_dir=[1.0, 0.0, 0.0], fem_stress=fem_stress
+    )
+    assert without_flag == with_unmatched
+    assert with_unmatched["strength_source"] == "declared_load"
+
+
+def test_fem_stress_absent_reports_neutral_source_without_load():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    result = optimize_orientation(box, overhang_deg=45.0)
+    assert result["strength_source"] == "neutral"
+
+
+def test_cli_fem_stress_flag(tmp_path):
+    stl = tmp_path / "box.stl"
+    trimesh.creation.box([40.0, 20.0, 6.0]).export(str(stl))
+    fem_stress_path = tmp_path / "fem_stress.json"
+    fem_stress_path.write_text(
+        json.dumps(
+            _fem_stress_result(
+                {
+                    (1.0, 0.0, 0.0): 0.05,
+                    (-1.0, 0.0, 0.0): 0.05,
+                    (0.0, 1.0, 0.0): 0.05,
+                    (0.0, -1.0, 0.0): 0.05,
+                    (0.0, 0.0, 1.0): 0.9,
+                    (0.0, 0.0, -1.0): 0.9,
+                }
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [sys.executable, _PRINT_ORIENTATION_CLI, str(stl), "--fem-stress", str(fem_stress_path)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert result["strength_source"] == "fem"

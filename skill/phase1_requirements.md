@@ -43,6 +43,12 @@ No dimension leaves Phase 1 as `-1`.
 Only when a named real product, PCB, or connector has dimensions not already known.
 Otherwise go straight to the exit checkpoint.
 
+**Mass.** When a part will carry a real-world object as a structural load (e.g. "holds a
+phone", "supports a router"), add that object's mass to the lookup targets alongside its
+dimensions. The planner derives the load's `magnitude_n` from it in Phase 2 (for the FEM
+stress advisor) -- never invented, and never estimated here; a load whose object's mass
+was not looked up simply gets no `magnitude_n`.
+
 **Gridfinity** is dimensioned by the standard (`reference/gridfinity.md`): never look up or
 guess grid, height, foot, or hole sizes. Ask for unit count, height, and contents; still look
 up any real object the bin holds (its size picks the units via `gridfinity_units_for`).

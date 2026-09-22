@@ -50,6 +50,16 @@ disproportionately more); less cost is better. The support score SHALL be slicer
 proxy, not a slice). Bed contact SHALL be detected within a first-layer-height band of the
 lowest point so a near-coplanar resting face counts as contact.
 
+The system SHALL additionally accept `--fem-stress <json>`, a result produced by
+`src/fem_check.py` for the same part. When supplied with an `ok` result, the strength score
+for each candidate SHALL be `1 - fi_p99` for that candidate from the result's
+failure-index table, replacing the load-direction measure -- a solved, geometry-aware
+strength in place of a direction cosine. The flag SHALL be optional: without it, or with a
+`skipped` result, the strength score SHALL be exactly the load-direction measure described
+above, including the orientation-neutral undeclared-load case. Candidate enumeration,
+support scoring, bed-contact detection, stability, and selection SHALL be unaffected by the
+flag, and the result SHALL report which strength source was used.
+
 #### Scenario: Load across layers scores weaker than load in plane
 - **WHEN** two candidate orientations are scored for a part with a declared load direction,
   one placing the load in the layer plane and one placing it along build Z
@@ -70,6 +80,22 @@ lowest point so a near-coplanar resting face counts as contact.
 - **WHEN** a resting face sits within the first-layer-height band of the lowest point but
   is not exactly coplanar with the floor
 - **THEN** its area is counted as bed contact
+
+#### Scenario: FEM result replaces the direction cosine
+- **WHEN** `--fem-stress` is supplied with an `ok` result for the part
+- **THEN** each candidate's strength score is `1 - fi_p99` from that result's table, the
+  result reports the FEM source, and support/stability/selection behave as before
+
+#### Scenario: Two orientations with the same load direction score differently
+- **WHEN** `--fem-stress` is supplied and two candidates place the declared load direction
+  equally in the layer plane, but one puts the part's peak stress across layers
+- **THEN** the two receive different strength scores, which the load-direction measure alone
+  could not distinguish
+
+#### Scenario: Flag absent or result skipped
+- **WHEN** `--fem-stress` is not supplied, or the supplied result has `status: "skipped"`
+- **THEN** the strength score is the load-direction measure, identical to the behaviour
+  without this capability, and the result reports the declared-load source
 
 ### Requirement: Score each candidate on bed-stability
 

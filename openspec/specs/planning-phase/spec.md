@@ -260,6 +260,16 @@ The summary SHALL include the following sections:
 - Parts table: ID, description, W x D x H dimensions, print orientation, and blocks_needed
 - Interfaces table: one row per interface entry across all parts, showing part ID, type, connector (if any), wall, and position
 - Constraints: wall_min_mm, overhang_max_deg, dimension_tolerance_mm
+- Load cases table, rendered only when at least one part declares `magnitude_n`: one row
+  per such part showing part ID, the source mass and its unit, the safety factor applied,
+  the resulting `magnitude_n`, the `applied_at` interface (with `applied_dir` when it
+  overrides `load.dir`), and the `grounded_at` interfaces
+
+The load-cases table exists because every downstream stress number scales linearly with
+`magnitude_n`, and that value is a derivation from a researched mass rather than something
+the user stated. The summary SHALL therefore show the mass and the factor, not the force
+alone, so the derivation is checkable at the same checkpoint that approves the plan. A part
+declaring `load` without `magnitude_n` SHALL NOT appear in this table.
 
 The summary SHALL NOT include an assembly-strategy section.
 
@@ -290,6 +300,21 @@ The summary SHALL NOT include an assembly-strategy section.
 #### Scenario: Summary shows no assembly strategy
 - **WHEN** the plan has more than one part
 - **THEN** the summary contains no assembly-strategy section; multi-part relationships are conveyed by the parts table and their placements
+
+#### Scenario: Derived load magnitude is shown with its derivation
+- **WHEN** a part declares `magnitude_n` derived from a researched mass
+- **THEN** the summary's load-cases table shows that part's source mass, the safety factor,
+  the resulting force in newtons, and the applied/grounded interfaces, so the user can
+  check the derivation before approving
+
+#### Scenario: User corrects the mass at the checkpoint
+- **WHEN** the user states a different mass at the plan-review pause
+- **THEN** `magnitude_n` is re-derived from the corrected mass, the plan is re-validated
+  from disk, and the corrected mass is recorded in `request_log` as a user correction
+
+#### Scenario: No load cases omits the table
+- **WHEN** no part declares `magnitude_n`
+- **THEN** the summary contains no load-cases table and is otherwise unchanged
 
 ---
 
@@ -322,6 +347,27 @@ part declares `load`, the planning summary SHALL surface it. When a part omits `
 downstream strength scoring SHALL be orientation-neutral (no load axis is inferred from
 geometry); an omitted load is a neutral default, never a fabricated bending direction.
 
+The `load` MAY additionally carry a solvable load case: `magnitude_n` (the force in
+newtons), `applied_at` (one `interfaces[].name` where the load enters the part),
+`applied_dir` (an optional direction override for that interface), and `grounded_at` (a
+list of `interfaces[].name` that hold the part). All are optional and their absence SHALL
+NOT affect any existing behaviour. Plan validation SHALL accept a part that declares none,
+all, or any subset of them, and SHALL check only that a declared `applied_at` or
+`grounded_at` names an interface that exists on that part.
+
+`applied_dir` SHALL override `load.dir` for the applied traction only, for a load that
+enters its interface at an angle to the part's principal load direction. When omitted the
+traction direction SHALL be `load.dir`. `applied_dir` SHALL NOT affect print-orientation
+strength scoring, the rationale trigger, or anything else that reads `load.dir` -- the
+principal direction remains the part-level one.
+
+The planner SHALL NOT state a `magnitude_n` it invented. The value SHALL be derived from a
+mass the research phase actually looked up, as
+`magnitude_n = mass_g * 9.81 / 1000 * safety_factor`, with the safety factor taken from
+`reference/Engineering Design Rules.md`. A part whose load has no researched mass behind it
+SHALL declare no `magnitude_n`, and the planner SHALL add the mass to the research lookup
+targets rather than estimating it.
+
 #### Scenario: Plan with a declared load validates
 - **WHEN** a build plan declares a `load` direction on a part
 - **THEN** plan validation accepts it and the value is available to the orientation
@@ -331,6 +377,32 @@ geometry); an omitted load is a neutral default, never a fabricated bending dire
 - **WHEN** a part omits the `load` field
 - **THEN** plan validation accepts the part and downstream strength scoring is
   orientation-neutral for it (no geometry-inferred load axis is fabricated)
+
+#### Scenario: Load case declared alongside the direction
+- **WHEN** a part's `load` declares `magnitude_n`, `applied_at`, and `grounded_at` naming
+  interfaces that exist on that part
+- **THEN** plan validation accepts it and the load case is available to the FEM advisor
+
+#### Scenario: Load enters at an angle to the principal direction
+- **WHEN** a part declares `load.dir` of `[0, 0, -1]` and `applied_dir` of `[0, -0.5, -1]`
+  on its `applied_at` interface
+- **THEN** the FEM advisor applies the traction along `applied_dir`, while the orientation
+  optimizer and the rationale trigger still read `load.dir`
+
+#### Scenario: Direction without a load case is unchanged
+- **WHEN** a part declares `load.dir` and `load.type` but none of `magnitude_n`,
+  `applied_at`, or `grounded_at`
+- **THEN** plan validation accepts it and every existing behaviour -- orientation scoring,
+  rationale triggering, summary rendering -- is identical to before this capability
+
+#### Scenario: Anchor names a non-existent interface
+- **WHEN** `applied_at` names a string that matches no `interfaces[].name` on that part
+- **THEN** plan validation reports it as a finding
+
+#### Scenario: No researched mass means no magnitude
+- **WHEN** a part carries a load whose mass was never researched
+- **THEN** the planner declares `dir` and `type` without `magnitude_n`, and adds the mass to
+  the research lookup targets rather than estimating a force
 
 ---
 

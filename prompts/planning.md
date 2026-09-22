@@ -130,6 +130,19 @@ assembly, assembly-access features, anything the user supplies). Nothing else.
     - Resting/compressive (base, plinth, foot, gasket, shim) or a non-load-bearing flat
       cover/panel: `load.type: "compression"`.
     - Unclear loading is an `OPEN:` item, never a silent omission.
+    - **Solvable load case (optional, for the FEM stress advisor)**: when the load comes
+      from an object with a researched mass (e.g. "holds a phone"), also declare
+      `magnitude_n = mass_g * 9.81 / 1000 * safety_factor` (safety factor from
+      `reference/Engineering Design Rules.md`'s Material Constants section), `applied_at`
+      (the `interfaces[].name` where the load enters), and `grounded_at` (the
+      `interfaces[].name` list that hold the part). Never state `magnitude_n` without a
+      researched mass behind it -- add the mass to the research lookup targets instead of
+      estimating it. Record the source mass in `planning_notes` as
+      `LOAD_MASS: <part_id> <mass> <unit> sf=<safety_factor>` so the Phase 2 checkpoint's
+      Load cases table can show the derivation, not just the resulting force. `applied_dir`
+      overrides `load.dir` for the applied traction only, when the load enters at an angle
+      to the part's principal direction (e.g. a shelf lip that also pushes outward) --
+      leave it out to apply the load along `load.dir`.
 
 11. **`optimize_for`**, plan-level with per-part overrides only when needed: `strength`
     (default; load-bearing), `min_support` (jig, draft, "minimize supports/print time"),
