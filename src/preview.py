@@ -175,7 +175,7 @@ def _get_font(size=14):
     return ImageFont.load_default()
 
 
-def _info_lines(wp, n_triangles):
+def _info_lines(wp, n_triangles, density_g_cm3=1.24, material="PLA"):
     """Two-line footer: dimensions + volume; triangle count + weight estimate."""
     ext_x, ext_y, ext_z, vol_cm3 = _bbox_info(wp)
     line1 = f"Bounding box: {ext_x:.1f} x {ext_y:.1f} x {ext_z:.1f} mm"
@@ -183,8 +183,8 @@ def _info_lines(wp, n_triangles):
         line1 += f"  |  Volume: {vol_cm3:.1f} cm³"
     line2 = f"Triangles: {n_triangles:,}"
     if vol_cm3 is not None:
-        weight_g = vol_cm3 * 1.24
-        line2 += f"  |  PLA estimate: ~{weight_g:.0f} g"
+        weight_g = vol_cm3 * density_g_cm3
+        line2 += f"  |  {material} estimate: ~{weight_g:.0f} g"
     return line1, line2
 
 
@@ -315,7 +315,13 @@ def render_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW_SIZ
 
 
 def render_single(
-    wp, output_path, title="Model Preview", width=_SINGLE_WIDTH, height=_SINGLE_HEIGHT
+    wp,
+    output_path,
+    title="Model Preview",
+    width=_SINGLE_WIDTH,
+    height=_SINGLE_HEIGHT,
+    density_g_cm3=1.24,
+    material="PLA",
 ):
     """Render a single isometric view with title and footer. Returns output_path."""
     _, triangles = _tessellate(wp)
@@ -327,7 +333,7 @@ def render_single(
 
     title_font = _get_font(20)
     info_font = _get_font(13)
-    line1, line2 = _info_lines(wp, len(triangles))
+    line1, line2 = _info_lines(wp, len(triangles), density_g_cm3, material)
 
     draw.text((canvas.width // 2, 10), title, fill="black", font=title_font, anchor="mt")
     draw.text(
@@ -444,6 +450,8 @@ def render_multi_view(
     view_size=DEFAULT_VIEW_SIZE,
     callouts=None,
     unlocated_names=None,
+    density_g_cm3=1.24,
+    material="PLA",
 ):
     """Render the default 2x2 first-angle (DIN) projection tile.
 
@@ -528,7 +536,7 @@ def render_multi_view(
             anchor="mb",
         )
 
-    line1, line2 = _info_lines(wp, len(triangles))
+    line1, line2 = _info_lines(wp, len(triangles), density_g_cm3, material)
     if legend_line:
         draw.text((w // 2, h - 50), line1, fill="gray", font=info_font, anchor="mb")
         draw.text((w // 2, h - 30), line2, fill="gray", font=info_font, anchor="mb")

@@ -1,8 +1,9 @@
 {
-  "_comment": "Single source for the Material Constants table in 'reference/Engineering Design Rules.md' and for src/fem_check.py. allowable_strain_pct/flexural_modulus_gpa feed the snap-fit check; E_mpa/nu/s_*_mpa feed the FEM advisor's isotropic solve and anisotropic failure criterion. Approximate literature/vendor-datasheet values for a screening tool, not a certified material spec -- recalibrate against your own printer/filament if a run's plausibility is in question.",
+  "_comment": "Single source for the Material Constants table in 'reference/Engineering Design Rules.md', for src/fem_check.py, and for weight estimation in src/quality_gate.py (--density passed to run_cadquery_model.py). allowable_strain_pct/flexural_modulus_gpa feed the snap-fit check; E_mpa/nu/s_*_mpa feed the FEM advisor's isotropic solve and anisotropic failure criterion; density_g_cm3 feeds weight estimation. Approximate literature/vendor-datasheet values for a screening tool, not a certified material spec -- recalibrate against your own printer/filament if a run's plausibility is in question.",
   "default_safety_factor": 2.0,
   "materials": {
     "PLA": {
+      "density_g_cm3": 1.24,
       "allowable_strain_pct": 2.0,
       "flexural_modulus_gpa": 3.5,
       "E_mpa": 3500,
@@ -13,6 +14,7 @@
       "notes": "stiff, brittle — lowest strain allowable"
     },
     "PETG": {
+      "density_g_cm3": 1.27,
       "allowable_strain_pct": 4.0,
       "flexural_modulus_gpa": 2.1,
       "E_mpa": 2100,
@@ -23,6 +25,7 @@
       "notes": "most common general-purpose choice"
     },
     "ABS": {
+      "density_g_cm3": 1.04,
       "allowable_strain_pct": 3.0,
       "flexural_modulus_gpa": 2.3,
       "E_mpa": 2300,
@@ -33,6 +36,7 @@
       "notes": "more ductile than PLA, less than PETG"
     },
     "TPU (95A)": {
+      "density_g_cm3": 1.21,
       "allowable_strain_pct": 20.0,
       "flexural_modulus_gpa": 0.05,
       "E_mpa": 50,
