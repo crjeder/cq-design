@@ -21,14 +21,14 @@ yourself.
 Spawn one agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
 on `models.planner` from `skill_config.json` (absent: the strongest available model -- a
 topology error here costs a rebuild of every part). It has no user channel. It writes
-`BUILD_PLAN.json` (indent 2) itself, runs `plan_validate.py` itself, and retries against
+`BUILD_PLAN.json` (indent 2) itself, runs `plan.py validate` itself, and retries against
 its own validator errors internally (up to 3 attempts, same convention as the builder
 agent in Phase 3) before returning its status contract (`status`, `parts`, `attempts`,
 `open_items`, `error_summary`) as its final message -- never the plan JSON.
 
 - `status: "valid"` ->
   ```bash
-  uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+  uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
       phase2/plan_written "BUILD_PLAN.json validated, <n> parts"
   ```
   then proceed to the plan summary checkpoint below.
@@ -37,7 +37,7 @@ agent in Phase 3) before returning its status contract (`status`, `parts`, `atte
   planner agent with it -- never spawn a second planner.
 
 Read `BUILD_PLAN.json` from disk only if you need to inspect it yourself; the plan summary
-checkpoint below reads it through `plan_summary.py`, not through this session parsing the
+checkpoint below reads it through `plan.py summary`, not through this session parsing the
 agent's reply.
 
 **`parameters.py`:** add or amend a sourced constant (with its source comment) only when
@@ -65,7 +65,7 @@ and tell the user ("Updated printer_profile.json: nozzle_mm -> 0.6").
 ## Plan summary checkpoint
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_summary.py" BUILD_PLAN.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan.py" summary BUILD_PLAN.json
 ```
 
 Show its Markdown output (never raw JSON) -- it already includes **Names I chose** (every
@@ -86,18 +86,18 @@ it re-derives `magnitude_n`, updates the `LOAD_MASS:` planning-note, and re-vali
 `BUILD_PLAN.json`; then record the correction:
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/request_log_search.py" add BUILD_PLAN.json \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" request add BUILD_PLAN.json \
     --kind correction --text "<part> mass corrected to <value> <unit>" --level parameter --target <part>
 ```
 
 Resolve each open question with the user, then resume the planner agent with the answers;
 it re-writes and re-validates `BUILD_PLAN.json` itself and returns an updated status
-contract. Re-run `plan_summary.py` against the file before Phase 3.
+contract. Re-run `plan.py summary` against the file before Phase 3.
 
 Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk directly, run
-`plan_validate.py` on it yourself before proceeding (no agent involved for a user's own
+`plan.py validate` on it yourself before proceeding (no agent involved for a user's own
 edit). On approval:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase2/plan_approved "<n> parts, review_policy <policy>"
 ```

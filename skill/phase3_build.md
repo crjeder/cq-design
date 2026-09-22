@@ -12,7 +12,7 @@ into its prompt file, and the agent reads that file itself.
 stage checkpoint, an escalation hint, a design-approval change, a load correction you
 announce), before acting on it append one entry to `BUILD_PLAN.json`'s `request_log`:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/request_log_search.py" add BUILD_PLAN.json \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" request add BUILD_PLAN.json \
     --kind clarification|correction --text "<user's wording, verbatim>" \
     [--level functional|operation|parameter] [--target <part id or part.feature>]...
 ```
@@ -27,7 +27,7 @@ existing entries. Skip if the plan has no `request_log`.
 superseded wording (no "ROUND 2", no "previously"). History lives only in `request_log`.
 A correction that changes nothing leaves `intent` unchanged. Either way, advance
 `intent_ts` in the same turn -- pass `--reconciled` to the `add` above (after rewriting
-`intent`); without it `plan_validate.py` and the gate fail with `intent not reconciled`.
+`intent`); without it `plan.py validate` and the gate fail with `intent not reconciled`.
 
 **Parameter scope.** A `parameter`-level entry changes literals only in the parts it
 targets. A value that must agree across parts routes through `joints` / `mate_chain.py`,
@@ -38,7 +38,7 @@ never by copying the literal into a sibling part.
 `images` array. Pass sketch paths to the builder in the resume message that acts on them.
 
 **Searching.** For prior context on a decision, run
-`python "$SKILL_DIR/src/request_log_search.py" search BUILD_PLAN.json --query <kw>` (plus
+`python "$SKILL_DIR/src/log.py" request search BUILD_PLAN.json --query <kw>` (plus
 `--kind`, `--level`, `--target`) instead of reading the whole log.
 
 ## Vocabulary
@@ -85,7 +85,7 @@ For each part in `plan["parts"]`, in order:
      without checkpoints. Resume the builder with `approve`, `change: <verbatim feedback>`,
      or `finish`. After the stub is approved:
      ```bash
-     uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+     uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
          phase3/stub_approved:<part_id> "<summary>"
      ```
    - `passed` -> **Implementation audit** below.
@@ -102,7 +102,7 @@ On `blocked`:
 4. **Skip** -> move on without this part; say so at design approval.
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase3/escalation:<part_id> "<hint verbatim | accepted as-is | skipped>"
 ```
 
@@ -117,14 +117,14 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/jo
    Prompt: `Read build/<part_id>_audit_prompt.txt in full and follow it.`
 2. **`verdict: pass`** -> accepted. Do the write-backs, then:
    ```bash
-   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
        phase3/part_accepted:<part_id> "audit passed"
    ```
    and report any `findings` to the user under their own "Advisory" heading.
 3. **`verdict: fail`** -> write the auditor's JSON contract to `build/<part_id>_audit.json`,
    then record the verdict on the builder's last attempt:
    ```bash
-   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/telemetry.py" audit-fail \
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" attempt audit-fail \
        --part <part_id> --audit build/<part_id>_audit.json
    ```
    Resume the builder with `fix:` listing each failed question, its view, discrepancy, and
@@ -140,7 +140,7 @@ From the accepted contract, into that part's `BUILD_PLAN.json` entry:
 - `engineering_rationale`, exactly as returned.
 
 If a part script's `PARAMETERS` block was hand-edited, reconcile with
-`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/import_params.py" build/<part_id>.py --part <part_id> --write`
+`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan.py" import-params build/<part_id>.py --part <part_id> --write`
 instead of hand-editing the plan.
 
 ## Design approval checkpoint
@@ -158,7 +158,7 @@ message, plus the builders' `decisions` and any unresolved advisories, and ask:
 Skip the wait only when the user asked for a fully autonomous run (still list the
 previews). Then:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase3/design_approved "<n> parts"
 ```
 
@@ -273,14 +273,14 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/toolpath_speed.py" \
 Write the accepted results to `build/orientations.json` (`{"<part_id>": {...result}}`)
 and one `build/<part_id>.orientation.json` per union, then:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase3/orientation_chosen "<n> unions, see build/orientations.json"
 ```
 
 ## Model export
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json --require-rationale
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan.py" validate BUILD_PLAN.json --require-rationale
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/model_export.py" \
     --plan BUILD_PLAN.json --parts-dir build --out . --stl-out stl \
     --orientations build/orientations.json
@@ -301,7 +301,7 @@ uv run python build/build.py
 ```
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase3/model_exported "model.3mf + <n> STL(s) written"
 ```
 
@@ -330,7 +330,7 @@ finding by its own `action` field, not by its `type`:
 - **`warn_only`** -> never triggers a fix round; show it with the print recipe.
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase3/gate_result "<pass|escalated>, <n> remaining findings"
 ```
 Then proceed to Phase 4.

@@ -56,7 +56,7 @@ CHAMFER_SAMPLES = 2000
 CHARS_PER_TOKEN = 4
 
 sys.path.insert(0, str(EVALS_DIR.parent / "src"))
-from telemetry import fold_attempts  # noqa: E402
+from log import fold_attempts  # noqa: E402
 
 
 def load_prices(path: Path = PRICES_PATH) -> dict:

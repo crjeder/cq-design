@@ -177,7 +177,7 @@ During the progressive-mode Phase 3 part loop, the question-driven visual
 self-review SHALL include a request-conformance question class in addition to the
 plan-derived questions and the universal invariants. The questions SHALL be
 generated from the scoped `request_log` text for the part (the `initial` entry plus
-every entry `request_log_search.py --query <part id or name>` matches, or entries
+every entry `log.py request search --query <part id or name>` matches, or entries
 whose typed `targets` name the part once those exist), each answered against a
 specific cited view. When `BUILD_PLAN.json` carries no `request_log`, this question
 class is omitted and the review proceeds unchanged.

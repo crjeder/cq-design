@@ -66,12 +66,12 @@ directory SHALL be written for it.
 The tool SHALL synthesize a `BUILD_PLAN.json` for each written case containing
 exactly one `parts` entry referencing the copied source script, with no `units`,
 `joints`, or `kinematics` fields. The synthesized plan SHALL pass
-`plan_validate.py` before the case is written; a validation failure SHALL be
+`plan.py validate` before the case is written; a validation failure SHALL be
 treated the same as an execution failure (logged, skipped, no case written).
 
 #### Scenario: Synthesized plan validates
 - **WHEN** a case is written
-- **THEN** its `BUILD_PLAN.json` passes `plan_validate.py` with no errors
+- **THEN** its `BUILD_PLAN.json` passes `plan.py validate` with no errors
 
 ### Requirement: Each written case records provenance and license
 

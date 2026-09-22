@@ -1,7 +1,7 @@
 ## Purpose
 
 Per-project compass-to-axis binding: a plan may record which world axis "East"/"North"/
-"Up" resolve to, and `plan_validate.py` nudges a plan that uses compass language without
+"Up" resolve to, and `plan.py validate` nudges a plan that uses compass language without
 recording one. Prevents the same "which side is East" question from being re-derived
 differently on every correction round when a project's binding diverges from the
 standard table in `prompts/planning.md`.
@@ -33,7 +33,7 @@ right-hand-rule on the literal declared axes regardless of this field.
 - **THEN** schema validation fails
 
 ### Requirement: Unrecorded compass usage is flagged
-`plan_validate.py` SHALL emit an advisory finding, at the same tier as
+`plan.py validate` SHALL emit an advisory finding, at the same tier as
 `check_block_thinness` (printed after `BUILD_PLAN OK`, never part of
 `validate_plan`'s blocking error list), when a plan's `intent`,
 `planning_notes`, or any `request_log[].text` contains a compass direction
@@ -43,7 +43,7 @@ matched) and the plan has no `coordinate_frame` field.
 #### Scenario: Compass word in intent with no coordinate_frame
 - **WHEN** a plan's `intent` is "add a fillet on the east side" and
   `coordinate_frame` is absent
-- **THEN** `plan_validate.py`'s advisory findings include one noting compass
+- **THEN** `plan.py`'s advisory findings include one noting compass
   language was used with no recorded binding
 
 #### Scenario: Compass word in request_log with no coordinate_frame

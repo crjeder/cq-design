@@ -7,13 +7,11 @@ before running any stage that raw-indexes plan fields, so that a malformed or pa
 fails the gate cleanly as a structured `plan_invalid` error instead of crashing the
 kinematic stage with a bare traceback. The constraint-reading stages (wrapper DFM,
 geometry/overhang), which read the plan only through defaulted lookups, are unaffected.
-
 ## Requirements
-
 ### Requirement: The gate validates the plan before plan-consuming stages
 
 The quality gate SHALL validate `BUILD_PLAN.json` with the shared plan validator
-(`plan_validate.validate_plan`) before running any stage that reads plan fields beyond the
+(`plan.validate_plan`) before running any stage that reads plan fields beyond the
 defaulted constraint lookups. Validation SHALL run once, outside the fix loop. The stages
 that read the plan only through defaulted `.get` lookups (wrapper DFM, geometry/overhang)
 SHALL be unaffected.
@@ -65,3 +63,4 @@ raises an unstructured exception. The gate SHALL still return a normal report wi
 - **WHEN** a plan passes validation
 - **THEN** plan validation contributes no issues, the kinematic stage runs as before, and
   the gate report (issues and print recipe) is identical to the pre-validation behavior
+

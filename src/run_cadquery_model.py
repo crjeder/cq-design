@@ -858,7 +858,7 @@ def _emit(args: argparse.Namespace, result: dict) -> None:
     (sub-agent tool calls do not reach the PostToolUse telemetry hook)."""
     if args.attempts_log:
         try:
-            from telemetry import record_attempt
+            from log import record_attempt
 
             record_attempt(Path(args.attempts_log), Path(args.script).stem, result, args.model)
         except Exception as exc:  # telemetry must never break a validate run

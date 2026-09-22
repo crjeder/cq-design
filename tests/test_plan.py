@@ -1,8 +1,12 @@
-"""Tests for BUILD_PLAN.json validation."""
+"""Tests for src/plan.py -- BUILD_PLAN.json validate / summary / import-params.
+
+Fast tier, no CadQuery.
+"""
 
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -10,13 +14,17 @@ import pytest
 SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
 
-from plan_validate import (  # noqa: E402
+from plan import (  # noqa: E402
     check_block_thinness,
     check_coordinate_frame_usage,
     check_engineering_rationale,
     check_hinge_intent_without_joints,
     check_load_case_anchors,
     check_shared_interfaces,
+    parse_parameters,
+    reconcile,
+    run,
+    summarize,
     validate_plan,
 )
 
@@ -568,7 +576,7 @@ def _plan_with_pin_hinge_kinematics(placement=None):
 def test_kinematics_no_placement_defers_axis_arm(plan_file):
     """A moving union whose part has no placement yet: no joint_contract error,
     and the deferred axis arm shows up as a non-fatal advisory."""
-    from plan_validate import check_deferred_axis_arms
+    from plan import check_deferred_axis_arms
 
     plan = _plan_with_pin_hinge_kinematics(placement=None)
     errors = validate_plan(plan_file(plan))
@@ -587,7 +595,7 @@ def test_kinematics_placement_rotating_axis_off_still_errors(plan_file):
     errors = validate_plan(plan_file(plan))
     assert any("joint axis_dir" in e for e in errors)
 
-    from plan_validate import check_deferred_axis_arms
+    from plan import check_deferred_axis_arms
 
     assert check_deferred_axis_arms(plan) == []
 
@@ -1402,3 +1410,304 @@ def test_intent_ts_equal_to_newest_entry_passes(plan_file):
 def test_unparseable_intent_ts_fails(plan_file):
     errors = validate_plan(plan_file(_log_plan(_FIX, intent_ts="yesterday")))
     assert any("not an ISO-8601" in e for e in errors)
+
+
+CASES = Path(__file__).resolve().parent.parent / "evals" / "cases"
+
+
+def test_summary_renders_every_eval_plan():
+    for plan_path in sorted(CASES.glob("*/BUILD_PLAN.json")):
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        text = summarize(plan, plan_path)
+        for part in plan["parts"]:
+            assert f"| {part['id']} |" in text, plan_path
+
+
+def test_summary_load_pose_interfaces_and_policy(tmp_path):
+    plan = {
+        "material": "PETG",
+        "nozzle_mm": 0.4,
+        "review_policy": "minimal",
+        "optimize_for": "visual_quality",
+        "constraints": {"wall_min_mm": 1.2, "overhang_max_deg": 45, "dimension_tolerance_mm": 0.5},
+        "parts": [
+            {
+                "id": "base",
+                "description": "foot | pad",
+                "dimensions": {"w_mm": 40, "d_mm": 30, "h_mm": 5.5},
+                "load": {"type": "compression"},
+                "pose_intent": "sits at origin",
+                "blocks_needed": [{"name": "hollow_box", "extents_mm": [1, 2, 3]}, "port_cutout"],
+                "interfaces": [
+                    {
+                        "type": "port_cutout",
+                        "name": "usb",
+                        "wall": "south",
+                        "position_mm": [1, 0, 2.5],
+                    }
+                ],
+            }
+        ],
+    }
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert (
+        r"| 1 | base | foot \| pad | 40 x 30 x 5.5 | compression | sits at origin "
+        "| hollow_box, port_cutout |" in text
+    )
+    assert "`base` show_face inferred" in text
+    assert "**Review policy:** `minimal`" in text
+    assert "| base | usb | port_cutout |  | south | 1,0,2.5 |" in text
+
+
+def _base_plan(**overrides) -> dict:
+    plan = {
+        "material": "PETG",
+        "nozzle_mm": 0.4,
+        "constraints": {"wall_min_mm": 1.2, "overhang_max_deg": 45, "dimension_tolerance_mm": 0.5},
+        "parts": [
+            {
+                "id": "bracket",
+                "description": "mounting bracket",
+                "dimensions": {"w_mm": 40, "d_mm": 30, "h_mm": 5},
+                "interfaces": [{"type": "hole", "name": "hole_2", "position_mm": [1, 0, 0]}],
+            }
+        ],
+    }
+    plan.update(overrides)
+    return plan
+
+
+def test_open_questions_section_present_for_plain_and_bulleted_lines(tmp_path):
+    plan = _base_plan(
+        planning_notes="OPEN: hinge pin diameter unverified\n- OPEN: unclear if lid snaps or screws"
+    )
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Open questions**" in text
+    assert "- OPEN: hinge pin diameter unverified" in text
+    assert "- OPEN: unclear if lid snaps or screws" in text
+
+
+def test_open_questions_section_absent_when_no_open_lines(tmp_path):
+    plan = _base_plan(planning_notes="the enclosure stays open on the east face")
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Open questions**" not in text
+
+
+def test_names_i_chose_flags_unmatched_and_skips_matched(tmp_path):
+    plan = _base_plan(
+        request_log=[
+            {"ts": "2026-01-01T00:00:00Z", "kind": "initial", "text": "add a hole for a screw"}
+        ]
+    )
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Names I chose**" in text
+    assert "`bracket` (part)" in text
+    assert "`hole_2`" not in text.split("**Names I chose**", 1)[1]
+
+
+def test_names_i_chose_absent_without_request_log(tmp_path):
+    plan = _base_plan()
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Names I chose**" not in text
+
+
+def test_load_cases_table_rendered_with_derivation(tmp_path):
+    plan = _base_plan(
+        planning_notes="LOAD_MASS: bracket 187 g sf=2.0",
+    )
+    plan["parts"][0]["load"] = {
+        "dir": [0, 0, -1],
+        "magnitude_n": 3.67,
+        "applied_at": "hole_2",
+        "grounded_at": ["hole_2"],
+    }
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Load cases**" in text
+    assert "| bracket | 187 g | 2.0 | 3.67 N | hole_2 | hole_2 |" in text
+
+
+def test_load_cases_table_shows_applied_dir_override(tmp_path):
+    plan = _base_plan(planning_notes="LOAD_MASS: bracket 187 g sf=2.0")
+    plan["parts"][0]["load"] = {
+        "dir": [0, 0, -1],
+        "magnitude_n": 3.67,
+        "applied_at": "hole_2",
+        "applied_dir": [0, -0.5, -1],
+        "grounded_at": ["hole_2"],
+    }
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "hole_2 dir=0,-0.5,-1" in text
+
+
+def test_load_cases_section_omitted_when_no_magnitude(tmp_path):
+    plan = _base_plan()
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Load cases**" not in text
+
+
+def test_load_cases_missing_mass_note_shows_unspecified(tmp_path):
+    plan = _base_plan()
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1], "magnitude_n": 1.0}
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "| bracket | (unspecified) | (unspecified) | 1 N |" in text
+
+
+PARAMS_PLAN: dict[str, Any] = {
+    "schema_version": 1,
+    "intent": (
+        "Open-top enclosure for an Arduino Nano, single body with 1.2 mm walls and a "
+        "USB-C pass-through on the front wall; board seats on internal standoffs."
+    ),
+    "printer": "Bambu P1S",
+    "material": "PLA",
+    "nozzle_mm": 0.4,
+    "parts": [
+        {
+            "id": "body",
+            "description": "Main enclosure body",
+            "dimensions": {"w_mm": 385, "d_mm": 120, "h_mm": 20},
+            "interfaces": [],
+            "blocks_needed": ["hollow_box"],
+        }
+    ],
+    "constraints": {
+        "wall_min_mm": 1.2,
+        "overhang_max_deg": 45,
+        "dimension_tolerance_mm": 1.0,
+    },
+}
+
+SCRIPT_SOURCE = """
+import cadquery as cq
+from blocks import hollow_box
+
+# PARAMETERS
+width = 390.0  # mm
+depth = 120  # mm, unchanged
+wall = 2.4  # not a plan field
+add_bosses = True
+
+inner = width - 2 * wall
+port = hollow_box(width, depth, 20, wall, 2.0, 0.0)
+
+result = port
+"""
+
+
+@pytest.fixture
+def script_file(tmp_path):
+    def _write(source):
+        p = tmp_path / "body.py"
+        p.write_text(source)
+        return str(p)
+
+    return _write
+
+
+def test_parse_numeric_literals(script_file):
+    path = script_file(SCRIPT_SOURCE)
+    parsed = parse_parameters(path)
+    assert parsed["width"] == 390.0
+    assert parsed["depth"] == 120
+    assert parsed["wall"] == 2.4
+
+
+def test_computed_and_call_assignments_skipped(script_file):
+    path = script_file(SCRIPT_SOURCE)
+    parsed = parse_parameters(path)
+    assert "inner" not in parsed
+    assert "port" not in parsed
+    assert "result" not in parsed
+
+
+def test_bool_assignment_skipped(script_file):
+    path = script_file(SCRIPT_SOURCE)
+    parsed = parse_parameters(path)
+    assert "add_bosses" not in parsed
+
+
+def test_syntax_error_reported_not_crashed(script_file):
+    path = script_file("def broken(:\n")
+    report = run(path, "body", "nonexistent.json", write=False)
+    assert report["errors"]
+    assert "parse" in report["errors"][0].lower()
+
+
+def test_changed_dimension_diffed():
+    parsed = {"width": 390}
+    diff = reconcile(parsed, PARAMS_PLAN, "body")
+    assert diff["changed"] == [{"field": "w_mm", "from": 385, "to": 390}]
+
+
+def test_unchanged_dimension_reported():
+    parsed = {"depth": 120}
+    diff = reconcile(parsed, PARAMS_PLAN, "body")
+    assert diff["changed"] == []
+    assert diff["unchanged"] == ["d_mm"]
+
+
+def test_unmapped_parameter_surfaced():
+    parsed = {"wall": 3.0, "boss_dia": 6}
+    diff = reconcile(parsed, PARAMS_PLAN, "body")
+    assert diff["changed"] == []
+    assert diff["unchanged"] == []
+    assert sorted(diff["unmapped"]) == ["boss_dia", "wall"]
+
+
+def test_missing_part_errors(script_file, plan_file):
+    script_path = script_file(SCRIPT_SOURCE)
+    plan_path = plan_file(PARAMS_PLAN)
+    report = run(script_path, "nonexistent_part", plan_path, write=False)
+    assert report["errors"]
+    assert "nonexistent_part" in report["errors"][0]
+
+
+def test_dry_run_leaves_file_untouched(script_file, plan_file):
+    script_path = script_file(SCRIPT_SOURCE)
+    plan_path = plan_file(PARAMS_PLAN)
+    with open(plan_path, encoding="utf-8") as f:
+        before = f.read()
+
+    report = run(script_path, "body", plan_path, write=False)
+
+    with open(plan_path, encoding="utf-8") as f:
+        after = f.read()
+    assert before == after
+    assert report["written"] is False
+    assert report["changed"] == [{"field": "w_mm", "from": 385, "to": 390}]
+
+
+def test_valid_write_updates_plan(script_file, plan_file):
+    script_path = script_file(SCRIPT_SOURCE)
+    plan_path = plan_file(PARAMS_PLAN)
+
+    report = run(script_path, "body", plan_path, write=True)
+
+    assert report["written"] is True
+    assert report["errors"] == []
+    with open(plan_path, encoding="utf-8") as f:
+        updated = json.load(f)
+    assert updated["parts"][0]["dimensions"]["w_mm"] == 390
+
+
+def test_invalid_write_refused(script_file, plan_file):
+    bad_script = script_file("width = -5.0\n")
+    plan_path = plan_file(PARAMS_PLAN)
+    with open(plan_path, encoding="utf-8") as f:
+        before = f.read()
+
+    report = run(bad_script, "body", plan_path, write=True)
+
+    assert report["written"] is False
+    assert report["errors"]
+    with open(plan_path, encoding="utf-8") as f:
+        after = f.read()
+    assert before == after
+
+
+def test_missing_plan_file_errors(script_file, tmp_path):
+    script_path = script_file(SCRIPT_SOURCE)
+    missing_plan = str(tmp_path / "does_not_exist.json")
+    report = run(script_path, "body", missing_plan, write=False)
+    assert report["errors"]

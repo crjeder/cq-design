@@ -179,7 +179,7 @@ reported as an error rather than compared.
 
 ### Requirement: Appending an entry can record reconciliation in one command
 
-`request_log_search.py add` SHALL accept a `--reconciled` flag that sets the plan's
+`log.py request add` SHALL accept a `--reconciled` flag that sets the plan's
 `intent_ts` to the `ts` of the entry it just appended. The flag SHALL be opt-in: an `add`
 without it SHALL leave `intent_ts` unchanged, so the plan fails validation until the
 intent is dealt with. The resulting plan SHALL be validated against
@@ -187,7 +187,7 @@ intent is dealt with. The resulting plan SHALL be validated against
 
 #### Scenario: Append with reconciliation
 
-- **WHEN** `request_log_search.py add PLAN --kind correction --text "..." --reconciled` is
+- **WHEN** `log.py request add PLAN --kind correction --text "..." --reconciled` is
   run after `intent` has been rewritten
 - **THEN** the entry is appended and `intent_ts` is set to that entry's `ts`, and the plan
   validates clean
@@ -196,4 +196,4 @@ intent is dealt with. The resulting plan SHALL be validated against
 
 - **WHEN** the same command is run without `--reconciled`
 - **THEN** the entry is appended, `intent_ts` is left as it was, and a subsequent
-  `plan_validate.py` run fails naming the new entry
+  `plan.py validate` run fails naming the new entry

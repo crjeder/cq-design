@@ -13,7 +13,7 @@ on vibes.
 The repository SHALL contain an `evals/cases/` corpus of approximately 10-15
 canonical requests. Each case directory SHALL contain the verbatim user
 request (`request.md`), a golden `BUILD_PLAN.json` that passes
-`plan_validate.py`, one or more golden meshes under `golden/` in the authored
+`plan.py validate`, one or more golden meshes under `golden/` in the authored
 frame, and a `case.json` with at minimum `tolerance_mm` and the expected part
 count.
 
@@ -36,7 +36,7 @@ conflating the two would place the feature on the opposite side under the
 `prompts/planning.md` fixed compass convention (North=+Y, East=+X).
 
 #### Scenario: Case plans are valid
-- **WHEN** `plan_validate.py` is run against any case's `BUILD_PLAN.json`
+- **WHEN** `plan.py validate` is run against any case's `BUILD_PLAN.json`
 - **THEN** validation passes with no errors
 
 #### Scenario: Case is self-contained
@@ -66,7 +66,7 @@ The corpus MAY additionally contain cases imported from an external
 text-to-CadQuery corpus via `evals/import_external_corpus.py` (see the
 `external-corpus-import` capability). An imported case's `BUILD_PLAN.json` MAY be
 a synthesized single-part plan (one `parts` entry, no `units`/`joints`/
-`kinematics`) rather than hand-authored, but SHALL still pass `plan_validate.py`
+`kinematics`) rather than hand-authored, but SHALL still pass `plan.py validate`
 like any other case's plan. An imported case's `request.md` is the source
 corpus's original pair description, not necessarily written in this skill's usual
 conversational-request style. Imported cases are distinguished from hand-authored
@@ -76,7 +76,7 @@ location -- both live as flat siblings under `evals/cases/`.
 #### Scenario: An imported case's plan is a synthesized single-part plan
 - **WHEN** a case's `case.json` `tags` array includes `"external"`
 - **THEN** its `BUILD_PLAN.json` contains exactly one `parts` entry and no
-  `units`, `joints`, or `kinematics` fields, and still passes `plan_validate.py`
+  `units`, `joints`, or `kinematics` fields, and still passes `plan.py validate`
 
 ### Requirement: Case subsetting by tag
 The eval runner (`evals/run_evals.py`) SHALL support a `--tags` argument
@@ -130,7 +130,7 @@ cost per accepted part. The scorecard SHALL be emitted as JSON
 and as human-readable markdown.
 
 Before computing attempt- and cost-based metrics, the runner SHALL fold
-`attempts.jsonl` with `telemetry.py`'s `fold_attempts` (group by `(part_id,
+`attempts.jsonl` with `log.py`'s `fold_attempts` (group by `(part_id,
 attempt)`, keep the last record in file order), so a part-script attempt
 represented by more than one line — a base record plus a later
 visual-review follow-up — is scored once, using its authoritative
@@ -288,5 +288,5 @@ record per attempt via the telemetry helper.
 #### Scenario: Part loop includes the telemetry step
 - **WHEN** the skill's part loop (`skill/phase3_build.md`) is followed for one attempt
 - **THEN** it directs appending one record to `build/attempts.jsonl` via
-  `telemetry.py` as a mandatory loop step once the attempt's outcome (including
+  `log.py attempt` as a mandatory loop step once the attempt's outcome (including
   any visual review) is decided

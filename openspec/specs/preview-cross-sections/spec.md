@@ -64,7 +64,7 @@ a `kind: correction` entry; (3) all remaining named+positioned entries. An inter
 matches a `request_log` entry when the interface `name` (or `<part>.<name>`) appears
 in that entry's `targets` array (case-insensitive); for a `request_log` entry that
 carries no `targets`, matching SHALL fall back to
-`request_log_search.py BUILD_PLAN.json --query "<name>"` (case-insensitive substring
+`log.py request search BUILD_PLAN.json --query "<name>"` (case-insensitive substring
 against `request_log.text`). Within a tier, entries matching a `request_log`
 entry SHALL be ordered by that entry's array position descending (most recent first);
 unmatched tier-3 entries SHALL keep plan declaration order. The selected list SHALL be
