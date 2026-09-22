@@ -6,6 +6,58 @@
   "required": ["printer", "material", "nozzle_mm", "constraints"],
   "additionalProperties": false,
   "properties": {
+    "motion": {
+      "type": "object",
+      "description": "Machine motion + slicer profile constants consumed by the toolpath-speed-advisor capability. Optional -- absent means the advisor is skipped, never defaulted.",
+      "required": [
+        "v_cruise_mm_s",
+        "accel_mm_s2",
+        "junction_deviation_mm",
+        "min_layer_time_s",
+        "layer_height_mm",
+        "line_width_mm",
+        "infill_density"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v_cruise_mm_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Steady-state perimeter print speed in mm/s"
+        },
+        "accel_mm_s2": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Print acceleration in mm/s^2"
+        },
+        "junction_deviation_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Firmware junction-deviation constant (mm) used to derive cornering speed at sharp corners"
+        },
+        "min_layer_time_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Slicer's minimum time per layer; a shorter estimated layer path stalls at this floor"
+        },
+        "layer_height_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Slicer layer height in mm"
+        },
+        "line_width_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Slicer extrusion line width in mm"
+        },
+        "infill_density": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fractional infill density (0-1) used to estimate per-layer infill path length"
+        }
+      }
+    },
     "printer": {
       "type": "string",
       "description": "Printer model, e.g. 'Bambu P1S', 'Prusa MK4', 'Ender 3'"

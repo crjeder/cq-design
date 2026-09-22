@@ -92,6 +92,46 @@ def test_write_profile_fields_rejects_invalid_value_without_writing(profile_file
     assert unchanged["nozzle_mm"] == VALID_PROFILE["nozzle_mm"]
 
 
+VALID_MOTION: dict[str, Any] = {
+    "v_cruise_mm_s": 200,
+    "accel_mm_s2": 5000,
+    "junction_deviation_mm": 0.05,
+    "min_layer_time_s": 5.0,
+    "layer_height_mm": 0.2,
+    "line_width_mm": 0.42,
+    "infill_density": 0.15,
+}
+
+
+def test_motion_block_valid(profile_file):
+    profile = {**VALID_PROFILE, "motion": VALID_MOTION}
+    errors = validate_profile(profile_file(profile))
+    assert errors == []
+
+
+def test_motion_block_absent_still_valid(profile_file):
+    errors = validate_profile(profile_file(VALID_PROFILE))
+    assert errors == []
+
+
+def test_motion_block_partial_rejected(profile_file):
+    partial_motion = {k: v for k, v in VALID_MOTION.items() if k != "accel_mm_s2"}
+    profile = {**VALID_PROFILE, "motion": partial_motion}
+    errors = validate_profile(profile_file(profile))
+    assert any("accel_mm_s2" in e for e in errors)
+
+
+def test_write_profile_fields_updates_motion_field(profile_file):
+    path = profile_file({**VALID_PROFILE, "motion": VALID_MOTION})
+    errors = write_profile_fields(path, {"motion.accel_mm_s2": 8000})
+    assert errors == []
+
+    with open(path, encoding="utf-8") as f:
+        updated = json.load(f)
+    assert updated["motion"]["accel_mm_s2"] == 8000
+    assert updated["motion"]["v_cruise_mm_s"] == VALID_MOTION["v_cruise_mm_s"]
+
+
 def test_bridge_max_mm_optional_and_non_negative(tmp_path):
     import json
 
