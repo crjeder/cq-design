@@ -517,7 +517,7 @@ def _run_plan_validation_stage(plan_path: str) -> list[dict]:
     issue. An invalid plan would otherwise crash the kinematic stage (which raw-indexes
     plan fields) with a bare traceback; the gate skips that stage when this returns errors.
     """
-    from plan_validate import validate_plan
+    from plan import validate_plan
 
     return [
         {
@@ -540,7 +540,7 @@ def _run_telemetry_stage(attempts_log: str) -> list[dict]:
     of them would parse (both parse here, but the fold keeps this consistent
     with every other consumer of attempts.jsonl).
     """
-    from telemetry import fold_attempts
+    from log import fold_attempts
     from units import make_issue
 
     if os.path.isfile(attempts_log):

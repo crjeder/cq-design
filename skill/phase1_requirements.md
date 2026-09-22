@@ -23,7 +23,7 @@ top of vs. inside another), resolve it before any dimension lookup: draw a small
 cross-section (a diagram tool if available, else ASCII) and ask a direct either/or
 question naming both readings. Wait for the answer, then:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase1/topology_confirmed "<confirmed reading>"
 ```
 
@@ -109,6 +109,6 @@ IPHONE_15_PRO_WIDTH_MM = 70.6  # apple.com/iphone-15-pro/specs, confirmed vs. gs
 
 Then (skip when nothing was looked up):
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase1/dimensions_approved "parameters.py written, <n> dimensions recorded"
 ```

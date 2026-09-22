@@ -174,7 +174,7 @@ required (governed by `engineering-rationale`).
 
 Uppercase modal language (MUST, SHALL, NEVER, ALWAYS, CRITICAL) in `prompts/part.md` and
 the Phase 3 skill files SHALL be used only for a rule whose violation is detectable -- by
-`src/script_lint.py`, by `run_cadquery_model.py`'s typed errors, by `plan_validate.py`, by
+`src/script_lint.py`, by `run_cadquery_model.py`'s typed errors, by `plan.py validate`, by
 a check stage, or by reading the produced script against a stated contract. Style and
 craft guidance SHALL be written as plain statements.
 

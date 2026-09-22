@@ -67,11 +67,11 @@ The system SHALL include entries for `heat_set_boss`, `counterbore_hole`, `count
 
 #### Scenario: Plan references heat_set_boss
 - **WHEN** `BUILD_PLAN.json` lists `heat_set_boss` in a part's `blocks_needed`
-- **THEN** `plan_validate.py` passes without error
+- **THEN** `plan.py validate` passes without error
 
 #### Scenario: Plan references hex_nut_trap
 - **WHEN** `BUILD_PLAN.json` lists `hex_nut_trap` in a part's `blocks_needed`
-- **THEN** `plan_validate.py` passes without error
+- **THEN** `plan.py validate` passes without error
 
 ---
 

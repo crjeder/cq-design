@@ -37,7 +37,7 @@ No SKILL.md shell command SHALL rely on the shell's cwd being the skill root dir
 
 #### Scenario: Plan validation command
 - **WHEN** the skill runs plan validation
-- **THEN** the command is `python "$SKILL_DIR/src/plan_validate.py" BUILD_PLAN.json`, not `python src/plan_validate.py BUILD_PLAN.json`
+- **THEN** the command is `python "$SKILL_DIR/src/plan.py" validate BUILD_PLAN.json`, not `python src/plan.py validate BUILD_PLAN.json`
 
 #### Scenario: Orchestrator invocation
 - **WHEN** the skill starts the orchestrator

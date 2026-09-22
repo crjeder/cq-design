@@ -80,7 +80,7 @@ A part accepted by its builder SHALL be judged by an auditor agent that
 receives the part's `BUILD_PLAN.json` entry, the rendered preview, section, and
 detail images, and the scoped `request_log` text (the `initial` entry plus every
 entry whose typed `targets` name this part, or absent typed targets every entry
-matched by `request_log_search.py --query <part id or name>`). It SHALL NOT
+matched by `log.py request search --query <part id or name>`). It SHALL NOT
 receive the part script. The auditor answers the Visual Review Checklist
 questions, each against a specific cited view, AND judges whether the render
 satisfies the fed request wording as a second, advisory bar. An audit failure
@@ -114,14 +114,14 @@ Phase 2 plan generation SHALL run in a sub-agent whose prompt is the rendered
 `prompts/planning.md` and whose model is read from `skill_config.json`'s
 `models.planner`, overridden per call; absent that file or key, the strongest
 available model. The planner agent SHALL write `BUILD_PLAN.json` to the working
-directory itself and run `plan_validate.py` itself via Bash, retrying against its own
+directory itself and run `plan.py validate` itself via Bash, retrying against its own
 validation errors up to a bounded number of attempts (matching the builder agent's
-3-attempt convention), before returning. The user approval checkpoint (`plan_summary.py`
+3-attempt convention), before returning. The user approval checkpoint (`plan.py summary`
 run against the file the agent wrote) remains in the main session.
 
 #### Scenario: Plan validation loop stays inside the planner agent
-- **WHEN** `plan_validate.py` rejects the planner's first write of `BUILD_PLAN.json`
-- **THEN** the planner agent itself reruns `plan_validate.py` after fixing the plan,
+- **WHEN** `plan.py validate` rejects the planner's first write of `BUILD_PLAN.json`
+- **THEN** the planner agent itself reruns `plan.py validate` after fixing the plan,
   inside the same agent invocation, without the main session parsing or re-supplying the
   plan JSON
 

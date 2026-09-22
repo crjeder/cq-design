@@ -44,6 +44,12 @@ using the same validated-append path as the CLI.
   `attempt` computed from the existing log, `outcome: "fail"`,
   `error_types: ["thin_interface"]`, and `visual_review: null`
 
+#### Scenario: Hook is a no-op when it cannot resolve the target
+- **WHEN** the `--hook` entry point receives a payload whose command does not
+  match the `run_cadquery_model.py` shape, or whose working directory has no
+  `build/` yet
+- **THEN** it exits 0 and appends nothing
+
 ### Requirement: Audit-fail follow-up command
 `src/log.py` SHALL provide an `attempt audit-fail --part <part_id> --audit <path>`
 subcommand that appends the visual-review-failure follow-up record for `part_id`

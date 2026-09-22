@@ -14,7 +14,7 @@ from conftest import box_stl
 
 import kinematic_check
 from kinematic_check import _sweep_values, iter_poses, run_kinematic_check, travel_arms
-from plan_validate import validate_plan
+from plan import validate_plan
 
 
 def _revolute_entry(required_range, step=5, moving="arm", **extra):

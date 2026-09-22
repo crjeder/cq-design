@@ -3,12 +3,10 @@
 ## Purpose
 
 TBD
-
 ## Requirements
-
 ### Requirement: Plan summary surfaces open questions from planning_notes
 
-`src/plan_summary.py` SHALL scan `planning_notes` line by line (stripping surrounding
+`src/plan.py` SHALL scan `planning_notes` line by line (stripping surrounding
 whitespace and a leading `-`, `*`, or `+` bullet marker) and render every line whose
 remainder starts with the literal `OPEN:` as a Markdown bullet list under an **Open
 questions** heading. The section SHALL be omitted entirely when no line matches, and
@@ -39,7 +37,7 @@ SHALL NOT be omitted when `planning_notes` is absent from the check itself -- an
 
 ### Requirement: Plan summary flags planner-coined names against request_log
 
-`src/plan_summary.py` SHALL check each part `id` and each non-empty
+`src/plan.py` SHALL check each part `id` and each non-empty
 `interfaces[].name` against the words (lowercased, non-alphanumeric-delimited tokens) of
 every `request_log[].text` entry. A name whose own tokens are not a subset of that
 combined word set SHALL be listed under a **Names I chose** heading, one bullet per
@@ -66,3 +64,4 @@ name matches.
 #### Scenario: No request_log omits the section
 - **WHEN** the plan has no `request_log` field
 - **THEN** the summary contains no **Names I chose** heading, regardless of naming
+

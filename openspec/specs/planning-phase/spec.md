@@ -195,7 +195,7 @@ would reject valid plans.
 #### Scenario: Token intent is rejected
 
 - **WHEN** a plan's `intent` is shorter than the reformulation floor
-- **THEN** `plan_validate.py` reports a schema validation error for `intent`
+- **THEN** `plan.py validate` reports a schema validation error for `intent`
 
 #### Scenario: Unresolved dimension is already rejected
 
@@ -212,7 +212,7 @@ would reject valid plans.
 ---
 
 ### Requirement: Interface names are unique within a part
-`plan_validate.py` SHALL reject a plan in which two `interfaces[]` entries of the same
+`plan.py validate` SHALL reject a plan in which two `interfaces[]` entries of the same
 part declare the same `name`, mirroring the existing union-id uniqueness cross-check.
 The error SHALL name the part and the duplicated name. Because callout badges are
 numbered by supply order and the legend echoes names verbatim, a duplicate name within
@@ -523,7 +523,7 @@ When the user's request or the resulting decomposition calls for gear geometry (
 
 ### Requirement: Plan records an optional per-part archetype
 
-The `BUILD_PLAN.json` schema SHALL define an optional per-part `archetype` field (string). `prompts/planning.md` SHALL instruct the planner to set it to the name of the matching entry in `templates/archetypes.json` when a part fits an archetype's `use` description, and to omit the field otherwise; the archetype index SHALL be made available to the planning prompt for this purpose. `plan_validate.py` SHALL cross-check every present `archetype` value against the names in `templates/archetypes.json`, reporting an unknown name as a validation error, exactly as `blocks_needed` is checked against the block inventory. Plans without any `archetype` fields SHALL remain valid.
+The `BUILD_PLAN.json` schema SHALL define an optional per-part `archetype` field (string). `prompts/planning.md` SHALL instruct the planner to set it to the name of the matching entry in `templates/archetypes.json` when a part fits an archetype's `use` description, and to omit the field otherwise; the archetype index SHALL be made available to the planning prompt for this purpose. `plan.py validate` SHALL cross-check every present `archetype` value against the names in `templates/archetypes.json`, reporting an unknown name as a validation error, exactly as `blocks_needed` is checked against the block inventory. Plans without any `archetype` fields SHALL remain valid.
 
 #### Scenario: Planner records a matching archetype
 
@@ -533,7 +533,7 @@ The `BUILD_PLAN.json` schema SHALL define an optional per-part `archetype` field
 #### Scenario: Unknown archetype name is rejected
 
 - **WHEN** a plan declares `archetype: "no-such-shape"` on a part
-- **THEN** `plan_validate.py` reports a validation error naming the part and the unknown archetype
+- **THEN** `plan.py validate` reports a validation error naming the part and the unknown archetype
 
 #### Scenario: Plans without archetypes stay valid
 
@@ -549,7 +549,7 @@ conversation, `prompts/planning.md` SHALL instruct the planner to use that word 
 corresponding part `id` or `interfaces[].name`, normalized only mechanically
 (lowercased, spaces and hyphens to underscores) -- never replaced by a synonym. The
 planner SHALL coin names only for parts and features the user never named. Every coined
-name SHALL be introduced to the user before the build loop starts via `plan_summary.py`'s
+name SHALL be introduced to the user before the build loop starts via `plan.py`'s
 **Names I chose** section (see `plan-summary-checkpoint` spec), which detects a coined
 name automatically by checking each part id and interface name against `request_log`
 rather than requiring the reviewing session to spot it by reading `planning_notes`. When
@@ -565,7 +565,7 @@ with a suffix and surface the rename in the summary.
 #### Scenario: Coined names are introduced at the checkpoint
 
 - **WHEN** the plan contains a part the user never named
-- **THEN** `plan_summary.py`'s **Names I chose** section lists that part's id before the
+- **THEN** `plan.py`'s **Names I chose** section lists that part's id before the
   user is asked to approve the plan
 
 #### Scenario: Colliding user nouns are disambiguated visibly

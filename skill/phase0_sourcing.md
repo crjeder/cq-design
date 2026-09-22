@@ -121,7 +121,7 @@ Once the ladder resolves (any rung, including rung 5), append one line to
 `build/journal.md` (see `skill/resume.md` for the contract):
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase0/rung_decision "rung <n>, source <url or \"none\">, license <verdict or \"n/a\">"
 ```
 
