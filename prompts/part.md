@@ -98,6 +98,33 @@ South -Y, West -X, Up +Z, Down -Z.
 **String form** (every other part), e.g. `no load-bearing features (static cosmetic part)`.
 Never invent a load just to fill out the object form.
 
+**When the plan's `load` declares a solvable case** (`magnitude_n`, `applied_at`,
+`grounded_at`), run the FEM stress advisor instead of hand-deriving a closed-form check:
+
+```bash
+uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/fem_check.py" <part>.step \
+    --plan BUILD_PLAN.json --part {{PART_ID}} --mesh-size <mm>
+```
+
+`status: "skipped"` (no `fem` dependency group installed, or the run couldn't resolve a
+boundary condition) falls back to the closed-form derivation above. `status: "ok"` gives
+you the failure index and its location -- cite those in `check` and `worst_case_stress`
+instead of a beam formula:
+
+```json
+{
+  "load_path": "load enters at the shelf lip, reacts at the wall screws",
+  "worst_case_stress": "fillet at [12.3, 4.1, 2.0] mm (authored frame) -- from the FEM solve",
+  "check": "FEM: fi_p99=0.71 at 1.5mm mesh (concentration_ratio 2.1, distributed) -- 41% margin to allowable"
+}
+```
+
+The advisor is never a gate -- a high failure index is a number to weigh, not a blocked
+build. If the result looks implausible (an extreme `concentration_ratio`, a peak location
+the geometry doesn't explain, a failure index far from what the loading suggests), re-run
+at a smaller `--mesh-size` and compare `fi_p99` between the two runs before citing either:
+a `fi_p99` that moves substantially means the coarser mesh wasn't converged.
+
 ## Construction-time verification
 
 Some CadQuery operations fail silently -- no change, no exception -- so a defect only

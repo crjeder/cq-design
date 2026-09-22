@@ -60,7 +60,19 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
       output against it; still no invariant) -- [details](#intent-as-invariant)
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
 - [ ] tool to produce cable traces where cables are held press fit for 
-- [ ] integrate a FEM-simulation for strenght optimisation stub in `src/FEM.py
+- [x] integrate a FEM-simulation for strength optimisation -- `src/fem_check.py` (`fem-stress-advisor`
+      change): advisory only (never gates, never gets a quality_gate.py stage -- BC quality
+      doesn't earn that yet), replaces `src/FEM.py`'s bounding-box-guessed stub
+- [ ] `fem_check.py`: solve orthotropic instead of isotropic (currently applies FDM
+      anisotropy only at the failure criterion, not the stiffness -- confirmed acceptable
+      for a screening tool, but a real gap if the advisor is ever asked to do more)
+- [ ] `fem_check.py`: source `material_properties.json`'s E/nu/allowables from measured
+      filament data (own tensile tests, or a vendor datasheet) instead of literature-typical
+      estimates
+- [ ] `fem_check.py`: model boundary conditions as a real contact/fastener patch instead of
+      a footprint-radius node selection around a declared interface -- a mis-declared
+      anchor currently produces a confident wrong number (see `fem-stress-advisor` design.md
+      risk list)
 - [ ] integrate a G-code interpreter for optimsation for print speed
 
 ## Related ideas

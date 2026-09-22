@@ -102,3 +102,45 @@ def test_names_i_chose_absent_without_request_log(tmp_path):
     plan = _base_plan()
     text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
     assert "**Names I chose**" not in text
+
+
+def test_load_cases_table_rendered_with_derivation(tmp_path):
+    plan = _base_plan(
+        planning_notes="LOAD_MASS: bracket 187 g sf=2.0",
+    )
+    plan["parts"][0]["load"] = {
+        "dir": [0, 0, -1],
+        "magnitude_n": 3.67,
+        "applied_at": "hole_2",
+        "grounded_at": ["hole_2"],
+    }
+    text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Load cases**" in text
+    assert "| bracket | 187 g | 2.0 | 3.67 N | hole_2 | hole_2 |" in text
+
+
+def test_load_cases_table_shows_applied_dir_override(tmp_path):
+    plan = _base_plan(planning_notes="LOAD_MASS: bracket 187 g sf=2.0")
+    plan["parts"][0]["load"] = {
+        "dir": [0, 0, -1],
+        "magnitude_n": 3.67,
+        "applied_at": "hole_2",
+        "applied_dir": [0, -0.5, -1],
+        "grounded_at": ["hole_2"],
+    }
+    text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "hole_2 dir=0,-0.5,-1" in text
+
+
+def test_load_cases_section_omitted_when_no_magnitude(tmp_path):
+    plan = _base_plan()
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1]}
+    text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Load cases**" not in text
+
+
+def test_load_cases_missing_mass_note_shows_unspecified(tmp_path):
+    plan = _base_plan()
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1], "magnitude_n": 1.0}
+    text = plan_summary.summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "| bracket | (unspecified) | (unspecified) | 1 N |" in text

@@ -9,12 +9,19 @@ the part declares a plan `load`. Tables and formulas only, no prose tutorials.
 ## Material Constants
 <!-- applies_to: always -->
 
-| Material | Allowable strain (snap-fit, %) | Flexural modulus (GPa) | Notes |
-|---|---|---|---|
-| PLA | 2.0 | 3.5 | stiff, brittle — lowest strain allowable |
-| PETG | 4.0 | 2.1 | most common general-purpose choice |
-| ABS | 3.0 | 2.3 | more ductile than PLA, less than PETG |
-| TPU (95A) | 20.0 | 0.05 | flexible; not comparable to the others for stiffness checks |
+Sourced from `src/material_properties.json` (single source; a test asserts this table
+agrees with it). `E`/`nu`/the three allowables are used by the FEM stress advisor
+(`src/fem_check.py`); `magnitude_n = mass_g * 9.81 / 1000 * safety_factor` uses the
+safety factor below to derive a load's force from a researched mass.
+
+| Material | Allowable strain (snap-fit, %) | Flexural modulus (GPa) | E (MPa) | nu | In-plane tensile (MPa) | Interlayer Z tensile (MPa) | Interlayer shear (MPa) | Notes |
+|---|---|---|---|---|---|---|---|---|
+| PLA | 2.0 | 3.5 | 3500 | 0.36 | 50 | 30 | 24 | stiff, brittle — lowest strain allowable |
+| PETG | 4.0 | 2.1 | 2100 | 0.38 | 45 | 25 | 20 | most common general-purpose choice |
+| ABS | 3.0 | 2.3 | 2300 | 0.35 | 35 | 18 | 15 | more ductile than PLA, less than PETG |
+| TPU (95A) | 20.0 | 0.05 | 50 | 0.45 | 25 | 15 | 12 | flexible; not comparable to the others for stiffness checks |
+
+Default safety factor (static supported load, force derived from a researched mass): **2.0**
 
 Use the allowable strain as the right-hand side of a snap-fit check unless the plan
 states a different material.

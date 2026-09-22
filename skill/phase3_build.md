@@ -162,6 +162,43 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/jo
     phase3/design_approved "<n> parts"
 ```
 
+## FEM stress advisor
+
+Only for a part whose plan `load` declares `magnitude_n`, `applied_at`, and
+`grounded_at` (see `planning-phase`'s rule 10 solvable-load-case block) -- most parts
+skip this section entirely. It is an **advisor**, never a gate: it never blocks
+acceptance and adds no quality-gate stage. Run it once the part's script is accepted
+(the geometry it solves on should be final):
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
+    build/<part_id>.py --deliver --formats step --output-dir build
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/fem_check.py" \
+    build/<part_id>.step --plan BUILD_PLAN.json --part <part_id> \
+    --mesh-size <mm> > build/<part_id>.fem_stress.json
+```
+
+Pick `--mesh-size` as a fraction of the part's thinnest relevant section (a starting
+point, not a rule -- there is no derived default, see `fem-stress-advisor`). Read the
+result:
+
+- **`status: "skipped"`** -- report the reason and move on; nothing else in the loop
+  changes. This is the common case for most load-bearing parts (no researched mass, or
+  the `fem` dependency group is not installed).
+- **`status: "ok"`** -- write the failure index and location into
+  `engineering_rationale.check`/`worst_case_stress` (see `prompts/part.md`'s Engineering
+  rationale section) instead of a closed-form derivation. If `hint` says a stress
+  concentration (peak near a sharp corner), consider a fillet/chamfer edit and re-run
+  the part loop; if it says a distributed/undersized section, consider thickening.
+  Neither is required -- the number is advisory, the author decides.
+- **Implausible result** (extreme `concentration_ratio`, a peak location the geometry
+  doesn't explain, an `fi_p99` that doesn't match the loading) -- re-run at half the
+  `--mesh-size` and compare `fi_p99` between the two runs before citing either; a value
+  that moves substantially means the coarser mesh wasn't converged.
+
+`build/<part_id>.fem_stress.json` (when `"ok"`) feeds `print_orientation.py --fem-stress`
+below.
+
 ## Print-orientation optimization
 
 Per union, on its part-frame STL (orientation is a property of the part, not its
@@ -174,10 +211,13 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
     stl/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
     --optimize-for <strength|min_support|visual_quality> \
     --source-script build/<part_id>.py \
-    [--load x,y,z] [--load-type tension|compression|bending|shear] [--show-face x,y,z]
+    [--load x,y,z] [--load-type tension|compression|bending|shear] [--show-face x,y,z] \
+    [--fem-stress build/<part_id>.fem_stress.json]
 ```
 
-Pass `--load`/`--load-type` from the plan's `load`, `--show-face` when declared.
+Pass `--load`/`--load-type` from the plan's `load`, `--show-face` when declared, and
+`--fem-stress` when the FEM advisor above produced an `"ok"` result for this part -- it
+replaces the load-direction cosine with the solved failure index per candidate.
 
 - **Sanity-check the load first.** A compression part (base, foot, plinth) or a
   non-load-bearing cover scored as tension gets tipped onto an edge; check

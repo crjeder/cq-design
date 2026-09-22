@@ -14,6 +14,10 @@ For a union mesh in its authored frame, enumerate stable bed-down orientations
     load path is unclear) -- or the declared `load.type` is COMPRESSION (a resting
     weight pressing straight down through a base/plinth/pedestal doesn't stress the
     interlayer bond). See `load` in `build_plan_schema.json` and `--load*` below.
+    `--fem-stress` replaces this direction cosine with a solved failure index
+    (1 - fi_p99) from `fem_check.py`, per matching candidate, when supplied with an
+    `ok` result; an unmatched candidate or an absent/skipped result falls back to
+    the direction-cosine measure unchanged (see the `fem-stress-advisor` capability).
   - support: downward-facing area above the overhang limit at that pose (a
     slicer-free proxy for support volume; less is better), with bed contact area as
     a tiebreaker (more contact prints more reliably).
@@ -43,6 +47,7 @@ Usage:
         --load 0,0,1 --load-type compression
     python3 print_orientation.py union.stl --optimize-for visual_quality \\
         --show-face 0,0,1
+    python3 print_orientation.py union.stl --fem-stress fem_result.json
 """
 
 import argparse
@@ -189,6 +194,25 @@ def _strength_score(
 
 
 _bed_contact_mask = bed_contact_mask
+
+
+def _fem_strength_lookup(
+    fem_stress: dict | None, normal: np.ndarray, merge_deg: float = NORMAL_MERGE_DEG
+) -> float | None:
+    """1 - fi_p99 for the fem_stress candidate whose normal matches `normal` within
+    `merge_deg` (the same angular tolerance enumerate_candidate_normals dedups with),
+    or None when `fem_stress` is absent/skipped or no candidate matches (see
+    `fem-stress-advisor`'s "Match candidates ... an unmatched candidate falls back to
+    the declared-load measure for that candidate only")."""
+    if not fem_stress or fem_stress.get("status") != "ok":
+        return None
+    cos_tol = np.cos(np.radians(merge_deg))
+    unit_normal = _unit(normal)
+    for candidate in fem_stress.get("candidates", []):
+        fem_normal = _unit(np.asarray(candidate["normal"], dtype=float))
+        if float(np.dot(unit_normal, fem_normal)) >= cos_tol:
+            return round(1.0 - float(candidate["fi_p99"]), 6)
+    return None
 
 
 def _support_metrics(
@@ -354,6 +378,7 @@ def optimize_orientation(
     show_face: list[float] | None = None,
     load_type: str = "tension",
     bridge_max_mm: float = BRIDGE_MAX_MM,
+    fem_stress: dict | None = None,
 ) -> dict:
     """Choose the print orientation for a union mesh under the requested mode.
 
@@ -366,8 +391,14 @@ def optimize_orientation(
     strength orientation-neutral (see `_strength_score`) since a resting/compressive
     load doesn't stress the interlayer bond. Every candidate is scored on strength,
     support, and visual quality so the rationale can explain the trade-off
-    regardless of mode. Returns the recommended rotation (placement convention), the
-    score breakdown, the inputs used, and a human-readable rationale.
+    regardless of mode. `fem_stress` is an optional `fem_check.py` JSON result
+    (parsed dict); when its `status` is `"ok"`, each candidate's strength is
+    `1 - fi_p99` from its matching entry there instead of the load-direction
+    cosine -- a solved, geometry-aware strength. A candidate with no matching
+    fem_stress entry, an absent `fem_stress`, or a `"skipped"` result falls back to
+    the load-direction measure exactly as without this argument. Returns the
+    recommended rotation (placement convention), the score breakdown, the inputs
+    used, and a human-readable rationale.
     """
     if optimize_for not in OPTIMIZE_MODES:
         raise ValueError(f"optimize_for must be one of {OPTIMIZE_MODES}, got {optimize_for!r}")
@@ -384,7 +415,12 @@ def optimize_orientation(
         rotation = _rotation_to_bed(normal)
         posed = mesh.copy()
         posed.apply_transform(rotation)
-        strength = _strength_score(rotation, load_vec, load_type)
+        fem_strength = _fem_strength_lookup(fem_stress, normal)
+        if fem_strength is not None:
+            strength, strength_source = fem_strength, "fem"
+        else:
+            strength = _strength_score(rotation, load_vec, load_type)
+            strength_source = "declared_load" if load_declared else "neutral"
         support, bed_contact = _support_metrics(posed, overhang_deg, bridge_max_mm)
         visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec)
         stable = _stability_metrics(posed)
@@ -393,6 +429,7 @@ def optimize_orientation(
                 "idx": idx,
                 "rotation": rotation,
                 "strength": strength,
+                "strength_source": strength_source,
                 "support": support,
                 "bed_contact": bed_contact,
                 "visual": visual,
@@ -430,6 +467,7 @@ def optimize_orientation(
         "optimize_for": optimize_for,
         "rotate": _rotation_to_placement(chosen["rotation"]),
         "strength_score": chosen["strength"],
+        "strength_source": chosen["strength_source"],
         "support_score": chosen["support"],
         "bed_contact_mm2": chosen["bed_contact"],
         "visual_score": chosen["visual"],
@@ -457,14 +495,21 @@ def _rationale(
     unstable_excluded: bool = False,
 ) -> str:
     """Human-readable explanation naming the mode and the winning trade-off."""
+    strength_source = chosen.get("strength_source", "declared_load" if load_declared else "neutral")
+    strength_label = "FEM failure index (1 - fi_p99)" if strength_source == "fem" else "strength"
     common = (
-        f"strength {chosen['strength']:.3f}, weighted support-cost "
+        f"{strength_label} {chosen['strength']:.3f}, weighted support-cost "
         f"{chosen['support']:.1f} (overhang above {overhang_deg} deg), build height "
         f"{chosen['build_height']:.1f} mm, visual {chosen['visual']:.3f} "
         f"(cosmetic-down {chosen['cosmetic_down']:.2f}, "
         f"{chosen['gentle_incline_fraction'] * 100:.0f}% gentle-incline area)"
     )
-    if not load_declared:
+    if strength_source == "fem":
+        common += (
+            ". strength scored from a solved FEM stress field (--fem-stress), not the "
+            "declared-load direction cosine"
+        )
+    elif not load_declared:
         common += (
             ". no load declared: strength is orientation-neutral (the optimizer does not "
             "guess a load axis), so support/bed-contact decided -- declare load.dir in the "
@@ -537,11 +582,23 @@ def main() -> None:
         "the script's provenance hash (source_script_hash) so a consumer can detect a "
         "later edit. Omit to leave the result unstamped.",
     )
+    parser.add_argument(
+        "--fem-stress",
+        default=None,
+        help="Path to a src/fem_check.py JSON result for this part; when its status is "
+        "'ok', each candidate's strength is 1 - fi_p99 from its matching entry there "
+        "instead of the load-direction cosine. Omit, or a 'skipped' result, leaves "
+        "strength scoring exactly as without this flag.",
+    )
     args = parser.parse_args()
 
     load_dir = None
     if args.load:
         load_dir = [float(v) for v in args.load.split(",")]
+    fem_stress = None
+    if args.fem_stress:
+        with open(args.fem_stress, encoding="utf-8") as f:
+            fem_stress = json.load(f)
     show_face = None
     if args.show_face:
         show_face = [float(v) for v in args.show_face.split(",")]
@@ -555,6 +612,7 @@ def main() -> None:
         show_face=show_face,
         load_type=args.load_type,
         bridge_max_mm=args.bridge_max_mm,
+        fem_stress=fem_stress,
     )
     if args.source_script:
         result["source_script_hash"] = script_hash(args.source_script)

@@ -63,11 +63,26 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan_summary.py" BUILD_PLAN
 ```
 
 Show its Markdown output (never raw JSON) -- it already includes **Names I chose** (every
-part id / interface name not found in `request_log`) and **Open questions** (every
-`OPEN:` item in `planning_notes`) when applicable. Then add:
+part id / interface name not found in `request_log`), **Open questions** (every
+`OPEN:` item in `planning_notes`), and **Load cases** (every part whose `load` declares
+`magnitude_n`, with the source mass, safety factor, and resulting force -- see below) when
+applicable. Then add:
 
 - **Design proposals:** anything `planning_notes` proposes on the planner's initiative
   (e.g. `shadow_gap` on a visible seam), one line each, to accept or decline.
+
+**Load cases:** every stress number the FEM advisor (Phase 3) produces scales linearly
+with `magnitude_n`, and that value is a derivation (`mass_g * 9.81 / 1000 * safety_factor`,
+see `reference/Engineering Design Rules.md`), not something the user stated. When the
+**Load cases** table is present, confirm the source mass with the user alongside the rest
+of the plan. If the user corrects the mass, resume the planner agent with the correction so
+it re-derives `magnitude_n`, updates the `LOAD_MASS:` planning-note, and re-validates
+`BUILD_PLAN.json`; then record the correction:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/request_log_search.py" add BUILD_PLAN.json \
+    --kind correction --text "<part> mass corrected to <value> <unit>" --level parameter --target <part>
+```
 
 Resolve each open question with the user, then resume the planner agent with the answers;
 it re-writes and re-validates `BUILD_PLAN.json` itself and returns an updated status
