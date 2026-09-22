@@ -211,7 +211,9 @@ def _translate_stderr(stderr: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict], object | None]:
+def _compute_geometry(
+    stl_path: str, density_g_cm3: float = 1.24
+) -> tuple[dict | None, list[dict], object | None]:
     """Load STL, compute geometry metrics and detect topology errors.
 
     Returns (geometry_dict, errors_list, mesh).
@@ -245,7 +247,7 @@ def _compute_geometry(stl_path: str) -> tuple[dict | None, list[dict], object | 
         v = abs(tm.volume)
         if v > 0 and tm.is_volume:
             vol = round(v / 1000, 3)
-            weight = round(vol * 1.24, 1)
+            weight = round(vol * density_g_cm3, 1)
     except Exception:
         pass
 
@@ -466,7 +468,13 @@ def _check_thin_interfaces(
         thin_regions = data.get("thin_regions", [])
     except Exception as exc:
         print(f"thin-interface check failed for {stl_path}: {exc}", file=sys.stderr)
-        return [], []
+        return [], [
+            {
+                "type": "thin_interface_check_error",
+                "message": str(exc),
+                "hint": "could not measure wall thickness; check mesh manually",
+            }
+        ]
 
     errors = []
     for r in thin_regions:
@@ -531,6 +539,8 @@ def _render_preview(
     callouts: list[str] | None = None,
     unlocated_names: list[str] | None = None,
     preview_dir: str | None = None,
+    density_g_cm3: float = 1.24,
+    material: str = "PLA",
 ) -> tuple[list[str], str | None]:
     """Invoke render_preview.py as a subprocess.
 
@@ -571,6 +581,10 @@ def _render_preview(
         preview_dest,
         "--views",
         views,
+        "--density",
+        str(density_g_cm3),
+        "--material",
+        material,
     ]
     if cross_sections:
         cmd.append("--cross-sections")
@@ -624,7 +638,7 @@ def _run_geometry_checks(union_stls: list[str], args, result: dict) -> bool:
     for stl in union_stls:
         uid = os.path.splitext(os.path.basename(stl))[0]
 
-        geo_i, geo_errors_i, tm_i = _compute_geometry(stl)
+        geo_i, geo_errors_i, tm_i = _compute_geometry(stl, args.density)
         per_union_geo.append((uid, geo_i))
         result["errors"].extend(_attribute_to_union(geo_errors_i, uid, multi))
         # Per-union connectedness: a union expected to be one body that splits
@@ -679,6 +693,8 @@ def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: 
         args.callout,
         args.unlocated_name,
         args.preview_dir,
+        args.density,
+        args.material,
     )
     if render_err:
         _append_stderr(result, render_err)
@@ -803,6 +819,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.42,
         help="Extrusion line width in mm for the brittle thin-wall threshold",
+    )
+    parser.add_argument(
+        "--density",
+        type=float,
+        default=1.24,
+        help="Filament density in g/cm3 for weight estimation (default: PLA, 1.24)",
+    )
+    parser.add_argument(
+        "--material", default="PLA", help="Material name for the preview footer label"
     )
     parser.add_argument(
         "--deliver",
