@@ -101,7 +101,7 @@ assembly, assembly-access features, anything the user supplies). Nothing else.
    when omitted). Exactly one part is `root_part`; every other part reached through
    `joints` gets a derived pose. A physical feature shared by two parts (same interface
    name, or coinciding round interfaces) must be routed through `joints` so its value has
-   one source, `joints[].params`; `plan_validate.py` flags it otherwise.
+   one source, `joints[].params`; `plan.py validate` flags it otherwise.
 
 8. **State each part's goal pose as `pose_intent`, never as a transform.** Describe what a
    render can confirm: which way the part faces and where it sits ("stands upright, outward
@@ -284,7 +284,7 @@ motion). Always set `load` (rule 10), `request_log` (rule 14), and `review_polic
    existing file.
 3. **Validate**:
    ```bash
-   uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/plan_validate.py" BUILD_PLAN.json
+   uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/plan.py" validate BUILD_PLAN.json
    ```
 4. **Blocking:** any validator error. Read each error's message; fix the exact field it
    names, re-write `BUILD_PLAN.json`, and re-validate.
@@ -305,7 +305,7 @@ motion). Always set `load` (rule 10), `request_log` (rule 14), and `review_polic
 }
 ```
 
-- `status: "valid"` once `plan_validate.py` reports no errors (`open_items` may still be
+- `status: "valid"` once `plan.py validate` reports no errors (`open_items` may still be
   non-empty -- those are questions for the user, not validation failures).
 - `status: "blocked"`: 3 validate runs exhausted with errors remaining; `error_summary`
   gives each remaining validator error on one line. `BUILD_PLAN.json` still holds your

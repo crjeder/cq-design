@@ -1,19 +1,31 @@
 #!/usr/bin/env python3
-"""Validate BUILD_PLAN.json against its schema and cross-check block names.
+"""Read, validate, and write back BUILD_PLAN.json.
 
-Usage:
-    python3 plan_validate.py BUILD_PLAN.json
-    python3 plan_validate.py BUILD_PLAN.json --inventory blocks/inventory.json
+    python3 plan.py validate BUILD_PLAN.json
+    python3 plan.py validate BUILD_PLAN.json --inventory blocks/inventory.json
+    python3 plan.py summary BUILD_PLAN.json
+    python3 plan.py import-params <part_script.py> --part <id> [--plan BUILD_PLAN.json] [--write]
 
-Exit codes: 0 valid, 1 invalid.
+`validate` checks the plan against its schema and cross-checks block names
+(exit 0 valid, 1 invalid). `summary` renders the Phase 2 plan-summary checkpoint
+tables as Markdown. `import-params` reconciles a hand-edited part script's
+PARAMETERS block back into the plan -- a dry-run diff by default; `--write`
+re-validates the updated plan against the schema before persisting, refusing to
+write an invalid plan.
+
+Exit codes: 0 success, 1 on validation/parse/reconcile error.
 """
 
 import argparse
+import ast
+import copy
 import json
 import os
 import re
 import sys
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import jsonschema
@@ -885,32 +897,378 @@ def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     return findings
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Validate BUILD_PLAN.json")
-    parser.add_argument("plan", help="Path to BUILD_PLAN.json")
-    parser.add_argument(
-        "--inventory", default=_INVENTORY_PATH, help="Path to blocks/inventory.json"
-    )
-    parser.add_argument(
-        "--archetypes", default=_ARCHETYPES_PATH, help="Path to templates/archetypes.json"
-    )
-    parser.add_argument(
-        "--require-rationale",
-        action="store_true",
-        help=(
-            "Treat engineering_rationale findings as errors (exit 1). Use at the Phase 3 "
-            "pre-export run, once every part has been authored; the Phase 2 run omits "
-            "this flag since no part has a rationale yet."
-        ),
-    )
-    args = parser.parse_args()
+REVIEW_POLICY_MEANING = {
+    "every_stage": "every part shows a profile-stub checkpoint, then one per stage "
+    "(base shape, features, finishing)",
+    "checkpoints": "every part shows the stub checkpoint; only parts with an interface "
+    "or 3+ blocks get per-stage checkpoints",
+    "minimal": "no stub and no stage checkpoints",
+}
 
+
+def _cell(value) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def _table(header: list[str], rows: list[list]) -> str:
+    lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+    lines += ["| " + " | ".join(_cell(c) for c in row) + " |" for row in rows]
+    return "\n".join(lines)
+
+
+def _load(part: dict) -> str:
+    load = part.get("load")
+    if not load:
+        return "(none)"
+    text = ",".join(f"{v:g}" for v in load["dir"]) if load.get("dir") else ""
+    if load.get("type", "tension") != "tension" or not text:
+        text = f"{text} {load.get('type', 'tension')}".strip()
+    return text
+
+
+def _blocks(part: dict) -> str:
+    names = [b if isinstance(b, str) else b["name"] for b in part.get("blocks_needed") or []]
+    return ", ".join(names) or "(none)"
+
+
+def _tokens(text: str) -> set[str]:
+    """Non-numeric word tokens (numeric suffixes like the '2' in hole_2 disambiguate,
+    they don't need to match user wording)."""
+    return {t for t in re.findall(r"[a-z0-9]+", text.lower()) if not t.isdigit()}
+
+
+def _open_questions(plan: dict) -> list[str]:
+    lines = (plan.get("planning_notes") or "").split("\n")
+    stripped = [re.sub(r"^[-*+]\s+", "", line.strip()) for line in lines]
+    return [line for line in stripped if line.startswith("OPEN:")]
+
+
+# `LOAD_MASS: <part_id> <mass> <unit> sf=<safety_factor>` in planning_notes, e.g.
+# `LOAD_MASS: phone_shelf 187 g sf=2.0` -- same free-text-convention approach as
+# `OPEN:`, carrying the mass/safety-factor derivation behind a part's `load.magnitude_n`
+# without a schema field for it (the schema already carries the resulting magnitude_n).
+_LOAD_MASS_RE = re.compile(
+    r"^LOAD_MASS:\s+(?P<part_id>[a-z][a-z0-9_]*)\s+(?P<mass>[\d.]+)\s*(?P<unit>\S+)\s+sf=(?P<sf>[\d.]+)"
+)
+
+
+def _load_mass_notes(plan: dict) -> dict[str, dict[str, str]]:
+    lines = (plan.get("planning_notes") or "").split("\n")
+    stripped = [re.sub(r"^[-*+]\s+", "", line.strip()) for line in lines]
+    notes: dict[str, dict[str, str]] = {}
+    for line in stripped:
+        m = _LOAD_MASS_RE.match(line)
+        if m:
+            notes[m.group("part_id")] = {
+                "mass": m.group("mass"),
+                "unit": m.group("unit"),
+                "sf": m.group("sf"),
+            }
+    return notes
+
+
+def _load_cases(plan: dict) -> list[list]:
+    """One row per part declaring `load.magnitude_n`: the derivation (source mass, unit,
+    safety factor) alongside the resulting force and anchors, so the Phase 2 checkpoint
+    can catch a wrong mass before Phase 3 runs any FEM solve."""
+    mass_notes = _load_mass_notes(plan)
+    rows = []
+    for p in plan["parts"]:
+        load = p.get("load") or {}
+        magnitude_n = load.get("magnitude_n")
+        if magnitude_n is None:
+            continue
+        note = mass_notes.get(p["id"], {})
+        mass = f"{note['mass']} {note['unit']}" if note else "(unspecified)"
+        sf = note.get("sf", "(unspecified)")
+        applied = load.get("applied_at") or "(none)"
+        applied_dir = load.get("applied_dir")
+        if applied_dir:
+            applied += " dir=" + ",".join(f"{v:g}" for v in applied_dir)
+        grounded = ", ".join(load.get("grounded_at") or []) or "(none)"
+        rows.append([p["id"], mass, sf, f"{magnitude_n:g} N", applied, grounded])
+    return rows
+
+
+def _coined_names(plan: dict) -> list[str]:
+    log_words: set[str] = set()
+    for entry in plan.get("request_log") or []:
+        log_words |= _tokens(entry.get("text", ""))
+    if not log_words:
+        return []
+    flagged = []
+    for part in plan["parts"]:
+        if not _tokens(part["id"]) <= log_words:
+            flagged.append(f"`{part['id']}` (part)")
+        for i in part.get("interfaces") or []:
+            name = i.get("name")
+            if name and not _tokens(name) <= log_words:
+                flagged.append(f"`{name}` (interface on `{part['id']}`)")
+    return flagged
+
+
+def summarize(plan: dict, plan_path: Path) -> str:
+    """Markdown checkpoint tables for a validated plan."""
+    parts = plan["parts"]
+    out = [f"Written to: `{plan_path.resolve()}`", ""]
+    out += [
+        "**Printer / Material**",
+        "",
+        _table(
+            ["Printer", "Material", "Nozzle"],
+            [[plan.get("printer", ""), plan["material"], f"{plan['nozzle_mm']:g} mm"]],
+        ),
+        "",
+        "**Parts**",
+        "",
+        _table(
+            ["#", "ID", "Description", "W x D x H (mm)", "Load", "Pose", "Blocks", "Archetype"],
+            [
+                [
+                    n,
+                    p["id"],
+                    p["description"],
+                    " x ".join(f"{p['dimensions'][k]:g}" for k in ("w_mm", "d_mm", "h_mm")),
+                    _load(p),
+                    p.get("pose_intent", "(none)"),
+                    _blocks(p),
+                    p.get("archetype", "(none)"),
+                ]
+                for n, p in enumerate(parts, 1)
+            ],
+        ),
+        "",
+    ]
+
+    goal = plan.get("optimize_for", "strength")
+    line = f"**Print optimization:** `{goal}`"
+    overrides = [
+        f"`{p['id']}` -> `{p['optimize_for']}`"
+        for p in parts
+        if p.get("optimize_for", goal) != goal
+    ]
+    if overrides:
+        line += "; overrides: " + ", ".join(overrides)
+    faces = [
+        f"`{p['id']}` show_face "
+        + (",".join(f"{v:g}" for v in p["show_face"]["dir"]) if p.get("show_face") else "inferred")
+        for p in parts
+        if p.get("optimize_for", goal) == "visual_quality"
+    ]
+    if faces:
+        line += "; " + ", ".join(faces)
+    policy = plan.get("review_policy", "every_stage")
+    out += [line, "", f"**Review policy:** `{policy}` -- {REVIEW_POLICY_MEANING[policy]}", ""]
+
+    interfaces = [
+        [
+            p["id"],
+            i.get("name") or "",
+            i.get("type", ""),
+            i.get("connector", ""),
+            i.get("wall", ""),
+            ",".join(f"{v:g}" for v in i["position_mm"]) if i.get("position_mm") else "",
+        ]
+        for p in parts
+        for i in p.get("interfaces") or []
+    ]
+    if interfaces:
+        out += [
+            "**Interfaces**",
+            "",
+            _table(["Part", "Name", "Type", "Connector", "Wall", "Position (mm)"], interfaces),
+            "",
+        ]
+
+    load_cases = _load_cases(plan)
+    if load_cases:
+        headers = [
+            "Part",
+            "Source mass",
+            "Safety factor",
+            "magnitude_n",
+            "Applied at",
+            "Grounded at",
+        ]
+        out += ["**Load cases**", "", _table(headers, load_cases), ""]
+
+    coined = _coined_names(plan)
+    if coined:
+        out += ["**Names I chose**", "", *[f"- {c}" for c in coined], ""]
+
+    open_questions = _open_questions(plan)
+    if open_questions:
+        out += ["**Open questions**", "", *[f"- {q}" for q in open_questions], ""]
+
+    cons = plan["constraints"]
+    out += [
+        "**Constraints**",
+        "",
+        _table(
+            ["Wall min", "Overhang max", "Dim tolerance"],
+            [
+                [
+                    f"{cons['wall_min_mm']:g} mm",
+                    f"{cons['overhang_max_deg']:g} deg",
+                    f"{cons['dimension_tolerance_mm']:g} mm",
+                ]
+            ],
+        ),
+    ]
+    return "\n".join(out)
+
+
+_DIM_NAME_MAP = {"width": "w_mm", "depth": "d_mm", "height": "h_mm"}
+
+Number = int | float
+
+
+def parse_parameters(script_path: str) -> dict[str, Any]:
+    """Extract module-level numeric-literal assignments from a part script via AST.
+
+    Never imports or executes the script. Accepts a value only when it is an
+    int/float (bool excluded) or a tuple/list of such. Returns {} on an unparseable
+    file; caller distinguishes via a separate existence/syntax check if needed.
+    """
+    with open(script_path, encoding="utf-8") as f:
+        source = f.read()
+    tree = ast.parse(source, filename=script_path)
+
+    params: dict[str, Any] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+            continue
+        name = node.targets[0].id
+        try:
+            value = ast.literal_eval(node.value)
+        except (ValueError, SyntaxError):
+            continue
+        if _is_numeric(value):
+            params[name] = value
+    return params
+
+
+def _is_numeric(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int | float):
+        return True
+    if isinstance(value, tuple | list):
+        return len(value) > 0 and all(_is_numeric(v) for v in value)
+    return False
+
+
+def reconcile(parsed: dict[str, Any], plan: dict[str, Any], part_id: str) -> dict[str, Any]:
+    """Diff parsed parameters against a plan part's dimensions.
+
+    Returns {"changed": [...], "unchanged": [...], "unmapped": [...]}. Raises
+    KeyError if part_id is not present in plan["parts"] -- caller maps to a
+    structured error.
+    """
+    part = next((p for p in plan.get("parts", []) if p.get("id") == part_id), None)
+    if part is None:
+        raise KeyError(part_id)
+
+    dimensions = part.get("dimensions", {})
+    changed = []
+    unchanged = []
+    unmapped = []
+
+    for name, value in parsed.items():
+        field = _DIM_NAME_MAP.get(name)
+        if field is None:
+            unmapped.append(name)
+            continue
+        current = dimensions.get(field)
+        if current == value:
+            unchanged.append(field)
+        else:
+            changed.append({"field": field, "from": current, "to": value})
+
+    return {"changed": changed, "unchanged": unchanged, "unmapped": unmapped}
+
+
+def _apply_changes(
+    plan: dict[str, Any], part_id: str, changed: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Return a deep copy of plan with `changed` dimension diffs applied to part_id."""
+    updated = copy.deepcopy(plan)
+    part = next(p for p in updated["parts"] if p["id"] == part_id)
+    for entry in changed:
+        part["dimensions"][entry["field"]] = entry["to"]
+    return updated
+
+
+def run(script_path: str, part_id: str, plan_path: str, write: bool) -> dict[str, Any]:
+    """Run the full import-params flow. Returns the report dict (never raises)."""
+    report: dict[str, Any] = {
+        "part": part_id,
+        "changed": [],
+        "unchanged": [],
+        "unmapped": [],
+        "written": False,
+        "errors": [],
+    }
+
+    try:
+        parsed = parse_parameters(script_path)
+    except OSError as e:
+        report["errors"].append(f"Cannot read script '{script_path}': {e}")
+        return report
+    except SyntaxError as e:
+        report["errors"].append(f"Cannot parse script '{script_path}' as Python: {e}")
+        return report
+
+    try:
+        with open(plan_path, encoding="utf-8") as f:
+            plan = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        report["errors"].append(f"Cannot load plan '{plan_path}': {e}")
+        return report
+
+    try:
+        diff = reconcile(parsed, plan, part_id)
+    except KeyError:
+        report["errors"].append(f"Part '{part_id}' is not present in plan '{plan_path}'")
+        return report
+
+    report["changed"] = diff["changed"]
+    report["unchanged"] = diff["unchanged"]
+    report["unmapped"] = diff["unmapped"]
+
+    if not write or not diff["changed"]:
+        return report
+
+    updated_plan = _apply_changes(plan, part_id, diff["changed"])
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(updated_plan, f)
+        validation_errors = validate_plan(tmp_path)
+    finally:
+        os.remove(tmp_path)
+
+    if validation_errors:
+        report["errors"] = validation_errors
+        return report
+
+    with open(plan_path, "w", encoding="utf-8") as f:
+        json.dump(updated_plan, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    report["written"] = True
+    return report
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
     errors = validate_plan(args.plan, args.inventory, args.archetypes)
     if errors:
         print(f"BUILD_PLAN validation FAILED ({len(errors)} error(s)):")
         for e in errors:
             print(f"  - {e}")
-        sys.exit(1)
+        return 1
 
     plan = _load_json(args.plan)
     n_parts = len(plan.get("parts", []))
@@ -953,14 +1311,65 @@ def main():
         for f in rationale:
             print(f"  - {f}")
         if args.require_rationale:
-            sys.exit(1)
+            return 1
 
     load_anchors = check_load_case_anchors(plan)
     if load_anchors:
         print(f"\nLoad-case anchor findings ({len(load_anchors)}, advisory):")
         for f in load_anchors:
             print(f"  - {f}")
+    return 0
+
+
+def _cmd_summary(args: argparse.Namespace) -> int:
+    path = Path(args.plan)
+    print(summarize(json.loads(path.read_text(encoding="utf-8")), path))
+    return 0
+
+
+def _cmd_import_params(args: argparse.Namespace) -> int:
+    report = run(args.script, args.part, args.plan, args.write)
+    print(json.dumps(report, indent=2))
+    return 1 if report["errors"] else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    vp = sub.add_parser("validate", help="Validate BUILD_PLAN.json")
+    vp.add_argument("plan", help="Path to BUILD_PLAN.json")
+    vp.add_argument("--inventory", default=_INVENTORY_PATH, help="Path to blocks/inventory.json")
+    vp.add_argument(
+        "--archetypes", default=_ARCHETYPES_PATH, help="Path to templates/archetypes.json"
+    )
+    vp.add_argument(
+        "--require-rationale",
+        action="store_true",
+        help=(
+            "Treat engineering_rationale findings as errors (exit 1). Use at the Phase 3 "
+            "pre-export run, once every part has been authored; the Phase 2 run omits "
+            "this flag since no part has a rationale yet."
+        ),
+    )
+    vp.set_defaults(func=_cmd_validate)
+
+    sp = sub.add_parser("summary", help="Render the Phase 2 checkpoint tables as Markdown")
+    sp.add_argument("plan", help="Path to BUILD_PLAN.json")
+    sp.set_defaults(func=_cmd_summary)
+
+    ip = sub.add_parser(
+        "import-params", help="Reconcile a part script's PARAMETERS block into BUILD_PLAN.json"
+    )
+    ip.add_argument("script", help="Path to the part .py script")
+    ip.add_argument("--part", required=True, help="Part id in the plan")
+    ip.add_argument("--plan", default="BUILD_PLAN.json", help="Path to BUILD_PLAN.json")
+    ip.add_argument("--write", action="store_true", help="Persist the reconciled plan")
+    ip.set_defaults(func=_cmd_import_params)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

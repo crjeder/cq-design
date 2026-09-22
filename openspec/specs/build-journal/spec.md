@@ -5,9 +5,7 @@
 TBD - Defines requirements for the append-only `build/journal.md` milestone log that
 records durable pipeline facts as they are established, and lets an interrupted run
 resume without re-doing completed work.
-
 ## Requirements
-
 ### Requirement: A milestone journal is appended as facts are established
 
 The skill SHALL maintain an append-only markdown file `build/journal.md` in the
@@ -69,24 +67,24 @@ Each phase SHALL append a journal line for each of its milestones:
 - **THEN** the hint is recorded verbatim in the journal line, so a resumed session can
   re-apply it without re-asking
 
-### Requirement: A journal.py append command writes journal lines
+### Requirement: A log.py journal append command writes journal lines
 
-The system SHALL provide `src/journal.py`, a stdlib-only script invoked as
-`journal.py append <journal_path> <milestone> <text>`, where `<milestone>` is a
-`<phase>/<milestone_key>` string (e.g. `phase3/part_accepted:lid`). The command SHALL
-append exactly one line of the form `- <milestone>: <text>` to `<journal_path>`,
-creating the file if it does not yet exist, and SHALL NOT rewrite, reorder, or remove
-any existing line. The skill SHALL use this command wherever a phase document
-currently describes appending a journal line by hand.
+The system SHALL provide `src/log.py`, a stdlib-only script whose `journal append`
+subcommand (`log.py journal append <journal_path> <milestone> <text>`) appends
+exactly one line of the form `- <milestone>: <text>` to `<journal_path>`, where
+`<milestone>` is a `<phase>/<milestone_key>` string (e.g. `phase3/part_accepted:lid`).
+The command SHALL create `<journal_path>` if it does not yet exist, and SHALL NOT
+rewrite, reorder, or remove any existing line. The skill SHALL use this command
+wherever a phase document currently describes appending a journal line by hand.
 
 #### Scenario: Appending a milestone line
-- **WHEN** `journal.py append build/journal.md phase3/part_accepted:lid "audit passed"`
+- **WHEN** `log.py journal append build/journal.md phase3/part_accepted:lid "audit passed"`
   is run
 - **THEN** the line `- phase3/part_accepted:lid: audit passed` is appended to
   `build/journal.md`, and any lines already in the file are unchanged
 
 #### Scenario: File does not yet exist
-- **WHEN** `journal.py append` is run against a path with no existing file
+- **WHEN** `log.py journal append` is run against a path with no existing file
 - **THEN** the file is created containing exactly the one appended line
 
 #### Scenario: Repeated milestone key
@@ -121,3 +119,4 @@ a phase whose milestone the journal already records.
 - **WHEN** no `build/journal.md` exists in the working directory
 - **THEN** the skill starts at Phase 0 as usual and creates the journal on its first
   milestone
+

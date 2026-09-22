@@ -41,7 +41,7 @@ SRC_DIR = EVALS_DIR.parent / "src"
 RUNNER = SRC_DIR / "run_cadquery_model.py"
 
 sys.path.insert(0, str(SRC_DIR))
-from plan_validate import validate_plan  # noqa: E402
+from plan import validate_plan  # noqa: E402
 
 # Redistribution terms per --source, keyed by source name. An unrecorded --source
 # hard-errors before any sampling or writing (neither line is a guess: both upstream

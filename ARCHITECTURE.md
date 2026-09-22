@@ -34,7 +34,7 @@ flowchart TB
     SOURCING["SOURCING AGENT<br>web search, Thingiverse/Printables/MakerWorld,<br>reads descriptions/comments/license.<br>Returns a candidate table only -<br>page snapshots die here."]
     RESEARCH["RESEARCH AGENT<br>web search, spec pages, community models,<br>measure_stl reverse-engineering.<br>Returns the validation table only -<br>page snapshots die here."]
     PLANNER["PLANNER AGENT - strong model (Fable/Opus)<br>rendered prompts/planning.md in,<br>BUILD_PLAN.json out.<br>Topology errors cost a full rebuild,<br>so this is where model strength pays."]
-    PV["plan_validate.py<br>(program)"]
+    PV["plan.py validate<br>(program)"]
     BUILDER["PART BUILDER AGENT x N - cheaper model (Sonnet),<br>parallelizable. One agent per part.<br>Internal loop, max 3 attempts:<br>write - lint - validate - render - self-check.<br>Draft and refine are ONE agent: retries keep<br>memory of what already failed.<br>Images and retry noise die here."]
     DET["script_lint.py,<br>run_cadquery_model.py<br>(programs)"]
     AUDITOR["IMPLEMENTATION AUDITOR AGENT<br>fresh context - never sees the scripts.<br>Judges plan entry vs rendered views,<br>answers the visual checklist citing views.<br>Deterministic backstop: feature_presence_check.py"]

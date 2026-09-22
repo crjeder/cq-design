@@ -67,7 +67,7 @@ Parametric dovetail corner joint block. Provides a `dovetail_corner_joint` CadQu
 
 #### Scenario: Entry can back a joints entry
 - **WHEN** a `BUILD_PLAN.json` `joints` entry names `block: "dovetail_corner_joint"` with `members: [{member: "pins", part: ...}, {member: "tails", part: ...}]`
-- **THEN** `plan_validate.py` SHALL accept it as a valid matched-pair reference (no "no emits descriptor" or "unknown emits id" error)
+- **THEN** `plan.py validate` SHALL accept it as a valid matched-pair reference (no "no emits descriptor" or "unknown emits id" error)
 
 #### Scenario: Use text documents the mating contract
 - **WHEN** the `dovetail_corner_joint` inventory entry's `use` field is read

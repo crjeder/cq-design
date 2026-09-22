@@ -289,7 +289,7 @@ through its own stop -- and the first sample would be reported as the stop.
 
 ### Requirement: Kinematics entries are validated at every nesting depth
 
-`plan_validate.py` SHALL apply the existing per-entry checks (`moving_union`
+`plan.py validate` SHALL apply the existing per-entry checks (`moving_union`
 resolves to a union id, `block` exists and carries a `dof`, and the joint-contract
 type/axis arms) to every `kinematics` entry regardless of nesting depth, by
 recursing into each entry's `children`. Because `children` nests entries directly

@@ -71,7 +71,7 @@ today's mechanism, or identity when absent).
 
 ### Requirement: The mate graph is validated as a single tree rooted at `root_part`
 
-`plan_validate.py` SHALL treat each `joints` entry as an edge between its two members' parts and
+`plan.py validate` SHALL treat each `joints` entry as an edge between its two members' parts and
 validate the resulting graph: every part named in some `joints` entry SHALL be reachable from
 `root_part` along **exactly one** path. A part reachable via more than one distinct path (a cycle)
 SHALL be rejected as a **conflicting mate path** -- closed kinematic loops are out of scope, the
@@ -132,7 +132,7 @@ outward from `root_part`.
 
 ### Requirement: An interface name shared by two unlinked parts is reported
 
-`plan_validate.py` SHALL report a plan-validation finding when one
+`plan.py validate` SHALL report a plan-validation finding when one
 `interfaces[].name` is declared on two or more parts that no `joints` entry links.
 Two parts are linked when a single `joints` entry names both of them across its two
 `members[].part` values. The finding SHALL name the interface and the parts holding

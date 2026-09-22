@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import trimesh
 
-from plan_validate import validate_plan
+from plan import validate_plan
 
 CASES_DIR = Path(__file__).parent.parent / "evals" / "cases"
 CASES = sorted(p.name for p in CASES_DIR.iterdir() if p.is_dir())

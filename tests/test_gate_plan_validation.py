@@ -116,7 +116,7 @@ def test_missing_required_range_skips_kinematic_stage(tmp_path, good_script, mon
 def test_each_validator_error_maps_to_one_issue(tmp_path, good_script, monkeypatch):
     monkeypatch.setattr(quality_gate, "_run_kinematic_stage", lambda *a, **k: [])
     monkeypatch.setattr(
-        "plan_validate.validate_plan",
+        "plan.validate_plan",
         lambda *a, **k: ["err one", "err two", "err three"],
     )
     report = quality_gate.run_gate(

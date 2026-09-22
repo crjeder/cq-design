@@ -6,7 +6,7 @@ Defines requirements for the engineering-rationale record a load-bearing part mu
 carry: a load path, worst-case stress location, and a computed strain/stress-vs-allowable
 check, or a one-line "no load-bearing features" statement otherwise. The record lives in
 the part's `BUILD_PLAN.json` entry, not in the generated script. Applicability is derived
-from the plan via a single trigger set defined in `src/plan_validate.py`, the obligation
+from the plan via a single trigger set defined in `src/plan.py`, the obligation
 persists across retries, plan validation checks the record against the trigger, and the
 regeneration prompt carries it forward.
 
@@ -83,7 +83,7 @@ Whether a part takes the object form or the string form SHALL be determined from
 `BUILD_PLAN.json` entry: the object form applies when the entry declares a `load`, or when
 its `blocks_needed` or `archetype` is in the load-bearing set (snap hooks, clips, hooks,
 brackets, screw bosses, pcb standoffs, living hinge, dovetail joints). The trigger set
-SHALL be defined once, machine-readably, in `src/plan_validate.py`; `prompts/part.md` and
+SHALL be defined once, machine-readably, in `src/plan.py`; `prompts/part.md` and
 `skill/phase3_build.md` SHALL point at it rather than restating it.
 
 #### Scenario: Plan declares a load
@@ -101,7 +101,7 @@ SHALL be defined once, machine-readably, in `src/plan_validate.py`; `prompts/par
 
 - **WHEN** the load-bearing set is consulted by the part prompt, the Phase 3 skill file,
   or the plan validator
-- **THEN** all three resolve to the single list in `src/plan_validate.py`, and no second
+- **THEN** all three resolve to the single list in `src/plan.py`, and no second
   enumeration of the set exists in the prompt or skill files
 
 ### Requirement: Retry prompts preserve the rationale obligation
@@ -119,7 +119,7 @@ retry SHALL re-evaluate that check with the new value and write the updated fiel
 
 ### Requirement: Plan validation checks rationale form against the trigger
 
-`src/plan_validate.py` SHALL check every part's `engineering_rationale` against the
+`src/plan.py` SHALL check every part's `engineering_rationale` against the
 load-bearing trigger: a triggered part carrying the string form, an untriggered part
 carrying neither form, and a missing field SHALL each be a finding. Following the existing
 deferred-advisory pattern, the findings SHALL be advisory on a run without
@@ -128,7 +128,7 @@ exit non-zero under `--require-rationale`, which the Phase 3 pre-export run pass
 
 #### Scenario: Phase 2 plan has no rationales yet
 
-- **WHEN** `plan_validate.py` runs on a freshly planned `BUILD_PLAN.json` with no
+- **WHEN** `plan.py validate` runs on a freshly planned `BUILD_PLAN.json` with no
   `engineering_rationale` on any part
 - **THEN** it reports the missing rationales as advisory findings and exits 0
 

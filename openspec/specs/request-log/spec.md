@@ -57,7 +57,7 @@ request_log carry neither and SHALL stay valid.
   `images` array, an empty-string path inside `images`, an unknown `level` value,
   an empty `targets` array, an empty-string entry inside `targets`, or an extra
   property - or the array has zero or multiple `initial` entries
-- **THEN** `plan_validate.py` reports a schema validation error
+- **THEN** `plan.py validate` reports a schema validation error
 
 ### Requirement: Planning populates the initial request verbatim
 The planning phase SHALL populate `request_log` when emitting a new plan: the
@@ -180,7 +180,7 @@ it SHALL change only literals in the part scripts named in that entry's
 / `mate_chain.py` (a derived pose or a shared block parameter), NOT by
 hand-editing the same literal into a sibling part the entry does not target.
 This is orchestrator discipline enforced in `skill/phase3_build.md`; it is not
-checked by `plan_validate.py`.
+checked by `plan.py validate`.
 
 #### Scenario: Shared dimension correction routes through the mate chain
 - **WHEN** a `parameter` entry targeting `cradle` corrects an interface width
