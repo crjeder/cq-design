@@ -26,7 +26,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] search tool for specific parametric cadquery / SCAD / build123d modells
 - [ ] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit)
 - [ ] evaluate bernhard-42/jupyter-cadquery
-- [ ] evaluate cq's assembly sytem and https://github.com/bernhard-42/cadquery-massembly
+- [x] evaluate cq's assembly system and https://github.com/bernhard-42/cadquery-massembly -- **REJECTED** (already covered by `placement.py` / `mate_chain.py`); one optional spin-off: assembled multi-component STEP export -- [details](#cq-assembly-and-massembly)
 - [ ] show differences: https://github.com/bdlucas1/diff3d
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-sets]
 - [ ] for selectors: evaluate https://github.com/voneiden/cq-filter and https://github.com/jmwright/selector_synthesis
@@ -638,6 +638,43 @@ thereprocase/snuggle-demo (https://github.com/thereprocase/snuggle-demo) -- a
 standalone "stuffing"/nesting algorithm demo, worth checking against the
 bottom-left-fill approach above.
 **REJECTED** -- this feature belongs into a slicer.
+
+### cq assembly and massembly
+Evaluated 2026-09-22. **REJECTED** for the pipeline's core.
+
+`cadquery-massembly`: its feature is mates -- named coordinate systems snapped
+together to derive poses down a chain. That is `mate_chain.compute_mate_poses`
+(62 lines): `world(B) = world(A) @ dock_A @ inv(dock_B)`, walked outward from
+`root_part`, with `plan_validate._check_joints` guaranteeing a tree first so no
+cycle handling is needed. MAssembly's reason to exist is driving animations in
+jupyter-cadquery; this pipeline has no viewer, it has trimesh sweeps
+(`kinematic_check.py`). Trading 62 owned lines for a dep tied to an unused
+viewer stack is a loss.
+
+`cq.Assembly`: three reasons against.
+1. Nothing to solve. `constrain()`/`solve()` is a numerical optimizer for
+   under-specified constraints; `BUILD_PLAN.json` declares every `dock` and
+   `placement` explicitly, so poses are exact composition. An optimizer would put
+   a non-deterministic step underneath gates that are currently reproducible
+   (`kinematic_check`, `plate_clearance_check`, `keep_out_check`).
+2. Covers half the consumers. `placement.py` must yield both a CadQuery transform
+   (`apply_cq`) and a numpy 4x4 (`to_matrix`) from one JSON dict, because
+   everything downstream of `model_export` is trimesh, not OCCT. `to_matrix` stays
+   either way. And `apply_cq` deliberately goes straight to
+   `BRepBuilderAPI_Transform` on `.wrapped` to dodge the `cq_warehouse.extensions`
+   deepcopy patch -- an Assembly `Location` path would re-enter that.
+3. Wrong contract. Parts are authored by separate sub-agents into separate scripts
+   whose `result` is a `Workplane` or `dict[str, Workplane]`, and each part prints
+   separately. `plan_validate.py` already rejects a top-level `assembly` key on
+   purpose.
+
+One spin-off worth keeping: `cq.Assembly.save("x.step")` writes a
+multi-component STEP with per-component names and colors. STEP is currently
+per-part (`exporters/step.py`); there is no assembled STEP for CAD handoff. If
+wanted, that is a standalone ~15-line exporter in `model_export.py` -- build a
+throwaway `cq.Assembly`, `.add(wp, loc=Location(matrix), name=part_id)` using the
+poses already computed, save. No constraints, no solver, no schema change. Add it
+when someone actually asks to open the model in FreeCAD/Fusion.
 
 ### Blocks assembly placeholder
 Assembly placeholder geometry. A block may declare PSEUDO geometry marking
