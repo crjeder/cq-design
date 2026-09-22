@@ -92,7 +92,15 @@ GENTLE_INCLINE_MAX_DEG = 45.0
 # How heavily gentle-incline area discounts the cosmetic-face-down reward.
 VISUAL_INCLINE_WEIGHT = 1.0
 # Selectable print-orientation objectives.
-OPTIMIZE_MODES = ("strength", "min_support", "visual_quality", "min_build_height")
+OPTIMIZE_MODES = (
+    "strength",
+    "min_support",
+    "visual_quality",
+    "min_build_height",
+    "min_print_time",
+)
+# Print-time tie band (s) used when optimizing for min_print_time.
+PRINT_TIME_BAND_S = 5.0
 # Load types recognized for strength scoring. tension/bending/shear all stress the
 # interlayer bond and keep the existing layer-plane-alignment scoring; compression
 # does not, so it scores as orientation-neutral (see _strength_score).
@@ -212,6 +220,26 @@ def _fem_strength_lookup(
         fem_normal = _unit(np.asarray(candidate["normal"], dtype=float))
         if float(np.dot(unit_normal, fem_normal)) >= cos_tol:
             return round(1.0 - float(candidate["fi_p99"]), 6)
+    return None
+
+
+def _speed_lookup(
+    speed_model: dict | None, normal: np.ndarray, merge_deg: float = NORMAL_MERGE_DEG
+) -> dict | None:
+    """The `toolpath_speed.py --emit-candidates` entry matching `normal`, or None when
+    `speed_model` is absent/skipped or no candidate matches (mirrors
+    `_fem_strength_lookup`'s normal-matching, the same tolerance
+    `enumerate_candidate_normals` dedups with)."""
+    if not speed_model or speed_model.get("status") != "ok":
+        return None
+    cos_tol = np.cos(np.radians(merge_deg))
+    unit_normal = _unit(normal)
+    for candidate in speed_model.get("candidates", []):
+        if candidate.get("status") != "ok":
+            continue
+        cand_normal = _unit(np.asarray(candidate["normal"], dtype=float))
+        if float(np.dot(unit_normal, cand_normal)) >= cos_tol:
+            return candidate
     return None
 
 
@@ -341,6 +369,10 @@ def _select(
     - min_support: least support, ties by best strength, then most bed contact.
     - visual_quality: best visual, ties by best strength, then least support.
     - min_build_height: least build height, ties by best strength, then least support.
+    - min_print_time: least estimated total print time (when a speed model was
+      supplied; falls back to `min_build_height`'s ordering otherwise, since build
+      height is the only print-time-correlated quantity available without one), ties
+      by best strength, then least support.
 
     Before applying the mode's ordering, candidates are restricted to stable ones
     (those that won't tip over on the bed) whenever at least one is stable; a
@@ -363,6 +395,17 @@ def _select(
         best = min(c["build_height"] for c in candidates)
         contenders = [c for c in candidates if c["build_height"] - best <= BUILD_HEIGHT_BAND_MM]
         return min(contenders, key=lambda c: (-c["strength"], c["support"], c["idx"]))
+    if optimize_for == "min_print_time":
+        if any(c.get("total_time_s") is not None for c in candidates):
+            timed = [c for c in candidates if c.get("total_time_s") is not None]
+            best = min(c["total_time_s"] for c in timed)
+            contenders = [c for c in timed if c["total_time_s"] - best <= PRINT_TIME_BAND_S]
+            return min(contenders, key=lambda c: (-c["strength"], c["support"], c["idx"]))
+        # No speed model supplied: build height is the only print-time-correlated
+        # quantity available, so fall back to min_build_height's exact ordering.
+        best = min(c["build_height"] for c in candidates)
+        contenders = [c for c in candidates if c["build_height"] - best <= BUILD_HEIGHT_BAND_MM]
+        return min(contenders, key=lambda c: (-c["strength"], c["support"], c["idx"]))
 
     best = max(c["strength"] for c in candidates)
     contenders = [c for c in candidates if best - c["strength"] <= strength_band]
@@ -379,11 +422,13 @@ def optimize_orientation(
     load_type: str = "tension",
     bridge_max_mm: float = BRIDGE_MAX_MM,
     fem_stress: dict | None = None,
+    speed_model: dict | None = None,
 ) -> dict:
     """Choose the print orientation for a union mesh under the requested mode.
 
     `optimize_for` is one of `strength` (default), `min_support`,
-    `visual_quality`, or `min_build_height`. `load_dir` is the principal load in
+    `visual_quality`, `min_build_height`, or `min_print_time`. `load_dir` is the
+    principal load in
     the mesh's own frame and
     `show_face` is the cosmetic surface normal; both are inferred from geometry when
     None. `load_type` is one of `LOAD_TYPES`, default `tension`: `tension`/`bending`/
@@ -396,9 +441,14 @@ def optimize_orientation(
     `1 - fi_p99` from its matching entry there instead of the load-direction
     cosine -- a solved, geometry-aware strength. A candidate with no matching
     fem_stress entry, an absent `fem_stress`, or a `"skipped"` result falls back to
-    the load-direction measure exactly as without this argument. Returns the
-    recommended rotation (placement convention), the score breakdown, the inputs
-    used, and a human-readable rationale.
+    the load-direction measure exactly as without this argument. `speed_model` is an
+    optional `toolpath_speed.py --emit-candidates` JSON result; when its `status` is
+    `"ok"`, each candidate matching an `"ok"` entry there (by normal) additionally
+    carries an estimated total print time, `speed_efficiency`, and stall state, which
+    `min_print_time` mode orders on. Without it, `min_print_time` falls back to
+    `min_build_height`'s ordering and no candidate carries the print-time fields.
+    Returns the recommended rotation (placement convention), the score breakdown, the
+    inputs used, and a human-readable rationale.
     """
     if optimize_for not in OPTIMIZE_MODES:
         raise ValueError(f"optimize_for must be one of {OPTIMIZE_MODES}, got {optimize_for!r}")
@@ -424,21 +474,24 @@ def optimize_orientation(
         support, bed_contact = _support_metrics(posed, overhang_deg, bridge_max_mm)
         visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec)
         stable = _stability_metrics(posed)
-        candidates.append(
-            {
-                "idx": idx,
-                "rotation": rotation,
-                "strength": strength,
-                "strength_source": strength_source,
-                "support": support,
-                "bed_contact": bed_contact,
-                "visual": visual,
-                "cosmetic_down": cosmetic_down,
-                "gentle_incline_fraction": incline,
-                "build_height": _build_height(posed),
-                "stable": stable,
-            }
-        )
+        speed_entry = _speed_lookup(speed_model, normal)
+        candidate = {
+            "idx": idx,
+            "rotation": rotation,
+            "strength": strength,
+            "strength_source": strength_source,
+            "support": support,
+            "bed_contact": bed_contact,
+            "visual": visual,
+            "cosmetic_down": cosmetic_down,
+            "gentle_incline_fraction": incline,
+            "build_height": _build_height(posed),
+            "stable": stable,
+            "total_time_s": speed_entry.get("total_time_s") if speed_entry else None,
+            "speed_efficiency": speed_entry.get("speed_efficiency") if speed_entry else None,
+            "stalled": speed_entry.get("stalled") if speed_entry else None,
+        }
+        candidates.append(candidate)
 
     unstable_excluded = any(c["stable"] for c in candidates) and any(
         not c["stable"] for c in candidates
@@ -463,7 +516,7 @@ def optimize_orientation(
         load_declared,
         unstable_excluded,
     )
-    return {
+    result = {
         "optimize_for": optimize_for,
         "rotate": _rotation_to_placement(chosen["rotation"]),
         "strength_score": chosen["strength"],
@@ -483,6 +536,14 @@ def optimize_orientation(
         "show_face_inferred": show_face_inferred,
         "rationale": rationale,
     }
+    # Print-time fields are present only when a --speed-model was supplied and matched
+    # the chosen candidate; their absence leaves the result byte-identical to a run
+    # without this capability.
+    if chosen.get("total_time_s") is not None:
+        result["total_time_s"] = chosen["total_time_s"]
+        result["speed_efficiency"] = chosen["speed_efficiency"]
+        result["stalled"] = chosen["stalled"]
+    return result
 
 
 def _rationale(
@@ -522,12 +583,25 @@ def _rationale(
         )
     if unstable_excluded:
         common += ". unstable candidates (would tip over on the bed) were excluded from selection"
+    if chosen.get("total_time_s") is not None:
+        stall_note = " (minimum-layer-time stalled)" if chosen.get("stalled") else ""
+        common += (
+            f". estimated print time {chosen['total_time_s']:.0f}s, speed_efficiency "
+            f"{chosen['speed_efficiency']:.0%}{stall_note}"
+        )
     if optimize_for == "min_support":
         lead = "min_support: least support first, strength as tiebreaker"
     elif optimize_for == "visual_quality":
         lead = "visual_quality: best appearance first, strength then support as tiebreakers"
     elif optimize_for == "min_build_height":
         lead = "min_build_height: lowest profile first, strength then support as tiebreakers"
+    elif optimize_for == "min_print_time":
+        lead = (
+            "min_print_time: least estimated print time first, strength then support as tiebreakers"
+            if chosen.get("total_time_s") is not None
+            else "min_print_time (no speed model supplied, using build height): lowest "
+            "profile first, strength then support as tiebreakers"
+        )
     else:
         lead = "strength: layer-plane strength first, support as tiebreaker"
     return f"{lead}. Chosen among {n_candidates} candidates: {common}."
@@ -590,6 +664,15 @@ def main() -> None:
         "instead of the load-direction cosine. Omit, or a 'skipped' result, leaves "
         "strength scoring exactly as without this flag.",
     )
+    parser.add_argument(
+        "--speed-model",
+        default=None,
+        help="Path to a src/toolpath_speed.py --emit-candidates JSON result for this "
+        "union; when its status is 'ok', matching candidates carry an estimated total "
+        "print time, speed_efficiency, and stall state, which min_print_time mode "
+        "orders on. Omit, or a 'skipped' result, leaves scoring exactly as without "
+        "this flag (min_print_time then falls back to min_build_height's ordering).",
+    )
     args = parser.parse_args()
 
     load_dir = None
@@ -599,6 +682,10 @@ def main() -> None:
     if args.fem_stress:
         with open(args.fem_stress, encoding="utf-8") as f:
             fem_stress = json.load(f)
+    speed_model = None
+    if args.speed_model:
+        with open(args.speed_model, encoding="utf-8") as f:
+            speed_model = json.load(f)
     show_face = None
     if args.show_face:
         show_face = [float(v) for v in args.show_face.split(",")]
@@ -613,6 +700,7 @@ def main() -> None:
         load_type=args.load_type,
         bridge_max_mm=args.bridge_max_mm,
         fem_stress=fem_stress,
+        speed_model=speed_model,
     )
     if args.source_script:
         result["source_script_hash"] = script_hash(args.source_script)

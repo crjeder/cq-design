@@ -105,9 +105,12 @@ or calling any script listed below.
     render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
                               # planner/research agent prompts (Phase 1/2)
     skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
-    print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost
+    print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost.
+                              # `--speed-model` (toolpath_speed.py) adds a min_print_time mode.
     fem_check.py              # FEM stress advisor (optional `fem` dep group): solves a declared load case,
                               # reports a per-orientation failure index + geometry hint. Never a gate.
+    toolpath_speed.py         # Toolpath-speed advisor: corner-sharpness + feature-crowding print-time cost
+                              # from an exact CAD-solid section (no slicer, no G-code). Never a gate.
     material_properties.json # Elastic constants + allowables per material (fem_check.py + the injected
                               # Engineering Design Rules.md table; single source for both)
     convert_build123d.py     # Phase 0 sourcing aid: build123d -> CadQuery conversion
@@ -142,7 +145,7 @@ or calling any script listed below.
     preview.py               # CadQuery tessellation + matplotlib preview renderer
     render_preview.py        # Subprocess entry point for preview.py
     section_select.py        # Picks axis-aligned section planes through bore/boss axes (--auto-sections; standalone CLI)
-    mesh_io.py               # Trimesh loader + watertightness validation
+    mesh_io.py               # Trimesh loader + watertightness validation; lateral_area() feeds toolpath_speed.py
     build_plan_schema.json   # JSON Schema draft-7 for BUILD_PLAN.json
     printer_profile_schema.json  # JSON Schema draft-7 for printer_profile.json
     printer_profile.default.json # Default printer_profile.json seeded into a fresh directory
@@ -217,6 +220,7 @@ or calling any script listed below.
     test_printer_profile_validate.py # printer_profile.json schema + write-back -- fast, no CadQuery
     test_import_params.py            # import_params.py parse/reconcile/write-back -- fast, no CadQuery
     test_edge_treatment_check.py     # Chamfer/fillet rule check (CadQuery)
+    test_toolpath_speed.py           # Corner/crowding print-time advisor (CadQuery)
     test_gridfinity.py               # Gridfinity blocks + conformance check (CadQuery)
     test_minimal_cutout_search.py    # Parameter bisection search against a kinematics entry (CadQuery)
     test_templates.py                # Archetype index validation + per-template lint/geometry

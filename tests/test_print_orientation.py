@@ -528,3 +528,72 @@ def test_cli_fem_stress_flag(tmp_path):
     assert proc.returncode == 0, proc.stderr
     result = json.loads(proc.stdout)
     assert result["strength_source"] == "fem"
+
+
+def _speed_model_result(normal_to_speed: dict) -> dict:
+    """A minimal toolpath_speed.py --emit-candidates-shaped result: status ok, one
+    candidate per normal with the given (total_time_s, speed_efficiency, stalled)."""
+    return {
+        "status": "ok",
+        "candidates": [
+            {
+                "normal": list(normal),
+                "status": "ok",
+                "total_time_s": t,
+                "speed_efficiency": eff,
+                "stalled": stalled,
+            }
+            for normal, (t, eff, stalled) in normal_to_speed.items()
+        ],
+    }
+
+
+def test_min_print_time_selects_least_estimated_time():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    speed_model = _speed_model_result(
+        {
+            (1.0, 0.0, 0.0): (500.0, 0.5, False),
+            (-1.0, 0.0, 0.0): (500.0, 0.5, False),
+            (0.0, 1.0, 0.0): (500.0, 0.5, False),
+            (0.0, -1.0, 0.0): (500.0, 0.5, False),
+            (0.0, 0.0, 1.0): (50.0, 0.9, False),
+            (0.0, 0.0, -1.0): (50.0, 0.9, False),
+        }
+    )
+    result = optimize_orientation(
+        box, overhang_deg=45.0, optimize_for="min_print_time", speed_model=speed_model
+    )
+    assert result["total_time_s"] == pytest.approx(50.0)
+    assert result["speed_efficiency"] == pytest.approx(0.9)
+    assert result["stalled"] is False
+
+
+def test_min_print_time_without_speed_model_falls_back_to_build_height():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    with_time_mode = optimize_orientation(box, overhang_deg=45.0, optimize_for="min_print_time")
+    with_height_mode = optimize_orientation(box, overhang_deg=45.0, optimize_for="min_build_height")
+    assert with_time_mode["rotate"] == with_height_mode["rotate"]
+    assert "total_time_s" not in with_time_mode
+
+
+def test_speed_model_absent_result_is_byte_identical_to_no_flag():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    without_flag = optimize_orientation(box, overhang_deg=45.0, load_dir=[1.0, 0.0, 0.0])
+    with_skipped = optimize_orientation(
+        box, overhang_deg=45.0, load_dir=[1.0, 0.0, 0.0], speed_model={"status": "skipped"}
+    )
+    assert without_flag == with_skipped
+    assert "total_time_s" not in with_skipped
+
+
+def test_speed_model_fields_present_only_when_matched():
+    box = trimesh.creation.box([40.0, 20.0, 6.0])
+    speed_model = _speed_model_result({(0.0, 0.0, 1.0): (50.0, 0.9, False)})
+    result = optimize_orientation(box, overhang_deg=45.0, speed_model=speed_model)
+    # Default (strength) mode may or may not land on the one candidate with speed data;
+    # either way, when present the fields agree with that candidate's values.
+    if "total_time_s" in result:
+        assert result["total_time_s"] == pytest.approx(50.0)
+        assert result["speed_efficiency"] == pytest.approx(0.9)
+    else:
+        assert "speed_efficiency" not in result and "stalled" not in result
