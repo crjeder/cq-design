@@ -246,9 +246,13 @@ def _render_all(
             subtitle=args.subtitle,
             callouts=callouts,
             unlocated_names=args.unlocated_name,
+            density_g_cm3=args.density,
+            material=args.material,
         )
     else:
-        preview.render_single(result, args.output, title=title)
+        preview.render_single(
+            result, args.output, title=title, density_g_cm3=args.density, material=args.material
+        )
 
     out_dir = os.path.dirname(args.output) or "."
     stem = os.path.splitext(os.path.basename(args.output))[0]
@@ -305,6 +309,10 @@ def main():
     parser.add_argument("--views", choices=["iso", "multi"], default="multi")
     parser.add_argument("--title", default=None)
     parser.add_argument("--subtitle", default=None)
+    parser.add_argument(
+        "--density", type=float, default=1.24, help="Filament density in g/cm3 (default: PLA)"
+    )
+    parser.add_argument("--material", default="PLA", help="Material name for the footer label")
     parser.add_argument(
         "--cross-sections",
         action="store_true",
