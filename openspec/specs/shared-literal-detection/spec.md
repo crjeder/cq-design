@@ -1,6 +1,6 @@
 ## Purpose
 
-Advisory detection of an unlinked physical mate between two parts that plan_validate.py
+Advisory detection of an unlinked physical mate between two parts that plan.py validate
 would otherwise miss: a shared `interfaces[].name`, a same-position/same-diameter round
 interface pair (regardless of name), or hinge/pivot language on a multi-part plan with
 no `joints` entry at all. Each closes a way a shared literal (a pivot Z, a bore diameter)
@@ -10,7 +10,7 @@ can re-diverge between two parts' independently-typed declarations.
 
 ### Requirement: Shared named interface with no linking joint is flagged
 When one `interfaces[].name` is held by two or more parts, and no single
-`joints` entry's `members` links every pair of those parts, `plan_validate.py`
+`joints` entry's `members` links every pair of those parts, `plan.py validate`
 SHALL emit one advisory finding (same tier as `check_block_thinness`) naming
 the shared interface and the parts that remain unlinked. A `joints` entry
 covering one pair narrows the finding to the parts still independently
@@ -21,7 +21,7 @@ requirement below).
 #### Scenario: Two parts share a named interface with no joints entry
 - **WHEN** two parts each declare an `interfaces[]` entry with
   `name: "pivot"` and the plan has no `joints` entry linking them
-- **THEN** `plan_validate.py`'s advisory findings include one naming
+- **THEN** `plan.py`'s advisory findings include one naming
   `'pivot'` and both parts
 
 #### Scenario: A joints entry silences the finding
@@ -35,7 +35,7 @@ requirement below).
   three
 
 ### Requirement: Co-located round interfaces with no linking joint are flagged regardless of name
-`plan_validate.py` SHALL also flag two parts that each declare an
+`plan.py validate` SHALL also flag two parts that each declare an
 `interfaces[]` entry with both `position_mm` and `diameter_mm`, whose
 positions coincide within `feature_presence_check`'s existing position
 tolerance after each is transformed through its part's `placement` (identity
@@ -52,7 +52,7 @@ above.
   `position_mm` that, after each part's `placement` transform, land at the
   same assembled-frame point (within tolerance) — and no `joints` entry
   links the two parts
-- **THEN** `plan_validate.py`'s advisory findings include one naming both
+- **THEN** `plan.py`'s advisory findings include one naming both
   parts and noting the coincident round feature
 
 #### Scenario: A joints entry silences the positional finding
@@ -81,7 +81,7 @@ When a plan has more than one part and its `intent` or any
 `request_log[].text` contains a hinge/pivot/fold/articulation word
 (word-boundary, case-insensitive match against `hinge`, `pivot`, `fold`, or
 `articulat`), and the plan's `joints` field is absent, null, or an empty
-array, `plan_validate.py` SHALL emit one advisory finding pointing at the
+array, `plan.py validate` SHALL emit one advisory finding pointing at the
 `joints`/`kinematics` schema fields as the expected route for a shared
 mechanical mate.
 

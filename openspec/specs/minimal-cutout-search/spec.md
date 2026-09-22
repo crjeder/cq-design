@@ -16,14 +16,14 @@ margined recommendation without touching the script unless asked.
 Given a part script path, a parameter name, a `BUILD_PLAN.json` path, a `joint_id`,
 and two bound values (`--lo`, `--hi`), the tool SHALL locate the module-level
 numeric assignment for the named parameter in the script (the same AST-based,
-module-level `NAME = <numeric literal>` lookup `import_params.py` uses), and SHALL
+module-level `NAME = <numeric literal>` lookup `plan.py import-params` uses), and SHALL
 bisect between the bounds using `run_kinematic_check`'s pass/fail result for the
 named `joint_id` as the oracle at each candidate value.
 
-#### Scenario: Parameter located via AST, matching import_params.py's convention
+#### Scenario: Parameter located via AST, matching plan.py import-params's convention
 - **WHEN** a script declares `NOTCH_HEIGHT = 8.0` as a module-level assignment in
   its `PARAMETERS` block
-- **THEN** the tool locates that assignment the same way `import_params.py`'s
+- **THEN** the tool locates that assignment the same way `plan.py import-params`'s
   `parse_parameters` does, and rejects a parameter name that is not a module-level
   numeric-literal assignment
 

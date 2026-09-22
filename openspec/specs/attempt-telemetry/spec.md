@@ -5,9 +5,7 @@
 Record one append-only JSON line per part-script attempt in `build/attempts.jsonl`, so failure
 patterns, attempt counts, and prompt costs are measurable across sessions -- the baseline every
 prompt, reference, or model-routing change is judged against.
-
 ## Requirements
-
 ### Requirement: Per-attempt telemetry record
 `build/attempts.jsonl` SHALL carry, for every part-script attempt, at least
 one line recording `ts` (ISO 8601 UTC), `part_id`, `attempt` (1-based),
@@ -46,11 +44,11 @@ attempt's `outcome`, `error_types`, and `visual_review`.
   line is required
 
 ### Requirement: Telemetry append helper
-The system SHALL provide `src/telemetry.py` with an append function and CLI
-that validates a record against the attempt schema, stamps `ts` when absent,
-and appends it as a single well-formed JSON line. Invalid records SHALL be
+The system SHALL provide `src/log.py` with an append function and an `attempt append`
+CLI subcommand that validates a record against the attempt schema, stamps `ts` when
+absent, and appends it as a single well-formed JSON line. Invalid records SHALL be
 rejected with a non-zero exit code and SHALL NOT write a partial line.
-`src/telemetry.py` SHALL also provide a `fold_attempts(records) -> list[dict]`
+`src/log.py` SHALL also provide a `fold_attempts(records) -> list[dict]`
 helper that groups records by `(part_id, attempt)` and returns one record per
 group — the last record in input order — for use by any consumer that scores
 or checks the log, and a `--hook` entry point that reads a Claude Code
@@ -59,12 +57,13 @@ observed `run_cadquery_model.py` invocation and its result, and appends it
 using the same validated-append path as the CLI.
 
 #### Scenario: Valid record appended via CLI
-- **WHEN** the CLI is invoked with a record containing the required fields
+- **WHEN** the `attempt append` CLI is invoked with a record containing the required
+  fields
 - **THEN** exactly one parseable JSON line is appended to the target file and
   the process exits 0
 
 #### Scenario: Invalid record rejected
-- **WHEN** the CLI is invoked with a record missing `part_id`
+- **WHEN** the `attempt append` CLI is invoked with a record missing `part_id`
 - **THEN** the process exits non-zero and the target file is unchanged
 
 #### Scenario: Unknown extra keys are preserved
@@ -164,7 +163,7 @@ Step 5 appends is visible rather than silently unmeasured.
   this session produced no measurement data
 
 ### Requirement: Audit-fail follow-up command
-`src/telemetry.py` SHALL provide an `audit-fail --part <part_id> --audit <path>`
+`src/log.py` SHALL provide an `attempt audit-fail --part <part_id> --audit <path>`
 subcommand that appends the visual-review-failure follow-up record for `part_id`
 without requiring the caller to supply `prompt_chars` or `model`. It SHALL read the
 auditor's JSON output at `<path>` (the `verdict`/`failed_questions`/`findings`/
@@ -177,9 +176,9 @@ append one record with `outcome: "fail"`, `error_types: ["visual_mismatch"]`, an
 failed_questions>}`.
 
 #### Scenario: Audit-fail appends a derived follow-up record
-- **WHEN** `audit-fail --part lid --audit build/lid_audit.json` is run, `attempts.jsonl`
-  already has a `part_id: "lid"`, `attempt: 2` record from the hook, a prompt file
-  `build/lid_prompt_attempt2.txt` exists, `skill_config.json` sets
+- **WHEN** `log.py attempt audit-fail --part lid --audit build/lid_audit.json` is run,
+  `attempts.jsonl` already has a `part_id: "lid"`, `attempt: 2` record from the hook, a
+  prompt file `build/lid_prompt_attempt2.txt` exists, `skill_config.json` sets
   `models.part_author` to `claude-sonnet-5`, and the audit JSON has
   `"verdict": "fail"` and `"failed_questions": ["Does the lid seat flush?"]`
 - **THEN** a follow-up line is appended with `part_id: "lid"`, `attempt: 2`,
@@ -188,8 +187,8 @@ failed_questions>}`.
   `visual_review: {"passed": false, "failed_question": "Does the lid seat flush?"}`
 
 #### Scenario: No prior attempt for the part is an error
-- **WHEN** `audit-fail --part lid --audit build/lid_audit.json` is run but
-  `attempts.jsonl` has no record for `part_id: "lid"`
+- **WHEN** `log.py attempt audit-fail --part lid --audit build/lid_audit.json` is run
+  but `attempts.jsonl` has no record for `part_id: "lid"`
 - **THEN** the command exits non-zero and appends nothing
 
 #### Scenario: Audit JSON with no failed questions is an error
@@ -199,11 +198,12 @@ failed_questions>}`.
 ### Requirement: Shared model resolution helper
 `part_author_model()` (resolving `models.part_author` from `./skill_config.json`,
 falling back to the seeded default, else `"unknown"`) SHALL live in
-`src/telemetry.py` so both the `audit-fail` subcommand and `render_prompt.py` share
-one implementation; `render_prompt.py` SHALL import it from `telemetry.py` rather
+`src/log.py` so both the `attempt audit-fail` subcommand and `render_prompt.py` share
+one implementation; `render_prompt.py` SHALL import it from `log.py` rather
 than defining its own copy.
 
 #### Scenario: render_prompt and audit-fail agree on the resolved model
 - **WHEN** `skill_config.json` sets `models.part_author` to `claude-opus-5`
 - **THEN** both `render_prompt.py`'s validate-args rendering and
-  `telemetry.py audit-fail`'s derived `model` field resolve to `claude-opus-5`
+  `log.py attempt audit-fail`'s derived `model` field resolve to `claude-opus-5`
+

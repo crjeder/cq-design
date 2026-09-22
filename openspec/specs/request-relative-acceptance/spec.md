@@ -20,7 +20,7 @@ to the part's `BUILD_PLAN.json` entry. The request text SHALL be taken from the
 plan's approved `intent` (the user-approved reformulation, per the `approved-intent`
 spec), plus every `request_log` entry scoped to the part under review. An entry is
 scoped to the part when its typed `targets` name the part (once typed `request_log`
-entries exist) or, absent typed targets, when `request_log_search.py --query <part id
+entries exist) or, absent typed targets, when `log.py request search --query <part id
 or name>` matches it.
 
 `intent` replaces `request_log`'s `initial` entry as the global reference frame for

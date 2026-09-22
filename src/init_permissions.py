@@ -26,7 +26,7 @@ from typing import Any
 
 _PERMISSIONS_PATH = os.path.join(os.path.dirname(__file__), "skill_permissions.json")
 _SESSION_COST_PATH = os.path.join(os.path.dirname(__file__), "session_cost.py")
-_TELEMETRY_PATH = os.path.join(os.path.dirname(__file__), "telemetry.py")
+_LOG_PATH = os.path.join(os.path.dirname(__file__), "log.py")
 
 
 def load_canonical() -> dict[str, Any]:
@@ -97,9 +97,9 @@ def seed_default_files(working_dir: str) -> list[str]:
 
 
 def _resolve_command(command: str) -> str:
-    """Substitute the `{session_cost_path}`/`{telemetry_path}` placeholders."""
+    """Substitute the `{session_cost_path}`/`{log_path}` placeholders."""
     return command.replace("{session_cost_path}", _SESSION_COST_PATH).replace(
-        "{telemetry_path}", _TELEMETRY_PATH
+        "{log_path}", _LOG_PATH
     )
 
 

@@ -142,7 +142,7 @@ src/
   run_cadquery_model.py     # subprocess wrapper: runs a .py model, validates geometry, emits JSON
   run_model_shim.py         # runpy shim that auto-exports `result` to STL
   quality_gate.py           # DFM + in-process trimesh geometry/overhang analysis (no slicer required), fix rounds, print recipe
-  plan_validate.py          # validates BUILD_PLAN.json against schema and block inventory
+  plan.py                   # validate / summary / import-params over BUILD_PLAN.json
   printer_profile_validate.py # validates printer_profile.json and writes back field overrides
   measure_stl.py            # geometry feature extractor for reference STLs (trimesh + numpy)
   preview.py                # headless multi-view PNG renderer (CadQuery tessellation + matplotlib)
@@ -193,7 +193,7 @@ tests/
   test_exporters.py         # exporter tests
   test_preview.py           # preview.py / render_preview.py tests
   test_thin_interfaces.py   # thin-wall detection tests
-  test_plan_validate.py     # schema validation tests -- fast, no CadQuery
+  test_plan.py              # plan validate/summary/import-params tests -- fast, no CadQuery
   test_mesh_io.py           # mesh loader tests
   test_placement.py         # placement helper tests
   test_units.py             # part -> unions / keep-out-zone expansion tests

@@ -53,7 +53,7 @@ Report to the user:
 
    Read the result before reporting: if the `What to build` section is a bare noun phrase
    rather than the approved reformulation, fix `intent` and re-run rather than editing
-   `REGENERATE.md` (an unreconciled correction is already caught by `plan_validate.py`).
+   `REGENERATE.md` (an unreconciled correction is already caught by `plan.py validate`).
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually.
 
@@ -61,6 +61,6 @@ Once delivery is reported and `README.md` / `REGENERATE.md` are written, append 
 `build/journal.md` (see `skill/resume.md`):
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/journal.py" append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase4/delivered "README.md + REGENERATE.md written"
 ```

@@ -54,11 +54,11 @@ uv run pytest tests/test_run_wrapper.py
 pytest tests/test_run_wrapper.py::test_happy_path
 
 # Fast subset (plan validate -- no CadQuery)
-uv run pytest tests/test_plan_validate.py
+uv run pytest tests/test_plan.py
 ```
 
-`test_plan_validate.py` only exercises JSON Schema validation and runs in well under a
-second with no CadQuery installation. All other test files are integration tests that
+`test_plan.py` only exercises JSON Schema validation, summary rendering, and
+parameter round-trip, and runs in well under a second with no CadQuery installation. All other test files are integration tests that
 run real CadQuery scripts (a few seconds each).
 
 ## Key Constraints
@@ -100,7 +100,9 @@ or calling any script listed below.
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
     cq_verify.py             # Construction-time assertions (verify_boolean, verify_feature_bounds, check_workplane, verify_stage, verify_backed)
     quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes (model from skill_config.json's models.fix_loop)
-    plan_validate.py         # BUILD_PLAN.json schema + inventory cross-check
+    plan.py                  # BUILD_PLAN.json: `validate` (schema + inventory cross-check),
+                             # `summary` (Phase 2 checkpoint Markdown tables), `import-params`
+                             # (reconcile a part script's PARAMETERS block back into the plan)
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
     render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
                               # planner/research agent prompts (Phase 1/2)
@@ -117,9 +119,7 @@ or calling any script listed below.
     cq_compat.py             # Compatibility shim neutralizing a cq_warehouse shape-copy patch
     init_permissions.py      # Seeds a working directory: .claude/settings.local.json (patterns + hooks), build/stl/preview dirs, default printer_profile.json + skill_config.json
     bundle_project.py        # Copies build.py, lib/ tooling, and the uv project template into a working directory
-    plan_summary.py          # BUILD_PLAN.json -> Phase 2 checkpoint Markdown tables
     printer_profile_validate.py # printer_profile.json schema validation + field write-back
-    import_params.py         # Reconcile a part script's PARAMETERS block back into BUILD_PLAN.json
     kinematic_check.py       # Whole-model range-of-motion sweep (trimesh + fcl)
     minimal_cutout_search.py # Bisects a part-script parameter to the minimal value clearing a kinematics entry
     plate_clearance_check.py # Whole-model co-plated union clearance check (trimesh + fcl)
@@ -134,12 +134,12 @@ or calling any script listed below.
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
     model_export.py          # Model-level export: named 3MF + per-union/plate/keep-out-zone STL
     build_template.py        # build.py template copied to build/; regenerates plates in print orientation
-    telemetry.py             # Append-only per-attempt log -> build/attempts.jsonl
-                              # (append CLI, fold_attempts, --hook PostToolUse entry point)
-    journal.py                # Append-only milestone log -> build/journal.md (append CLI, see skill/resume.md)
+    log.py                   # Build-time logs: `attempt` (per-attempt log -> build/attempts.jsonl;
+                             # fold_attempts, --hook PostToolUse entry point), `journal` (milestone
+                             # log -> build/journal.md, see skill/resume.md), `request` (BUILD_PLAN.json's
+                             # request_log: search by keyword/kind/level/target, add a clarification/
+                             # correction with an auto-stamped ts)
     session_cost.py          # Session transcript -> billed token cost in build/cost.json (Stop hook)
-    request_log_search.py    # BUILD_PLAN.json's request_log: search (keyword/kind/level/target) and
-                              # add (append a clarification/correction with an auto-stamped ts) subcommands
     regen_prompt.py          # BUILD_PLAN.json + parameters.py + sketches/ -> REGENERATE.md (Phase 4)
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     preview.py               # CadQuery tessellation + matplotlib preview renderer
@@ -205,20 +205,18 @@ or calling any script listed below.
     test_mesh_io.py                  # Trimesh loader
     test_stl_to_3mf.py               # 3MF export path
     test_cq_warehouse_integration.py # cq_warehouse fastener integration
-    test_plan_validate.py            # Schema validation -- fast, no CadQuery
-    test_plan_summary.py             # Phase 2 summary rendering -- fast, no CadQuery
+    test_plan.py                     # Schema validation, Phase 2 summary rendering, parameter
+                                     # round-trip -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
     test_render_prompt.py            # Builder/audit/planning/research prompt rendering -- fast, no CadQuery
     test_skill_version.py            # Version stamping/detection/compare -- fast, no CadQuery
-    test_telemetry.py                # Attempt-log helper + CLI -- fast, no CadQuery
-    test_request_log_search.py       # request_log filter helper + CLI -- fast, no CadQuery
+    test_log.py                      # Journal/attempt/request_log helpers + CLI -- fast, no CadQuery
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
     test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # printer_profile.json schema + write-back -- fast, no CadQuery
-    test_import_params.py            # import_params.py parse/reconcile/write-back -- fast, no CadQuery
     test_edge_treatment_check.py     # Chamfer/fillet rule check (CadQuery)
     test_toolpath_speed.py           # Corner/crowding print-time advisor (CadQuery)
     test_gridfinity.py               # Gridfinity blocks + conformance check (CadQuery)
