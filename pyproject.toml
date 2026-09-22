@@ -44,6 +44,14 @@ dev = [
     "basedpyright>=1.0",
     "types-jsonschema",
 ]
+# Optional: src/fem_check.py's tet mesher and linear-static solver. Not in the default
+# `dependencies` -- the advisor degrades to a stated skip without it (see the
+# `fem-stress-advisor` capability), so the default skill install stays unchanged.
+# `uv sync --group fem` to enable it.
+fem = [
+    "gmsh>=4.12,<5",
+    "scikit-fem>=10,<11",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -105,6 +113,11 @@ module = [
     "mpl_toolkits.*",
     "networkx.*",
     "OCP.*",
+    # optional `fem` dependency group (src/fem_check.py) -- ships no type stubs, and
+    # may not be installed at all (default `uv sync` omits it; see pyproject's `fem`
+    # dependency-group comment), so missing-import must not fail type-checking.
+    "gmsh",
+    "skfem.*",
 ]
 ignore_missing_imports = true
 

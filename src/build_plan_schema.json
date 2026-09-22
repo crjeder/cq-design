@@ -221,6 +221,32 @@
                 "enum": ["tension", "compression", "bending", "shear"],
                 "default": "tension",
                 "description": "Load type. tension/bending/shear keep layer-plane strength scoring (default, conservative). compression (a resting weight pressing straight through the part's thickness -- a base, plinth, pedestal, foot) makes strength orientation-neutral so support/bed-contact decide instead."
+              },
+              "magnitude_n": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Load magnitude in newtons, for the FEM stress advisor (src/fem_check.py). Derived from a researched mass (magnitude_n = mass_g * 9.81 / 1000 * safety_factor, see reference/Engineering Design Rules.md) -- never a value the planner invented. Omit when no mass was researched for this part; the advisor then does not run."
+              },
+              "applied_at": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Name of the interfaces[] entry (see interfaces[].name) where this load enters the part, for the FEM stress advisor. Requires the named interface to carry position_mm."
+              },
+              "applied_dir": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Direction override for the applied traction at `applied_at`, for a load entering its interface at an angle to the part's principal `dir` (e.g. a shelf lip that also pushes outward). Affects only the FEM advisor's applied traction; `dir` remains the direction print-orientation scoring and the engineering-rationale trigger read. Omit to apply the load along `dir`."
+              },
+              "grounded_at": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "minItems": 1,
+                "description": "Names of interfaces[] entries that hold the part fixed, for the FEM stress advisor. Each named interface must carry position_mm. Grounds are fully fixed (no direction)."
               }
             }
           },

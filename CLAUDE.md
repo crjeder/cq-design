@@ -106,6 +106,10 @@ or calling any script listed below.
                               # planner/research agent prompts (Phase 1/2)
     skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
     print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost
+    fem_check.py              # FEM stress advisor (optional `fem` dep group): solves a declared load case,
+                              # reports a per-orientation failure index + geometry hint. Never a gate.
+    material_properties.json # Elastic constants + allowables per material (fem_check.py + the injected
+                              # Engineering Design Rules.md table; single source for both)
     convert_build123d.py     # Phase 0 sourcing aid: build123d -> CadQuery conversion
     cq_compat.py             # Compatibility shim neutralizing a cq_warehouse shape-copy patch
     init_permissions.py      # Seeds a working directory: .claude/settings.local.json (patterns + hooks), build/stl/preview dirs, default printer_profile.json + skill_config.json

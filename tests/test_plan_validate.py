@@ -15,6 +15,7 @@ from plan_validate import (  # noqa: E402
     check_coordinate_frame_usage,
     check_engineering_rationale,
     check_hinge_intent_without_joints,
+    check_load_case_anchors,
     check_shared_interfaces,
     validate_plan,
 )
@@ -130,6 +131,68 @@ def test_zero_load_direction_rejected(plan_file):
     plan["parts"][0]["load"] = {"dir": [0, 0, 0]}
     errors = validate_plan(plan_file(plan))
     assert any("non-zero direction" in e for e in errors)
+
+
+def test_valid_load_case_accepted(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [
+        {"type": "screw_boss", "name": "wall_screws", "position_mm": [0, 0, 0], "diameter_mm": 3},
+        {"type": "shelf", "name": "phone_shelf", "position_mm": [10, 0, 0], "size_mm": [5, 5]},
+    ]
+    plan["parts"][0]["load"] = {
+        "dir": [0, 0, -1],
+        "type": "bending",
+        "magnitude_n": 2.6,
+        "applied_at": "phone_shelf",
+        "applied_dir": [0, -0.5, -1],
+        "grounded_at": ["wall_screws"],
+    }
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
+
+
+def test_partial_load_case_accepted(plan_file):
+    # magnitude_n/applied_at/applied_dir/grounded_at are all independently optional.
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1], "magnitude_n": 1.5}
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
+
+
+def test_dir_only_load_unchanged(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1], "type": "bending"}
+    errors = validate_plan(plan_file(plan))
+    assert errors == []
+
+
+def test_load_anchor_naming_missing_interface_reported(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1], "applied_at": "does_not_exist"}
+    plan_path = plan_file(plan)
+    assert validate_plan(plan_path) == []  # not a schema error
+    findings = check_load_case_anchors(plan)
+    assert any("does_not_exist" in f for f in findings)
+
+
+def test_load_anchor_grounded_at_missing_interface_reported():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1], "grounded_at": ["nope"]}
+    findings = check_load_case_anchors(plan)
+    assert any("nope" in f for f in findings)
+
+
+def test_load_anchor_matching_interface_no_findings():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"] = [
+        {"type": "screw_boss", "name": "wall_screws", "position_mm": [0, 0, 0], "diameter_mm": 3}
+    ]
+    plan["parts"][0]["load"] = {"dir": [0, 0, -1], "grounded_at": ["wall_screws"]}
+    assert check_load_case_anchors(plan) == []
+
+
+def test_load_anchor_check_no_load_no_findings():
+    assert check_load_case_anchors(VALID_PLAN) == []
 
 
 def test_plan_level_optimize_for(plan_file):
