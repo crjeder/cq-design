@@ -125,6 +125,31 @@ the geometry doesn't explain, a failure index far from what the loading suggests
 at a smaller `--mesh-size` and compare `fi_p99` between the two runs before citing either:
 a `fi_p99` that moves substantially means the coarser mesh wasn't converged.
 
+## Toolpath-speed advisor
+
+Run once the script is accepted, no plan input required:
+
+```bash
+uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/toolpath_speed.py" \
+    --plan BUILD_PLAN.json --script {{PART_ID}}.py
+```
+
+`status: "skipped"` (no `motion` block in `printer_profile.json`, or geometry the model
+can't represent) means nothing to act on. Otherwise, read the attribution:
+
+- An issue with `attribution` ranks sharp/undersized corners by how much print time
+  raising their fillet radius would recover, largest first. This is a knob with a
+  saturating return -- past roughly R2 (at typical desktop-FDM accel), further radius
+  buys little -- not a rule that every edge needs a fillet.
+- An issue with `dominant: "crowding"` means the part's own feature size is the limit,
+  not any edge: the toolhead never reaches cruise speed between corners no matter how
+  they're treated. Prefer fewer, larger features over filleting individually.
+
+This is conditional on the part's eventual build orientation (a corner vertical here may
+print horizontal after `print_orientation.py` runs), so treat it as a hint, not a verdict
+-- the quality gate re-checks it in the real, accepted pose. Advisory only: never blocks
+acceptance.
+
 ## Construction-time verification
 
 Some CadQuery operations fail silently -- no change, no exception -- so a defect only

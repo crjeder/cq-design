@@ -55,8 +55,9 @@ def write_profile_fields(
     """
     profile = _load_json(profile_path)
     for key, value in fields.items():
-        if key.startswith("constraints."):
-            profile.setdefault("constraints", {})[key.split(".", 1)[1]] = value
+        if "." in key:
+            group, subkey = key.split(".", 1)
+            profile.setdefault(group, {})[subkey] = value
         else:
             profile[key] = value
 

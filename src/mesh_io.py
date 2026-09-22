@@ -267,3 +267,21 @@ def up_facing_incline_area(mesh, min_deg, max_deg):
     incline = np.degrees(np.arccos(np.clip(nz, 0.0, 1.0)))
     band_mask = up_mask & (incline > min_deg) & (incline < max_deg)
     return round(float(mesh.area_faces[band_mask].sum()), 3)
+
+
+def lateral_area(mesh):
+    """Total mesh area minus its up-facing and down-facing area (mm^2).
+
+    For a prismatic (constant cross-section) part this is exactly the wall area swept
+    by one layer's perimeter times the part's height, so `lateral_area(mesh) / H` is a
+    cheap, no-sectioning estimate of mean layer perimeter -- see
+    `toolpath_speed.py`. Up-facing and down-facing are partitioned by face-normal sign
+    (nz > 0 / nz < 0), the same partition `bed_contact_mask` and `up_facing_incline_area`
+    use, so the three sums never disagree about which face is which. Build direction is
+    +Z, so this is pose-dependent: pass a mesh already rotated into the print (build)
+    frame.
+    """
+    nz = mesh.face_normals[:, 2]
+    up = float(mesh.area_faces[nz > 0].sum())
+    down = float(mesh.area_faces[nz < 0].sum())
+    return round(float(mesh.area_faces.sum()) - up - down, 3)

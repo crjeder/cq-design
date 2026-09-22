@@ -48,6 +48,16 @@ Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for
 - Apply whenever possible to improve part strength and print quality
 - Modeling mechanics (fillet sizing limits, fillet-before-shell, cut depth) → CadQuery Pattern Reference "Common Gotchas".
 - Combine fillets and chamfers to mitigate overhang issues -> replace a downward face steeper than 45° from horizontal (un-printable) with a chamfer.
+- The vertical-edge fillet's speed benefit saturates: raising the radius from sharp to
+  roughly 2 mm recovers most of the achievable cornering speed at typical desktop-FDM
+  acceleration; radius beyond that buys little more (see `toolpath-speed-advisor`). A
+  sharp corner still deserves *some* fillet for smoother head motion even past that
+  point — it costs nothing structurally and reduces vibration/wear — just don't expect
+  print-time gains from over-sizing it.
+- Feature size matters more than any single edge's treatment: a part built from many
+  small, closely spaced features never lets the toolhead reach cruise speed between
+  them, no matter how well each corner is filleted. Prefer fewer, larger features when
+  print speed matters and the design allows it.
 
 ## Cosmetic Slopes / Stair-Stepping
 <!-- applies_to: always -->
