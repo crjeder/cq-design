@@ -826,6 +826,33 @@ def check_engineering_rationale(plan: dict[str, Any]) -> list[str]:
     return findings
 
 
+def check_load_case_anchors(plan: dict[str, Any]) -> list[str]:
+    """Check a part's `load.applied_at` / `load.grounded_at` name interfaces that exist
+    on that part (see the `fem-stress-advisor` spec). Advisory: a missing/misnamed
+    anchor means the FEM advisor skips the part, not that the plan is invalid.
+    """
+    findings: list[str] = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        load = part.get("load")
+        if not load:
+            continue
+        names = {i.get("name") for i in part.get("interfaces", []) if i.get("name")}
+        applied_at = load.get("applied_at")
+        if applied_at is not None and applied_at not in names:
+            findings.append(
+                f"Part '{pid}': load.applied_at '{applied_at}' does not name an "
+                f"interfaces[].name on this part"
+            )
+        for grounded in load.get("grounded_at", []):
+            if grounded not in names:
+                findings.append(
+                    f"Part '{pid}': load.grounded_at '{grounded}' does not name an "
+                    f"interfaces[].name on this part"
+                )
+    return findings
+
+
 def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     """Flag blocks whose smallest declared extent is below the wall minimum.
 
@@ -927,6 +954,12 @@ def main():
             print(f"  - {f}")
         if args.require_rationale:
             sys.exit(1)
+
+    load_anchors = check_load_case_anchors(plan)
+    if load_anchors:
+        print(f"\nLoad-case anchor findings ({len(load_anchors)}, advisory):")
+        for f in load_anchors:
+            print(f"  - {f}")
 
 
 if __name__ == "__main__":

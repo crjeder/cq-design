@@ -190,6 +190,14 @@ inline part render cites the selected section names as already-in-context
 material; a cold-context render (subagent or `claude -p`) receives the selected
 sections' full bodies. An untagged section SHALL be excluded from all selections.
 
+The Material Constants section SHALL additionally carry, per material, the Young's
+modulus, Poisson's ratio, and three allowables -- in-plane tensile, interlayer (Z)
+tensile, and interlayer shear strength -- plus the default safety factor used to derive a
+load magnitude from a researched mass. These values SHALL be derived from
+`src/material_properties.json` rather than maintained independently of it, so the injected
+table and `src/fem_check.py` cannot state different numbers for the same material. The
+section's `always` tag and its rendering behaviour are unchanged.
+
 #### Scenario: Snap-fit part in a cold context
 
 - **WHEN** a part with `blocks_needed: ["snap_hook_clip"]` is rendered for a cold
@@ -235,6 +243,19 @@ sections' full bodies. An untagged section SHALL be excluded from all selections
 - **WHEN** a part is named as `moving_union` in no `kinematics` entry and has no
   hinge-related `blocks_needed`
 - **THEN** the flush-fold hinge standoff section is excluded
+
+#### Scenario: Material constants carry the FEM allowables
+
+- **WHEN** the Material Constants section is rendered for any part
+- **THEN** it states, per material, the Young's modulus, Poisson's ratio, in-plane tensile,
+  interlayer tensile and interlayer shear allowables, and the default safety factor,
+  alongside the existing allowable strain and flexural modulus
+
+#### Scenario: Table and solver agree
+
+- **WHEN** a material's value is changed in `src/material_properties.json`
+- **THEN** the rendered Material Constants table states the same value, and the test
+  asserting their agreement passes
 
 ---
 

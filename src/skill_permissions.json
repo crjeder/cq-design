@@ -4,6 +4,7 @@
   "allow": [
     "Bash(uv run --project * python * run_cadquery_model.py *)",
     "Bash(uv run --project * python * print_orientation.py *)",
+    "Bash(uv run --project * python * fem_check.py *)",
     "Bash(uv run --project * python * model_export.py *)",
     "Bash(uv run --project * python * quality_gate.py *)",
     "Bash(uv run --project * python * regen_prompt.py *)",
@@ -31,6 +32,7 @@
     "Bash(mkdir *)",
     "PowerShell(uv run --project * python * run_cadquery_model.py *)",
     "PowerShell(uv run --project * python * print_orientation.py *)",
+    "PowerShell(uv run --project * python * fem_check.py *)",
     "PowerShell(uv run --project * python * model_export.py *)",
     "PowerShell(uv run --project * python * quality_gate.py *)",
     "PowerShell(uv run --project * python * regen_prompt.py *)",

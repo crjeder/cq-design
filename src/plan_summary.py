@@ -57,6 +57,53 @@ def _open_questions(plan: dict) -> list[str]:
     return [line for line in stripped if line.startswith("OPEN:")]
 
 
+# `LOAD_MASS: <part_id> <mass> <unit> sf=<safety_factor>` in planning_notes, e.g.
+# `LOAD_MASS: phone_shelf 187 g sf=2.0` -- same free-text-convention approach as
+# `OPEN:`, carrying the mass/safety-factor derivation behind a part's `load.magnitude_n`
+# without a schema field for it (the schema already carries the resulting magnitude_n).
+_LOAD_MASS_RE = re.compile(
+    r"^LOAD_MASS:\s+(?P<part_id>[a-z][a-z0-9_]*)\s+(?P<mass>[\d.]+)\s*(?P<unit>\S+)\s+sf=(?P<sf>[\d.]+)"
+)
+
+
+def _load_mass_notes(plan: dict) -> dict[str, dict[str, str]]:
+    lines = (plan.get("planning_notes") or "").split("\n")
+    stripped = [re.sub(r"^[-*+]\s+", "", line.strip()) for line in lines]
+    notes: dict[str, dict[str, str]] = {}
+    for line in stripped:
+        m = _LOAD_MASS_RE.match(line)
+        if m:
+            notes[m.group("part_id")] = {
+                "mass": m.group("mass"),
+                "unit": m.group("unit"),
+                "sf": m.group("sf"),
+            }
+    return notes
+
+
+def _load_cases(plan: dict) -> list[list]:
+    """One row per part declaring `load.magnitude_n`: the derivation (source mass, unit,
+    safety factor) alongside the resulting force and anchors, so the Phase 2 checkpoint
+    can catch a wrong mass before Phase 3 runs any FEM solve."""
+    mass_notes = _load_mass_notes(plan)
+    rows = []
+    for p in plan["parts"]:
+        load = p.get("load") or {}
+        magnitude_n = load.get("magnitude_n")
+        if magnitude_n is None:
+            continue
+        note = mass_notes.get(p["id"], {})
+        mass = f"{note['mass']} {note['unit']}" if note else "(unspecified)"
+        sf = note.get("sf", "(unspecified)")
+        applied = load.get("applied_at") or "(none)"
+        applied_dir = load.get("applied_dir")
+        if applied_dir:
+            applied += " dir=" + ",".join(f"{v:g}" for v in applied_dir)
+        grounded = ", ".join(load.get("grounded_at") or []) or "(none)"
+        rows.append([p["id"], mass, sf, f"{magnitude_n:g} N", applied, grounded])
+    return rows
+
+
 def _coined_names(plan: dict) -> list[str]:
     log_words: set[str] = set()
     for entry in plan.get("request_log") or []:
@@ -146,6 +193,18 @@ def summarize(plan: dict, plan_path: Path) -> str:
             _table(["Part", "Name", "Type", "Connector", "Wall", "Position (mm)"], interfaces),
             "",
         ]
+
+    load_cases = _load_cases(plan)
+    if load_cases:
+        headers = [
+            "Part",
+            "Source mass",
+            "Safety factor",
+            "magnitude_n",
+            "Applied at",
+            "Grounded at",
+        ]
+        out += ["**Load cases**", "", _table(headers, load_cases), ""]
 
     coined = _coined_names(plan)
     if coined:

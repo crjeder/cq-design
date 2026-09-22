@@ -259,6 +259,7 @@ def part_spec(plan: dict, part: dict) -> str:
     return fill(
         _read(SKILL_DIR / "prompts/part.md"),
         {
+            "SKILL_DIR": SKILL_DIR.as_posix(),
             "PART_ID": part["id"],
             "PART_DESCRIPTION": part["description"],
             "W_MM": f"{dims['w_mm']:g}",
