@@ -367,11 +367,24 @@ def _emit_print_recipe(
     walls = max(2, int((wall_min / nozzle) + 0.999))
 
     if orientation:
+        # Present only when print_orientation.py was run with --speed-model and a
+        # candidate matched (see toolpath-speed-advisor); absent otherwise, exactly
+        # as before this capability existed.
+        speed_fields = (
+            {
+                "estimated_print_time_s": orientation["total_time_s"],
+                "speed_efficiency": orientation["speed_efficiency"],
+                "stalled": orientation["stalled"],
+            }
+            if orientation.get("total_time_s") is not None
+            else {}
+        )
         orientation_field: dict | str = {
             "rotate": orientation.get("rotate"),
             "strength_score": orientation.get("strength_score"),
             "support_score": orientation.get("support_score"),
             "rationale": orientation.get("rationale"),
+            **speed_fields,
         }
     else:
         orientation_field = "flat_bottom_down"
@@ -686,6 +699,49 @@ def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | 
         orientations[stem] = orientation
 
     return run_edge_treatment_check(plan, script_path, orientations)
+
+
+def _run_toolpath_speed_stage(
+    plan: dict, plan_path: str, script_path: str, stl_dir: str
+) -> list[dict]:
+    """Corner/crowding print-time advisory findings, in the build frame (once, outside
+    the fix loop; always advisory).
+
+    Reads `motion` from `printer_profile.json` next to the plan; a missing block is a
+    stated skip, not an error. Passes the union's posed STL (from `stl_dir`, the
+    assembled-pose STL every whole-model stage reads) so the layer-time/stall model can
+    run alongside the corner model; a missing STL still yields the authored-corner-only
+    findings.
+    """
+    from toolpath_speed import run_toolpath_speed_check
+    from units import resolve_unions
+
+    profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "printer_profile.json")
+    motion = None
+    if os.path.isfile(profile_path):
+        with open(profile_path, encoding="utf-8") as f:
+            motion = json.load(f).get("motion")
+    if not motion:
+        return []
+
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
+    stl_for_union: str | None = None
+    if part is not None:
+        try:
+            from exporters import _load_result
+
+            script_result = _load_result(script_path)
+            unions = resolve_unions(part, script_result)
+            if len(unions) == 1:
+                stl_for_union = os.path.join(stl_dir, f"{unions[0][0]}.stl")
+        except Exception:
+            stl_for_union = None
+
+    check_result = run_toolpath_speed_check(plan, script_path, motion, stl_for_union)
+    if check_result.get("status") != "ok":
+        return []
+    return check_result.get("issues", [])
 
 
 def _run_feature_presence_stage(plan: dict, script_path: str) -> list[dict]:
@@ -1017,6 +1073,8 @@ def run_gate(
         all_issues += _run_keep_out_stage(plan, stl_dir, parts_dir)
         # ---- edge-treatment (chamfer/fillet) check (once, outside the fix loop) ----
         all_issues += _run_edge_treatment_stage(plan, script_path, orientation)
+        # ---- toolpath-speed advisor (corner/crowding print-time; once, outside the fix loop) ----
+        all_issues += _run_toolpath_speed_stage(plan, plan_path, script_path, stl_dir)
         # ---- feature-presence check (declared interfaces built; once, outside the fix loop) ----
         all_issues += _run_feature_presence_stage(plan, script_path)
         # ---- hinge-guard-lint (revolute-hinge script missing its seating guard; advisory) ----

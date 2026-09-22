@@ -199,6 +199,36 @@ result:
 `build/<part_id>.fem_stress.json` (when `"ok"`) feeds `print_orientation.py --fem-stress`
 below.
 
+## Toolpath-speed advisor
+
+Runs for every part (no plan input required, unlike the FEM advisor above); it is an
+**advisor**, never a gate. It re-runs the part script and reports how much sharp
+corners and small features cost in print time -- an authored-frame hint, since no print
+orientation exists yet:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/toolpath_speed.py" \
+    --plan BUILD_PLAN.json --script build/<part_id>.py
+```
+
+Read the result:
+
+- **`status: "skipped"`** -- `printer_profile.json` has no `motion` block, or the
+  geometry isn't prismatic enough for the model; report the reason and move on.
+- **`status: "ok"`, `issues: []`** -- already efficient; nothing to report.
+- **An issue with `attribution`** -- ranked corners and the print time each fillet
+  would recover. Consider raising the radius at the top few, largest first; this is
+  conditional on the part's eventual build orientation (a corner vertical here may
+  print horizontal), so re-check after orientation is chosen if the finding is close
+  to the reporting threshold.
+- **An issue with `dominant: "crowding"`** -- the part's features are too small to
+  ever reach cruise speed; no single edge is at fault. Consider fewer, larger features
+  rather than filleting individual edges.
+
+Neither is required -- the number is advisory, the author decides. This finding is
+revisited with real numbers (the accepted orientation, and the layer-time/stall model)
+at the quality gate; see `quality-gate-fix-policy`.
+
 ## Print-orientation optimization
 
 Per union, on its part-frame STL (orientation is a property of the part, not its
@@ -209,15 +239,25 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
     build/<part_id>.py --deliver --formats stl --output-dir stl
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
     stl/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
-    --optimize-for <strength|min_support|visual_quality> \
+    --optimize-for <strength|min_support|visual_quality|min_build_height|min_print_time> \
     --source-script build/<part_id>.py \
     [--load x,y,z] [--load-type tension|compression|bending|shear] [--show-face x,y,z] \
-    [--fem-stress build/<part_id>.fem_stress.json]
+    [--fem-stress build/<part_id>.fem_stress.json] \
+    [--speed-model build/<part_id>.speed_candidates.json]
 ```
 
 Pass `--load`/`--load-type` from the plan's `load`, `--show-face` when declared, and
 `--fem-stress` when the FEM advisor above produced an `"ok"` result for this part -- it
 replaces the load-direction cosine with the solved failure index per candidate.
+`--speed-model` (needed only for `min_print_time`, or to have the estimated print time
+reported in the rationale under any mode) takes a `toolpath_speed.py --emit-candidates`
+result:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/toolpath_speed.py" \
+    --plan BUILD_PLAN.json --script build/<part_id>.py --stl stl/<part_id>.stl \
+    --emit-candidates <union_id> > build/<part_id>.speed_candidates.json
+```
 
 - **Sanity-check the load first.** A compression part (base, foot, plinth) or a
   non-load-bearing cover scored as tension gets tipped onto an edge; check

@@ -185,3 +185,21 @@ def test_support_cost_has_no_cliff_at_limit():
     above = mesh_io.support_cost(_downward_tri(90.0 - 45.1), 45.0, 2.0)
     assert below == 0.0
     assert above < 1e-3
+
+
+def test_lateral_area_matches_prismatic_box_perimeter():
+    box = trimesh.creation.box([30.0, 30.0, 60.0])
+    lateral = mesh_io.lateral_area(box)
+    expected = 2 * (30.0 * 60.0) + 2 * (30.0 * 60.0)  # 4 walls, 30x60 each
+    assert lateral == pytest.approx(expected, rel=1e-6)
+    height = box.bounds[1][2] - box.bounds[0][2]
+    mean_perimeter = lateral / height
+    assert mean_perimeter == pytest.approx(4 * 30.0, rel=1e-6)
+
+
+def test_lateral_area_excludes_flat_top_and_bottom():
+    box = trimesh.creation.box([10.0, 10.0, 10.0])
+    total = float(box.area_faces.sum())
+    lateral = mesh_io.lateral_area(box)
+    assert lateral < total
+    assert lateral == pytest.approx(4 * 10.0 * 10.0, rel=1e-6)

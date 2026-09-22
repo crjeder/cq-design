@@ -7,5 +7,14 @@
     "overhang_max_deg": 45,
     "bridge_max_mm": 10.0,
     "dimension_tolerance_mm": 0.5
+  },
+  "motion": {
+    "v_cruise_mm_s": 200,
+    "accel_mm_s2": 5000,
+    "junction_deviation_mm": 0.05,
+    "min_layer_time_s": 5.0,
+    "layer_height_mm": 0.2,
+    "line_width_mm": 0.42,
+    "infill_density": 0.15
   }
 }

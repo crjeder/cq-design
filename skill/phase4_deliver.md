@@ -7,7 +7,15 @@ Report to the user:
    name the missing `build/attempts.jsonl` and note that this session produced no
    measurement data. If it carries a `parameters_missing` warning (`source: "parameters"`),
    name the missing `parameters.py` and note that Phase 1's dimension checkpoint recorded
-   sourcing but the provenance file was never written
+   sourcing but the provenance file was never written. If `print_recipe.orientation` carries
+   `estimated_print_time_s`, report it alongside `speed_efficiency` and note plainly that
+   it is a slicer-free lower bound (no travel between islands, solid top/bottom layers,
+   seam/retraction time, or heat-up) -- useful for comparing poses, not for quoting against
+   a real slicer's estimate. If `stalled` is true, the pose is minimum-layer-time bound
+   (print time is driven by height and the profile's floor, not geometry); offer the
+   stated remedies (flatter pose, thicker stalling feature, more copies on the plate) and
+   **ask before changing plate layout or part count** -- more copies is never applied
+   without the user's explicit approval (see `toolpath-speed-advisor`)
 2. **Preview images** - display any `.png` files from `preview/`
 3. **Print recipe** - show `print_recipe` from `build/quality_gate.json`
 4. **Output files** - list `model.3mf` (project root) and the STLs in `stl/`, and note
