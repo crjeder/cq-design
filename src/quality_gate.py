@@ -64,6 +64,14 @@ def _classify_action(issue: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _material_density(material: str | None) -> float:
+    """density_g_cm3 for `material` from material_properties.json, else PLA's."""
+    with open(os.path.join(SKILL_ROOT, "material_properties.json"), encoding="utf-8") as f:
+        materials = json.load(f)["materials"]
+    entry = materials.get(material) or materials["PLA"]
+    return entry["density_g_cm3"]
+
+
 def _run_wrapper_check(
     script_path: str, plan: dict
 ) -> tuple[list[dict], str | None, dict | None, list[str]]:
@@ -85,6 +93,10 @@ def _run_wrapper_check(
         str(constraints.get("wall_min_mm", 1.2)),
         "--line-width",
         str(line_width),
+        "--density",
+        str(_material_density(plan.get("material"))),
+        "--material",
+        plan.get("material") or "PLA",
         "--deliver",
         "--formats",
         "stl",
@@ -135,6 +147,7 @@ def _run_wrapper_check(
                 "dimension_mismatch",
                 "disconnected_body",
                 "mesh_load_error",
+                "thin_interface_check_error",
             )
             else "warning"
         )
@@ -735,7 +748,11 @@ def _run_toolpath_speed_stage(
             unions = resolve_unions(part, script_result)
             if len(unions) == 1:
                 stl_for_union = os.path.join(stl_dir, f"{unions[0][0]}.stl")
-        except Exception:
+        except Exception as exc:
+            print(
+                f"toolpath-speed stage: could not resolve STL for {stem}: {exc}",
+                file=sys.stderr,
+            )
             stl_for_union = None
 
     check_result = run_toolpath_speed_check(plan, script_path, motion, stl_for_union)

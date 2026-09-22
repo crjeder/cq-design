@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 import sys
+from typing import cast
 
 AXES = "xyz"
 MIN_RADIUS_MM = 0.5
@@ -58,7 +59,7 @@ def _face_feature(face):
 
 def detect_features(shape):
     """Axis-aligned bores/bosses as dicts, coaxial faces merged into one stepped feature."""
-    groups = {}
+    groups: dict[tuple[int, float, float], dict] = {}
     for face in shape.Faces():
         f = _face_feature(face)
         if f is None:
@@ -143,7 +144,7 @@ def _parse_reserve(spec):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("script")
     parser.add_argument("--max", type=int, default=3)
     parser.add_argument("--reserve", action="append", default=[], metavar="AXIS=MM")
@@ -157,11 +158,12 @@ def main():
         from units import KEEP_OUT_KEY
 
         result = _load_result(args.script)
+        shape: cq.Shape
         if isinstance(result, dict):
-            vals = [wp.val() for k, wp in result.items() if k != KEEP_OUT_KEY]
+            vals = cast(list[cq.Shape], [wp.val() for k, wp in result.items() if k != KEEP_OUT_KEY])
             shape = cq.Compound.makeCompound(vals)
         else:
-            shape = result.val() if isinstance(result, cq.Workplane) else result
+            shape = cast(cq.Shape, result.val())
         sections = select_sections(shape, args.max, reserved)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
