@@ -145,6 +145,7 @@ def validate_plan(
     errors.extend(_check_joints(plan, inventory_path))
     errors.extend(_check_request_log(plan))
     errors.extend(_check_intent_reconciled(plan))
+    errors.extend(_check_bom_parts(plan))
 
     return errors
 
@@ -535,6 +536,51 @@ def _check_request_log(plan: dict[str, Any]) -> list[str]:
     if initial_idxs[0] != 0:
         return ["request_log's 'initial' entry must be first"]
     return []
+
+
+def _check_bom_parts(plan: dict[str, Any]) -> list[str]:
+    """Every `bom[].parts` entry must name an existing part id."""
+    part_ids = {p.get("id") for p in plan.get("parts", [])}
+    errors = []
+    for i, row in enumerate(plan.get("bom", [])):
+        for pid in row.get("parts", []):
+            if pid not in part_ids:
+                errors.append(f"bom[{i}] ('{row.get('item')}'): unknown part '{pid}'")
+    return errors
+
+
+def check_bom_coverage(plan: dict[str, Any], inventory_path: str = _INVENTORY_PATH) -> list[str]:
+    """Advisory: a part uses a block with `supplied_hardware` but no `bom` row lists it.
+
+    Not a hard error -- the hardware a block needs is sometimes listed under a sibling
+    part (e.g. the lid part owns the screw for a boss on the base). See the
+    `non-printed-bom` design's Decisions.
+    """
+    try:
+        inventory = _load_json(inventory_path)
+    except (OSError, json.JSONDecodeError):
+        return []
+    supplied = {b["name"]: b["supplied_hardware"] for b in inventory if b.get("supplied_hardware")}
+    if not supplied:
+        return []
+
+    listed_parts: set[str] = set()
+    for row in plan.get("bom", []):
+        listed_parts.update(row.get("parts", []))
+
+    findings = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        if pid in listed_parts:
+            continue
+        for block in part.get("blocks_needed", []):
+            block_name = block if isinstance(block, str) else block.get("name")
+            if block_name in supplied:
+                findings.append(
+                    f"Part '{pid}' uses block '{block_name}' (needs: {supplied[block_name]}) "
+                    f"but no bom row lists '{pid}'"
+                )
+    return findings
 
 
 def _parse_ts(value: str) -> datetime:
@@ -990,6 +1036,19 @@ def _load_cases(plan: dict) -> list[list]:
     return rows
 
 
+def _bom_rows(plan: dict) -> list[list]:
+    return [
+        [
+            row["item"],
+            row.get("spec", ""),
+            row.get("qty", ""),
+            ", ".join(row["parts"]),
+            row.get("note", ""),
+        ]
+        for row in plan.get("bom") or []
+    ]
+
+
 def _coined_names(plan: dict) -> list[str]:
     log_words: set[str] = set()
     for entry in plan.get("request_log") or []:
@@ -1091,6 +1150,15 @@ def summarize(plan: dict, plan_path: Path) -> str:
             "Grounded at",
         ]
         out += ["**Load cases**", "", _table(headers, load_cases), ""]
+
+    bom_rows = _bom_rows(plan)
+    if bom_rows:
+        out += [
+            "**Non-printed hardware**",
+            "",
+            _table(["Item", "Spec", "Qty", "Parts", "Note"], bom_rows),
+            "",
+        ]
 
     coined = _coined_names(plan)
     if coined:
@@ -1317,6 +1385,12 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     if load_anchors:
         print(f"\nLoad-case anchor findings ({len(load_anchors)}, advisory):")
         for f in load_anchors:
+            print(f"  - {f}")
+
+    bom_findings = check_bom_coverage(plan, args.inventory)
+    if bom_findings:
+        print(f"\nBOM findings ({len(bom_findings)}, advisory):")
+        for f in bom_findings:
             print(f"  - {f}")
     return 0
 

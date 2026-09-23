@@ -44,6 +44,7 @@
     "module": "blocks.fasteners",
     "function": "screw_boss",
     "use": "A solid cylinder boss with a central through-hole for a self-tapping screw. Union onto an enclosure floor or wall. The screw cuts its own thread on first insertion. Use for M2–M4 self-tapping screws.",
+    "supplied_hardware": "self-tapping screw",
     "params": {
       "d_screw": "mm screw shaft diameter",
       "d_outer": "mm outer boss diameter (recommend >= 2.5x d_screw)",
@@ -80,6 +81,7 @@
     "module": "blocks.fasteners",
     "function": "pcb_standoff",
     "use": "A hollow cylindrical standoff for mounting PCBs with M2, M2.5, or M3 screws. The PCB sits on the top face. Place at each PCB mounting hole position.",
+    "supplied_hardware": "PCB mounting screw",
     "params": {
       "d_screw": "mm screw clearance diameter",
       "d_outer": "mm outer standoff diameter (recommend >= 2x d_screw)",
@@ -394,6 +396,7 @@
     "module": "blocks.hardware",
     "function": "heat_set_boss",
     "use": "Printed cylinder boss with a heat-set threaded insert pocket bored from the top. Stronger and more reusable than a self-tapping screw boss. Union onto an enclosure floor; press the insert in with a soldering iron after printing. Use for M2-M6 heat-set inserts.",
+    "supplied_hardware": "heat-set threaded insert + machine screw",
     "params": {
       "size": "HeatSetNut size string 'Mx-pitch-length_mm' e.g. 'M3-0.5-6'. Valid: M2-0.4-3/4/6/8, M3-0.5-6/8/10, M4-0.7-6/8/10, M5-0.8-6/8/10, M6-1-10/12",
       "d_outer": "mm outer boss diameter (recommend >= 7 for M3, >= 9 for M4)",
@@ -462,6 +465,7 @@
     "module": "blocks.fasteners",
     "function": "counterbore_hole",
     "use": "A counterbore pocket + shaft clearance hole subtraction for socket head cap screws (ISO 4762). Subtract from a body so the bolt head sits flush. Standard sizes: M3 (d_screw=3.4, d_head=5.5, h_head=3.0), M4 (4.5, 7.0, 4.0), M5 (5.5, 8.5, 5.0).",
+    "supplied_hardware": "socket head cap screw",
     "params": {
       "d_screw": "mm shaft clearance diameter",
       "d_head": "mm counterbore pocket diameter",
@@ -486,6 +490,7 @@
     "module": "blocks.fasteners",
     "function": "countersink_hole",
     "use": "A countersink taper + shaft clearance hole subtraction for flat-head screws (DIN 7991). Subtract from a body so the screw head sits flush with the surface. Standard 90-degree angle. Standard sizes: M3 (d_screw=3.2, d_sink=6.0), M4 (4.3, 8.0), M5 (5.3, 10.0).",
+    "supplied_hardware": "countersunk screw",
     "params": {
       "d_screw": "mm shaft clearance diameter",
       "d_sink": "mm countersink opening diameter at the top surface",
@@ -510,6 +515,7 @@
     "module": "blocks.fasteners",
     "function": "hex_nut_trap",
     "use": "A hexagonal pocket subtraction for a top-drop captured nut. Subtract from a wall or floor so a nut can be pressed in from above and held captive. Pass d_screw to also cut a bolt clearance hole through the full depth. Standard sizes: M3 (nut_flat=5.5, nut_h=2.4), M4 (7.0, 3.2), M5 (8.0, 4.7).",
+    "supplied_hardware": "hex nut + machine screw",
     "params": {
       "nut_flat": "mm across-flats nut width",
       "nut_h": "mm nut thickness; sets hex pocket depth when d_screw > 0",
@@ -901,6 +907,7 @@
     "function": "pin_hinge",
     "motion": "hinge",
     "reversible": true,
+    "supplied_hardware": "1.75 mm filament pin",
     "carries": [
       "shear-xy"
     ],

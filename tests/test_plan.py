@@ -15,7 +15,9 @@ SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
 
 from plan import (  # noqa: E402
+    _INVENTORY_PATH,
     check_block_thinness,
+    check_bom_coverage,
     check_coordinate_frame_usage,
     check_engineering_rationale,
     check_hinge_intent_without_joints,
@@ -1711,3 +1713,87 @@ def test_missing_plan_file_errors(script_file, tmp_path):
     missing_plan = str(tmp_path / "does_not_exist.json")
     report = run(script_path, "body", missing_plan, write=False)
     assert report["errors"]
+
+
+def test_bom_row_valid(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["bom"] = [{"item": "heat-set insert", "spec": "M3-0.5-6", "qty": 4, "parts": ["body"]}]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_bom_row_unknown_key_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["bom"] = [{"item": "screw", "parts": ["body"], "price": 0.10}]
+    errors = validate_plan(plan_file(plan))
+    assert any("bom" in e for e in errors)
+
+
+def test_bom_row_zero_qty_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["bom"] = [{"item": "screw", "parts": ["body"], "qty": 0}]
+    errors = validate_plan(plan_file(plan))
+    assert any("bom" in e for e in errors)
+
+
+def test_bom_row_unknown_part_id_rejected(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["bom"] = [{"item": "screw", "parts": ["lid"]}]
+    errors = validate_plan(plan_file(plan))
+    assert any("lid" in e for e in errors)
+
+
+def test_bom_coverage_flags_unlisted_part():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["blocks_needed"] = ["heat_set_boss"]
+    findings = check_bom_coverage(plan, _INVENTORY_PATH)
+    assert any("body" in f and "heat_set_boss" in f for f in findings)
+
+
+def test_bom_coverage_silent_when_part_listed():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["blocks_needed"] = ["heat_set_boss"]
+    plan["bom"] = [{"item": "heat-set insert", "parts": ["body"]}]
+    assert check_bom_coverage(plan, _INVENTORY_PATH) == []
+
+
+def test_bom_coverage_silent_for_non_hardware_block():
+    assert check_bom_coverage(VALID_PLAN, _INVENTORY_PATH) == []
+
+
+def test_summary_bom_table_rendered(tmp_path):
+    plan = _base_plan(
+        bom=[
+            {
+                "item": "heat-set insert",
+                "spec": "M3-0.5-6",
+                "qty": 4,
+                "parts": ["bracket"],
+                "note": "press fit",
+            }
+        ]
+    )
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Non-printed hardware**" in text
+    assert "| heat-set insert | M3-0.5-6 | 4 | bracket | press fit |" in text
+
+
+def test_summary_bom_table_omitted_without_bom(tmp_path):
+    plan = _base_plan()
+    text = summarize(plan, tmp_path / "BUILD_PLAN.json")
+    assert "**Non-printed hardware**" not in text
+
+
+def test_inventory_hardware_blocks_carry_supplied_hardware():
+    inventory = json.loads(Path(_INVENTORY_PATH).read_text())
+    by_name = {b["name"]: b for b in inventory}
+    for name in (
+        "screw_boss",
+        "pcb_standoff",
+        "heat_set_boss",
+        "hex_nut_trap",
+        "counterbore_hole",
+        "countersink_hole",
+        "pin_hinge",
+    ):
+        assert by_name[name].get("supplied_hardware"), f"{name} missing supplied_hardware"
+    assert "supplied_hardware" not in by_name["fillet_box"]

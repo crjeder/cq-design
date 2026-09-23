@@ -389,6 +389,27 @@
         }
       }
     },
+    "bom": {
+      "type": "array",
+      "description": "Bill of non-printed materials: hardware the user must supply (screws, nuts, washers, heat-set inserts, magnets, bearings, springs, filament/rod pins, adhesives). Optional; absent plans validate unchanged.",
+      "items": {
+        "type": "object",
+        "required": ["item", "parts"],
+        "additionalProperties": false,
+        "properties": {
+          "item": {"type": "string", "minLength": 1, "description": "What to buy/supply, e.g. 'heat-set insert'"},
+          "spec": {"type": "string", "description": "Size/standard, e.g. 'M3-0.5-6'"},
+          "qty": {"type": "integer", "minimum": 1, "description": "Total quantity across the listed parts"},
+          "parts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string"},
+            "description": "Part ids that consume this item"
+          },
+          "note": {"type": "string"}
+        }
+      }
+    },
     "constraints": {
       "type": "object",
       "required": ["wall_min_mm", "overhang_max_deg", "dimension_tolerance_mm"],
