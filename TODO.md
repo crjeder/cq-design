@@ -40,7 +40,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Export: 3MF print-plate structure (slicer-specific extension) -- [details](#export-print-plate-structure)
 - [x] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](#export-plate-nesting)
 - [ ] Blocks: assembly placeholder / keep-clear-for-assembly geometry -- [details](#blocks-assembly-placeholder)
-- [ ] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](#bill-of-non-printed-materials)
+- [x] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](#bill-of-non-printed-materials)
 - [ ] Joints: side-tagged `face_mount` docks for automatic union membership/axis derivation -- [details](#face-mount-docks)
 - [ ] Preview: z-buffered renderer (removes painter's-algorithm shading artifacts) -- [details](#preview-z-buffered-renderer)
 - [ ] Preview: render feature-detail previews more proactively -- [details](#preview-proactive-detail-renders)
@@ -710,27 +710,12 @@ so a part can emit `result["keep_out"]` tagged as an opening, vs. a distinct
 parts*; an opening is checked for *nothing* -- it only suppresses).
 
 ### Bill of non-printed materials
-Surfaced by the `planning_notes` audit's C5 cross-check (2026-08-12): the
-plan and the delivery summary have NO field and NO section naming anything
-the user must supply. Verified by grep -- no `BOM`, `hardware list`,
-`required hardware` or `non-printed` anywhere in `src/`, `skill/`,
-`prompts/`, `SKILL.md`, no such key in `build_plan_schema.json`, and
-`skill/phase4_deliver.md` mentions no screw, insert, magnet or assembly step.
-So a user handed an enclosure with `screw_boss`/`pcb_standoff` features is
-never told which screws to buy, and C5's 1.75mm filament hinge pin survived
-only as a sentence buried in `planning_notes`. Scope: screws/nuts/washers,
-heat-set inserts, magnets, bearings, springs, filament/rod pins, adhesives,
-and quantities. Partly DERIVABLE, which decides the shape: `blocks_needed`
-hardware params (`blocks/hardware.py`'s cq_warehouse fasteners, `screw_boss`,
-`pcb_standoff`) already carry the spec and the count, so the generator can
-emit most rows and only the non-block items (glue, a raw filament pin, a
-magnet pressed into a plain pocket) need declaring by hand. Decide:
-derived-plus-manual-additions (recommended -- keeps the declared surface
-small) vs. a fully hand-authored top-level `bom` array. Output lands in the
-Phase 4 delivery summary regardless. Pairs with the assembly-placeholder item
-above and with category (c) of the `planning_notes` inclusion rule -- (c)
-records the assembly PROCEDURE, the BOM records the PARTS it consumes; if
-this ships, (c) keeps the procedure and hands the hardware list over.
+Implemented via `openspec/changes/bill-of-non-printed-materials` (archived
+once merged): a hand-authored top-level `bom` array (`item`, `spec`, `qty`,
+`parts`, `note`), an `inventory.json` `supplied_hardware` marker on
+hardware-consuming blocks driving an advisory validate finding, a Phase 2
+summary table, and a Phase 4 "Hardware to buy" section. `planning_notes`
+category (c) now holds the assembly procedure only.
 
 ### Face mount docks
 Side-tagged `face_mount` docks so the planner derives union membership and

@@ -77,6 +77,11 @@
         "if": { "properties": { "type": { "const": "revolute" } } },
         "then": { "required": ["origin"] }
       },
+      "supplied_hardware": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Non-printed item the user must supply for this block to function, e.g. 'self-tapping screw'. Omit for a block with no such dependency. Drives plan.py's advisory bom-coverage check."
+      },
       "emits": {
         "type": "array",
         "items": { "type": "string" },

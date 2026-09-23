@@ -22,7 +22,9 @@ Report to the user:
    that the working directory is a self-contained uv project (committed `uv.lock`): the
    user regenerates the plates in print orientation with `uv run python build/build.py`,
    no skill re-invoke
-5. **Write `README.md`** at the project root (create it fresh each delivery; it's a
+5. **Hardware to buy** - when `BUILD_PLAN.json`'s `bom` is non-empty, list every row
+   (item, spec, qty, parts, note) so the user knows what to source before assembly
+6. **Write `README.md`** at the project root (create it fresh each delivery; it's a
    generated summary, not something the user hand-edits). Include:
    - What the project is and its intent (from `BUILD_PLAN.json`'s `intent` field)
    - The parts list (id, description, dimensions) and printer/material/nozzle
@@ -30,6 +32,8 @@ Report to the user:
      holds the editable part scripts and everything else regenerates from them
    - A one-line pointer to `parameters.py` for the sourced real-world measurements this
      design is based on (see Phase 2)
+   - A **Hardware to buy** section listing every `bom` row (item, spec, qty, parts, note),
+     omitted when `bom` is absent or empty
    - The directory layout:
      ```
      README.md, REGENERATE.md, parameters.py, model.3mf, BUILD_PLAN.json, printer_profile.json
@@ -39,8 +43,8 @@ Report to the user:
      stl/     <part_id>.stl (assembled pose), plate_<n>.stl (print pose)
      preview/ <part_id>_preview.png, _section_*.png, _detail_*.png
      ```
-   - A one-line pointer to `REGENERATE.md` (see step 6)
-6. **Write `REGENERATE.md`** at the project root -- the prompt that lets the user rebuild
+   - A one-line pointer to `REGENERATE.md` (see step 7)
+7. **Write `REGENERATE.md`** at the project root -- the prompt that lets the user rebuild
    this design from scratch in a fresh session (a better model, a newer skill, a different
    skill), carrying the approved `intent`, the verbatim `request_log`, `parameters.py`, the
    `sketches/` list and the print target. Generated, not hand-authored -- do not write this
