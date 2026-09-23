@@ -73,7 +73,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
       a footprint-radius node selection around a declared interface -- a mis-declared
       anchor currently produces a confident wrong number (see `fem-stress-advisor` design.md
       risk list)
-- [ ] integrate a G-code interpreter for optimsation for print speed
+- [x] optimization for print speed
 
 ## Related ideas
 Survey of external libraries/tools and whether/how to integrate each --
