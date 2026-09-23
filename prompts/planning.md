@@ -37,8 +37,8 @@ rejected alternative or archetype, a schema limit, a deviation from the literal 
 a `printer_profile.json` default, a deliberately empty optional field -- plus any
 compensating measure; (b) invariants binding more than one part that no per-part field can
 hold (shared frame anchors, a dimension in one part fixed by another, and why they must
-agree); (c) the assembly procedure and non-printed hardware (order and direction of
-assembly, assembly-access features, anything the user supplies). Nothing else.
+agree); (c) the assembly procedure (order and direction of assembly, assembly-access
+features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not here.
 
 ## Rules
 
@@ -62,6 +62,14 @@ assembly, assembly-access features, anything the user supplies). Nothing else.
 
 3a. **Set `archetype`** to an index entry's `name` when the part fits its `use`; omit
     otherwise, never force a match.
+
+3b. **List every non-printed item in `bom`.** Screws, nuts, washers, heat-set inserts,
+    magnets, bearings, springs, filament/rod pins, and adhesives each get a `bom` row
+    (`item`, optional `spec`/`qty`, `parts`, optional `note`) -- whether or not a
+    `blocks_needed` block already implies it (`screw_boss`, `heat_set_boss`,
+    `hex_nut_trap`, `counterbore_hole`, `countersink_hole`, `pcb_standoff`, `pin_hinge`).
+    One row may cover several parts sharing the same item. Omit `bom` only when the
+    design needs nothing the user must supply.
 
 4. **Resolve each mating interface's `clearance_mm`** from the fit type, preferring the
    user's stated value: press_fit 0.0, snap_fit 0.15, sliding 0.25, loose/cover 0.5 mm.
@@ -204,8 +212,8 @@ states a different value: then use the stated value and note the deviation in
 Optional fields: `coordinate_frame`, `archetype`, `plate`, `pose_intent`, `show_face`,
 per-part `optimize_for`, `part_notes` (needed when `blocks_needed` is empty or geometry is
 non-standard), `unions`, `joints`, `root_part`, `kinematics` (only for a declared range of
-motion). Always set `load` (rule 10), `request_log` (rule 14), and `review_policy`
-(rule 11a).
+motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always set `load`
+(rule 10), `request_log` (rule 14), and `review_policy` (rule 11a).
 
 ```json
 {
@@ -246,6 +254,9 @@ motion). Always set `load` (rule 10), `request_log` (rule 14), and `review_polic
       "show_face": {"dir": [0, 0, 1]},
       "part_notes": "<scratch geometry intent>"
     }
+  ],
+  "bom": [
+    {"item": "heat-set insert", "spec": "M3-0.5-6", "qty": 4, "parts": ["body"], "note": "press in with a soldering iron"}
   ],
   "kinematics": [
     {
