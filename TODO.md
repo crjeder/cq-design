@@ -24,12 +24,12 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [x] cross section selection tool. important features should show up in the cross section
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d modells
-- [ ] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit)
-- [ ] evaluate bernhard-42/jupyter-cadquery
+- [x] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit) -- **REJECTED** (no reusable gap: exporters/ already covers STEP/IGES/STL/3MF/OBJ/SCAD, no history of boolean-fuse failures here so fuzzy booleans solve a problem we don't have, and selectors/XSection/Ribbon don't map to blocks/'s interface-aware primitive library; stale API surface too)
+- [x] evaluate bernhard-42/jupyter-cadquery not relevant
 - [x] evaluate cq's assembly system and https://github.com/bernhard-42/cadquery-massembly -- **REJECTED** (already covered by `placement.py` / `mate_chain.py`); one optional spin-off: assembled multi-component STEP export -- [details](#cq-assembly-and-massembly)
 - [ ] show differences: https://github.com/bdlucas1/diff3d
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-sets]
-- [ ] for selectors: evaluate https://github.com/voneiden/cq-filter and https://github.com/jmwright/selector_synthesis
+- [x] for selectors: evaluate https://github.com/voneiden/cq-filter and https://github.com/jmwright/selector_synthesis -- **REJECTED** (cq-filter's filter/sort/[] are native since CQ 2.4 and already in reference/; its only extras, group/last, need a Workplane subclass for little gain; selector_synthesis is a GUI click-to-selector research stub, and there is no picking step here)
 - [ ] optimisation: https://github.com/yeicor-3d/dl4to4ocp
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] Read back parameters on any user-initiated planning/authoring round
@@ -38,7 +38,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Kinematic: articulated chains (a moving union carries other unions through the sweep) -- [details](#kinematic-articulated-chains)
 - [ ] Joints: multi-DOF / coupled simultaneous movements -- [details](#joints-multi-dof)
 - [ ] Export: 3MF print-plate structure (slicer-specific extension) -- [details](#export-print-plate-structure)
-- [ ] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](#export-plate-nesting)
+- [x] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](#export-plate-nesting)
 - [ ] Blocks: assembly placeholder / keep-clear-for-assembly geometry -- [details](#blocks-assembly-placeholder)
 - [ ] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](#bill-of-non-printed-materials)
 - [ ] Joints: side-tagged `face_mount` docks for automatic union membership/axis derivation -- [details](#face-mount-docks)
