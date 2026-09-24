@@ -22,6 +22,13 @@ capability, `operation` changes how a feature is made, `parameter` changes a
 dimension/literal only. `add` only appends; it never edits, reorders, or back-fills
 existing entries. Skip if the plan has no `request_log`.
 
+**Parameter-level scope.** A `parameter` entry edits only the scripts of its `--target`
+parts; route a value that must agree across parts through `joints`/`mate_chain.py`, never
+by hand-editing the sibling's literal. Append it with `--snapshot-scripts build/` before
+touching any script: the gate diffs the stored hashes and warns `routing_violation` for
+a script changed outside the targets that no `joints` entry links to one. The warning
+does not block delivery or consume a fix round; surface it to the user.
+
 **Current state only.** When a correction changes the design, in the same turn rewrite
 `intent` to the new approved reading and update the affected `part_notes`, deleting
 superseded wording (no "ROUND 2", no "previously"). History lives only in `request_log`.

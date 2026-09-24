@@ -627,3 +627,78 @@ def test_bridge_only_part_emits_no_overhang_warning(tmp_path):
     issues = quality_gate._analyze_stl(str(stl), OVERHANG_DEG)
     assert not _issues_of(issues, "overhang_exceeded")
     assert _issues_of(issues, "bridges_detected")[0]["severity"] == "info"
+
+
+# ---- parameter-routing check ----------------------------------------------
+
+
+def _routing_setup(tmp_path, targets=("cradle",), joints=None, drift=("plate",)):
+    from freshness import script_hash
+
+    for pid in ("cradle", "plate"):
+        (tmp_path / f"{pid}.py").write_text(f"{pid.upper()} = 1\n")
+    baseline = {p: script_hash(str(tmp_path / f"{p}.py")) for p in ("cradle", "plate")}
+    for pid in drift:
+        (tmp_path / f"{pid}.py").write_text(f"{pid.upper()} = 2\n")
+    plan = {
+        "request_log": [
+            {"ts": "2026-09-01T10:00:00+00:00", "kind": "initial", "text": "cradle"},
+            {
+                "ts": "2026-09-01T11:00:00+00:00",
+                "kind": "correction",
+                "text": "raise the ear",
+                "level": "parameter",
+                "targets": list(targets),
+                "script_baseline": baseline,
+            },
+        ]
+    }
+    if joints:
+        plan["joints"] = joints
+    return plan, str(tmp_path / "cradle.py")
+
+
+def test_routing_flags_untargeted_sibling_drift(tmp_path):
+    plan, script = _routing_setup(tmp_path)
+    issues = quality_gate._run_parameter_routing_stage(plan, script)
+    assert [(i["type"], i["severity"], i["part_id"]) for i in issues] == [
+        ("routing_violation", "warning", "plate")
+    ]
+    assert "raise the ear" in issues[0]["message"]
+
+
+def test_routing_ignores_targeted_part_drift(tmp_path):
+    plan, script = _routing_setup(tmp_path, drift=("cradle",))
+    assert quality_gate._run_parameter_routing_stage(plan, script) == []
+
+
+def test_routing_ignores_part_prefixed_target(tmp_path):
+    plan, script = _routing_setup(tmp_path, targets=("cradle.ear",), drift=("cradle",))
+    assert quality_gate._run_parameter_routing_stage(plan, script) == []
+
+
+def test_routing_ignores_joint_linked_sibling(tmp_path):
+    joints = [{"members": [{"member": "a", "part": "cradle"}, {"member": "b", "part": "plate"}]}]
+    plan, script = _routing_setup(tmp_path, joints=joints)
+    assert quality_gate._run_parameter_routing_stage(plan, script) == []
+
+
+def test_routing_no_baseline_is_silent(tmp_path):
+    plan, script = _routing_setup(tmp_path)
+    del plan["request_log"][-1]["script_baseline"]
+    assert quality_gate._run_parameter_routing_stage(plan, script) == []
+
+
+def test_routing_skips_baseline_part_with_no_script(tmp_path):
+    plan, script = _routing_setup(tmp_path)
+    (tmp_path / "plate.py").unlink()
+    assert quality_gate._run_parameter_routing_stage(plan, script) == []
+
+
+def test_routing_uses_newest_baseline_only(tmp_path):
+    plan, script = _routing_setup(tmp_path)
+    older = {**plan["request_log"][-1], "ts": "2026-09-01T10:30:00+00:00"}
+    older["script_baseline"] = {"plate": "stale-hash"}
+    plan["request_log"].insert(1, older)
+    issues = quality_gate._run_parameter_routing_stage(plan, script)
+    assert [i["part_id"] for i in issues] == ["plate"]
