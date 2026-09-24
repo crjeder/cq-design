@@ -55,9 +55,11 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties
-- [ ] User intent as an invariant over generation loops (capture now exists --
-      `REQUIREMENTS.md`, see item 4 below -- but nothing checks the generation loop's
-      output against it; still no invariant) -- [details](#intent-as-invariant)
+- [x] User intent as an invariant over generation loops -- DONE (capture via
+      `REQUIREMENTS.md`/`intent`, `intent`/`request_log` kept in sync by the `intent_ts`
+      reconciliation gate, and every review now checks its render against `intent`/
+      `request_log` as a second bar). The `parameter`-level routing rule is now a gate
+      warning (`parameter-entry-routing-check`); remaining gaps in [details](#intent-as-invariant)
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
 - [ ] tool to produce cable traces where cables are held press fit for 
 - [x] integrate a FEM-simulation for strength optimisation -- `src/fem_check.py` (`fem-stress-advisor`
@@ -127,10 +129,12 @@ clearest opening. See [details](#market-research-survey).
 ### From intent-recognition research (documentation/intent_recognition.md)
 Three capabilities: elicitation, scope classification, preservation. See
 [details](#intent-recognition-survey) for the full framing and freeze-status
-discussion (items 1 and 3 are arguably V1 defect fixes; not decided).
-- [ ] 1. Typed `request_log` entries (`level` + `targets`) -- [details](#typed-request_log-entries)
+discussion. Items 1 and 3, the V1 defect fixes, have both shipped.
+- [x] 1. Typed `request_log` entries (`level` + `targets`) -- DONE, `openspec/changes/
+      archive/2026-09-01-typed-request-log/` -- [details](#typed-request_log-entries)
 - [ ] 2. Spec audit with named ambiguity categories -- [details](#spec-audit-ambiguity-categories)
-- [ ] 3. Request-relative acceptance in the implementation audit -- [details](#request-relative-acceptance)
+- [x] 3. Request-relative acceptance in the implementation audit -- DONE, `openspec/
+      changes/archive/2026-09-01-request-relative-acceptance/` -- [details](#request-relative-acceptance)
 - [ ] 5. Under-specified eval cases -- [details](#under-specified-eval-cases)
 
 ### From SmartAI/Chamfer's efficiency study (github.com/SmartAI/Chamfer @ a8f1c59, read 2026-08)
@@ -843,17 +847,39 @@ drives generation) was a good idea, and it shipped as `REQUIREMENTS.md`
 restatement](#canonical-intent-restatement) and `openspec/changes/
 capture-requirements-spec/`).
 
-That closes the *capture* half only. The *invariant* half of this item is
-still open: nothing re-checks a part's output, or a mid-build correction,
-against `REQUIREMENTS.md` -- it is a human-readable artifact for review, not
-yet a machine input any gate or agent consults. Today only `request_log`
-exists as a running history (a log, not an invariant). Closing this fully
-still needs items 1/3 from `documentation/intent_recognition.md`'s gaps 2-3
-([Typed request_log entries](#typed-request_log-entries),
-[Request-relative acceptance](#request-relative-acceptance)), which would
-give the generation loop something to check *against* -- `REQUIREMENTS.md`/
-`BUILD_PLAN.json`'s `intent` field, or `request_log`'s targeted entries --
-rather than only auditing conformance to the plan's structure.
+That closes the *capture* half. Three further changes close the *invariant*
+half:
+
+- `openspec/changes/archive/2026-09-21-intent-staleness-gate/`: `BUILD_PLAN.json`'s
+  `intent_ts` field plus `plan_validate.py`'s `check_intent_reconciled` block a plan
+  whose `request_log` has a `clarification`/`correction` newer than the last
+  reconciled `intent` rewrite -- `intent` can no longer silently drift stale
+  relative to the log (sync enforcement).
+- `openspec/changes/archive/2026-09-01-typed-request-log/`: `request_log` entries
+  gained optional `level`/`targets` fields, so an entry can be scoped to a specific
+  part instead of matched by keyword.
+- `openspec/changes/archive/2026-09-01-request-relative-acceptance/`: both the
+  autonomous implementation audit and the progressive inline self-review now check
+  the delivered render against `intent` + the entries scoped to that part
+  (`prompts/audit.md` group 3, `render_prompt.py`'s `scoped_request`) as a second,
+  advisory-unless-also-blocking acceptance bar (conformance checking).
+
+Together these close what the earlier draft of this item called items 1 and 3 of
+`documentation/intent_recognition.md`'s gaps 2-3 ([Typed request_log
+entries](#typed-request_log-entries), [Request-relative
+acceptance](#request-relative-acceptance)) -- the generation loop's output is now
+checked against `intent`/`request_log`, not only against the plan's structure.
+
+What is still open, narrowly:
+- (closed by `openspec/changes/parameter-entry-routing-check/`: a `parameter`-level
+  entry appended with `--snapshot-scripts` is diffed by `quality_gate.py`, which warns
+  `routing_violation` on an untargeted, non-joint-linked script change -- advisory
+  only, so it does not yet stop the C5 sibling-literal edit, only surfaces it);
+- promotion of advisory request-conformance findings to blocking-by-default is
+  still eval-gated and undone (item 5, [Under-specified eval
+  cases](#under-specified-eval-cases));
+- `REQUIREMENTS.md` itself (as opposed to its `intent` mirror in
+  `BUILD_PLAN.json`) is still never read by any gate or agent.
 
 Update (change `intent-staleness-gate`): the mechanical half is closed -- the plan's
 `intent_ts` stamp plus a blocking `plan_validate.py` check fail any plan whose
@@ -1237,26 +1263,21 @@ script change) and closes a real gap in what ships. 2 and 5 remain deferred
 to the next version; not decided here.
 
 #### Typed request_log entries
-One change -- strategy: reimplement (LLM4CAD-Editor). Give each
-`request_log` entry a `level` (`functional` | `operation` | `parameter`) and
-`targets` (part ids + named features/parameters), assigned at append time.
-Smallest change with the largest reach: it reuses the append-only log, its
-schema and `request_log_search.py`; it makes the C5 cradle failure class
-expressible as a rule ("a `parameter` entry targeting one part must not edit
-a sibling part's literal -- route a shared value through
-`joints`/`mate_chain.py`"); and it gives the Step 3 `--extra-section`
-tiering a real key instead of keyword matching. Both fields must be OPTIONAL
--- existing plans carry untyped entries and must stay valid.
-- `level` + `targets` on `request_log` entries: `src/build_plan_schema.json`
-  (entries are `additionalProperties: false`), the append rule in
-  `skill/phase3_build.md`, `prompts/planning.md` rule 14,
-  `openspec/specs/request-log/`, tests in `tests/test_plan_validate.py`
-- `request_log_search.py --level` / `--target` filters + tests
-- the routing rule the label exists for: a `parameter`-level entry may not
-  change another part's independently-typed constant (the label without the
-  rule is decoration)
-- re-key the Step 3 section-selection tiers off `targets` instead of the
-  `--query <name>` keyword match
+DONE -- `openspec/changes/archive/2026-09-01-typed-request-log/`. `level`
+(`functional` | `operation` | `parameter`) and `targets` (part ids + named
+features/parameters) are optional fields on `request_log` entries
+(`src/build_plan_schema.json`, `openspec/specs/request-log/`), settable via
+`log.py request add --level --target` and filterable via `log.py request
+search --level --target` (`src/log.py`). `render_prompt.py`'s
+`section_cuts` re-keys the Step 3 extra-section tiering off `targets` when
+present, falling back to the keyword match only for untyped legacy entries.
+
+The routing rule the label exists for (a `parameter`-level entry may not
+silently change a sibling part's independently-typed constant -- the C5 cradle
+failure class) is a `quality_gate.py` warning via
+`openspec/changes/parameter-entry-routing-check/` (`log.py request add
+--snapshot-scripts` baseline + `routing_violation`). It is advisory: promotion to
+blocking needs eval evidence.
 
 #### Spec audit ambiguity categories
 One change -- strategy: reimplement (ProCAD). Generalize Phase 1's topology-
@@ -1276,19 +1297,20 @@ beats a bare "ask if unsure" (arXiv 2504.12113).
   (`skill/phase3_build.md` correction handling)
 
 #### Request-relative acceptance
-One change -- strategy: reimplement (cadgate). The auditor gets the part's
-`BUILD_PLAN.json` entry and the renders, deliberately not the script -- but
-also not the `request_log`, so every gate downstream of Phase 2 measures
-conformance to the plan, and a Phase 2 misreading becomes the standard the
-pipeline enforces. Closes the gap with no new agent and no new artifact.
-- feed the `initial` entry + entries whose `targets` name this part into the
-  auditor prompt as a SECOND bar ("does the render satisfy the user's own
-  words?"), findings `severity: advisory` unless they also fail a checklist
-  question -- `skill/phase3_build.md`, `reference/Visual Review Checklist.md`,
-  `openspec/specs/subagent-orchestration/`
-- keep the no-script rule intact; do not promote intent-match findings to
-  blocking without eval evidence (softer judgments than geometry, burns
-  retry budget)
+DONE -- `openspec/changes/archive/2026-09-01-request-relative-acceptance/`.
+Both the autonomous implementation audit and the progressive inline
+self-review now carry a "Request conformance" question class (group 3 in
+`prompts/audit.md`): the approved `intent` (falling back to the
+`request_log` `initial` entry) plus every entry scoped to the part via
+typed `targets` or a keyword match (`render_prompt.py`'s `scoped_request`),
+fed to the reviewer as `REQUEST_TEXT`. A `no` there is `severity: advisory`
+-- it does not fail the review or consume a retry -- unless the same
+discrepancy also fails a group 1/2 (plan-conformance/universal) question, in
+which case it is `severity: blocking` with the request text cited as
+supporting evidence. The no-script rule is unchanged: the auditor still
+never receives the part script. Promotion of advisory findings to blocking
+by default remains eval-gated and has not been done -- that is item 5,
+[Under-specified eval cases](#under-specified-eval-cases).
 
 #### Canonical intent restatement
 DONE 2026-08-29 -- strategy: reimplement. Merges two standing items ("intent

@@ -345,6 +345,11 @@
             "minItems": 1,
             "items": {"type": "string", "minLength": 1},
             "description": "Affected part ids and/or `part.feature` / parameter names this entry names"
+          },
+          "script_baseline": {
+            "type": "object",
+            "additionalProperties": {"type": "string", "minLength": 1},
+            "description": "part id -> SHA-256 of that part's script when this entry was appended (`log.py request add --snapshot-scripts`); quality_gate diffs it to flag a parameter-level correction that leaked into an untargeted part"
           }
         }
       }

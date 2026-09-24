@@ -1123,6 +1123,32 @@ def test_request_log_non_array_targets_rejected(plan_file):
     assert len(validate_plan(plan_file(plan))) >= 1
 
 
+def test_request_log_script_baseline_validates(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make a cradle"},
+        {
+            "ts": "2026-07-19T11:00:00Z",
+            "kind": "correction",
+            "text": "saddle should be 40mm wide",
+            "level": "parameter",
+            "targets": ["cradle"],
+            "script_baseline": {"cradle": "9f86d0", "plate": "3b5d5c"},
+        },
+    ]
+    plan["intent_ts"] = max(e["ts"] for e in plan["request_log"])
+    assert validate_plan(plan_file(plan)) == []
+
+
+@pytest.mark.parametrize("bad", [["cradle"], {"cradle": 1}, {"cradle": ""}])
+def test_request_log_bad_script_baseline_rejected(plan_file, bad):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "hi", "script_baseline": bad}
+    ]
+    assert len(validate_plan(plan_file(plan))) >= 1
+
+
 # ---- review_policy --------------------------------------------------------
 
 
