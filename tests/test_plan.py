@@ -1823,3 +1823,46 @@ def test_inventory_hardware_blocks_carry_supplied_hardware():
     ):
         assert by_name[name].get("supplied_hardware"), f"{name} missing supplied_hardware"
     assert "supplied_hardware" not in by_name["fillet_box"]
+
+
+def _copy_plan(**copy_of):
+    return {
+        **VALID_PLAN_TWO_PARTS,
+        "parts": [
+            VALID_PLAN_TWO_PARTS["parts"][0],  # type: ignore[index]
+            {**VALID_PLAN_TWO_PARTS["parts"][1], "copy_of": copy_of},  # type: ignore[index]
+        ],
+    }
+
+
+def test_copy_of_mirrored_valid(plan_file):
+    assert validate_plan(plan_file(_copy_plan(part="body", mirror="X"))) == []
+
+
+def test_copy_of_bad_mirror_axis_rejected(plan_file):
+    errors = validate_plan(plan_file(_copy_plan(part="body", mirror="W")))
+    assert any("Schema error" in e for e in errors)
+
+
+def test_copy_of_unknown_source(plan_file):
+    errors = validate_plan(plan_file(_copy_plan(part="ghost")))
+    assert any("ghost" in e for e in errors)
+
+
+def test_copy_of_self(plan_file):
+    errors = validate_plan(plan_file(_copy_plan(part="lid")))
+    assert any("itself" in e for e in errors)
+
+
+def test_copy_of_chained(plan_file):
+    plan = _copy_plan(part="body")
+    plan["parts"][0] = {**plan["parts"][0], "copy_of": {"part": "lid"}}
+    errors = validate_plan(plan_file(plan))
+    assert any("is itself a copy" in e for e in errors)
+
+
+def test_copy_of_multi_union_source(plan_file):
+    plan = _copy_plan(part="body")
+    plan["parts"][0] = {**plan["parts"][0], "unions": [{"id": "a"}, {"id": "b"}]}
+    errors = validate_plan(plan_file(plan))
+    assert any("unions" in e for e in errors)

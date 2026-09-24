@@ -59,12 +59,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.p
 
 import cadquery as cq
 
-from exporters import _load_result
 from freshness import is_stale, script_hash
 from mesh_io import load_mesh
-from model_export import export_model
+from model_export import export_model, load_part_unions
 from print_orientation import optimize_orientation
-from units import load_plan, resolve_unions
+from units import is_copy, load_plan
 
 
 def _orientation_for(
@@ -129,9 +128,10 @@ def resolve_orientations(
     orientations: dict[str, dict] = {}
     summary: dict[str, dict] = {}
     recomputed: list[str] = []
+    parts_by_id = {p["id"]: p for p in plan.get("parts", [])}
     for part in plan.get("parts", []):
         pid = part["id"]
-        script = os.path.join(parts_dir, f"{pid}.py")
+        script = os.path.join(parts_dir, f"{part['copy_of']['part'] if is_copy(part) else pid}.py")
         optimize_for = part.get("optimize_for", plan_mode)
         union_ids = [u["id"] for u in part.get("unions", [])] or [pid]
         wp_by_uid: dict[str, cq.Workplane] | None = None  # loaded lazily, once per part
@@ -143,7 +143,7 @@ def resolve_orientations(
             else:
                 try:
                     if wp_by_uid is None:
-                        wp_by_uid = dict(resolve_unions(part, _load_result(script)))
+                        wp_by_uid = dict(load_part_unions(part, parts_by_id, parts_dir)[2])
                     chosen = _orientation_for(
                         wp_by_uid[uid], part, overhang_deg, optimize_for, bridge_max_mm
                     )

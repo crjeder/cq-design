@@ -75,7 +75,8 @@ reference from the user, restate it with the plan name and its callout badge num
 
 ## Part loop
 
-For each part in `plan["parts"]`, in order:
+For each part in `plan["parts"]`, in order (skip any part with `copy_of`: it has no script;
+`model_export.py` builds it from its source part's geometry, so build the source first):
 
 1. **Render** the builder prompt:
    ```bash
