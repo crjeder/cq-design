@@ -102,6 +102,12 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
    union is its own body for export and the kinematic/clearance checks, may have its own
    `plate`, and is what `kinematics.moving_union` names. Union ids are unique model-wide.
 
+6a. **Identical or pairwise-mirrored parts are one script.** Give the second part
+   `copy_of: {"part": "<first id>", "mirror": "X"|"Y"|"Z"}` (omit `mirror` for an identical
+   copy) instead of authoring it again. It keeps its own `id`, `placement`, and `plate`. The
+   source must be a single-union part and not itself a copy. Do not use it for a part with
+   embossed text or other chirality-dependent detail.
+
 7. **Put a matched-pair block's members in two different parts via `joints`.** `unions`
    (rule 6) keeps both members in one part; a `joints` entry fuses them into two otherwise
    unrelated parts (a door leaf and a wall leaf): `block`, `params`, and `members`

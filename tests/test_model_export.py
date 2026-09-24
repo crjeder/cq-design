@@ -5,9 +5,12 @@
 Uses CadQuery to produce real part scripts, so these are integration-speed.
 """
 
+import json
 import xml.etree.ElementTree as ET
 import zipfile
+from pathlib import Path
 
+import pytest
 import trimesh
 from conftest import minimal_plan as _plan
 
@@ -670,3 +673,30 @@ def test_part_outside_mate_chain_still_uses_own_placement(tmp_path):
     standalone_stl = trimesh.load(result["union_stls"]["standalone"], force="mesh")
     assert abs(standalone_stl.bounds[0][2] - 28) < 0.01
     assert abs(standalone_stl.bounds[1][2] - 32) < 0.01
+
+
+def test_copy_of_mirrored_and_identical(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    (parts_dir / "wall_a.py").write_text(
+        "import cadquery as cq\nresult = cq.Workplane('XY').box(10, 4, 2, centered=False)\n"
+    )
+    plan = {
+        "parts": [
+            {"id": "wall_a"},
+            {"id": "wall_b", "copy_of": {"part": "wall_a", "mirror": "X"}},
+            {
+                "id": "wall_c",
+                "copy_of": {"part": "wall_a"},
+                "placement": {"translate_mm": [20, 0, 0]},
+            },
+        ]
+    }
+    out = export_model(plan, str(parts_dir), str(tmp_path / "out"))
+    assert not (parts_dir / "wall_b.py").exists()
+    b = trimesh.load(out["union_stls"]["wall_b"]).bounds
+    c = trimesh.load(out["union_stls"]["wall_c"]).bounds
+    assert b[:, 0].tolist() == pytest.approx([-10, 0])
+    assert c[:, 0].tolist() == pytest.approx([20, 30])
+    manifest = json.loads(Path(out["manifest"]).read_text(encoding="utf-8"))
+    assert manifest["unions"]["wall_b"]["script_part"] == "wall_a"

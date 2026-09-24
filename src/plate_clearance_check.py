@@ -28,7 +28,7 @@ import os
 from itertools import combinations
 from typing import Any, cast
 
-from freshness import read_manifest, stale_ids
+from freshness import read_manifest, script_stem, stale_ids
 from units import iter_unions, make_issue, run_stl_dir_check_cli, stl_path
 
 
@@ -89,12 +89,13 @@ def _compute_staleness(
         )
 
     plated_ids = {uid for ids in plates.values() for uid in ids}
+    unions_section = manifest.get("unions", {})
     uid_to_script = {
-        uid: os.path.join(parts_dir, f"{part['id']}.py")
+        uid: os.path.join(parts_dir, f"{script_stem(unions_section, uid, part['id'])}.py")
         for part, uid, _plate in iter_unions(plan)
         if uid in plated_ids
     }
-    return stale_ids(manifest.get("unions", {}), uid_to_script), None
+    return stale_ids(unions_section, uid_to_script), None
 
 
 def _check_plate(
