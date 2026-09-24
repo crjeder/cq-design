@@ -302,11 +302,13 @@ def add_request_log_entry(
     level: str | None = None,
     targets: list[str] | None = None,
     reconciled: bool = False,
+    snapshot_dir: str | Path | None = None,
 ) -> dict:
     """Return a new plan dict with one entry appended to request_log.
 
     Raises ValueError if kind is 'initial' or the resulting request_log fails
-    schema validation. Does not mutate the input plan.
+    schema validation. Does not mutate the input plan. `snapshot_dir` stores
+    `script_baseline` (part id -> script hash) on a `parameter`-level entry only.
     """
     if kind == "initial":
         raise ValueError("add does not accept --kind initial (written once by the planner)")
@@ -320,6 +322,12 @@ def add_request_log_entry(
         entry["level"] = level
     if targets:
         entry["targets"] = targets
+    if snapshot_dir is not None and level == "parameter":
+        from freshness import script_hash
+
+        entry["script_baseline"] = {
+            p.stem: script_hash(str(p)) for p in Path(snapshot_dir).glob("*.py")
+        }
 
     new_plan = dict(plan)
     new_plan["request_log"] = [*(plan.get("request_log") or []), entry]
@@ -378,6 +386,7 @@ def _cmd_add(args: argparse.Namespace) -> int:
             level=args.level,
             targets=args.target,
             reconciled=args.reconciled,
+            snapshot_dir=args.snapshot_scripts,
         )
     except ValueError as exc:
         print(f"request_log_search: {exc}", file=sys.stderr)
@@ -509,6 +518,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="set intent_ts to this entry's ts; pass only after rewriting `intent` (or "
         "deciding no rewrite is needed). Without it the plan fails validation",
+    )
+    ra.add_argument(
+        "--snapshot-scripts",
+        metavar="DIR",
+        help="with --level parameter: hash every DIR/<part>.py into the entry's "
+        "script_baseline so quality_gate can flag edits outside --target",
     )
     ra.set_defaults(func=_cmd_add)
 
