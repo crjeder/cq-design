@@ -181,6 +181,16 @@
             "pattern": "^[a-z][a-z0-9_]*$",
             "description": "Print-group id. Parts sharing a plate print in one job (print-in-place). Defaults to the part's own id (one part per plate) when omitted."
           },
+          "copy_of": {
+            "type": "object",
+            "required": ["part"],
+            "additionalProperties": false,
+            "description": "Declares this part a copy of another part: no script is authored for it; export reuses the source part's geometry (reflected across the plane normal to `mirror` when given), then applies this part's own placement. The source must be a single-union part and not itself a copy. Use for identical or pairwise-mirrored parts.",
+            "properties": {
+              "part": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "Id of the source part"},
+              "mirror": {"type": "string", "enum": ["X", "Y", "Z"], "description": "Reflect across the plane normal to this axis (through the authored origin) before placement; omit for an identical copy"}
+            }
+          },
           "unions": {
             "type": "array",
             "minItems": 1,

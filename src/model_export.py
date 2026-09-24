@@ -33,6 +33,7 @@ from freshness import write_manifest
 from mate_chain import compute_mate_poses
 from placement import apply_cq, apply_matrix
 from units import (
+    is_copy,
     keep_out_stl_name,
     keep_out_zone_key,
     load_plan,
@@ -73,6 +74,31 @@ def _dedupe_object_names(records: list[tuple[str, dict]]) -> list[str]:
         f"{base} ({uid})" if counts[base] > 1 else base
         for base, (uid, _part) in zip(base_names, records, strict=True)
     ]
+
+
+_MIRROR_PLANE = {"X": "YZ", "Y": "XZ", "Z": "XY"}
+
+
+def load_part_unions(
+    part: dict, parts_by_id: dict[str, dict], parts_dir: str
+) -> tuple[str, object, list[tuple[str, cq.Workplane]]]:
+    """Load a part's ``(script_path, result, [(union_id, authored Workplane)])``.
+
+    A `copy_of` part reads its source part's script (never its own), reflects the source's
+    single union across the plane normal to `copy_of.mirror` when given, and returns it
+    under the copy's own id. Its `result` is None: keep-out zones are not copied.
+    """
+    if not is_copy(part):
+        script = os.path.join(parts_dir, f"{part['id']}.py")
+        result = _load_result(script)
+        return script, result, resolve_unions(part, result)
+    src = parts_by_id[part["copy_of"]["part"]]
+    script = os.path.join(parts_dir, f"{src['id']}.py")
+    ((_uid, wp),) = resolve_unions(src, _load_result(script))
+    axis = part["copy_of"].get("mirror")
+    if axis:
+        wp = wp.mirror(_MIRROR_PLANE[axis])
+    return script, None, [(part["id"], wp)]
 
 
 def _pose_union(wp: cq.Workplane, part: dict, mate_pose: object) -> cq.Workplane:
@@ -124,6 +150,7 @@ def export_model(
     parts = plan.get("parts", [])
     print_orientations = print_orientations or {}
     mate_poses = compute_mate_poses(plan)  # part id -> derived 4x4 transform
+    parts_by_id = {p["id"]: p for p in parts}
 
     # Expand each part into its unions: a part declaring `unions` returns a dict
     # {union_id: Workplane}; a plain Workplane is the single-union default (id = part id).
@@ -136,12 +163,11 @@ def export_model(
     union_scripts: dict[str, tuple[str, str]] = {}  # union_id -> (part_id, script_path)
     keep_out_scripts: dict[str, tuple[str, str]] = {}  # "<part_id>::<zone>" -> (part_id, path)
     for part in parts:
-        script = os.path.join(parts_dir, f"{part['id']}.py")
-        result = _load_result(script)
+        script, result, unions = load_part_unions(part, parts_by_id, parts_dir)
         declared = {u["id"]: u for u in part.get("unions", [])}
         mate_pose = mate_poses.get(part["id"])
 
-        for uid, wp in resolve_unions(part, result):
+        for uid, wp in unions:
             authored[uid] = wp
             placed[uid] = _pose_union(wp, part, mate_pose)
             plate = plate_of(part, uid, declared.get(uid))

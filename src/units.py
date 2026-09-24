@@ -136,6 +136,11 @@ def plate_of(part: dict, union_id: str, union: dict | None = None) -> str:
     return part.get("plate") or union_id
 
 
+def is_copy(part: dict) -> bool:
+    """True when the part is declared `copy_of` another part (no script of its own)."""
+    return bool(part.get("copy_of"))
+
+
 def iter_unions(plan: dict) -> list[tuple[dict, str, str]]:
     """Expand every part into its unions: ``(part, union_id, plate)`` in plan order.
 
