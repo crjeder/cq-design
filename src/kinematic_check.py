@@ -45,7 +45,7 @@ import os
 from collections.abc import Iterator
 from typing import Any
 
-from freshness import read_manifest, stale_ids
+from freshness import read_manifest, script_stem, stale_ids
 from units import (
     add_parts_dir_argument,
     add_plan_argument,
@@ -368,8 +368,12 @@ def _compute_stale_unions(
             "Run the model export (writes export_manifest.json) and pass "
             "--parts-dir to enable staleness detection.",
         )
-    uid_to_script = {uid: os.path.join(parts_dir, f"{pid}.py") for pid, uid in all_unions}
-    return stale_ids(manifest.get("unions", {}), uid_to_script), None
+    unions_section = manifest.get("unions", {})
+    uid_to_script = {
+        uid: os.path.join(parts_dir, f"{script_stem(unions_section, uid, pid)}.py")
+        for pid, uid in all_unions
+    }
+    return stale_ids(unions_section, uid_to_script), None
 
 
 def _numeric_range_check(

@@ -137,6 +137,7 @@ def validate_plan(
 
     errors.extend(_check_archetypes(plan, archetypes_path))
     errors.extend(_check_unions(plan))
+    errors.extend(_check_copy_of(plan))
     errors.extend(_check_interface_names(plan))
     errors.extend(_check_placements(plan))
     errors.extend(_check_nonzero_dir(plan, "load"))
@@ -195,6 +196,27 @@ def _check_unions(plan: dict[str, Any]) -> list[str]:
                 f"Union id '{uid}' is declared more than once (parts '{seen[uid]}' and '{pid}')"
             )
         seen[uid] = pid
+    return errors
+
+
+def _check_copy_of(plan: dict[str, Any]) -> list[str]:
+    """`copy_of.part` must name another part that is neither a copy nor multi-union."""
+    by_id = {p.get("id"): p for p in plan.get("parts", [])}
+    errors = []
+    for part in plan.get("parts", []):
+        if "copy_of" not in part:
+            continue
+        pid = part.get("id", "(unknown)")
+        src_id = part["copy_of"]["part"]
+        src = by_id.get(src_id)
+        if src_id == pid:
+            errors.append(f"Part '{pid}': copy_of cannot name itself")
+        elif src is None:
+            errors.append(f"Part '{pid}': copy_of names unknown part '{src_id}'")
+        elif "copy_of" in src:
+            errors.append(f"Part '{pid}': copy_of source '{src_id}' is itself a copy")
+        elif src.get("unions"):
+            errors.append(f"Part '{pid}': copy_of source '{src_id}' declares unions (unsupported)")
     return errors
 
 

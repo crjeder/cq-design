@@ -49,7 +49,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Reverse-engineer a 3D mesh / point cloud into primitives; import STL -- [details](#reverse-engineer-mesh)
 - [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
 - [ ] HitsterTower: dovetail-corner-joint disassembly form fell outside the joints schema's single-rooted tree -- [details](#hitstertower-dovetail-form)
-- [ ] Deduplicate pairwise-mirrored parts into one script/STL -- [details](#mirrored-parts-dedup)
+- [x] Deduplicate pairwise-mirrored parts into one script/STL -- `copy_of` on a part (`dedupe-identical-parts` change) -- [details](#mirrored-parts-dedup)
 - [ ] A minimal deliverable for a parametric part -- just the code, not the full `/lib`
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] Accept Markdown / formatted UTF-8 text input

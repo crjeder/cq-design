@@ -52,7 +52,11 @@ def write_manifest(
     manifest = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "unions": {
-            uid: {"part_id": pid, "source_script_hash": script_hash(path)}
+            uid: {
+                "part_id": pid,
+                "script_part": os.path.splitext(os.path.basename(path))[0],
+                "source_script_hash": script_hash(path),
+            }
             for uid, (pid, path) in union_scripts.items()
         },
         "keep_out_zones": {
@@ -73,6 +77,12 @@ def read_manifest(stl_dir: str) -> dict | None:
         return None
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def script_stem(manifest_section: dict, uid: str, part_id: str | None) -> str:
+    """Script stem behind a union: a `copy_of` part's manifest entry names its source
+    script; otherwise (or with no entry) the owning part id."""
+    return manifest_section.get(uid, {}).get("script_part") or str(part_id)
 
 
 def stale_ids(manifest_section: dict, ids_to_scripts: dict[str, str]) -> set[str]:

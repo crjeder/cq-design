@@ -22,7 +22,7 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from freshness import read_manifest, stale_ids
+from freshness import read_manifest, script_stem, stale_ids
 from units import (
     KEEP_OUT_KEY,
     iter_unions,
@@ -98,8 +98,12 @@ def _compute_staleness(
             ),
         )
 
-    uid_to_script = {uid: os.path.join(parts_dir, f"{pid}.py") for pid, uid in all_unions}
-    stale_unions = stale_ids(manifest.get("unions", {}), uid_to_script)
+    unions_section = manifest.get("unions", {})
+    uid_to_script = {
+        uid: os.path.join(parts_dir, f"{script_stem(unions_section, uid, pid)}.py")
+        for pid, uid in all_unions
+    }
+    stale_unions = stale_ids(unions_section, uid_to_script)
     zone_to_script = {
         keep_out_zone_key(declaring_part, zone_name): os.path.join(
             parts_dir, f"{declaring_part}.py"
