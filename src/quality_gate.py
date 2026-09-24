@@ -917,6 +917,53 @@ def _run_cosmetic_slope_stage(plan: dict, script_path: str, orientation: dict | 
     ]
 
 
+def _run_parameter_routing_stage(plan: dict, script_path: str) -> list[dict]:
+    """Flag a part script edited outside the newest parameter-entry baseline's targets (advisory).
+
+    `log.py request add --snapshot-scripts` records each part script's hash on a
+    `parameter`-level entry. A script whose hash has since changed, whose part is not in
+    the entry's `targets`, and that no `joints` entry links to a targeted part, was edited
+    by hand instead of being routed through `joints`/`mate_chain.py`.
+    """
+    from freshness import script_hash
+    from units import make_issue
+
+    entry = max(
+        (e for e in plan.get("request_log") or [] if e.get("script_baseline")),
+        key=lambda e: e["ts"],
+        default=None,
+    )
+    if entry is None:
+        return []
+    targeted = {t.split(".")[0] for t in entry.get("targets") or []}
+    exempt = set(targeted)
+    for joint in plan.get("joints") or []:
+        members = {m["part"] for m in joint["members"]}
+        if members & targeted:
+            exempt |= members
+    build_dir = os.path.dirname(os.path.abspath(script_path))
+    issues = []
+    for part_id, baseline in sorted(entry["script_baseline"].items()):
+        path = os.path.join(build_dir, f"{part_id}.py")
+        if part_id in exempt or not os.path.isfile(path) or script_hash(path) == baseline:
+            continue
+        issues.append(
+            make_issue(
+                "request_log",
+                "warning",
+                "routing_violation",
+                f"{part_id}.py changed since the parameter-level request {entry['text']!r} "
+                f"(targets: {', '.join(sorted(targeted)) or 'none'}), but {part_id} is neither "
+                "targeted nor joint-linked to a target.",
+                "Revert the edit and route the shared value through `joints`/`mate_chain.py` "
+                "(a derived pose or shared block parameter), or, if the change is intended, "
+                "add the part to the entry's targets.",
+                part_id=part_id,
+            )
+        )
+    return issues
+
+
 def _analyze_3mf(model_3mf_path: str) -> list[dict]:
     """Check a 3MF deliverable for non-manifold edges as a slicer reads it.
 
@@ -1100,6 +1147,8 @@ def run_gate(
         all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
         # ---- Gridfinity conformance (Gridfinity parts only, once, outside the fix loop) ----
         all_issues += _run_gridfinity_stage(script_path)
+        # ---- parameter-routing check (edit outside a parameter entry's targets; advisory) ----
+        all_issues += _run_parameter_routing_stage(plan, script_path)
     for issue in all_issues:
         issue["action"] = _classify_action(issue)
     errors = [i for i in all_issues if i["severity"] == "error"]

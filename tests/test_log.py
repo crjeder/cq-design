@@ -631,3 +631,36 @@ def test_add_reconciled_stamps_intent_ts(tmp_path):
 
 def test_add_without_reconciled_leaves_intent_ts(tmp_path):
     assert "intent_ts" not in _add(tmp_path)
+
+
+def _scripts(tmp_path):
+    d = tmp_path / "build"
+    d.mkdir()
+    (d / "cradle.py").write_text("A = 1\n", encoding="utf-8")
+    (d / "plate.py").write_text("B = 2\n", encoding="utf-8")
+    return d
+
+
+def test_add_snapshot_scripts_records_baseline_for_parameter_entry(tmp_path):
+    from freshness import script_hash
+
+    d = _scripts(tmp_path)
+    plan = _add(
+        tmp_path, "--level", "parameter", "--target", "cradle", "--snapshot-scripts", str(d)
+    )
+    assert plan["request_log"][-1]["script_baseline"] == {
+        "cradle": script_hash(str(d / "cradle.py")),
+        "plate": script_hash(str(d / "plate.py")),
+    }
+
+
+@pytest.mark.parametrize("level", [["--level", "operation"], []])
+def test_add_snapshot_scripts_ignored_unless_parameter_level(tmp_path, level):
+    d = _scripts(tmp_path)
+    plan = _add(tmp_path, *level, "--snapshot-scripts", str(d))
+    assert "script_baseline" not in plan["request_log"][-1]
+
+
+def test_add_parameter_entry_without_flag_has_no_baseline(tmp_path):
+    plan = _add(tmp_path, "--level", "parameter", "--target", "cradle")
+    assert "script_baseline" not in plan["request_log"][-1]
