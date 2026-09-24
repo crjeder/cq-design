@@ -142,6 +142,7 @@ or calling any script listed below.
     session_cost.py          # Session transcript -> billed token cost in build/cost.json (Stop hook)
     regen_prompt.py          # BUILD_PLAN.json + parameters.py + sketches/ -> REGENERATE.md (Phase 4)
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
+    diff_models.py           # Two-STL diff: volume summary JSON + gray/red/green diff PNG (trimesh + manifold3d)
     preview.py               # CadQuery tessellation + matplotlib preview renderer
     render_preview.py        # Subprocess entry point for preview.py
     section_select.py        # Picks axis-aligned section planes through bore/boss axes (--auto-sections; standalone CLI)
