@@ -238,3 +238,12 @@ def test_audit_parameters_block_skips_calls(tmp_path):
     text = rp.render_audit(plan, part, script, ["preview/lid_preview.png"])
     assert "skip group 4" in text
     assert "c goes in the middle" in text and "move d" in text
+
+
+def test_builder_prompt_has_horizontal_hole_rule(tmp_path, monkeypatch, capsys):
+    plan, _ = _plan()
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert rp.main(["builder", "--plan", "BUILD_PLAN.json", "--part", "lid"]) == 0
+    prompt = Path(json.loads(capsys.readouterr().out)["out"]).read_text(encoding="utf-8")
+    assert "teardrop_bore" in prompt and 'peak="down"' in prompt
