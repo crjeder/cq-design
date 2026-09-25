@@ -42,6 +42,7 @@ def write_manifest(
     stl_dir: str,
     union_scripts: dict[str, tuple[str, str]],
     keep_out_scripts: dict[str, tuple[str, str]] | None = None,
+    print_rotates: dict[str, list] | None = None,
 ) -> str:
     """Write the export manifest into `stl_dir`; return its path.
 
@@ -49,6 +50,7 @@ def write_manifest(
     "<part_id>::<zone_name>" -> (part_id, script_path), matching `export_model`'s
     `keep_out_stls` key convention. Each entry records the script's provenance stamp.
     """
+    rotates = print_rotates or {}
     manifest = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "unions": {
@@ -56,6 +58,7 @@ def write_manifest(
                 "part_id": pid,
                 "script_part": os.path.splitext(os.path.basename(path))[0],
                 "source_script_hash": script_hash(path),
+                **({"print_rotate": rotates[uid]} if uid in rotates else {}),
             }
             for uid, (pid, path) in union_scripts.items()
         },
@@ -98,3 +101,16 @@ def stale_ids(manifest_section: dict, ids_to_scripts: dict[str, str]) -> set[str
         if is_stale(entry.get("source_script_hash"), script_path):
             stale.add(entry_id)
     return stale
+
+
+def pose_stale_ids(manifest_section: dict, rotates: dict[str, list | None]) -> set[str]:
+    """Union ids whose export was finished under a different print pose than `rotates`
+    (id -> the currently accepted `rotate`). An entry with no recorded `print_rotate` (the
+    export ran without a finishing pose) is not judged, matching `is_stale`'s "unknown"."""
+    return {
+        uid
+        for uid, rotate in rotates.items()
+        if (entry := manifest_section.get(uid)) is not None
+        and "print_rotate" in entry
+        and entry["print_rotate"] != rotate
+    }

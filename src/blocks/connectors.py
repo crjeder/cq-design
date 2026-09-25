@@ -41,6 +41,26 @@ def _drop_profile(r: float, angle: float, apex: str, flat: float = 0.0) -> cq.Wo
     return wp.lineTo(-f, z_flat).lineTo(f, z_flat).close()
 
 
+def _face_xz(
+    solid: cq.Workplane, print_up: tuple[float, float, float] | None, base: tuple[float, float]
+) -> cq.Workplane:
+    """Rotate a Y-axis drop solid about Y so its ``base`` (x, z) direction faces print-up.
+
+    ``base`` is where the feature points by default: the bore peak (+Z) or, for a post,
+    the flat bottom, which must face away from print-up (so the caller passes -Z).
+    No-op without ``print_up`` or when print-up runs along the axis (a vertical
+    feature needs no teardrop).
+    """
+    if print_up is None:
+        return solid
+    ux, uz = print_up[0], print_up[2]
+    if math.hypot(ux, uz) < 1e-6:
+        return solid
+    want = (ux, uz) if base[1] > 0 else (-ux, -uz)
+    angle = math.degrees(math.atan2(want[0], want[1]) - math.atan2(base[0], base[1]))
+    return solid.rotate((0, 0, 0), (0, 1, 0), angle)
+
+
 def port_cutout(w: float, h: float, depth: float, chamfer: float = 0.5) -> cq.Workplane:
     """Rectangular opening for a connector port. Subtract from a wall.
 
@@ -108,7 +128,13 @@ def vent_grid(
     return cq.Workplane("XY").pushPoints(positions).rect(slot_w, slot_l).extrude(depth + _EPS)
 
 
-def teardrop_bore(d: float, depth: float, angle: float = 45.0, peak: str = "up") -> cq.Workplane:
+def teardrop_bore(
+    d: float,
+    depth: float,
+    angle: float = 45.0,
+    peak: str = "up",
+    print_up: tuple[float, float, float] | None = None,
+) -> cq.Workplane:
     """Self-supporting (drop-shaped) bore cutter for a horizontal hole.
 
     Use ONLY for horizontal bores (axis in the build plane). The lower half is a
@@ -128,16 +154,25 @@ def teardrop_bore(d: float, depth: float, angle: float = 45.0, peak: str = "up")
         angle: roof face angle from horizontal in degrees, default 45 (the
             overhang limit). Keep >= 45 for printability.
         peak: ``"up"`` (peak at +Z, default) or ``"down"`` (peak at -Z)
+        print_up: print-up direction in the authored frame (``blocks.print_up()``);
+            the peak is turned toward its XZ projection and overrides ``peak``.
     """
     if peak not in ("up", "down"):
         raise ValueError(f"teardrop_bore: peak must be 'up' or 'down', got {peak!r}")
     r = d / 2.0
     # Semicircle opposite the peak, with a peak at +/- r*tan(angle).
-    profile = _drop_profile(r, angle, apex=peak)
-    return profile.extrude(-(depth + _EPS))
+    bore = _drop_profile(r, angle, apex="down" if print_up is None and peak == "down" else "up")
+    bore = bore.extrude(-(depth + _EPS))
+    return _face_xz(bore, print_up, (0.0, 1.0))
 
 
-def teardrop_post(d: float, length: float, angle: float = 45.0, flat: float = 1.2) -> cq.Workplane:
+def teardrop_post(
+    d: float,
+    length: float,
+    angle: float = 45.0,
+    flat: float = 1.2,
+    print_up: tuple[float, float, float] | None = None,
+) -> cq.Workplane:
     """Self-supporting horizontal solid peg (the additive dual of teardrop_bore).
 
     Use for a HORIZONTAL cylindrical protrusion (peg, pin, boss) printed in the
@@ -160,6 +195,8 @@ def teardrop_post(d: float, length: float, angle: float = 45.0, flat: float = 1.
         angle: underside face angle from horizontal in degrees, default 45 (the
             overhang limit). Keep >= 45 for printability.
         flat: width of the flat bottom in mm (default 1.2; 0 = sharp point)
+        print_up: print-up direction in the authored frame (``blocks.print_up()``);
+            the flat bottom is turned to face away from its XZ projection.
     """
     r = d / 2.0
     eff_flat = flat
@@ -178,4 +215,4 @@ def teardrop_post(d: float, length: float, angle: float = 45.0, flat: float = 1.
             stacklevel=2,
         )
     profile = _drop_profile(r, angle, apex="down", flat=eff_flat)
-    return profile.extrude(length)
+    return _face_xz(profile.extrude(length), print_up, (0.0, -1.0))

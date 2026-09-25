@@ -11,6 +11,7 @@ Adding a new format:
 """
 
 import importlib.util
+import json
 import os
 import sys
 
@@ -40,11 +41,17 @@ class ExportError(Exception):
     pass
 
 
-def _load_result(script_path: str) -> "cq.Workplane | dict[str, cq.Workplane]":
+def _load_result(
+    script_path: str, print_rotate: list | None = None
+) -> "cq.Workplane | dict[str, cq.Workplane]":
     """Import a model script and return its top-level `result` variable.
 
     `result` is a `cq.Workplane` (one union) or a `dict[str, cq.Workplane]` mapping union id
     to geometry (a multi-union part); callers normalize via `units.resolve_unions`.
+
+    `print_rotate` (an orientation's `rotate` list) is exposed to the script as
+    `CQ_PRINT_ROTATE` for the duration of the load, so `blocks.print_up()` resolves the
+    accepted print pose; None leaves the authoring default (+Z).
     """
     script_path = os.path.abspath(script_path)
     script_dir = os.path.dirname(script_path)
@@ -58,6 +65,9 @@ def _load_result(script_path: str) -> "cq.Workplane | dict[str, cq.Workplane]":
 
     # Run from the script's directory so relative exports resolve correctly
     old_cwd = os.getcwd()
+    old_rotate = os.environ.get("CQ_PRINT_ROTATE")
+    if print_rotate is not None:
+        os.environ["CQ_PRINT_ROTATE"] = json.dumps(print_rotate)
     try:
         module_name = os.path.splitext(os.path.basename(script_path))[0]
         spec = importlib.util.spec_from_file_location(module_name, script_path)
@@ -76,6 +86,11 @@ def _load_result(script_path: str) -> "cq.Workplane | dict[str, cq.Workplane]":
         return module.result
     finally:
         os.chdir(old_cwd)
+        if print_rotate is not None:
+            if old_rotate is None:
+                os.environ.pop("CQ_PRINT_ROTATE", None)
+            else:
+                os.environ["CQ_PRINT_ROTATE"] = old_rotate
         for path in inserted:
             sys.path.remove(path)
 
