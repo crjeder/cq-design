@@ -285,6 +285,23 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
     phase3/orientation_chosen "<n> unions, see build/orientations.json"
 ```
 
+## Print finishing
+
+Orientation-dependent features (teardrop peak direction) are authored through
+`blocks.print_up()`, which returns +Z until the accepted pose is known. No separate
+command: `model_export.py --orientations build/orientations.json` (next section)
+re-loads each part script with `CQ_PRINT_ROTATE` set to that part's accepted `rotate`,
+so the deliverables carry the finished geometry with no builder round. Only a part
+script that mentions `print_up` changes; others are unaffected. To check a single script
+under a pose, add `--print-rotate build/<part_id>.orientation.json` to `run_cadquery_model.py`.
+
+The export re-scores orientation on each finished `print_up` part and returns advisory
+`pose_findings` (`pose_shift`) if the optimizer would now choose a different pose; the
+accepted pose is kept. Surface them in the delivery report. The export manifest records
+the `print_rotate` used per union (`freshness.pose_stale_ids` flags a mismatch after
+orientation is re-accepted). A `copy_of` part and a multi-union part whose orientation is
+keyed by union id are loaded pose-free (+Z).
+
 ## Model export
 
 ```bash

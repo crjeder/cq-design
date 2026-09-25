@@ -305,8 +305,8 @@ def _find_horizontal_round_holes(tree: ast.AST) -> list[Finding]:
                     "horizontal_round_hole",
                     f"`.{node.func.attr}(...)` on a side-facing workplane; if this axis is "
                     "horizontal at the print pose the hole roof is an overhang",
-                    "use blocks.teardrop_bore (peak toward print-up: peak='down' when "
-                    "print-up is model -Z), or a plain hole if the axis prints vertical",
+                    "use blocks.teardrop_bore(..., print_up=print_up()) so the peak follows the "
+                    "accepted print pose, or a plain hole if the axis prints vertical",
                     node.lineno,
                 )
             )

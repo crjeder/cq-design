@@ -20,6 +20,7 @@ BUNDLE_MODULES = (
     "mesh_io.py",
     "model_export.py",
     "print_orientation.py",
+    "print_finishing.py",
     "placement.py",
     "mate_chain.py",
     "units.py",

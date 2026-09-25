@@ -53,52 +53,15 @@ import argparse
 import json
 import os
 import sys
-import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "lib"))
 
 import cadquery as cq
 
 from freshness import is_stale, script_hash
-from mesh_io import load_mesh
 from model_export import export_model, load_part_unions
-from print_orientation import optimize_orientation
+from print_finishing import orientation_for
 from units import is_copy, load_plan
-
-
-def _orientation_for(
-    result: cq.Workplane,
-    part: dict,
-    overhang_deg: float,
-    optimize_for: str,
-    bridge_max_mm: float = 10.0,
-) -> dict:
-    """Recommended print orientation for one union's authored geometry.
-
-    `optimize_orientation` scores a mesh in its authored frame, so the result is
-    exported to a throwaway STL and reloaded. Uses the part's declared `load.dir` /
-    `load.type` / `show_face.dir` when present (the optimizer infers direction
-    otherwise and defaults type to `tension`) and the effective `optimize_for` mode
-    resolved from the plan.
-    """
-    load = part.get("load")
-    load_dir = load["dir"] if load else None
-    load_type = load.get("type", "tension") if load else "tension"
-    show_face = part.get("show_face")
-    show_dir = show_face["dir"] if show_face else None
-    with tempfile.TemporaryDirectory() as tmp:
-        stl = os.path.join(tmp, "authored.stl")
-        cq.exporters.export(result, stl)
-        mesh = load_mesh(stl)
-    return optimize_orientation(
-        mesh,
-        overhang_deg,
-        load_dir,
-        optimize_for=optimize_for,
-        show_face=show_dir,
-        load_type=load_type,
-        bridge_max_mm=bridge_max_mm,
-    )
 
 
 def resolve_orientations(
@@ -144,7 +107,7 @@ def resolve_orientations(
                 try:
                     if wp_by_uid is None:
                         wp_by_uid = dict(load_part_unions(part, parts_by_id, parts_dir)[2])
-                    chosen = _orientation_for(
+                    chosen = orientation_for(
                         wp_by_uid[uid], part, overhang_deg, optimize_for, bridge_max_mm
                     )
                 except Exception as exc:

@@ -58,6 +58,7 @@ from blocks.joints import (
     tenon,
 )
 from blocks.primitives import fillet_box, hollow_box
+from blocks.print_frame import print_up
 
 __all__ = [
     "fillet_box",
@@ -77,6 +78,7 @@ __all__ = [
     "vent_grid",
     "teardrop_bore",
     "teardrop_post",
+    "print_up",
     "heat_set_boss",
     "socket_head_cap_screw",
     "hex_head_screw",

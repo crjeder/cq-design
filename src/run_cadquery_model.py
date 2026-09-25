@@ -795,6 +795,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail if any STL is not watertight or no STL produced",
     )
+    parser.add_argument(
+        "--print-rotate",
+        default=None,
+        metavar="ORIENTATION_JSON",
+        help=(
+            "Orientation JSON (print_orientation.py output, with a `rotate` list). Sets "
+            "CQ_PRINT_ROTATE for the run so blocks.print_up() resolves the print pose "
+            "(the finishing pass); omit for the authoring default (+Z)."
+        ),
+    )
     parser.add_argument("--views", choices=["iso", "multi"], default="multi")
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument(
@@ -894,6 +904,9 @@ def main():
     try:
         env = os.environ.copy()
         env["PYTHONPATH"] = skill_root + os.pathsep + env.get("PYTHONPATH", "")
+        if args.print_rotate:
+            with open(args.print_rotate, encoding="utf-8") as f:
+                env["CQ_PRINT_ROTATE"] = json.dumps(json.load(f)["rotate"])
 
         shim = os.path.join(skill_root, "run_model_shim.py")
         started = time.time()
