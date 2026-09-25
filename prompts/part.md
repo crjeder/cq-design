@@ -35,7 +35,11 @@ points call for, and do not substitute a different structure for the one specifi
 8. Build a print-in-place revolute knuckle hinge with `blocks.joints.pin_hinge`. Hand-roll
    one only when the geometry cannot take its two-leaf shape, and then declare the
    flat-support-to-knuckle join with `verify_seated`.
-9. Never call `cq.exporters.export()`; the runner exports. CadQuery/Python only, no
+9. Round holes whose axis is horizontal at the print pose use `teardrop_bore`; free horizontal
+   pegs of d >= 3 mm use `teardrop_post`; vertical holes stay plain. The peak faces
+   print-up, which is not always model +Z: when the part prints flipped (print-up = model
+   -Z) pass `peak="down"`; for a sideways print-up rotate the cutter.
+10. Never call `cq.exporters.export()`; the runner exports. CadQuery/Python only, no
    OpenSCAD.
 
 ## Coordinate frames

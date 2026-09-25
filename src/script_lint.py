@@ -272,6 +272,47 @@ def _find_unanchored_features(tree: ast.AST, parents: dict) -> list[Finding]:
     return findings
 
 
+_SIDE_FACES = {"<X", ">X", "<Y", ">Y", "|X", "|Y"}
+_SIDE_PLANES = {"XZ", "YZ", "ZX", "ZY"}
+
+
+def _find_horizontal_round_holes(tree: ast.AST) -> list[Finding]:
+    """Advisory: round hole on a side-facing workplane without teardrop_bore in the script."""
+    for n in ast.walk(tree):
+        if (isinstance(n, ast.Name) and n.id == "teardrop_bore") or (
+            isinstance(n, ast.ImportFrom) and any(a.name == "teardrop_bore" for a in n.names)
+        ):
+            return []
+    findings = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        chain = _flatten_chain(node)
+        if chain[-1][1] is not node or node.func.attr not in {"hole", "cboreHole", "cskHole"}:
+            continue
+        side = False
+        for attr, call in chain:
+            first = call.args[0] if call.args else None
+            if (
+                attr in {"faces", "workplane", "Workplane"}
+                and isinstance(first, ast.Constant)
+                and first.value in (_SIDE_FACES | _SIDE_PLANES)
+            ):
+                side = True
+        if side:
+            findings.append(
+                Finding(
+                    "horizontal_round_hole",
+                    f"`.{node.func.attr}(...)` on a side-facing workplane; if this axis is "
+                    "horizontal at the print pose the hole roof is an overhang",
+                    "use blocks.teardrop_bore (peak toward print-up: peak='down' when "
+                    "print-up is model -Z), or a plain hole if the axis prints vertical",
+                    node.lineno,
+                )
+            )
+    return findings
+
+
 def _collect_computed_names(tree: ast.Module) -> set[str]:
     """Top-level names assigned an expression containing arithmetic (a computed offset)."""
     computed = set()
@@ -388,6 +429,7 @@ def lint_script(path: str) -> list[Finding]:
     findings += _find_magic_numbers(tree)
     findings += _find_unanchored_features(tree, parents)
     findings += _find_unguarded_booleans(tree, parents)
+    findings += _find_horizontal_round_holes(tree)
 
     findings.sort(key=lambda f: f.line)
     return findings

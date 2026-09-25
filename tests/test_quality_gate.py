@@ -702,3 +702,10 @@ def test_routing_uses_newest_baseline_only(tmp_path):
     plan["request_log"].insert(1, older)
     issues = quality_gate._run_parameter_routing_stage(plan, script)
     assert [i["part_id"] for i in issues] == ["plate"]
+
+
+def test_overhang_hint_names_teardrop_bore(multi_overhang_stl):
+    o = _issues_of(
+        quality_gate._analyze_stl(multi_overhang_stl, OVERHANG_DEG), "overhang_exceeded"
+    )[0]
+    assert "teardrop_bore" in o["hint"]
