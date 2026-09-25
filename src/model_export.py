@@ -32,6 +32,7 @@ from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
 from freshness import write_manifest
 from mate_chain import compute_mate_poses
 from placement import apply_cq, apply_matrix
+from print_finishing import pose_stability_finding, uses_print_up
 from units import (
     is_copy,
     keep_out_stl_name,
@@ -80,17 +81,23 @@ _MIRROR_PLANE = {"X": "YZ", "Y": "XZ", "Z": "XY"}
 
 
 def load_part_unions(
-    part: dict, parts_by_id: dict[str, dict], parts_dir: str
+    part: dict,
+    parts_by_id: dict[str, dict],
+    parts_dir: str,
+    print_rotate: list | None = None,
 ) -> tuple[str, object, list[tuple[str, cq.Workplane]]]:
     """Load a part's ``(script_path, result, [(union_id, authored Workplane)])``.
 
     A `copy_of` part reads its source part's script (never its own), reflects the source's
     single union across the plane normal to `copy_of.mirror` when given, and returns it
     under the copy's own id. Its `result` is None: keep-out zones are not copied.
+
+    `print_rotate` is the accepted print pose exposed to the script (see
+    `exporters._load_result`); a `copy_of` part ignores it (the source is loaded pose-free).
     """
     if not is_copy(part):
         script = os.path.join(parts_dir, f"{part['id']}.py")
-        result = _load_result(script)
+        result = _load_result(script, print_rotate)
         return script, result, resolve_unions(part, result)
     src = parts_by_id[part["copy_of"]["part"]]
     script = os.path.join(parts_dir, f"{src['id']}.py")
@@ -161,9 +168,12 @@ def export_model(
     plates: dict[str, list[str]] = {}
     keep_out_stls: dict[str, str] = {}
     union_scripts: dict[str, tuple[str, str]] = {}  # union_id -> (part_id, script_path)
+    print_rotates: dict[str, list] = {}  # union_id -> pose the finishing pass ran under
+    pose_findings: list[dict] = []
     keep_out_scripts: dict[str, tuple[str, str]] = {}  # "<part_id>::<zone>" -> (part_id, path)
     for part in parts:
-        script, result, unions = load_part_unions(part, parts_by_id, parts_dir)
+        rotate = None if is_copy(part) else (print_orientations.get(part["id"]) or {}).get("rotate")
+        script, result, unions = load_part_unions(part, parts_by_id, parts_dir, rotate)
         declared = {u["id"]: u for u in part.get("unions", [])}
         mate_pose = mate_poses.get(part["id"])
 
@@ -175,6 +185,12 @@ def export_model(
             plates.setdefault(plate, []).append(uid)
             records.append((uid, part))
             union_scripts[uid] = (part["id"], script)
+            if rotate is not None:
+                print_rotates[uid] = rotate
+                if uses_print_up(script) and (
+                    finding := pose_stability_finding(uid, part, wp, rotate, plan)
+                ):
+                    pose_findings.append(finding)
 
         # Keep-out zones ride along with their declaring part's pose, but are never a
         # union: no 3MF object, no plate, no per-union/plate STL -- only their own
@@ -242,7 +258,7 @@ def export_model(
         cq.exporters.export(fused, plate_path)
         plate_stls[plate] = plate_path
 
-    manifest_path = write_manifest(stl_dir, union_scripts, keep_out_scripts)
+    manifest_path = write_manifest(stl_dir, union_scripts, keep_out_scripts, print_rotates)
 
     return {
         "model_3mf": model_3mf,
@@ -250,6 +266,7 @@ def export_model(
         "plate_stls": plate_stls,
         "keep_out_stls": keep_out_stls,
         "manifest": manifest_path,
+        "pose_findings": pose_findings,
     }
 
 

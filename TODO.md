@@ -125,7 +125,7 @@ clearest opening. See [details](#market-research-survey).
 - [ ] Normalized Support Volume (NSV) score -- [details](#nsv-score)
 - [ ] Orientation scoring (orient-stl) as a cross-check -- [details](#orientation-scoring-orient-stl)
 - [ ] Iterative visual-feedback repair loop (CADReasoner, CADCodeVerify) -- [details](#iterative-visual-feedback-repair)
-- [ ] Print-friendly parameterizations: teardrop/bridged holes (Gridfinity) -- [details](#print-friendly-parameterizations)
+- [x] Print-friendly parameterizations: teardrop/bridged holes (Gridfinity) -- `teardrop-hole-enforcement` + `two-pass-print-finishing` (teardrops follow the accepted print pose) -- [details](#print-friendly-parameterizations)
 - (covered by the cadgate-style item above) Verify-against-criteria tool (CadQuery-MCP)
 
 ### From intent-recognition research (documentation/intent_recognition.md)

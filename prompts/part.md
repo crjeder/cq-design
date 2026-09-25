@@ -37,8 +37,9 @@ points call for, and do not substitute a different structure for the one specifi
    flat-support-to-knuckle join with `verify_seated`.
 9. Round holes whose axis is horizontal at the print pose use `teardrop_bore`; free horizontal
    pegs of d >= 3 mm use `teardrop_post`; vertical holes stay plain. The peak faces
-   print-up, which is not always model +Z: when the part prints flipped (print-up = model
-   -Z) pass `peak="down"`; for a sideways print-up rotate the cutter.
+   print-up, which is not always model +Z: pass `print_up=print_up()` (`from blocks import
+   print_up`); it reads the accepted pose at finishing time and defaults to +Z while
+   authoring, so never hard-code a pose guess. `peak="down"` remains for a fixed flip.
 10. Never call `cq.exporters.export()`; the runner exports. CadQuery/Python only, no
    OpenSCAD.
 

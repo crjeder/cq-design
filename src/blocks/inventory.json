@@ -348,12 +348,13 @@
     "name": "teardrop_bore",
     "module": "blocks.connectors",
     "function": "teardrop_bore",
-    "use": "A drop-shaped (teardrop) bore cutter for a HORIZONTAL hole. The lower half is circular and the upper half is a '^' peak so the roof self-supports and prints without internal supports. Subtract from a wall. Bore axis runs along +Y; the peak must face PRINT-up: +Z by default, peak=\"down\" when the part prints flipped so print-up is model -Z. Use for horizontal rod/shaft/dowel/pin pass-throughs; for vertical holes use a plain bore instead.",
+    "use": "A drop-shaped (teardrop) bore cutter for a HORIZONTAL hole. The lower half is circular and the upper half is a '^' peak so the roof self-supports and prints without internal supports. Subtract from a wall. Bore axis runs along +Y; the peak must face PRINT-up: +Z by default, print_up=print_up() (resolved from the accepted print pose at finishing; peak=\"down\" for a fixed flip). Use for horizontal rod/shaft/dowel/pin pass-throughs; for vertical holes use a plain bore instead.",
     "params": {
       "d": "mm bore diameter (circular lower portion)",
       "depth": "mm wall thickness to cut through",
       "angle": "degrees roof face angle from horizontal (default 45, the overhang limit; keep >= 45)",
-      "peak": "'up' (peak at +Z, default) or 'down' (peak at -Z) -- must face print-up"
+      "peak": "'up' (peak at +Z, default) or 'down' (peak at -Z) -- must face print-up",
+      "print_up": "print-up direction in the authored frame, pass blocks.print_up(); turns the peak toward it and overrides peak (default None)"
     },
     "dimensions": null,
     "interfaces": [
@@ -372,12 +373,13 @@
     "name": "teardrop_post",
     "module": "blocks.connectors",
     "function": "teardrop_post",
-    "use": "Additive dual of teardrop_bore: a self-supporting HORIZONTAL solid peg/pin/boss. The upper half is circular and the lower half is two flat faces meeting a narrow flat bottom, so the underside self-supports and prints without supports. Union onto a part. Axis runs along +Y, flat bottom points -Z, so the part must print in its modeled orientation. Use for free-standing horizontal pegs/locating pins/bosses with d >= ~3 mm; below that a plain cylinder self-bridges, so use a plain cylinder instead. For a peg that must SEAT in a mating hole, use a 45-degree-rotated cube (diamond peg in a diamond hole) instead, which self-supports on every face and locates positively.",
+    "use": "Additive dual of teardrop_bore: a self-supporting HORIZONTAL solid peg/pin/boss. The upper half is circular and the lower half is two flat faces meeting a narrow flat bottom, so the underside self-supports and prints without supports. Union onto a part. Axis runs along +Y, flat bottom points -Z by default; pass print_up=print_up() so it follows the accepted print pose. Use for free-standing horizontal pegs/locating pins/bosses with d >= ~3 mm; below that a plain cylinder self-bridges, so use a plain cylinder instead. For a peg that must SEAT in a mating hole, use a 45-degree-rotated cube (diamond peg in a diamond hole) instead, which self-supports on every face and locates positively.",
     "params": {
       "d": "mm cylinder diameter (circular upper portion)",
       "length": "mm protrusion length along the axis",
       "angle": "degrees underside face angle from horizontal (default 45, the overhang limit; keep >= 45)",
-      "flat": "mm width of the flat bottom (default 1.2; clamped if >= d; 0 = sharp point)"
+      "flat": "mm width of the flat bottom (default 1.2; clamped if >= d; 0 = sharp point)",
+      "print_up": "print-up direction in the authored frame, pass blocks.print_up(); the flat bottom faces away from it (default None: -Z)"
     },
     "dimensions": null,
     "interfaces": [
