@@ -50,7 +50,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
 - [ ] HitsterTower: dovetail-corner-joint disassembly form fell outside the joints schema's single-rooted tree -- [details](#hitstertower-dovetail-form)
 - [x] Deduplicate pairwise-mirrored parts into one script/STL -- `copy_of` on a part (`dedupe-identical-parts` change) -- [details](#mirrored-parts-dedup)
-- [ ] A minimal deliverable for a parametric part -- just the code, not the full `/lib`
+- [x] A minimal deliverable for a parametric part -- `src/export_standalone.py` -> `standalone/` (`minimal-part-deliverable` change)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
@@ -1278,7 +1278,6 @@ failure class) is a `quality_gate.py` warning via
 `openspec/changes/parameter-entry-routing-check/` (`log.py request add
 --snapshot-scripts` baseline + `routing_violation`). It is advisory: promotion to
 blocking needs eval evidence.
-
 #### Spec audit ambiguity categories
 One change -- strategy: reimplement (ProCAD). Generalize Phase 1's topology-
 clarification rule (shape ambiguity only) into an audit over a fixed

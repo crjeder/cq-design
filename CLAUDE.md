@@ -119,6 +119,7 @@ or calling any script listed below.
     cq_compat.py             # Compatibility shim neutralizing a cq_warehouse shape-copy patch
     init_permissions.py      # Seeds a working directory: .claude/settings.local.json (patterns + hooks), build/stl/preview dirs, default printer_profile.json + skill_config.json
     bundle_project.py        # Copies build.py, lib/ tooling, and the uv project template into a working directory
+    export_standalone.py     # Minimal per-part deliverable: standalone/ = part scripts + only the helpers they import
     printer_profile_validate.py # printer_profile.json schema validation + field write-back
     kinematic_check.py       # Whole-model range-of-motion sweep (trimesh + fcl)
     minimal_cutout_search.py # Bisects a part-script parameter to the minimal value clearing a kinematics entry

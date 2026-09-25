@@ -21,7 +21,8 @@ Report to the user:
 4. **Output files** - list `model.3mf` (project root) and the STLs in `stl/`, and note
    that the working directory is a self-contained uv project (committed `uv.lock`): the
    user regenerates the plates in print orientation with `uv run python build/build.py`,
-   no skill re-invoke
+   no skill re-invoke. Also list `standalone/` (see step 8): the part scripts alone, with only
+   the helper modules they import and a cadquery-only `pyproject.toml`
 5. **Hardware to buy** - when `BUILD_PLAN.json`'s `bom` is non-empty, list every row
    (item, spec, qty, parts, note) so the user knows what to source before assembly
 6. **Write `README.md`** at the project root (create it fresh each delivery; it's a
@@ -40,6 +41,7 @@ Report to the user:
      pyproject.toml, .python-version, uv.lock
      build/   <part_id>.py (editable part scripts), build.py, orientations.json, *.orientation.json
      lib/     bundled build tooling
+     standalone/ <part_id>.py + only the helpers they import, pyproject.toml (cadquery only)
      stl/     <part_id>.stl (assembled pose), plate_<n>.stl (print pose)
      preview/ <part_id>_preview.png, _section_*.png, _detail_*.png
      ```
@@ -58,6 +60,13 @@ Report to the user:
    Read the result before reporting: if the `What to build` section is a bare noun phrase
    rather than the approved reformulation, fix `intent` and re-run rather than editing
    `REGENERATE.md` (an unreconciled correction is already caught by `plan.py validate`).
+
+8. **Write `standalone/`** -- the minimal deliverable for users who only want the parametric
+   part code, not `lib/`. Overwritten on every delivery:
+
+   ```bash
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/export_standalone.py" --parts-dir build --out standalone --parameters parameters.py
+   ```
 
 If the quality gate failed, summarize the remaining errors and offer to fix the script manually.
 
