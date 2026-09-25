@@ -18,6 +18,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 
 ## Defects
 - [x] bridges are treated as overhangs -> ignore bridges of lengt l (l: printer parameter) -- `constraints.bridge_max_mm`, supported on >= 2 sides
+- [ ] arc fillets do not produce the intended result
+- [ ] teardrop shaped holes not used
 
 ## Backlog
 
