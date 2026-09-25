@@ -325,3 +325,24 @@ def test_corpus_fixture_no_false_positives_beyond_expected(tmp_path):
     types = _types(findings)
     assert "direct_export" in types
     assert types <= {"direct_export", "magic_number"}
+
+
+_HOLE_SRC = """
+import cadquery as cq
+
+result = cq.Workplane("XY").box(20, 20, 20).faces(">Y").workplane().hole(5)
+"""
+
+
+def test_horizontal_round_hole_flagged(tmp_path):
+    assert "horizontal_round_hole" in _types(lint_script(_write(tmp_path, _HOLE_SRC)))
+
+
+def test_horizontal_round_hole_suppressed_by_teardrop(tmp_path):
+    src = _HOLE_SRC + "from blocks import teardrop_bore\n"
+    assert "horizontal_round_hole" not in _types(lint_script(_write(tmp_path, src)))
+
+
+def test_vertical_hole_not_flagged(tmp_path):
+    src = _HOLE_SRC.replace(">Y", ">Z")
+    assert "horizontal_round_hole" not in _types(lint_script(_write(tmp_path, src)))

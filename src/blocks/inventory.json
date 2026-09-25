@@ -348,11 +348,12 @@
     "name": "teardrop_bore",
     "module": "blocks.connectors",
     "function": "teardrop_bore",
-    "use": "A drop-shaped (teardrop) bore cutter for a HORIZONTAL hole. The lower half is circular and the upper half is a '^' peak so the roof self-supports and prints without internal supports. Subtract from a wall. Bore axis runs along +Y, peak points +Z, so the part must print in its modeled orientation. Use for horizontal rod/shaft/dowel/pin pass-throughs; for vertical holes use a plain bore instead.",
+    "use": "A drop-shaped (teardrop) bore cutter for a HORIZONTAL hole. The lower half is circular and the upper half is a '^' peak so the roof self-supports and prints without internal supports. Subtract from a wall. Bore axis runs along +Y; the peak must face PRINT-up: +Z by default, peak=\"down\" when the part prints flipped so print-up is model -Z. Use for horizontal rod/shaft/dowel/pin pass-throughs; for vertical holes use a plain bore instead.",
     "params": {
       "d": "mm bore diameter (circular lower portion)",
       "depth": "mm wall thickness to cut through",
-      "angle": "degrees roof face angle from horizontal (default 45, the overhang limit; keep >= 45)"
+      "angle": "degrees roof face angle from horizontal (default 45, the overhang limit; keep >= 45)",
+      "peak": "'up' (peak at +Z, default) or 'down' (peak at -Z) -- must face print-up"
     },
     "dimensions": null,
     "interfaces": [

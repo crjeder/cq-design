@@ -108,7 +108,7 @@ def vent_grid(
     return cq.Workplane("XY").pushPoints(positions).rect(slot_w, slot_l).extrude(depth + _EPS)
 
 
-def teardrop_bore(d: float, depth: float, angle: float = 45.0) -> cq.Workplane:
+def teardrop_bore(d: float, depth: float, angle: float = 45.0, peak: str = "up") -> cq.Workplane:
     """Self-supporting (drop-shaped) bore cutter for a horizontal hole.
 
     Use ONLY for horizontal bores (axis in the build plane). The lower half is a
@@ -116,17 +116,24 @@ def teardrop_bore(d: float, depth: float, angle: float = 45.0) -> cq.Workplane:
     (two flat roof faces meeting at an apex) so every overhang stays within the
     printable limit and the hole roof self-supports without internal supports.
     The bore axis runs along +Y and the peak points +Z, so the part must print in
-    its modeled orientation. Subtract from a wall with ``.cut()``.
+    its modeled orientation unless ``peak="down"`` (see below). Subtract from a wall
+    with ``.cut()``.
+
+    The peak must face PRINT-up. When the part prints flipped so print-up is model
+    -Z, pass ``peak="down"``; for a sideways print-up, rotate the cutter.
 
     Args:
         d: bore diameter in mm (the circular lower portion)
         depth: wall thickness to cut through in mm
         angle: roof face angle from horizontal in degrees, default 45 (the
             overhang limit). Keep >= 45 for printability.
+        peak: ``"up"`` (peak at +Z, default) or ``"down"`` (peak at -Z)
     """
+    if peak not in ("up", "down"):
+        raise ValueError(f"teardrop_bore: peak must be 'up' or 'down', got {peak!r}")
     r = d / 2.0
-    # Lower semicircle (r,0)->(0,-r)->(-r,0) with a ^ peak up to (0, r*tan(angle)).
-    profile = _drop_profile(r, angle, apex="up")
+    # Semicircle opposite the peak, with a peak at +/- r*tan(angle).
+    profile = _drop_profile(r, angle, apex=peak)
     return profile.extrude(-(depth + _EPS))
 
 

@@ -846,3 +846,16 @@ def test_emits_of_wrong_length_rejected():
 def test_emits_of_non_strings_rejected():
     errors = validate_inventory([_block_with_emits(["leaf_a", 2])])
     assert any("emits must be a list of exactly two strings" in e for e in errors)
+
+
+def test_teardrop_bore_peak_down_flips_apex():
+    bb = _bb(teardrop_bore(d=8.0, depth=4.0, peak="down"))
+    assert abs(bb.zmin + 4.0) < 1e-3  # apex at -Z
+    assert abs(bb.zmax - 4.0) < 1e-3  # arc at +Z
+
+
+def test_teardrop_bore_rejects_bad_peak():
+    import pytest
+
+    with pytest.raises(ValueError):
+        teardrop_bore(d=8.0, depth=4.0, peak="left")

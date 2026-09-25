@@ -331,7 +331,10 @@ def _analyze_stl(
                 f"Worst overhang {worst_angle:.1f}° exceeds limit "
                 f"{overhang_deg}° over {overhang_area:.1f} mm² of faces"
             )
-            hint = "Add chamfers or redesign overhanging features."
+            hint = (
+                "Add chamfers or redesign overhanging features; for a horizontal round "
+                "hole use blocks.teardrop_bore (peak toward print-up)."
+            )
         issues.append(
             {
                 "source": "geometry",
