@@ -281,6 +281,39 @@ def _analyze_stl(
             }
         )
 
+    # Fins: adjacent faces folded back on each other (zero-thickness slivers left where
+    # separately built solids, e.g. spandrel/prism fillets, don't mate). A valid,
+    # watertight mesh can still have them, and slicers draw them as spikes.
+    from mesh_io import fold_metrics
+
+    folds = fold_metrics(tm)
+    if folds["count"]:
+        spots = "; ".join(
+            "({:.1f}, {:.1f}, {:.1f})".format(*c["location_xyz_mm"]) for c in folds["clusters"]
+        )
+        issues.append(
+            {
+                "source": "geometry",
+                "severity": "warning",
+                "type": "sliver_fin",
+                "message": (
+                    f"{folds['count']} fin/knife-edge fold(s), sharpest "
+                    f"{folds['sharpest_deg']:.1f} deg interior, at (mm): {spots}"
+                ),
+                "hint": (
+                    "Two solids meet in a zero-thickness sliver: typically a tangent "
+                    "(spandrel/prism) fillet whose razor-thin tip runs past the wall it sits "
+                    "on (tapered or chamfered ribs), or solids ending flush. End the fillet "
+                    "where the wall is still deeper than the fillet radius plus any chamfer, "
+                    "or use .edges(...).fillet() on the selected edge."
+                ),
+                "fold_count": folds["count"],
+                "sharpest_interior_deg": folds["sharpest_deg"],
+                "locations_xyz_mm": [c["location_xyz_mm"] for c in folds["clusters"]],
+                "min_face_area_mm2": min(c["min_face_area_mm2"] for c in folds["clusters"]),
+            }
+        )
+
     # Overhang: faces whose normals point downward (nz < 0). Faces with overhang
     # angle strictly greater than overhang_deg need support. Shared definition with
     # the print-orientation optimizer (mesh_io.overhang_metrics).

@@ -1,0 +1,230 @@
+# Regression fixture for sliver-fin-detection (stored as .txt so linters skip it; exec'd by tests/test_sliver_fin.py)
+# (copied from a live Katzenwendeltreppe run,
+# export line dropped). The rib_fillet prism is extruded to where the rib is only one
+# fillet deep, but the rib's bottom edges are chamfered (RIB_EDGE_CHAMFER), so the prism's
+# tangent, zero-thickness cusp runs past the wall it sits on. Valid B-Rep, watertight
+# mesh, and four fins the slicer draws as spikes. Ending the prism at
+# `1 - 2 * f / RIB_DEPTH` (the fixed variant in tests/test_sliver_fin.py) removes them.
+import math
+
+import cadquery as cq
+
+from cq_verify import verify_boolean, verify_stage
+
+# PARAMETERS
+POLE_SHAPE = "round"
+POLE_SIZE = 40.0
+POLE_CLEARANCE = 0.6
+TREAD_RADIUS = 158.4
+TREAD_THICKNESS = 3.0
+TOTAL_HEIGHT = 92.0
+SCREW_HOLE_DIAMETER = 4.8
+SCREW_1_ANGLE_DEG = 25.0
+SCREW_1_Z = 55.0
+SCREW_2_ANGLE_DEG = 65.0
+SCREW_2_Z = 80.0
+GROOVE_RADII = (50.0, 80.0, 110.0, 140.0)
+GROOVE_WIDTH = 3.0
+GROOVE_DEPTH = 1.0
+GROOVE_EDGE_ANGLE_DEG = 10.0
+TOP_EDGE_CHAMFER = 1.5
+JUNCTION_FILLET = 1.5  # rib-to-tread and rib-to-mount concave junctions
+RIB_EDGE_CHAMFER = 0.6  # free (lower) edges of the ribs and rim
+MOUNT_WALL = 5.0
+SIDE_WALL = 2.0  # east and north edge ribs
+DIAG_WALL = 2.0  # rib along the 45 deg diagonal
+RIB_DEPTH = 60.0  # rib depth below the tread underside at the pole, tapering to 0 at the tip
+RIM_WALL = 2.0  # arc rim under the tread edge
+RIM_DEPTH = 10.0
+SIN45 = 0.70710678
+
+notch_size = POLE_SIZE + POLE_CLEARANCE
+tread_z0 = TOTAL_HEIGHT - TREAD_THICKNESS
+mount_half = notch_size / 2 + MOUNT_WALL
+# neck ends where the ribs end at the notch edge
+mount_bottom = tread_z0 - RIB_DEPTH * (1 - notch_size / 2 / TREAD_RADIUS)
+mount_reach = mount_half if POLE_SHAPE == "round" else mount_half * math.sqrt(2)
+
+
+def quarter(radius, z0, height):
+    return (
+        cq.Workplane("XY")
+        .workplane(offset=z0)
+        .moveTo(0, 0)
+        .lineTo(radius, 0)
+        .threePointArc((radius * SIN45, radius * SIN45), (0, radius))
+        .close()
+        .extrude(height)
+    )
+
+
+tread = quarter(TREAD_RADIUS, tread_z0, TREAD_THICKNESS)
+body = verify_stage(tread, "tread", bbox=(0, TREAD_RADIUS, 0, TREAD_RADIUS, tread_z0, TOTAL_HEIGHT))
+
+if POLE_SHAPE == "round":
+    mount = quarter(mount_half, mount_bottom, TOTAL_HEIGHT - mount_bottom)
+else:
+    mount = (
+        cq.Workplane("XY")
+        .rect(2 * mount_half, 2 * mount_half)
+        .extrude(TOTAL_HEIGHT - mount_bottom)
+        .translate((0, 0, mount_bottom))
+        .intersect(quarter(TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT - mount_bottom))
+    )
+body = verify_stage(
+    body.union(mount),
+    "mount_wall",
+    bbox=(0, TREAD_RADIUS, 0, TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT),
+)
+
+
+def rib(thickness):
+    """Triangular rib along +X, y in [-thickness/2, thickness/2], flush under the tread."""
+    r = (
+        cq.Workplane("XZ")
+        .polyline([(0, tread_z0 - RIB_DEPTH), (TREAD_RADIUS, tread_z0), (0, tread_z0)])
+        .close()
+        .extrude(thickness / 2, both=True)
+    )
+    slanted = [
+        e
+        for e in r.edges().vals()
+        if e.Length() > 100 and abs(e.startPoint().z - e.endPoint().z) > 1
+    ]
+    return r.newObject(slanted).chamfer(RIB_EDGE_CHAMFER)
+
+
+def rib_fillet(corner_y):
+    """Concave fillet prism beside a rib face at y=corner_y, along the tread underside, ending where the rib is one fillet deep."""
+    f, c = JUNCTION_FILLET, corner_y
+    return (
+        cq.Workplane("YZ")
+        .moveTo(c, tread_z0)
+        .lineTo(c + f, tread_z0)
+        .threePointArc((c + f * (1 - SIN45), tread_z0 - f * (1 - SIN45)), (c, tread_z0 - f))
+        .close()
+        .extrude(TREAD_RADIUS * (1 - f / RIB_DEPTH))
+    )
+
+
+east_wall = rib(SIDE_WALL).translate((0, SIDE_WALL / 2, 0))
+north_wall = east_wall.mirror((1, -1, 0))
+diag_wall = rib(DIAG_WALL).rotate((0, 0, 0), (0, 0, 1), 45)
+rim_z0 = tread_z0 - RIM_DEPTH
+rim = quarter(TREAD_RADIUS, rim_z0, RIM_DEPTH).cut(
+    quarter(TREAD_RADIUS - RIM_WALL, rim_z0, RIM_DEPTH)
+)
+rim = rim.faces("<Z").edges().chamfer(RIB_EDGE_CHAMFER)
+ribs = (
+    east_wall.union(north_wall)
+    .union(diag_wall)
+    .union(rim)
+    .intersect(quarter(TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT))
+)
+body = body.union(ribs)
+
+# DEBUG: concave fillet along the inner arc of the rim, under the tread
+_a, _f = TREAD_RADIUS - RIM_WALL, JUNCTION_FILLET
+rim_fillet = (
+    cq.Workplane("XZ")
+    .moveTo(_a, tread_z0)
+    .lineTo(_a - _f, tread_z0)
+    .threePointArc((_a - _f + _f * SIN45, tread_z0 - _f + _f * SIN45), (_a, tread_z0 - _f))
+    .close()
+    .revolve(360, (0, 0, 0), (0, 1, 0))
+    .intersect(quarter(TREAD_RADIUS, tread_z0 - _f, _f))
+)
+body = body.union(rim_fillet)
+body = verify_stage(
+    body, "ribs", bbox=(0, TREAD_RADIUS, 0, TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT)
+)
+
+
+def mount_junction(e):
+    """Concave edges where the mount wall meets the tread underside or a rib face."""
+    a, b = e.startPoint(), e.endPoint()
+    ra, rb = math.hypot(a.x, a.y), math.hypot(b.x, b.y)
+    near = max(ra, rb) < mount_reach + 1 and min(ra, rb) > mount_reach - 1
+    flat = abs(a.z - tread_z0) < 1e-3 and abs(b.z - tread_z0) < 1e-3
+    vertical = abs(a.x - b.x) < 1e-3 and abs(a.y - b.y) < 1e-3 and abs(a.z - b.z) > 1
+    return near and (flat or vertical) and e.Length() > 1
+
+
+body = body.newObject([e for e in body.edges().vals() if mount_junction(e)]).fillet(JUNCTION_FILLET)
+
+east_fillet = rib_fillet(SIDE_WALL)
+fillets = (
+    east_fillet.union(east_fillet.mirror((1, -1, 0)))
+    .union(
+        rib_fillet(DIAG_WALL / 2)
+        .union(rib_fillet(DIAG_WALL / 2).mirror("XZ"))
+        .rotate((0, 0, 0), (0, 0, 1), 45)
+    )
+    .intersect(quarter(TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT))
+)
+body = verify_boolean(body, body.union(fillets), "union", "rib_tread_fillets")
+body = verify_stage(
+    body, "junction_fillets", bbox=(0, TREAD_RADIUS, 0, TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT)
+)
+
+pole = cq.Workplane("XY")
+pole = pole.circle(notch_size / 2) if POLE_SHAPE == "round" else pole.rect(notch_size, notch_size)
+pole = pole.extrude(TOTAL_HEIGHT)
+result = verify_stage(
+    verify_boolean(body, body.cut(pole), "cut", "pole_notch"),
+    "pole_notch",
+    bbox=(0, TREAD_RADIUS, 0, TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT),
+)
+
+
+def screw_tool(angle, z):
+    """Teardrop hole: circle plus a 45 deg peak toward assembly -Z (print-frame +Z), so the horizontal hole prints without a flat ceiling."""
+    r = SCREW_HOLE_DIAMETER / 2
+    peak = [(0, z), (r * SIN45, z - r * SIN45), (0, z - r / SIN45), (-r * SIN45, z - r * SIN45)]
+    wp = cq.Workplane("YZ")
+    tool = (
+        wp.moveTo(0, z)
+        .circle(r)
+        .extrude(mount_reach + 1)
+        .union(wp.polyline(peak).close().extrude(mount_reach + 1))
+    )
+    return tool.rotate((0, 0, 0), (0, 0, 1), angle).val()
+
+
+def groove_tool(radius):
+    z0, h = TOTAL_HEIGHT - GROOVE_DEPTH, GROOVE_DEPTH + 1
+    lo, hi = math.radians(GROOVE_EDGE_ANGLE_DEG), math.radians(90 - GROOVE_EDGE_ANGLE_DEG)
+    reach = TREAD_RADIUS * 2
+    wedge = (
+        cq.Workplane("XY")
+        .workplane(offset=z0)
+        .polyline(
+            [
+                (0, 0),
+                (reach * math.cos(lo), reach * math.sin(lo)),
+                (reach * math.cos(hi), reach * math.sin(hi)),
+            ]
+        )
+        .close()
+        .extrude(h)
+    )
+    ring = quarter(radius + GROOVE_WIDTH / 2, z0, h).cut(quarter(radius - GROOVE_WIDTH / 2, z0, h))
+    return ring.intersect(wedge).val()
+
+
+# Features: radial screw holes through the mount wall, then recessed anti-slip arcs.
+holes = cq.Compound.makeCompound(
+    [screw_tool(SCREW_1_ANGLE_DEG, SCREW_1_Z), screw_tool(SCREW_2_ANGLE_DEG, SCREW_2_Z)]
+)
+result = verify_boolean(result, result.cut(holes), "cut", "screw_holes")
+result = verify_stage(
+    result, "screw_holes", bbox=(0, TREAD_RADIUS, 0, TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT)
+)
+
+result = result.faces(">Z").edges().chamfer(TOP_EDGE_CHAMFER)
+
+grooves = cq.Compound.makeCompound([groove_tool(r) for r in GROOVE_RADII])
+result = verify_boolean(result, result.cut(grooves), "cut", "anti_slip_arcs")
+result = verify_stage(
+    result, "anti_slip", bbox=(0, TREAD_RADIUS, 0, TREAD_RADIUS, mount_bottom, TOTAL_HEIGHT)
+)

@@ -709,3 +709,36 @@ def test_overhang_hint_names_teardrop_bore(multi_overhang_stl):
         quality_gate._analyze_stl(multi_overhang_stl, OVERHANG_DEG), "overhang_exceeded"
     )[0]
     assert "teardrop_bore" in o["hint"]
+
+
+@pytest.fixture
+def fin_stl(tmp_path):
+    """Two triangles hinged on a seam along +X, folded to a 2 deg interior dihedral."""
+    c, s = math.cos(math.radians(2.0)), math.sin(math.radians(2.0))
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, c, s]], dtype=float)
+    stl = tmp_path / "fin.stl"
+    trimesh.Trimesh(vertices=verts, faces=[[0, 1, 2], [1, 0, 3]], process=False).export(str(stl))
+    return str(stl)
+
+
+def test_fin_reports_sliver_fin_warning(fin_stl):
+    f = _issues_of(quality_gate._analyze_stl(fin_stl, OVERHANG_DEG), "sliver_fin")
+    assert len(f) == 1
+    assert f[0]["severity"] == "warning"
+    assert f[0]["fold_count"] == 1
+    assert f[0]["sharpest_interior_deg"] == pytest.approx(2.0, abs=1e-3)
+    assert f[0]["locations_xyz_mm"][0] == pytest.approx([0.5, 0.0, 0.0], abs=1e-4)
+    assert "end the fillet" in f[0]["hint"].lower() and ".fillet()" in f[0]["hint"]
+
+
+def test_clean_part_has_no_sliver_fin(flat_bottom_cube_stl, self_supporting_stl):
+    for stl in (flat_bottom_cube_stl, self_supporting_stl):
+        assert _issues_of(quality_gate._analyze_stl(stl, OVERHANG_DEG), "sliver_fin") == []
+
+
+def test_sliver_fin_location_is_in_build_frame(fin_stl):
+    f = _issues_of(
+        quality_gate._analyze_stl(fin_stl, OVERHANG_DEG, [{"axis": "Z", "angle_deg": 90.0}]),
+        "sliver_fin",
+    )
+    assert f[0]["locations_xyz_mm"][0] == pytest.approx([0.0, 0.5, 0.0], abs=1e-4)
