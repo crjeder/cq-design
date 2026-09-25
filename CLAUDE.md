@@ -147,7 +147,8 @@ or calling any script listed below.
     preview.py               # CadQuery tessellation + matplotlib preview renderer
     render_preview.py        # Subprocess entry point for preview.py
     section_select.py        # Picks axis-aligned section planes through bore/boss axes (--auto-sections; standalone CLI)
-    mesh_io.py               # Trimesh loader + watertightness validation; lateral_area() feeds toolpath_speed.py
+    mesh_io.py               # Trimesh loader + watertightness validation; lateral_area() feeds toolpath_speed.py;
+                             # fold_metrics() finds fin/knife-edge folds for quality_gate's sliver_fin
     build_plan_schema.json   # JSON Schema draft-7 for BUILD_PLAN.json
     printer_profile_schema.json  # JSON Schema draft-7 for printer_profile.json
     printer_profile.default.json # Default printer_profile.json seeded into a fresh directory
@@ -223,6 +224,7 @@ or calling any script listed below.
     test_toolpath_speed.py           # Corner/crowding print-time advisor (CadQuery)
     test_gridfinity.py               # Gridfinity blocks + conformance check (CadQuery)
     test_minimal_cutout_search.py    # Parameter bisection search against a kinematics entry (CadQuery)
+    test_sliver_fin.py               # Fin detection on a real part (fixtures/rim_fillet_fins.py.txt) with four zero-thickness fins (CadQuery)
     test_templates.py                # Archetype index validation + per-template lint/geometry
     fixtures/
 ```
