@@ -85,6 +85,65 @@ BRIDGE_SIDE_COVERAGE = 0.5
 BRIDGE_COST_FACTOR = 0.1
 
 
+# Adjacent faces whose interior dihedral angle (180 deg minus the angle between their
+# normals) is below this fold back on each other: a zero-thickness fin or knife edge,
+# which slicers draw as a spike. Real corners and curves stay >= 90 deg; a ~20 deg
+# wedge tip (a deliberate taper) stays well clear.
+FOLD_MIN_INTERIOR_DEG = 10.0
+
+
+def fold_metrics(mesh, min_interior_deg=FOLD_MIN_INTERIOR_DEG, max_report=5):
+    """Fin / knife-edge folds: adjacent triangles whose interior dihedral is under
+    `min_interior_deg`. Pose-independent (it compares neighbouring normals only).
+
+    Fold pairs that touch (share a vertex) are one cluster, so a fin made of many
+    triangle pairs along one seam reports once. Returns
+    `{"count", "sharpest_deg", "clusters"}`, where `clusters` holds up to `max_report`
+    dicts `{angle_deg, location_xyz_mm, min_face_area_mm2}`, sharpest first; `count`
+    is every cluster found. Does not tell a convex wedge from a slit -- both are
+    unprintable. Needs merged vertices (trimesh.load's default).
+    """
+    import scipy.sparse as sp
+    from scipy.sparse.csgraph import connected_components
+
+    interior = 180.0 - np.degrees(mesh.face_adjacency_angles)
+    hit = np.nonzero(interior < min_interior_deg)[0]  # NaN (degenerate faces) never hits
+    if len(hit) == 0:
+        return {"count": 0, "sharpest_deg": None, "clusters": []}
+    pairs = mesh.face_adjacency[hit]
+    # Graph over vertices: both faces of a fold pair connect all their vertices.
+    a = np.concatenate([mesh.faces[pairs[:, 0]], mesh.faces[pairs[:, 1]]])  # (2k, 3)
+    rows, cols = np.repeat(a[:, 0], 2), a[:, 1:].ravel()
+    n = len(mesh.vertices)
+    graph = sp.coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
+    _, label = connected_components(graph, directed=False)
+    cluster_of = label[mesh.faces[pairs[:, 0], 0]]
+    edges = mesh.face_adjacency_edges[hit]
+    mid = mesh.vertices[edges].mean(axis=1)
+    areas = np.minimum(mesh.area_faces[pairs[:, 0]], mesh.area_faces[pairs[:, 1]])
+    found: list[tuple[float, dict]] = []
+    for c in np.unique(cluster_of):
+        sel = np.nonzero(cluster_of == c)[0]
+        k = sel[np.argmin(interior[hit][sel])]
+        found.append(
+            (
+                float(interior[hit][k]),
+                {
+                    "angle_deg": float(interior[hit][k]),
+                    "location_xyz_mm": [float(x) for x in mid[k]],
+                    "min_face_area_mm2": float(areas[sel].min()),
+                },
+            )
+        )
+    found.sort(key=lambda t: t[0])
+    clusters = [d for _, d in found]
+    return {
+        "count": len(clusters),
+        "sharpest_deg": clusters[0]["angle_deg"],
+        "clusters": clusters[:max_report],
+    }
+
+
 def bed_contact_mask(mesh):
     """Faces resting on the bed: steeply down-facing, within one first-layer height of the floor."""
     min_z = float(mesh.vertices[:, 2].min())
