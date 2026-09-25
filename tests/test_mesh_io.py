@@ -203,3 +203,49 @@ def test_lateral_area_excludes_flat_top_and_bottom():
     lateral = mesh_io.lateral_area(box)
     assert lateral < total
     assert lateral == pytest.approx(4 * 10.0 * 10.0, rel=1e-6)
+
+
+def _wedge(interior_deg, dx=0.0, seam_pts=2):
+    """Two triangle strips hinged on a shared seam along +X: interior dihedral
+    `interior_deg` between the two sides (0 = a fin folded flat onto itself)."""
+    c, s = np.cos(np.radians(interior_deg)), np.sin(np.radians(interior_deg))
+    seam = [[dx + i, 0.0, 0.0] for i in range(seam_pts)]
+    verts = list(seam)
+    faces = []
+    for i in range(seam_pts - 1):
+        a = len(verts)
+        verts += [[dx + i, 1.0, 0.0], [dx + i, c, s]]  # flat-side apex, tilted-side apex
+        faces += [[i, i + 1, a], [i + 1, i, a + 1]]
+    return trimesh.Trimesh(vertices=verts, faces=faces, process=True)
+
+
+def test_fold_metrics_flags_zero_thickness_fin():
+    r = mesh_io.fold_metrics(_wedge(2.0))
+    assert r["count"] == 1
+    assert r["sharpest_deg"] == pytest.approx(2.0, abs=1e-6)
+    assert r["clusters"][0]["location_xyz_mm"] == pytest.approx([0.5, 0.0, 0.0], abs=1e-6)
+
+
+def test_fold_metrics_ignores_ordinary_corners_and_curves():
+    for m in (
+        trimesh.creation.box([10.0, 10.0, 10.0]),
+        trimesh.creation.cylinder(radius=5.0, height=10.0, sections=64),
+    ):
+        assert mesh_io.fold_metrics(m)["count"] == 0
+
+
+def test_fold_metrics_ignores_deliberate_wedge_tip():
+    # A ~20 deg taper is a legitimate feature, not a fin.
+    assert mesh_io.fold_metrics(_wedge(20.0))["count"] == 0
+
+
+def test_fold_metrics_one_fin_along_a_seam_is_one_cluster():
+    r = mesh_io.fold_metrics(_wedge(2.0, seam_pts=5))  # 4 fold pairs sharing seam vertices
+    assert r["count"] == 1
+
+
+def test_fold_metrics_separate_fins_are_separate_clusters():
+    two = trimesh.util.concatenate([_wedge(2.0), _wedge(5.0, dx=20.0)])
+    r = mesh_io.fold_metrics(two)
+    assert r["count"] == 2
+    assert [c["angle_deg"] for c in r["clusters"]] == pytest.approx([2.0, 5.0], abs=1e-6)
