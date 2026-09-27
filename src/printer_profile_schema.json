@@ -97,6 +97,11 @@
           "type": "number",
           "minimum": 0,
           "description": "Tolerance for dimension mismatch check"
+        },
+        "top_bottom_layers": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Top/bottom solid shell layer count (default 4 when absent)"
         }
       }
     }

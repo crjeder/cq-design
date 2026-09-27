@@ -152,3 +152,25 @@ def test_bridge_max_mm_optional_and_non_negative(tmp_path):
     prof["constraints"]["bridge_max_mm"] = -1
     path.write_text(json.dumps(prof))
     assert ppv.validate_profile(str(path)) != []
+
+
+def test_top_bottom_layers_optional_and_at_least_one(tmp_path):
+    import json
+
+    import printer_profile_validate as ppv
+
+    path = tmp_path / "printer_profile.json"
+    prof: dict[str, Any] = {
+        "printer": "x",
+        "material": "PLA",
+        "nozzle_mm": 0.4,
+        "constraints": {"wall_min_mm": 1.2, "overhang_max_deg": 45, "dimension_tolerance_mm": 0.5},
+    }
+    path.write_text(json.dumps(prof))
+    assert ppv.validate_profile(str(path)) == []
+    prof["constraints"]["top_bottom_layers"] = 6
+    path.write_text(json.dumps(prof))
+    assert ppv.validate_profile(str(path)) == []
+    prof["constraints"]["top_bottom_layers"] = 0
+    path.write_text(json.dumps(prof))
+    assert ppv.validate_profile(str(path)) != []

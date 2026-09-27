@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """FEM stress advisor: solve a declared load case on a part's STEP geometry.
 
-Tet-meshes the part's exported STEP (gmsh), solves ONE linear-static isotropic
-load case (scikit-fem), and evaluates an anisotropic FDM failure index for every
-candidate print orientation by rotating the solved stress tensor -- one solve
-serves every candidate (see the `fem-stress-advisor` design doc). Every boundary
-condition is resolved from the part's declared `load` (magnitude_n, applied_at,
-applied_dir, grounded_at) and its named `interfaces[]`; nothing is inferred from
-the bounding box or any other geometric heuristic.
+Tet-meshes only the part's wall-thickness shell -- built from its exported STEP via
+OCC's `addThickSolid`, one uniform thickness from the plan's `constraints.wall_min_mm`
+applied to every face -- never the full solid volume, since the interior is sparse
+infill in a real print (see the `fem-wall-shell-solve` design doc). Solves ONE
+linear-static isotropic load case (scikit-fem) on that shell, and evaluates an
+anisotropic FDM failure index for every candidate print orientation by rotating the
+solved stress tensor -- one solve serves every candidate (see the `fem-stress-advisor`
+design doc). Every boundary condition is resolved from the part's declared `load`
+(magnitude_n, applied_at, applied_dir, grounded_at) and its named `interfaces[]`;
+nothing is inferred from the bounding box or any other geometric heuristic.
 
 This is an ADVISOR, never a gate: it always exits 0, adds no quality_gate.py
 stage, and a high failure index is reported, not blocked on. Any missing input
@@ -132,6 +135,55 @@ def _resolve_boundary_conditions(part: dict) -> tuple[dict | None, str | None]:
     )
 
 
+def _resolve_shell_thicknesses(plan: dict, plan_path: str | None = None) -> tuple[float, float]:
+    """(wall_mm, topbot_mm) from the plan's `constraints` -- wall thickness is
+    `constraints.wall_min_mm` directly (already the physical thickness the constraint
+    represents, not re-derived through a wall-loop-count round-trip); top/bottom shell
+    thickness is `constraints.top_bottom_layers` (default 4) times the layer height.
+
+    The layer height is read from `printer_profile.json`'s optional `motion` block next
+    to `plan_path`, exactly as `quality_gate.py::_emit_print_recipe` reads it, so the two
+    never quote different top/bottom-thickness numbers for the same plan; falls back to
+    `nozzle_mm * 0.5` when no `motion` block is declared or `plan_path` is not given."""
+    constraints = plan.get("constraints", {})
+    wall_mm = constraints.get("wall_min_mm", 1.2)
+    top_bottom_layers = constraints.get("top_bottom_layers", 4)
+
+    layer_height_mm = plan.get("nozzle_mm", 0.4) * 0.5
+    if plan_path is not None:
+        profile_path = os.path.join(
+            os.path.dirname(os.path.abspath(plan_path)), "printer_profile.json"
+        )
+        if os.path.isfile(profile_path):
+            motion = _load_json(profile_path).get("motion")
+            if motion:
+                layer_height_mm = motion["layer_height_mm"]
+
+    topbot_mm = top_bottom_layers * layer_height_mm
+    return wall_mm, topbot_mm
+
+
+def _thickness_mismatch_warning(wall_mm: float, topbot_mm: float) -> dict | None:
+    """A `thickness_mismatch_warning` dict when the two shell thicknesses diverge by more
+    than 25% -- the uniform-thickness solve treats every face the same, which gets less
+    defensible as the profile's own wall and top/bottom settings diverge. None when
+    they're within 25% of each other."""
+    pct_diff = abs(wall_mm - topbot_mm) / max(wall_mm, topbot_mm)
+    if pct_diff <= 0.25:
+        return None
+    return {
+        "wall_min_mm": round(wall_mm, 4),
+        "top_bottom_mm": round(topbot_mm, 4),
+        "pct_diff": round(pct_diff, 4),
+        "message": (
+            f"wall thickness ({wall_mm:.2f} mm) and top/bottom shell thickness "
+            f"({topbot_mm:.2f} mm) differ by {pct_diff:.0%} -- the solve's uniform-thickness "
+            "assumption treats every face the same, which is less defensible the more these "
+            "diverge"
+        ),
+    }
+
+
 def _probe_dependencies() -> tuple[Any, Any, str | None]:
     """Import gmsh and skfem; return (gmsh, skfem, None) or (None, None, reason)."""
     try:
@@ -159,15 +211,40 @@ def _probe_dependencies() -> tuple[Any, Any, str | None]:
     return gmsh, skfem, None
 
 
-def mesh_step(gmsh_mod: Any, step_path: str, mesh_size: float) -> dict:
-    """Tet-mesh a STEP file with gmsh. Returns node coords (n,3), tet node indices
-    (m,4, 0-based into the node array), and boundary triangle node indices (k,3) for
-    the print-orientation candidate enumeration. Raises on a gmsh failure -- the
-    caller turns that into a skipped result."""
+def mesh_step(gmsh_mod: Any, step_path: str, mesh_size: float, wall_thickness_mm: float) -> dict:
+    """Tet-mesh only the part's wall-thickness shell (the material the slicer actually
+    lays down solid), not its full solid volume -- ignoring infill gives a conservative
+    lower bound on stiffness/strength (see the fem-wall-shell-solve design doc). Every
+    face gets the same `wall_thickness_mm`, matching the slicer's own single "wall loops"
+    setting (no vertical/horizontal split).
+
+    Builds the hollow shell in two OCC steps, verified empirically against the pinned
+    gmsh version (a bare `addThickSolid(tag, [], +offset)` with an empty excluded-face
+    list does NOT hollow the solid in place -- it returns a new solid uniformly offset
+    outward (positive) or inward (negative) from the original, not the wall material
+    between the two):
+    1. `addThickSolid(tag, [], -wall_thickness_mm)` (negative offset) on each solid volume
+       gives the inward-offset cavity solid -- the shape of the void the slicer's infill
+       region would occupy.
+    2. `occ.cut([original], [cavity], removeTool=True)` subtracts that cavity from the
+       original solid, leaving exactly the wall material as a single closed hollow solid
+       whose outer boundary matches the original part -- consumes the original tag itself
+       (per `removeTool`/the default `removeObject`), so nothing extra to remove before
+       meshing.
+
+    Returns node coords (n,3), tet node indices (m,4, 0-based into the node array), and
+    boundary triangle node indices (k,3) for the print-orientation candidate enumeration.
+    Raises on a gmsh failure (including a degenerate/self-intersecting shell on a local
+    feature thinner than the wall thickness) -- the caller turns that into a skipped
+    result."""
     gmsh_mod.initialize()
     try:
         gmsh_mod.option.setNumber("General.Terminal", 0)
-        gmsh_mod.model.occ.importShapes(step_path)
+        imported = gmsh_mod.model.occ.importShapes(step_path)
+        solid_tags = [tag for dim, tag in imported if dim == 3]
+        for tag in solid_tags:
+            cavity = gmsh_mod.model.occ.addThickSolid(tag, [], -wall_thickness_mm)
+            gmsh_mod.model.occ.cut([(3, tag)], cavity, removeTool=True)
         gmsh_mod.model.occ.synchronize()
         gmsh_mod.option.setNumber("Mesh.MeshSizeMax", mesh_size)
         gmsh_mod.model.mesh.generate(3)
@@ -187,6 +264,18 @@ def mesh_step(gmsh_mod: Any, step_path: str, mesh_size: float) -> dict:
         boundary_tris = np.vectorize(tag_to_idx.get)(tri_tags)
     finally:
         gmsh_mod.finalize()
+
+    # getNodes() can return nodes not referenced by any tet (e.g. leftover lower-dimension
+    # mesh entities from a boolean op) -- an unreferenced node contributes an all-zero row
+    # to the global stiffness matrix, which is an exact (not just ill-conditioned)
+    # singularity. Compact to only tet-referenced nodes and remap indices.
+    used = np.unique(tets)
+    if len(used) < len(points):
+        remap = np.full(len(points), -1, dtype=int)
+        remap[used] = np.arange(len(used))
+        points = points[used]
+        tets = remap[tets]
+        boundary_tris = remap[boundary_tris]
 
     return {"points": points, "tets": tets, "boundary_tris": boundary_tris}
 
@@ -324,6 +413,7 @@ def run_fem_check(
     part_id: str,
     mesh_size: float,
     materials_path: str = _MATERIALS_PATH,
+    plan_path: str | None = None,
 ) -> dict:
     """Resolve preconditions, mesh, solve, and evaluate -- or return a skipped result
     naming the first missing input or dependency. Never raises for an ordinary
@@ -346,8 +436,10 @@ def run_fem_check(
     if gmsh_mod is None:
         return _skip(reason or "FEM dependencies not available")
 
+    wall_mm, topbot_mm = _resolve_shell_thicknesses(plan, plan_path)
+
     try:
-        meshed = mesh_step(gmsh_mod, step_path, mesh_size)
+        meshed = mesh_step(gmsh_mod, step_path, mesh_size, wall_mm)
     except Exception as e:
         return _skip(f"gmsh meshing failed: {e}")
 
@@ -430,19 +522,23 @@ def run_fem_check(
             "orientation table for a pose that keeps this load in the layer plane."
         )
 
-    return {
+    thickness_warning = _thickness_mismatch_warning(wall_mm, topbot_mm)
+
+    result = {
         "status": "ok",
         "part_id": part_id,
         "material": plan.get("material"),
         "assumptions": (
             "solved isotropically (E, nu) in the part's authored frame; FDM material "
             "anisotropy is applied only at the per-orientation failure criterion, not "
-            "the stiffness -- see the fem-stress-advisor design doc"
+            "the stiffness; the solved geometry is the wall-thickness shell only "
+            "(infill ignored) -- see the fem-wall-shell-solve design doc"
         ),
         "mesh": {
             "mesh_size_mm": mesh_size,
             "node_count": int(points.shape[0]),
             "element_count": int(tets.shape[0]),
+            "shell_thickness_mm": wall_mm,
         },
         "boundary_conditions": {
             "magnitude_n": bc["magnitude_n"],
@@ -464,6 +560,9 @@ def run_fem_check(
         "hint": hint,
         "candidates": candidates,
     }
+    if thickness_warning is not None:
+        result["thickness_mismatch_warning"] = thickness_warning
+    return result
 
 
 def main() -> None:
@@ -484,7 +583,7 @@ def main() -> None:
     args = parser.parse_args()
 
     plan = _load_json(args.plan)
-    result = run_fem_check(args.step, plan, args.part, args.mesh_size)
+    result = run_fem_check(args.step, plan, args.part, args.mesh_size, plan_path=args.plan)
     print(json.dumps(result, indent=2))
     sys.exit(0)
 

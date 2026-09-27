@@ -2,6 +2,7 @@
 
 import json
 import math
+from typing import Any
 
 import numpy as np
 import pytest
@@ -742,3 +743,50 @@ def test_sliver_fin_location_is_in_build_frame(fin_stl):
         "sliver_fin",
     )
     assert f[0]["locations_xyz_mm"][0] == pytest.approx([0.0, 0.5, 0.0], abs=1e-4)
+
+
+_RECIPE_PLAN: dict[str, Any] = {
+    "nozzle_mm": 0.4,
+    "material": "PLA",
+    "printer": "Snapmaker U1",
+    "constraints": {"wall_min_mm": 1.2, "overhang_max_deg": 45},
+}
+
+
+def test_recipe_defaults_top_bottom_layers_and_layer_height_without_profile(tmp_path):
+    plan_path = tmp_path / "BUILD_PLAN.json"
+    plan_path.write_text("{}", encoding="utf-8")
+
+    recipe = quality_gate._emit_print_recipe(_RECIPE_PLAN, None, plan_path=str(plan_path))
+
+    assert recipe["top_bottom_layers"] == 4
+    assert recipe["layer_height_mm"] == 0.2  # nozzle_mm * 0.5, unchanged from before
+
+
+def test_recipe_reads_top_bottom_layers_from_constraints(tmp_path):
+    plan = {**_RECIPE_PLAN, "constraints": {**_RECIPE_PLAN["constraints"], "top_bottom_layers": 6}}
+    plan_path = tmp_path / "BUILD_PLAN.json"
+    plan_path.write_text("{}", encoding="utf-8")
+
+    recipe = quality_gate._emit_print_recipe(plan, None, plan_path=str(plan_path))
+
+    assert recipe["top_bottom_layers"] == 6
+
+
+def test_recipe_reads_layer_height_from_profile_motion_block(tmp_path):
+    plan_path = tmp_path / "BUILD_PLAN.json"
+    plan_path.write_text("{}", encoding="utf-8")
+    (tmp_path / "printer_profile.json").write_text(
+        json.dumps({"motion": {"layer_height_mm": 0.16}}), encoding="utf-8"
+    )
+
+    recipe = quality_gate._emit_print_recipe(_RECIPE_PLAN, None, plan_path=str(plan_path))
+
+    assert recipe["layer_height_mm"] == 0.16
+
+
+def test_recipe_ignores_profile_when_plan_path_not_given():
+    recipe = quality_gate._emit_print_recipe(_RECIPE_PLAN, None)
+
+    assert recipe["top_bottom_layers"] == 4
+    assert recipe["layer_height_mm"] == 0.2
