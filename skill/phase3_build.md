@@ -186,9 +186,13 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/fem_check.py" \
     --mesh-size <mm> > build/<part_id>.fem_stress.json
 ```
 
-Pick `--mesh-size` as a fraction of the part's thinnest relevant section (a starting
-point, not a rule -- there is no derived default, see `fem-stress-advisor`). Read the
-result:
+The advisor solves only the part's wall-thickness shell, not its full solid volume (see
+`fem-wall-shell-solve`) -- the shell (`constraints.wall_min_mm`, echoed in the result's
+`mesh.shell_thickness_mm`) is now the thinnest feature in the model by construction. Pick
+`--mesh-size` as a fraction of *that* thickness (a starting point, not a rule -- there is
+no derived default, see `fem-stress-advisor`); a mesh size comparable to or larger than
+the shell thickness risks too few elements through the wall to resolve at all (a singular
+or near-singular solve). Read the result:
 
 - **`status: "skipped"`** -- report the reason and move on; nothing else in the loop
   changes. This is the common case for most load-bearing parts (no researched mass, or

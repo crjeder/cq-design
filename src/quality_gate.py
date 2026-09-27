@@ -394,6 +394,7 @@ def _emit_print_recipe(
     geometry: dict | None,
     orientation: dict | None = None,
     needs_support: bool = False,
+    plan_path: str | None = None,
 ) -> dict:
     """Build a recommended print recipe from plan constraints + geometry.
 
@@ -407,10 +408,28 @@ def _emit_print_recipe(
     used to be hardcoded `False` regardless of `orientation["support_score"]` or
     any overhang finding, so the delivered recipe always claimed no support was
     needed even when the gate had just flagged one.
+
+    `layer_height_mm` is read from `printer_profile.json`'s optional `motion` block next
+    to `plan_path` (same lookup `_run_toolpath_speed_stage` already does -- `motion` is
+    never part of BUILD_PLAN.json itself) when declared, falling back to the previous
+    `nozzle_mm * 0.5` derivation when no `motion` block is present or `plan_path` is not
+    given.
     """
     constraints = plan.get("constraints", {})
     wall_min = constraints.get("wall_min_mm", 1.2)
     nozzle = plan.get("nozzle_mm", 0.4)
+    top_bottom_layers = constraints.get("top_bottom_layers", 4)
+
+    layer_height_mm = round(nozzle * 0.5, 2)
+    if plan_path is not None:
+        profile_path = os.path.join(
+            os.path.dirname(os.path.abspath(plan_path)), "printer_profile.json"
+        )
+        if os.path.isfile(profile_path):
+            with open(profile_path, encoding="utf-8") as f:
+                motion = json.load(f).get("motion")
+            if motion:
+                layer_height_mm = motion["layer_height_mm"]
 
     # Walls = ceil(wall_min / nozzle), at least 2
     walls = max(2, int((wall_min / nozzle) + 0.999))
@@ -442,9 +461,9 @@ def _emit_print_recipe(
         "material": plan.get("material", "PLA"),
         "printer": plan.get("printer", ""),
         "nozzle_mm": nozzle,
-        "layer_height_mm": round(nozzle * 0.5, 2),
+        "layer_height_mm": layer_height_mm,
         "walls": walls,
-        "top_bottom_layers": 4,
+        "top_bottom_layers": top_bottom_layers,
         "infill_percent": 20,
         "infill_pattern": "gyroid",
         "supports": needs_support,
@@ -1197,7 +1216,9 @@ def run_gate(
         "passed": passed,
         "issues": all_issues,
         "print_recipe": (
-            _emit_print_recipe(plan, geometry, orientation, needs_support) if passed else None
+            _emit_print_recipe(plan, geometry, orientation, needs_support, plan_path)
+            if passed
+            else None
         ),
         "fix_rounds": fix_round,
     }
