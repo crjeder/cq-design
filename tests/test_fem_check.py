@@ -234,6 +234,41 @@ def test_resolve_boundary_conditions_applied_dir_overrides():
     assert list(bc["dir"]) == [0, -0.5, -1]
 
 
+def test_thickness_mismatch_warning_absent_when_close(tmp_path):
+    from fem_check import _resolve_shell_thicknesses, _thickness_mismatch_warning
+
+    plan = {"nozzle_mm": 0.4, "constraints": {"wall_min_mm": 1.2, "top_bottom_layers": 6}}
+    wall_mm, topbot_mm = _resolve_shell_thicknesses(plan)  # 6 * (0.4 * 0.5) = 1.2, 0% diff
+    assert _thickness_mismatch_warning(wall_mm, topbot_mm) is None
+
+
+def test_thickness_mismatch_warning_present_when_divergent(tmp_path):
+    from fem_check import _resolve_shell_thicknesses, _thickness_mismatch_warning
+
+    # wall 1.2mm vs top/bottom 4 * (0.4 * 0.5) = 0.8mm -> 33% diff
+    plan = {"nozzle_mm": 0.4, "constraints": {"wall_min_mm": 1.2}}
+    wall_mm, topbot_mm = _resolve_shell_thicknesses(plan)
+    warning = _thickness_mismatch_warning(wall_mm, topbot_mm)
+    assert warning is not None
+    assert warning["wall_min_mm"] == pytest.approx(1.2)
+    assert warning["top_bottom_mm"] == pytest.approx(0.8)
+    assert warning["pct_diff"] == pytest.approx(0.4 / 1.2, abs=1e-3)
+
+
+def test_resolve_shell_thicknesses_reads_profile_motion_layer_height(tmp_path):
+    from fem_check import _resolve_shell_thicknesses
+
+    plan_path = tmp_path / "BUILD_PLAN.json"
+    plan_path.write_text("{}", encoding="utf-8")
+    (tmp_path / "printer_profile.json").write_text(
+        json.dumps({"motion": {"layer_height_mm": 0.3}}), encoding="utf-8"
+    )
+    plan = {"nozzle_mm": 0.4, "constraints": {"wall_min_mm": 1.2, "top_bottom_layers": 4}}
+
+    _, topbot_mm = _resolve_shell_thicknesses(plan, plan_path=str(plan_path))
+    assert topbot_mm == pytest.approx(1.2)  # 4 * 0.3, not 4 * (0.4 * 0.5)
+
+
 def test_resolve_boundary_conditions_falls_back_to_dir():
     part = {
         "load": {
@@ -267,9 +302,13 @@ _needs_fem = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def box_step(tmp_path_factory):
-    """20x10x5 mm box centered at origin, authored frame X=long axis."""
+    """20x10x10 mm box centered at origin, authored frame X=long axis. Sized so a 4mm
+    shell wall (see `_cantilever_plan`'s `wall_min_mm`) leaves a real void in every
+    dimension -- the FEM advisor now solves only the wall-thickness shell, not the full
+    solid, so the box must be thick enough relative to the wall for that shell to mesh
+    without collapsing to near-zero thickness."""
     path = tmp_path_factory.mktemp("fem") / "box.step"
-    box = cq.Workplane("XY").box(20, 10, 5)
+    box = cq.Workplane("XY").box(20, 10, 10)
     cq.exporters.export(box, str(path))
     return str(path)
 
@@ -277,6 +316,7 @@ def box_step(tmp_path_factory):
 def _cantilever_plan(load_dir, magnitude_n=5.0):
     return {
         "material": "PETG",
+        "constraints": {"wall_min_mm": 4.0},
         "parts": [
             {
                 "id": "bar",
