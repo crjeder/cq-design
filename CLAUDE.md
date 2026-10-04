@@ -118,7 +118,7 @@ or calling any script listed below.
     convert_build123d.py     # Phase 0 sourcing aid: build123d -> CadQuery conversion
     cq_compat.py             # Compatibility shim neutralizing a cq_warehouse shape-copy patch
     init_permissions.py      # Seeds a working directory: .claude/settings.local.json (patterns + hooks), build/stl/preview dirs, default printer_profile.json + skill_config.json
-    bundle_project.py        # Copies build.py, lib/ tooling, and the uv project template into a working directory
+    bundle_project.py        # Copies build.py, lib/ tooling, and the uv project template into a working directory; stamps .bundle_version.json; --check reports staleness
     export_standalone.py     # Minimal per-part deliverable: standalone/ = part scripts + only the helpers they import
     printer_profile_validate.py # printer_profile.json schema validation + field write-back
     kinematic_check.py       # Whole-model range-of-motion sweep (trimesh + fcl)
