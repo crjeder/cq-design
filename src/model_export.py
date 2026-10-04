@@ -24,6 +24,7 @@ import os
 import re
 import sys
 from collections import Counter
+from collections.abc import Callable
 
 import cadquery as cq
 
@@ -128,6 +129,7 @@ def export_model(
     *,
     stl_dir: str | None = None,
     formats: tuple[str, ...] | list[str] = (),
+    progress: Callable[[str], None] | None = None,
 ) -> dict:
     """Export all unions to a named 3MF + per-union STL + fused-per-plate STL.
 
@@ -163,6 +165,10 @@ def export_model(
     (`"<part_id>::<zone_name>"` -> path, only for parts that declare zones), and
     `manifest` (path to the written provenance manifest, see `freshness.write_manifest`),
     and `format_files` (format key -> union id -> path; empty without `formats`).
+
+    `progress`, when given, is called with a `[k/N] <step> <id>` line per part loaded,
+    per-union STL and fused plate (each phase counted separately), and once with
+    `writing model.3mf`; it never affects the files written or the returned dict.
     """
     bad = [f for f in formats if f not in EXTRA_FORMATS]
     if bad:
@@ -187,7 +193,9 @@ def export_model(
     print_rotates: dict[str, list] = {}  # union_id -> pose the finishing pass ran under
     pose_findings: list[dict] = []
     keep_out_scripts: dict[str, tuple[str, str]] = {}  # "<part_id>::<zone>" -> (part_id, path)
-    for part in parts:
+    report = progress or (lambda _line: None)
+    for k, part in enumerate(parts, 1):
+        report(f"[{k}/{len(parts)}] loading {part['id']}")
         rotate = None if is_copy(part) else (print_orientations.get(part["id"]) or {}).get("rotate")
         script, result, unions = load_part_unions(part, parts_by_id, parts_dir, rotate)
         declared = {u["id"]: u for u in part.get("unions", [])}
@@ -236,6 +244,7 @@ def export_model(
         for name, (uid, _part) in zip(object_names, records, strict=True)
     ]
     model_3mf = os.path.join(model_dir, "model.3mf")
+    report("writing model.3mf")
     write_named_3mf(objects, model_3mf)
 
     # Verify the deliverable's index topology the way a slicer reads it (no
@@ -252,7 +261,8 @@ def export_model(
 
     # 2. per-union assembled STL
     union_stls = {}
-    for pid, wp in placed.items():
+    for k, (pid, wp) in enumerate(placed.items(), 1):
+        report(f"[{k}/{len(placed)}] stl {pid}")
         stl_path = os.path.join(stl_dir, f"{pid}.stl")
         cq.exporters.export(wp, stl_path)
         union_stls[pid] = stl_path
@@ -261,9 +271,9 @@ def export_model(
     # assembled relative poses (print-in-place), then adopts the first union's
     # print orientation so the whole plate sits on the bed as recommended.
     plate_stls = {}
-    for plate, ids in plates.items():
-        if len(ids) < 2:
-            continue
+    multi_plates = {plate: ids for plate, ids in plates.items() if len(ids) > 1}
+    for k, (plate, ids) in enumerate(multi_plates.items(), 1):
+        report(f"[{k}/{len(multi_plates)}] plate {plate}")
         fused = placed[ids[0]]
         for pid in ids[1:]:
             fused = fused.union(placed[pid])
