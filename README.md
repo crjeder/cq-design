@@ -128,6 +128,154 @@ python <skill-dir>/src/regen_prompt.py --plan BUILD_PLAN.json --out REGENERATE.m
 
 Omit `--out` to print it to stdout.
 
+## Command-line reference
+
+Claude calls these scripts during the pipeline; you can also run them by hand with
+`uv run python <skill-dir>/src/<script>.py ...`. Every script supports `-h`/`--help`.
+Required options are marked **(req)**. Exit codes and JSON output shapes are in
+[`reference/scripts.md`](reference/scripts.md).
+
+### Installers (`install.sh` / `install.ps1`)
+
+| Option | Effect |
+|---|---|
+| `--link` / `-Link` | Symlink the repo instead of copying |
+| `--uninstall` / `-Uninstall` | Remove the installed skill |
+| `--dest <dir>` / `-Dest <dir>` | Install to another skills directory (or set `CLAUDE_SKILLS_DIR`) |
+
+### Build and run
+
+**`run_cadquery_model.py <script>`** runs a part script, validates the geometry, and emits the JSON contract.
+
+| Option | Default | Effect |
+|---|---|---|
+| `--preview` | off | Render a multi-view preview PNG |
+| `--views {iso,multi}` | `multi` | Preview layout |
+| `--preview-dir DIR` | next to script | Preview output directory (needs `--preview`) |
+| `--cross-sections` | off | Render cross-sections as separate files (needs `--preview`) |
+| `--extra-section AXIS=MM` | none | Extra cross-section, e.g. `x=50`; repeatable |
+| `--detail SPEC` | none | High-resolution detail view, `name=<feature>;center=x,y,z;size=<mm>[;section=<axis>=<pos>]`; repeatable |
+| `--callout SPEC` | none | Numbered badge for a feature, `name=<feature>;center=x,y,z`; repeatable |
+| `--unlocated-name NAME` | none | Legend entry for a feature with no known position; repeatable |
+| `--strict` | off | Fail if an STL is not watertight or none was produced |
+| `--timeout SEC` | 180 | Model run timeout |
+| `--expected-dims W,D,H` | none | Expected bounding box in mm |
+| `--dim-tolerance MM` | 1.0 | Tolerance for `--expected-dims` |
+| `--wall-min MM` | 0 | Minimum wall thickness for the DFM check (0 skips it) |
+| `--line-width MM` | 0.42 | Extrusion line width for the brittle thin-wall threshold |
+| `--density G/CM3` | 1.24 | Filament density for the weight estimate (PLA) |
+| `--material NAME` | `PLA` | Material label in the preview footer |
+| `--deliver` | off | Run the exporters and populate `stl`/`stls` |
+| `--formats LIST` | `stl` | Comma-separated formats for `--deliver` |
+| `--output-dir DIR` | next to script | Output directory for `--deliver` |
+| `--print-rotate FILE` | none | `print_orientation.py` JSON; sets the print pose for `blocks.print_up()` |
+| `--attempts-log FILE` | none | Append this run's attempt record to an `attempts.jsonl` |
+| `--model NAME` | none | Model name stored in the attempt record |
+
+#### Export formats and STEP output
+
+`--deliver --formats LIST` writes one file per format. Supported keys: `stl`, `step`, `3mf`, `obj`, `iges`, `scad`.
+
+```bash
+uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --output-dir out
+```
+
+- STEP is the exact B-rep (not a mesh), meant for editing in Fusion 360, FreeCAD and similar CAD tools. It is written as `<name>.step`.
+- `<name>` is the script stem, or the union id for each union of a multi-union part (one file per union; keep-out zones are never exported).
+- Files go to `--output-dir` (default: next to the script) and the JSON lists only the STL (`stls`) and 3MF (`threemfs`) paths; STEP files are on disk but not reported there.
+- `build.py` / `model_export.py` write only `model.3mf` and STLs. To get STEP files for a finished project, run `--deliver --formats step` per part script.
+- `fem_check.py` takes a part's exported STEP file as its positional input.
+
+**`render_preview.py`** (preview subprocess) takes `--script` **(req)**, `--output` **(req)**, `--views`, `--title`, `--subtitle`, `--density`, `--material`, `--cross-sections`, `--extra-section`, `--detail`, `--callout`, `--unlocated-name` with the same meaning as above. `preview.py --help-note` prints a usage note.
+
+**`section_select.py <script>`** picks section planes through bore/boss axes: `--max N` (default 3), `--reserve AXIS=MM` (repeatable).
+
+**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default root; `model.3mf`), `--stl-out` (default `<root>/stl`), `--orientations` (default `orientations.json` in `--parts-dir`).
+
+**`model_export.py`**: `--plan` **(req)**, `--parts-dir` **(req)**, `--out` **(req)**, `--stl-out` (default: `--out`), `--orientations FILE` (part id to orientation JSON; deliverables are written in these poses).
+
+**`export_standalone.py`**: `--parts-dir` (default `build`), `--out` (default `standalone`), `--parameters` (default `parameters.py`).
+
+**`bundle_project.py [dir]`** and **`init_permissions.py [dir]`**: `dir` defaults to the current directory. `init_permissions.py --check` exits 0 if init already ran, 1 otherwise, and changes nothing.
+
+### Quality gate and checks
+
+**`quality_gate.py`**: `--script` **(req)**, `--plan` **(req)**, `--stl FILE`, `--model-3mf FILE`, `--stl-dir DIR` (default: next to `--script`), `--orientation FILE` (a `print_orientation.py` result), `--attempts-log FILE` (default `attempts.jsonl` next to `--script`), `--fix` (invoke `claude` to fix errors; default is report-only).
+
+**`plan.py`** subcommands:
+
+| Subcommand | Options |
+|---|---|
+| `validate <plan>` | `--inventory FILE`, `--archetypes FILE`, `--require-rationale` (engineering_rationale findings become errors; use at the Phase 3 pre-export run) |
+| `summary <plan>` | none |
+| `import-params <script>` | `--part ID` **(req)**, `--plan FILE` (default `BUILD_PLAN.json`), `--write` (persist the reconciled plan) |
+
+**`script_lint.py <script>`**: AST pre-flight lint, no options.
+
+**`edge_treatment_check.py`**: `--script` **(req)**, `--orientations FILE` (omit to classify in the authored frame).
+**`feature_presence_check.py`**: `--script` **(req)**.
+**`gridfinity_check.py`**: `--script` **(req)**, `--kind {auto,bin,baseplate}` (default `auto`), `--cells COLSxROWS` (default: read from the footprint).
+
+**Whole-model checks** `kinematic_check.py`, `plate_clearance_check.py`, `keep_out_check.py` share `--plan` **(req)**, `--stl-dir` **(req)**, `--parts-dir` (detects STLs stale relative to their scripts; omit to skip). `kinematic_check.py` adds `--penetration-tol-mm3` (default 0.1) and `--inventory FILE`.
+
+**`minimal_cutout_search.py <script>`**: `--param NAME` **(req)**, `--plan` **(req)**, `--part` **(req)**, `--joint-id` **(req)**, `--stl-dir` **(req)**, `--lo` **(req)** (bound that must still collide), `--hi` **(req)** (bound that must already clear), `--tolerance-mm` (0.1), `--margin-mm` (0.2), `--apply` (write the value back into the script).
+
+### Orientation and advisors
+
+**`print_orientation.py <stl>`**:
+
+| Option | Default | Effect |
+|---|---|---|
+| `--overhang-max-deg` | 45 | Overhang angle above which support is needed |
+| `--bridge-max-mm` | built-in | Longest span treated as a bridge |
+| `--load x,y,z` | none | Principal load direction in the authored frame |
+| `--load-type` | `tension` | `tension`, `bending`, `shear`, or `compression` |
+| `--optimize-for` | `strength` | `strength`, `min_support`, `visual_quality`, `min_build_height`, or `min_print_time` |
+| `--show-face x,y,z` | inferred | Cosmetic surface normal |
+| `--source-script FILE` | none | Stamp the result with the script's provenance hash |
+| `--fem-stress FILE` | none | `fem_check.py` result; strength = `1 - fi_p99` when status is `ok` |
+| `--speed-model FILE` | none | `toolpath_speed.py --emit-candidates` result; enables `min_print_time` ordering |
+
+**`toolpath_speed.py`**: `--script` **(req)**, `--stl FILE` (posed union STL; omit for authored-frame corner findings only), `--profile FILE` (default `printer_profile.json` next to `--plan`), `--emit-candidates UNION` (per-candidate table for `--speed-model`; needs `--stl`).
+
+**`fem_check.py <step>`**: `--plan` **(req)**, `--part` **(req)**, `--mesh-size MM` **(req)**, no default by design. Needs the `fem` dependency group.
+
+**`printer_profile_validate.py <profile>`**: `--set KEY=VALUE` writes a field back, e.g. `nozzle_mm=0.6`, `constraints.overhang_max_deg=50`; repeatable.
+
+### Measuring and comparing
+
+**`measure_stl.py <stl>`**: `--min-radius MM` (1.0), `--min-area MM2` (5.0), `--thin-max MM` (2.0), `--line-width MM` (0.42).
+**`diff_models.py <a> <b>`**: `--png FILE` (diff image), `--tol` (relative volume tolerance for "identical", default 1e-6).
+
+### Prompts, logs, and housekeeping
+
+**`render_prompt.py <kind>`**:
+
+| Kind | Options |
+|---|---|
+| `builder` | `--plan` **(req)**, `--part` **(req)**, `--out`, `--override {autonomous,staged}`, `--attempts FILE` |
+| `audit` | `--plan` **(req)**, `--part` **(req)**, `--out`, `--script` **(req)**, `--previews FILE...` **(req)** |
+| `planning` | `--request-file` **(req)**, `--plan`, `--profile` (default `printer_profile.json`), `--out` |
+| `research` | `--targets-file` **(req)**, `--known-file`, `--out` |
+| `sourcing` | `--request-file` **(req)**, `--out` |
+
+**`log.py`**:
+
+| Command | Arguments and options |
+|---|---|
+| `--hook` | Read a PostToolUse payload from stdin; append a base attempt record |
+| `journal append <journal> <milestone> <text>` | `milestone` is `<phase>/<key>`, e.g. `phase3/part_accepted:lid` |
+| `attempt append <file> [json]` | `--field KEY=VALUE` (JSON-parsed, repeatable) |
+| `attempt audit-fail` | `--part` **(req)**, `--audit FILE` **(req)**, `--file` (default `build/attempts.jsonl`) |
+| `request search <plan>` | `--query`, `--kind {initial,clarification,correction}`, `--level {functional,operation,parameter}`, `--target` |
+| `request add <plan>` | `--kind {clarification,correction}` **(req)**, `--text` **(req)**, `--level`, `--target` (repeatable), `--reconciled`, `--snapshot-scripts DIR` |
+
+**`session_cost.py`**: `--hook` (read the hook payload from stdin; update `./build/cost.json`), or `--transcript FILE`, `--out FILE`, `--session-id ID` (non-hook mode).
+**`regen_prompt.py`**: `--plan` (default `BUILD_PLAN.json`), `--out` (default stdout).
+**`skill_version.py`**: `--compare REPO`, `--json`.
+**`convert_build123d.py`**: `--mapping` (print the build123d to CadQuery table as JSON), `--smoke-check FILE` (run a converted script through the wrapper).
+**`blocks/validate.py`**: `--search KEYWORD` (find blocks mentioning a keyword).
+
 ## Files
 
 ```
