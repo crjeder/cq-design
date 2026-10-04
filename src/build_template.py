@@ -31,11 +31,13 @@ Arguments (all optional):
     --out           where model.3mf is written (default: the project root)
     --stl-out       where the STLs are written (default: <project root>/stl)
     --orientations  accepted orientations JSON (default: orientations.json in --parts-dir)
+    --formats       extra per-union formats, comma-separated: step, obj, iges, scad (default: none)
 
 Outputs:
     model.3mf (in --out)         one named object per union, with plate metadata
     <union-id>.stl (in --stl-out)  one assembled-pose STL per union
     plate_<n>.stl (in --stl-out)   one fused STL per multi-union plate
+    <union-id>.<ext> (in --stl-out) assembled pose, one per union per --formats key
 
 When `orientations.json` (the skill's accepted per-union orientations) sits next to
 the part scripts, build.py reuses it so the plates match what the skill delivered;
@@ -59,7 +61,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.p
 import cadquery as cq
 
 from freshness import is_stale, script_hash
-from model_export import export_model, load_part_unions
+from model_export import EXTRA_FORMATS, export_model, load_part_unions
 from print_finishing import orientation_for
 from units import is_copy, load_plan
 
@@ -129,6 +131,9 @@ def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]
     print(f"model.3mf: {result['model_3mf']}")
     for plate, plate_path in result["plate_stls"].items():
         print(f"plate {plate}: {plate_path}")
+    for fmt, files in result["format_files"].items():
+        for uid, path in files.items():
+            print(f"{fmt} {uid}: {path}")
     if recomputed:
         print(f"recomputed (source script changed since accepted): {', '.join(recomputed)}")
 
@@ -164,7 +169,16 @@ def main() -> None:
         default=None,
         help="Accepted orientations JSON (default: orientations.json in --parts-dir)",
     )
+    parser.add_argument(
+        "--formats",
+        default="",
+        help=f"Extra per-union formats, comma-separated ({', '.join(EXTRA_FORMATS)})",
+    )
     args = parser.parse_args()
+    formats = [f for f in args.formats.split(",") if f]
+    bad = [f for f in formats if f not in EXTRA_FORMATS]
+    if bad:
+        parser.error(f"unsupported format(s) {bad}; supported: {', '.join(EXTRA_FORMATS)}")
 
     orientations_path = args.orientations or os.path.join(args.parts_dir, "orientations.json")
 
@@ -174,7 +188,9 @@ def main() -> None:
         orientations, summary, recomputed = resolve_orientations(
             plan, args.parts_dir, orientations_path
         )
-        result = export_model(plan, args.parts_dir, args.out, orientations, stl_dir=args.stl_out)
+        result = export_model(
+            plan, args.parts_dir, args.out, orientations, stl_dir=args.stl_out, formats=formats
+        )
     except Exception as exc:
         sys.stderr.write(f"build failed: {exc}\n")
         sys.exit(1)

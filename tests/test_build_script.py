@@ -38,9 +38,9 @@ def _setup(tmp_path, skill_src, parts, part_bodies):
     return build_dir
 
 
-def _run(build_dir, env=None):
+def _run(build_dir, env=None, *args):
     return subprocess.run(
-        [sys.executable, str(build_dir / "build.py")],
+        [sys.executable, str(build_dir / "build.py"), *args],
         capture_output=True,
         text=True,
         cwd=str(build_dir.parent),
@@ -222,3 +222,28 @@ def test_build_py_recomputes_stale_orientation(tmp_path, skill_src):
     assert z < 10
     assert "plate" in proc.stdout
     assert "recomputed" in proc.stdout
+
+
+def test_build_py_formats_step_writes_step_per_union(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path, skill_src, [{"id": "base", "description": "base"}], {"base": _FLAT}
+    )
+
+    proc = _run(build_dir, None, "--formats", "step")
+
+    assert proc.returncode == 0, proc.stderr
+    assert (build_dir.parent / "stl" / "base.step").exists()
+    assert (build_dir.parent / "stl" / "base.stl").exists()
+    assert "base.step" in proc.stdout
+
+
+def test_build_py_formats_unsupported_key_exits_nonzero(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path, skill_src, [{"id": "base", "description": "base"}], {"base": _FLAT}
+    )
+
+    proc = _run(build_dir, None, "--formats", "dxf")
+
+    assert proc.returncode != 0
+    assert "step" in proc.stderr
+    assert not (build_dir.parent / "model.3mf").exists()
