@@ -68,13 +68,33 @@ python ~/.claude/skills/cq-design/src/skill_version.py --compare .
 Exits non-zero when the installed copy isn't confirmed up to date, so it
 also works as a quick check in a script.
 
+## Updating an existing project
+
+A project's `lib/`, `build/build.py`, and `.claude/settings.local.json` are snapshots
+of the skill taken when it was last bundled.
+
+```bash
+python ~/.claude/skills/cq-design/src/skill_version.py --compare <path-to-this-repo>   # skill stale? reinstall (install.sh / install.ps1)
+python ~/.claude/skills/cq-design/src/bundle_project.py --check .                    # is this project's lib/ stale?
+python ~/.claude/skills/cq-design/src/bundle_project.py .                            # refresh lib/, build.py, permissions
+uv sync
+uv run python build/build.py
+```
+
+`bundle_project.py` overwrites the bundled tooling, prunes files the skill no longer
+ships, and keeps an existing `pyproject.toml` / `.python-version` (it prints a note when
+they differ from the template; merge new dependencies by hand). Part scripts are not
+touched: if `build.py` fails after a refresh, a `blocks` signature probably changed, so
+read the error and edit that part script.
+
 ## Regenerating the 3MF / STL files
 
 When the skill finishes it turns your working directory into a self-contained
 [uv](https://docs.astral.sh/uv/) project: a `pyproject.toml`, `.python-version`, and
 committed `uv.lock` at the root, plus a `build/` directory holding the per-part scripts,
-`build.py`, `BUILD_PLAN.json`, `orientations.json` (when orientations were accepted), and
-the bundled build tooling (`exporters/`, `blocks/`, `model_export.py`, and friends).
+`build.py`, `BUILD_PLAN.json`, and `orientations.json` (when orientations were accepted),
+and a `lib/` directory with the bundled build tooling (`exporters/`, `blocks/`,
+`model_export.py`, and friends).
 Everything needed to rebuild the model lives here -- the skill does not have to be
 installed.
 
