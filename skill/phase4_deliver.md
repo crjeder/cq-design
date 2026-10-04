@@ -37,7 +37,7 @@ Report to the user:
      omitted when `bom` is absent or empty
    - The directory layout:
      ```
-     README.md, REGENERATE.md, parameters.py, model.3mf, BUILD_PLAN.json, printer_profile.json
+     README.md, REGENERATE.md, parameters.py, model.3mf, BUILD_PLAN.json, profile.json
      pyproject.toml, .python-version, uv.lock
      build/   <part_id>.py (editable part scripts), build.py, orientations.json, *.orientation.json
      lib/     bundled build tooling

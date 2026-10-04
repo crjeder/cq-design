@@ -25,12 +25,12 @@ Once per working directory (all idempotent):
 ```bash
 uv sync --project "$SKILL_DIR"
 python "$SKILL_DIR/src/init_permissions.py" .
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" profile.json
 ```
 
 `init_permissions.py` merges the permission patterns and hooks into
 `.claude/settings.local.json`, creates `build/`, `stl/`, `preview/`, and seeds
-`printer_profile.json` / `skill_config.json` when absent (never overwrites). When it
+`profile.json` / `skill_config.json` when absent (never overwrites). When it
 reports seeding a file, tell the user where to edit it. If the profile fails validation,
 report the errors and ask for those fields in Phase 1. If the helper cannot run, merge
 `src/skill_permissions.json`'s `allow` array into `.claude/settings.local.json` by hand.

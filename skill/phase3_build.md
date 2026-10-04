@@ -225,7 +225,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/toolpath_speed.py" \
 
 Read the result:
 
-- **`status: "skipped"`** -- `printer_profile.json` has no `motion` block, or the
+- **`status: "skipped"`** -- `profile.json` has no `motion` block, or the
   geometry isn't prismatic enough for the model; report the reason and move on.
 - **`status: "ok"`, `issues: []`** -- already efficient; nothing to report.
 - **An issue with `attribution`** -- ranked corners and the print time each fillet
