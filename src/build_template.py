@@ -92,18 +92,36 @@ def resolve_orientations(
     summary: dict[str, dict] = {}
     recomputed: list[str] = []
     parts_by_id = {p["id"]: p for p in plan.get("parts", [])}
+
+    def _script(part: dict) -> str:
+        return os.path.join(
+            parts_dir, f"{part['copy_of']['part'] if is_copy(part) else part['id']}.py"
+        )
+
+    def _union_ids(part: dict) -> list[str]:
+        return [u["id"] for u in part.get("unions", [])] or [part["id"]]
+
+    # Unions that must be computed (no accepted entry, or a stale one) -> was it stale.
+    # Only these are reported as progress, so N is known up front.
+    todo: dict[str, bool] = {}
     for part in plan.get("parts", []):
-        pid = part["id"]
-        script = os.path.join(parts_dir, f"{part['copy_of']['part'] if is_copy(part) else pid}.py")
-        optimize_for = part.get("optimize_for", plan_mode)
-        union_ids = [u["id"] for u in part.get("unions", [])] or [pid]
-        wp_by_uid: dict[str, cq.Workplane] | None = None  # loaded lazily, once per part
-        for uid in union_ids:
+        for uid in _union_ids(part):
             entry = accepted.get(uid)
-            stale = entry is not None and is_stale(entry.get("source_script_hash"), script)
-            if entry is not None and not stale:
-                chosen = entry
+            stale = entry is not None and is_stale(entry.get("source_script_hash"), _script(part))
+            if entry is None or stale:
+                todo[uid] = stale
+    done = 0
+    for part in plan.get("parts", []):
+        script = _script(part)
+        optimize_for = part.get("optimize_for", plan_mode)
+        wp_by_uid: dict[str, cq.Workplane] | None = None  # loaded lazily, once per part
+        for uid in _union_ids(part):
+            stale = todo.get(uid, False)
+            if uid not in todo:
+                chosen = accepted[uid]
             else:
+                done += 1
+                print(f"[{done}/{len(todo)}] orientation {uid}", flush=True)
                 try:
                     if wp_by_uid is None:
                         wp_by_uid = dict(load_part_unions(part, parts_by_id, parts_dir)[2])
@@ -174,7 +192,14 @@ def main() -> None:
         orientations, summary, recomputed = resolve_orientations(
             plan, args.parts_dir, orientations_path
         )
-        result = export_model(plan, args.parts_dir, args.out, orientations, stl_dir=args.stl_out)
+        result = export_model(
+            plan,
+            args.parts_dir,
+            args.out,
+            orientations,
+            stl_dir=args.stl_out,
+            progress=lambda line: print(line, flush=True),
+        )
     except Exception as exc:
         sys.stderr.write(f"build failed: {exc}\n")
         sys.exit(1)
