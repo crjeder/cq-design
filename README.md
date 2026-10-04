@@ -184,16 +184,16 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 - STEP is the exact B-rep (not a mesh), meant for editing in Fusion 360, FreeCAD and similar CAD tools. It is written as `<name>.step`.
 - `<name>` is the script stem, or the union id for each union of a multi-union part (one file per union; keep-out zones are never exported).
 - Files go to `--output-dir` (default: next to the script) and the JSON lists only the STL (`stls`) and 3MF (`threemfs`) paths; STEP files are on disk but not reported there.
-- `build.py` / `model_export.py` write only `model.3mf` and STLs. To get STEP files for a finished project, run `--deliver --formats step` per part script.
+- `build.py` / `model_export.py` always write `model.3mf` and STLs; add `--formats step` (also `obj`, `iges`, `scad`) to also write `<union-id>.step` per union, in the assembled pose, next to the STLs.
 - `fem_check.py` takes a part's exported STEP file as its positional input.
 
 **`render_preview.py`** (preview subprocess) takes `--script` **(req)**, `--output` **(req)**, `--views`, `--title`, `--subtitle`, `--density`, `--material`, `--cross-sections`, `--extra-section`, `--detail`, `--callout`, `--unlocated-name` with the same meaning as above. `preview.py --help-note` prints a usage note.
 
 **`section_select.py <script>`** picks section planes through bore/boss axes: `--max N` (default 3), `--reserve AXIS=MM` (repeatable).
 
-**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default root; `model.3mf`), `--stl-out` (default `<root>/stl`), `--orientations` (default `orientations.json` in `--parts-dir`).
+**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default root; `model.3mf`), `--stl-out` (default `<root>/stl`), `--orientations` (default `orientations.json` in `--parts-dir`), `--formats` (comma-separated extra per-union formats: `step`, `obj`, `iges`, `scad`; default none).
 
-**`model_export.py`**: `--plan` **(req)**, `--parts-dir` **(req)**, `--out` **(req)**, `--stl-out` (default: `--out`), `--orientations FILE` (part id to orientation JSON; deliverables are written in these poses).
+**`model_export.py`**: `--plan` **(req)**, `--parts-dir` **(req)**, `--out` **(req)**, `--stl-out` (default: `--out`), `--orientations FILE` (part id to orientation JSON; deliverables are written in these poses), `--formats` (as for `build.py`).
 
 **`export_standalone.py`**: `--parts-dir` (default `build`), `--out` (default `standalone`), `--parameters` (default `parameters.py`).
 
