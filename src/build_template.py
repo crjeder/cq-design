@@ -31,6 +31,7 @@ Arguments (all optional):
     --out           where model.3mf is written (default: the project root)
     --stl-out       where the STLs are written (default: <project root>/stl)
     --orientations  accepted orientations JSON (default: orientations.json in --parts-dir)
+    --profile       profile.json (default: the project root); slicer.preferred_format is required
     --formats       extra per-union formats, comma-separated: step, obj, iges, scad (default: none)
 
 Outputs:
@@ -140,6 +141,25 @@ def resolve_orientations(
     return orientations, summary, recomputed
 
 
+def load_preferred_format(profile_path: str) -> tuple[str, str | None]:
+    """Return (preferred_format, slicer_name) from profile.json; raise ValueError if unset."""
+    if not os.path.isfile(profile_path):
+        hint = ""
+        legacy = os.path.join(os.path.dirname(profile_path), "printer_profile.json")
+        if os.path.isfile(legacy):
+            hint = " (rename printer_profile.json to profile.json)"
+        raise ValueError(f"{profile_path} not found{hint}")
+    with open(profile_path, encoding="utf-8") as f:
+        slicer = json.load(f).get("slicer") or {}
+    fmt = slicer.get("preferred_format")
+    if fmt not in ("3mf", "stl", *EXTRA_FORMATS):
+        raise ValueError(
+            f"{profile_path}: slicer.preferred_format must be one of "
+            f"3mf, stl, {', '.join(EXTRA_FORMATS)}; got {fmt!r}"
+        )
+    return fmt, slicer.get("slicer_name")
+
+
 def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]) -> None:
     """Print the chosen orientation and output path for each union, then plates."""
     for pid, chosen in summary.items():
@@ -188,6 +208,11 @@ def main() -> None:
         help="Accepted orientations JSON (default: orientations.json in --parts-dir)",
     )
     parser.add_argument(
+        "--profile",
+        default=os.path.join(project_root, "profile.json"),
+        help="Path to profile.json (default: the project root)",
+    )
+    parser.add_argument(
         "--formats",
         default="",
         help=f"Extra per-union formats, comma-separated ({', '.join(EXTRA_FORMATS)})",
@@ -197,6 +222,15 @@ def main() -> None:
     bad = [f for f in formats if f not in EXTRA_FORMATS]
     if bad:
         parser.error(f"unsupported format(s) {bad}; supported: {', '.join(EXTRA_FORMATS)}")
+
+    try:
+        preferred, slicer_name = load_preferred_format(args.profile)
+    except ValueError as exc:
+        sys.stderr.write(f"build failed: {exc}\n")
+        sys.exit(1)
+    if preferred in EXTRA_FORMATS and preferred not in formats:
+        formats.append(preferred)
+    print(f"preferred format: {preferred}" + (f" ({slicer_name})" if slicer_name else ""))
 
     orientations_path = args.orientations or os.path.join(args.parts_dir, "orientations.json")
 

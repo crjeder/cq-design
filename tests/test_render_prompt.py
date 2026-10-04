@@ -145,7 +145,7 @@ def test_text_part_injects_emboss_reference_without_placeholder_error():
 
 
 def test_render_planning_fresh_plan_lists_inventory_and_archetypes(tmp_path):
-    profile = tmp_path / "printer_profile.json"
+    profile = tmp_path / "profile.json"
     profile.write_text(
         json.dumps(
             {
@@ -182,7 +182,7 @@ def test_render_planning_replan_includes_block_tagged_fdm_section():
 
 
 def test_render_planning_absent_and_invalid_profile(tmp_path):
-    missing = tmp_path / "printer_profile.json"
+    missing = tmp_path / "profile.json"
     text, status, errors = rp.render_planning("req", None, missing)
     assert status == "absent"
     assert errors == []

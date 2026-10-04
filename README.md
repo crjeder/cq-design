@@ -257,7 +257,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 | `--fem-stress FILE` | none | `fem_check.py` result; strength = `1 - fi_p99` when status is `ok` |
 | `--speed-model FILE` | none | `toolpath_speed.py --emit-candidates` result; enables `min_print_time` ordering |
 
-**`toolpath_speed.py`**: `--script` **(req)**, `--stl FILE` (posed union STL; omit for authored-frame corner findings only), `--profile FILE` (default `printer_profile.json` next to `--plan`), `--emit-candidates UNION` (per-candidate table for `--speed-model`; needs `--stl`).
+**`toolpath_speed.py`**: `--script` **(req)**, `--stl FILE` (posed union STL; omit for authored-frame corner findings only), `--profile FILE` (default `profile.json` next to `--plan`), `--emit-candidates UNION` (per-candidate table for `--speed-model`; needs `--stl`).
 
 **`fem_check.py <step>`**: `--plan` **(req)**, `--part` **(req)**, `--mesh-size MM` **(req)**, no default by design. Needs the `fem` dependency group.
 
@@ -276,7 +276,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 |---|---|
 | `builder` | `--plan` **(req)**, `--part` **(req)**, `--out`, `--override {autonomous,staged}`, `--attempts FILE` |
 | `audit` | `--plan` **(req)**, `--part` **(req)**, `--out`, `--script` **(req)**, `--previews FILE...` **(req)** |
-| `planning` | `--request-file` **(req)**, `--plan`, `--profile` (default `printer_profile.json`), `--out` |
+| `planning` | `--request-file` **(req)**, `--plan`, `--profile` (default `profile.json`), `--out` |
 | `research` | `--targets-file` **(req)**, `--known-file`, `--out` |
 | `sourcing` | `--request-file` **(req)**, `--out` |
 
@@ -303,8 +303,8 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 SKILL.md                    # skill definition and workflow phases
 CLAUDE.md                   # development guidance for the pipeline scripts
 src/build_plan_schema.json  # JSON Schema draft-7 for BUILD_PLAN.json
-src/printer_profile_schema.json      # JSON Schema draft-7 for printer_profile.json
-src/printer_profile.default.json     # default printer_profile.json seeded into a fresh directory
+src/printer_profile_schema.json      # JSON Schema draft-7 for profile.json
+src/profile.default.json     # default profile.json seeded into a fresh directory
 pyproject.toml              # dependencies and project metadata (uv)
 
 src/
@@ -312,7 +312,7 @@ src/
   run_model_shim.py         # runpy shim that auto-exports `result` to STL
   quality_gate.py           # DFM + in-process trimesh geometry/overhang analysis (no slicer required), fix rounds, print recipe
   plan.py                   # validate / summary / import-params over BUILD_PLAN.json
-  printer_profile_validate.py # validates printer_profile.json and writes back field overrides
+  printer_profile_validate.py # validates profile.json and writes back field overrides
   measure_stl.py            # geometry feature extractor for reference STLs (trimesh + numpy)
   preview.py                # headless multi-view PNG renderer (CadQuery tessellation + matplotlib)
   render_preview.py         # subprocess entry point for preview.py

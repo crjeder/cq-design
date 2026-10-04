@@ -7,7 +7,7 @@ Usage:
     python render_prompt.py audit --plan BUILD_PLAN.json --part lid \
         --script build/lid.py --previews preview/lid_preview.png ... [--out PATH]
     python render_prompt.py planning --request-file build/request.md \
-        [--plan BUILD_PLAN.json] [--profile printer_profile.json] [--out PATH]
+        [--plan BUILD_PLAN.json] [--profile profile.json] [--out PATH]
     python render_prompt.py research --targets-file build/lookup_targets.md \
         [--known-file build/known_context.md] [--out PATH]
     python render_prompt.py sourcing --request-file build/request.md [--out PATH]
@@ -453,7 +453,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("planning")
     p.add_argument("--request-file", required=True, type=Path)
     p.add_argument("--plan", type=Path)
-    p.add_argument("--profile", type=Path, default=Path("printer_profile.json"))
+    p.add_argument("--profile", type=Path, default=Path("profile.json"))
     p.add_argument("--out")
 
     p = sub.add_parser("research")

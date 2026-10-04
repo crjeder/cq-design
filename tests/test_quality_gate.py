@@ -776,7 +776,7 @@ def test_recipe_reads_top_bottom_layers_from_constraints(tmp_path):
 def test_recipe_reads_layer_height_from_profile_motion_block(tmp_path):
     plan_path = tmp_path / "BUILD_PLAN.json"
     plan_path.write_text("{}", encoding="utf-8")
-    (tmp_path / "printer_profile.json").write_text(
+    (tmp_path / "profile.json").write_text(
         json.dumps({"motion": {"layer_height_mm": 0.16}}), encoding="utf-8"
     )
 
