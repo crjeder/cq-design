@@ -75,5 +75,23 @@ line; the format below is what that command writes.
    existing journal rather than truncating it — the old lines remain a true record of
    the prior attempt.
 
+## Updating an existing project
+
+To refresh a project directory's bundled tooling to the current skill:
+
+```bash
+python ~/.claude/skills/cq-design/src/skill_version.py --compare <path-to-this-repo>   # skill stale? reinstall (install.sh / install.ps1)
+python ~/.claude/skills/cq-design/src/bundle_project.py --check .                    # is this project's lib/ stale?
+python ~/.claude/skills/cq-design/src/bundle_project.py .                            # refresh lib/, build.py, permissions
+uv sync
+uv run python build/build.py
+```
+
+`bundle_project.py` overwrites the bundled tooling, prunes files the skill no longer
+ships, and keeps an existing `pyproject.toml` / `.python-version` (it prints a note when
+they differ from the template; merge new dependencies by hand). Part scripts are not
+touched: if `build.py` fails after a refresh, a `blocks` signature probably changed, so
+read the error and edit that part script.
+
 If no `build/journal.md` exists, none of the above applies — start the pipeline
 normally and create the journal on its first milestone.
