@@ -756,3 +756,48 @@ def test_formats_unsupported_key_raises_before_writing(tmp_path, bad):
         export_model(_placed_plan(parts_dir), str(parts_dir), str(out), formats=["step", bad])
 
     assert not out.exists() or not list(out.iterdir())
+
+def test_progress_callback_reports_numbered_lines_per_phase(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    _write_multi_union_part(parts_dir, "hinge", "leaf_a", "leaf_b")
+    plan = _plan(
+        [
+            {"id": "base", "description": "Base", "plate": "p"},
+            {
+                "id": "hinge",
+                "description": "Hinge",
+                "unions": [{"id": "leaf_a", "plate": "p"}, {"id": "leaf_b", "plate": "p"}],
+            },
+        ]
+    )
+    lines = []
+
+    export_model(plan, str(parts_dir), str(tmp_path / "dist"), progress=lines.append)
+
+    assert lines == [
+        "[1/2] loading base",
+        "[2/2] loading hinge",
+        "writing model.3mf",
+        "[1/3] stl base",
+        "[2/3] stl leaf_a",
+        "[3/3] stl leaf_b",
+        "[1/1] plate p",
+    ]
+
+
+def test_no_progress_callback_prints_nothing_and_writes_same_files(tmp_path, capsys):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    plan = _plan([{"id": "base", "description": "Base"}])
+
+    plain = export_model(plan, str(parts_dir), str(tmp_path / "a"))
+    assert capsys.readouterr().out == ""
+    with_cb = export_model(plan, str(parts_dir), str(tmp_path / "b"), progress=lambda _s: None)
+
+    assert sorted(Path(p).name for p in plain["union_stls"].values()) == sorted(
+        Path(p).name for p in with_cb["union_stls"].values()
+    )
+    assert plain.keys() == with_cb.keys()
