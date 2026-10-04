@@ -222,3 +222,65 @@ def test_build_py_recomputes_stale_orientation(tmp_path, skill_src):
     assert z < 10
     assert "plate" in proc.stdout
     assert "recomputed" in proc.stdout
+
+
+def test_build_py_prints_numbered_progress_before_summary(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [{"id": "base", "description": "base"}, {"id": "lid", "description": "lid"}],
+        {"base": _FLAT, "lid": _FLAT},
+    )
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    out = proc.stdout
+    # No orientations.json: both unions are computed, so numbered over those two.
+    assert "[1/2] orientation base" in out
+    assert "[2/2] orientation lid" in out
+    assert "[1/2] loading base" in out
+    assert "[2/2] loading lid" in out
+    assert "writing model.3mf" in out
+    assert out.index("[2/2] loading lid") < out.index("model.3mf:")
+
+
+def test_build_py_reused_orientations_print_no_orientation_lines(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [{"id": "plate", "description": "flat plate"}],
+        {"plate": _FLAT},
+    )
+    (build_dir / "orientations.json").write_text(
+        json.dumps({"plate": {"rotate": []}}), encoding="utf-8"
+    )
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    assert "orientation plate" not in proc.stdout
+    assert "[1/1] loading plate" in proc.stdout
+
+
+def test_build_py_recomputed_orientations_numbered_over_recomputed_only(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [
+            {"id": "a", "description": "a"},
+            {"id": "b", "description": "b"},
+            {"id": "c", "description": "c"},
+        ],
+        {"a": _FLAT, "b": _FLAT, "c": _FLAT},
+    )
+    (build_dir / "orientations.json").write_text(
+        json.dumps({"b": {"rotate": []}}), encoding="utf-8"
+    )
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    assert "[1/2] orientation a" in proc.stdout
+    assert "[2/2] orientation c" in proc.stdout
+    assert "orientation b" not in proc.stdout

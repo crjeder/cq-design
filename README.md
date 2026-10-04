@@ -95,7 +95,8 @@ everything with each object in its print orientation and writes, to the output d
 - `plate_<n>.stl` -- one fused STL per multi-union plate
 
 `build.py` reuses `build/orientations.json` when present (so the plates match what
-the skill delivered) and recomputes orientations otherwise. Override the defaults
+the skill delivered) and recomputes orientations otherwise. While building it prints `[k/N] <step> <id>` progress
+lines to stdout (orientation, loading, stl, plate; each phase counted separately). Override the defaults
 when your layout differs:
 
 ```bash
