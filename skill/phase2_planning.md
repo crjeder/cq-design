@@ -10,12 +10,12 @@ Write `build/request.md`: the user's original request, the approved Phase 1 refo
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" planning \
-    --request-file build/request.md [--plan BUILD_PLAN.json] [--profile printer_profile.json]
+    --request-file build/request.md [--plan BUILD_PLAN.json] [--profile profile.json]
 ```
 
 Pass `--plan` only on a re-plan. It writes `build/planning_prompt.txt` and prints
 `{"out", "chars", "profile"[, "profile_errors"]}`. When `profile` is not `loaded`, ask the
-user for printer, material, nozzle, and constraints; do not open `printer_profile.json`
+user for printer, material, nozzle, and constraints; do not open `profile.json`
 yourself.
 
 Spawn one agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
@@ -44,14 +44,14 @@ agent's reply.
 planning introduced a real-world measurement Phase 1 did not capture.
 
 **Printer profile write-back:** for each `printer`, `material`, `nozzle_mm`, or
-`constraints` value that differs from `printer_profile.json` and was not flagged as a
+`constraints` value that differs from `profile.json` and was not flagged as a
 one-time exception:
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" printer_profile.json --set nozzle_mm=0.6 --set constraints.overhang_max_deg=50
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" profile.json --set nozzle_mm=0.6 --set constraints.overhang_max_deg=50
 ```
 
-and tell the user ("Updated printer_profile.json: nozzle_mm -> 0.6").
+and tell the user ("Updated profile.json: nozzle_mm -> 0.6").
 
 ## Vocabulary (all user-facing text in Phases 2 and 3)
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Validate printer_profile.json against its schema, and write field overrides back to it.
+"""Validate profile.json against its schema, and write field overrides back to it.
 
 Usage:
-    python3 printer_profile_validate.py printer_profile.json
-    python3 printer_profile_validate.py printer_profile.json --set nozzle_mm=0.6
-    python3 printer_profile_validate.py printer_profile.json --set constraints.overhang_max_deg=50
+    python3 printer_profile_validate.py profile.json
+    python3 printer_profile_validate.py profile.json --set nozzle_mm=0.6
+    python3 printer_profile_validate.py profile.json --set constraints.overhang_max_deg=50
 
 Exit codes: 0 valid, 1 invalid.
 """
@@ -26,7 +26,7 @@ def _load_json(path: str) -> Any:
 
 
 def validate_profile(profile_path: str, schema_path: str = _SCHEMA_PATH) -> list[str]:
-    """Validate a printer_profile.json file. Returns list of error strings (empty = OK)."""
+    """Validate a profile.json file. Returns list of error strings (empty = OK)."""
     try:
         profile = _load_json(profile_path)
     except (OSError, json.JSONDecodeError) as e:
@@ -46,7 +46,7 @@ def validate_profile(profile_path: str, schema_path: str = _SCHEMA_PATH) -> list
 def write_profile_fields(
     profile_path: str, fields: dict[str, Any], schema_path: str = _SCHEMA_PATH
 ) -> list[str]:
-    """Merge only the given field(s) into printer_profile.json and re-validate the result.
+    """Merge only the given field(s) into profile.json and re-validate the result.
 
     Keys in `fields` may be top-level ("nozzle_mm") or dotted one level into
     `constraints` ("constraints.overhang_max_deg"). Fields not named in `fields` are
@@ -88,8 +88,8 @@ def _parse_set(pairs: list[str]) -> dict[str, Any]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Validate printer_profile.json")
-    parser.add_argument("profile", help="Path to printer_profile.json")
+    parser = argparse.ArgumentParser(description="Validate profile.json")
+    parser.add_argument("profile", help="Path to profile.json")
     parser.add_argument(
         "--set",
         action="append",
@@ -102,20 +102,20 @@ def main():
     if args.set:
         errors = write_profile_fields(args.profile, _parse_set(args.set))
         if errors:
-            print(f"printer_profile.json update FAILED ({len(errors)} error(s)):")
+            print(f"profile.json update FAILED ({len(errors)} error(s)):")
             for e in errors:
                 print(f"  - {e}")
             sys.exit(1)
-        print(f"printer_profile.json updated: {', '.join(args.set)}")
+        print(f"profile.json updated: {', '.join(args.set)}")
         return
 
     errors = validate_profile(args.profile)
     if errors:
-        print(f"printer_profile.json validation FAILED ({len(errors)} error(s)):")
+        print(f"profile.json validation FAILED ({len(errors)} error(s)):")
         for e in errors:
             print(f"  - {e}")
         sys.exit(1)
-    print("printer_profile.json OK")
+    print("profile.json OK")
 
 
 if __name__ == "__main__":

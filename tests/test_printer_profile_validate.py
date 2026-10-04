@@ -1,4 +1,4 @@
-"""Tests for printer_profile.json validation and field write-back."""
+"""Tests for profile.json validation and field write-back."""
 
 import json
 import os
@@ -27,7 +27,7 @@ VALID_PROFILE: dict[str, Any] = {
 @pytest.fixture
 def profile_file(tmp_path):
     def _write(profile):
-        p = tmp_path / "printer_profile.json"
+        p = tmp_path / "profile.json"
         p.write_text(json.dumps(profile))
         return str(p)
 
@@ -46,14 +46,14 @@ def test_missing_required_field_rejected(profile_file):
 
 
 def test_malformed_json_rejected(tmp_path):
-    p = tmp_path / "printer_profile.json"
+    p = tmp_path / "profile.json"
     p.write_text("{not valid json")
     errors = validate_profile(str(p))
     assert errors and "Cannot load profile" in errors[0]
 
 
 def test_default_template_is_valid():
-    default_path = os.path.join(SKILL_ROOT, "src", "printer_profile.default.json")
+    default_path = os.path.join(SKILL_ROOT, "src", "profile.default.json")
     errors = validate_profile(default_path)
     assert errors == []
 
@@ -137,7 +137,7 @@ def test_bridge_max_mm_optional_and_non_negative(tmp_path):
 
     import printer_profile_validate as ppv
 
-    path = tmp_path / "printer_profile.json"
+    path = tmp_path / "profile.json"
     prof: dict[str, Any] = {
         "printer": "x",
         "material": "PLA",
@@ -159,7 +159,7 @@ def test_top_bottom_layers_optional_and_at_least_one(tmp_path):
 
     import printer_profile_validate as ppv
 
-    path = tmp_path / "printer_profile.json"
+    path = tmp_path / "profile.json"
     prof: dict[str, Any] = {
         "printer": "x",
         "material": "PLA",
@@ -174,3 +174,27 @@ def test_top_bottom_layers_optional_and_at_least_one(tmp_path):
     prof["constraints"]["top_bottom_layers"] = 0
     path.write_text(json.dumps(prof))
     assert ppv.validate_profile(str(path)) != []
+
+
+def _with_slicer(tmp_path, slicer):
+    with open(os.path.join(SKILL_ROOT, "src", "profile.default.json"), encoding="utf-8") as f:
+        profile = json.load(f)
+    profile["slicer"] = slicer
+    p = tmp_path / "profile.json"
+    p.write_text(json.dumps(profile), encoding="utf-8")
+    return str(p)
+
+
+def test_slicer_block_valid(tmp_path):
+    p = _with_slicer(tmp_path, {"preferred_format": "3mf", "slicer_name": "OrcaSlicer"})
+    assert validate_profile(p) == []
+
+
+def test_slicer_unknown_format_rejected(tmp_path):
+    errors = validate_profile(_with_slicer(tmp_path, {"preferred_format": "gcode"}))
+    assert any("slicer -> preferred_format" in e for e in errors)
+
+
+def test_slicer_block_requires_preferred_format(tmp_path):
+    errors = validate_profile(_with_slicer(tmp_path, {"slicer_name": "Cura"}))
+    assert any("preferred_format" in e for e in errors)

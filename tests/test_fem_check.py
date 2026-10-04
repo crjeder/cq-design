@@ -260,7 +260,7 @@ def test_resolve_shell_thicknesses_reads_profile_motion_layer_height(tmp_path):
 
     plan_path = tmp_path / "BUILD_PLAN.json"
     plan_path.write_text("{}", encoding="utf-8")
-    (tmp_path / "printer_profile.json").write_text(
+    (tmp_path / "profile.json").write_text(
         json.dumps({"motion": {"layer_height_mm": 0.3}}), encoding="utf-8"
     )
     plan = {"nozzle_mm": 0.4, "constraints": {"wall_min_mm": 1.2, "top_bottom_layers": 4}}

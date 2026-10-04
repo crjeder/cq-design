@@ -409,7 +409,7 @@ def _emit_print_recipe(
     any overhang finding, so the delivered recipe always claimed no support was
     needed even when the gate had just flagged one.
 
-    `layer_height_mm` is read from `printer_profile.json`'s optional `motion` block next
+    `layer_height_mm` is read from `profile.json`'s optional `motion` block next
     to `plan_path` (same lookup `_run_toolpath_speed_stage` already does -- `motion` is
     never part of BUILD_PLAN.json itself) when declared, falling back to the previous
     `nozzle_mm * 0.5` derivation when no `motion` block is present or `plan_path` is not
@@ -422,9 +422,7 @@ def _emit_print_recipe(
 
     layer_height_mm = round(nozzle * 0.5, 2)
     if plan_path is not None:
-        profile_path = os.path.join(
-            os.path.dirname(os.path.abspath(plan_path)), "printer_profile.json"
-        )
+        profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
         if os.path.isfile(profile_path):
             with open(profile_path, encoding="utf-8") as f:
                 motion = json.load(f).get("motion")
@@ -775,7 +773,7 @@ def _run_toolpath_speed_stage(
     """Corner/crowding print-time advisory findings, in the build frame (once, outside
     the fix loop; always advisory).
 
-    Reads `motion` from `printer_profile.json` next to the plan; a missing block is a
+    Reads `motion` from `profile.json` next to the plan; a missing block is a
     stated skip, not an error. Passes the union's posed STL (from `stl_dir`, the
     assembled-pose STL every whole-model stage reads) so the layer-time/stall model can
     run alongside the corner model; a missing STL still yields the authored-corner-only
@@ -784,7 +782,7 @@ def _run_toolpath_speed_stage(
     from toolpath_speed import run_toolpath_speed_check
     from units import resolve_unions
 
-    profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "printer_profile.json")
+    profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
     motion = None
     if os.path.isfile(profile_path):
         with open(profile_path, encoding="utf-8") as f:

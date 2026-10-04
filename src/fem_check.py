@@ -141,7 +141,7 @@ def _resolve_shell_thicknesses(plan: dict, plan_path: str | None = None) -> tupl
     represents, not re-derived through a wall-loop-count round-trip); top/bottom shell
     thickness is `constraints.top_bottom_layers` (default 4) times the layer height.
 
-    The layer height is read from `printer_profile.json`'s optional `motion` block next
+    The layer height is read from `profile.json`'s optional `motion` block next
     to `plan_path`, exactly as `quality_gate.py::_emit_print_recipe` reads it, so the two
     never quote different top/bottom-thickness numbers for the same plan; falls back to
     `nozzle_mm * 0.5` when no `motion` block is declared or `plan_path` is not given."""
@@ -151,9 +151,7 @@ def _resolve_shell_thicknesses(plan: dict, plan_path: str | None = None) -> tupl
 
     layer_height_mm = plan.get("nozzle_mm", 0.4) * 0.5
     if plan_path is not None:
-        profile_path = os.path.join(
-            os.path.dirname(os.path.abspath(plan_path)), "printer_profile.json"
-        )
+        profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
         if os.path.isfile(profile_path):
             motion = _load_json(profile_path).get("motion")
             if motion:

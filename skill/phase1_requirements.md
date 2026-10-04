@@ -5,7 +5,7 @@ Collect before planning, asking for whatever is missing:
 - what the part is for and its primary function;
 - key dimensions, or a real-world product/PCB to look up;
 - printer, material, nozzle, and constraints (`wall_min_mm`, `overhang_max_deg`,
-  `dimension_tolerance_mm`) -- from `printer_profile.json` when it validated; ask only for
+  `dimension_tolerance_mm`) -- from `profile.json` when it validated; ask only for
   what it lacks. A differing user value that is not a one-time exception becomes the new
   project default in Phase 2's write-back; tell the user;
 - the fit type of every mating surface (press, snap, sliding, loose).
