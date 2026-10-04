@@ -58,6 +58,24 @@
         }
       }
     },
+    "slicer": {
+      "type": "object",
+      "description": "Slicer the deliverables are made for. Optional in the schema; build.py requires slicer.preferred_format.",
+      "required": ["preferred_format"],
+      "additionalProperties": false,
+      "properties": {
+        "preferred_format": {
+          "type": "string",
+          "enum": ["3mf", "stl", "step", "obj", "iges", "scad"],
+          "description": "Format build.py always writes per union, in addition to model.3mf and the STLs"
+        },
+        "slicer_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Slicer name, e.g. 'OrcaSlicer'. Informational only."
+        }
+      }
+    },
     "printer": {
       "type": "string",
       "description": "Printer model, e.g. 'Bambu P1S', 'Prusa MK4', 'Ender 3'"

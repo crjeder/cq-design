@@ -16,5 +16,9 @@
     "layer_height_mm": 0.2,
     "line_width_mm": 0.42,
     "infill_density": 0.15
+  },
+  "slicer": {
+    "preferred_format": "3mf",
+    "slicer_name": "Snapmaker Orca"
   }
 }

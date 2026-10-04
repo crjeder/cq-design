@@ -311,7 +311,7 @@ measurably down; sweep completeness is the caveat.
 
 ## C6. Model routing with 5-series names (= IMPROVEMENT_PLAN item 15) (Sonnet 5 ok)
 
-1. New `skill_config.json` (seeded like `printer_profile.json`), `models`
+1. New `skill_config.json` (seeded like `profile.json`), `models`
    section: `{"planner": "claude-opus-5", "part_author": "claude-sonnet-5",
    "fix_loop": "inline"}`. Planner may be raised to `claude-fable-5` for the
    hardest topology work; note in the config comment that Fable is 2x Opus 5

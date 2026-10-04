@@ -31,7 +31,7 @@ package's own PyPI/git metadata declares (checked via
 | [pillow](https://github.com/python-pillow/Pillow) | MIT-CMU | Image I/O for preview/render pipeline |
 | [numpy](https://github.com/numpy/numpy) | BSD-3-Clause | Numeric backbone (geometry math, mesh ops) |
 | [lxml](https://github.com/lxml/lxml) | BSD-3-Clause | XML writing for 3MF export |
-| [jsonschema](https://github.com/python-jsonschema/jsonschema) | MIT | `BUILD_PLAN.json` / `printer_profile.json` schema validation |
+| [jsonschema](https://github.com/python-jsonschema/jsonschema) | MIT | `BUILD_PLAN.json` / `profile.json` schema validation |
 | [python-fcl](https://github.com/BerkeleyAutomation/python-fcl) | BSD | Broadphase collision detection (kinematic/clearance/keep-out checks) |
 | [manifold3d](https://github.com/elalish/manifold) | Apache-2.0 | Boolean engine behind `trimesh.boolean`, the interference-volume primitive |
 | [scipy](https://github.com/scipy/scipy) | BSD-3-Clause | `trimesh.CollisionManager` support, eval-harness matching |

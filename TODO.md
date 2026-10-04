@@ -634,7 +634,7 @@ fill largest-area-first, keep uniform spacing via `scipy.ndimage.binary_dilation
 on the blocked bitmap, build compound plates with OCC (`BRep_Builder` +
 `TopoDS_Compound`), export STL+STEP per plate, report bed utilization %.
 Inputs we already have: per-union assembled/print-oriented STLs, `plate`
-metadata, bed size (would need to come from `printer_profile.json` -- not
+metadata, bed size (would need to come from `profile.json` -- not
 currently a field). Decide scope: full nester, or just a utilization report +
 overflow warning leaving assignment to the operator/slicer. Interacts with
 print-orientation (footprint depends on chosen orientation) and the

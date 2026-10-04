@@ -34,7 +34,7 @@ is driven by height and the profile's floor alone and no fillet buys anything --
 `toolpath-speed-advisor` capability's stall requirements.
 
 This is an ADVISOR, never a gate: it always exits 0 and adds no `quality_gate.py` stage
-capable of failing. A missing `printer_profile.json` `motion` block, or geometry the
+capable of failing. A missing `profile.json` `motion` block, or geometry the
 section model cannot represent (low height-coverage across the sampled slices),
 degrades to `{"status": "skipped", "reason": ...}`, also exit 0.
 
@@ -571,7 +571,7 @@ def run_toolpath_speed_check(
     `{"status": "ok", "issues": [...]}` otherwise (issues may be empty).
     """
     if not motion:
-        return {"status": "skipped", "reason": "printer_profile.json has no 'motion' block"}
+        return {"status": "skipped", "reason": "profile.json has no 'motion' block"}
 
     stem = os.path.splitext(os.path.basename(script_path))[0]
     part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
@@ -660,7 +660,7 @@ def main() -> None:
     parser.add_argument(
         "--profile",
         default=None,
-        help="Path to printer_profile.json (default: printer_profile.json next to --plan)",
+        help="Path to profile.json (default: profile.json next to --plan)",
     )
     parser.add_argument(
         "--emit-candidates",
@@ -673,7 +673,7 @@ def main() -> None:
 
     plan = load_plan(args.plan)
     profile_path = args.profile or os.path.join(
-        os.path.dirname(os.path.abspath(args.plan)), "printer_profile.json"
+        os.path.dirname(os.path.abspath(args.plan)), "profile.json"
     )
     motion = None
     if os.path.isfile(profile_path):
