@@ -28,7 +28,7 @@ from collections.abc import Callable
 
 import cadquery as cq
 
-from exporters import _load_result
+from exporters import _REGISTRY, _load_result
 from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
 from freshness import write_manifest
 from mate_chain import compute_mate_poses
@@ -45,6 +45,9 @@ from units import (
 )
 
 _NAME_MAX_LEN = 64
+
+# stl/3mf are always written by export_model itself, so they are not selectable extras.
+EXTRA_FORMATS = tuple(k for k in _REGISTRY if k not in ("stl", "3mf"))
 
 
 def _object_name(description: str, fallback: str) -> str:
@@ -125,6 +128,7 @@ def export_model(
     print_orientations: dict[str, dict] | None = None,
     *,
     stl_dir: str | None = None,
+    formats: tuple[str, ...] | list[str] = (),
     progress: Callable[[str], None] | None = None,
 ) -> dict:
     """Export all unions to a named 3MF + per-union STL + fused-per-plate STL.
@@ -148,15 +152,27 @@ def export_model(
     check to consume, but -- unlike a real union -- a zone is never written to the 3MF,
     never assigned a plate, and never included in a fused plate STL.
 
+    `formats` lists extra exporter keys (`EXTRA_FORMATS`) written once per union as
+    `<union-id>.<ext>` in the assembled pose into `stl_dir`; an unsupported key raises
+    ValueError before anything is written.
+
+    `formats` lists extra exporter keys (`EXTRA_FORMATS`) written once per union as
+    `<union-id>.<ext>` in the assembled pose into `stl_dir`; an unsupported key raises
+    ValueError before anything is written.
+
     Returns a dict with `model_3mf`, `union_stls` (id -> path), `plate_stls`
     (plate -> path, only for multi-union plates), `keep_out_stls`
     (`"<part_id>::<zone_name>"` -> path, only for parts that declare zones), and
-    `manifest` (path to the written provenance manifest, see `freshness.write_manifest`).
+    `manifest` (path to the written provenance manifest, see `freshness.write_manifest`),
+    and `format_files` (format key -> union id -> path; empty without `formats`).
 
     `progress`, when given, is called with a `[k/N] <step> <id>` line per part loaded,
     per-union STL and fused plate (each phase counted separately), and once with
     `writing model.3mf`; it never affects the files written or the returned dict.
     """
+    bad = [f for f in formats if f not in EXTRA_FORMATS]
+    if bad:
+        raise ValueError(f"Unsupported format(s) {bad}; supported: {', '.join(EXTRA_FORMATS)}")
     os.makedirs(model_dir, exist_ok=True)
     stl_dir = stl_dir or model_dir
     os.makedirs(stl_dir, exist_ok=True)
@@ -268,6 +284,15 @@ def export_model(
         cq.exporters.export(fused, plate_path)
         plate_stls[plate] = plate_path
 
+    format_files: dict[str, dict[str, str]] = {}
+    for fmt in dict.fromkeys(formats):
+        exporter, ext = _REGISTRY[fmt]
+        format_files[fmt] = {}
+        for uid, wp in placed.items():
+            path = os.path.join(stl_dir, uid + ext)
+            exporter.export(wp, path)
+            format_files[fmt][uid] = path
+
     manifest_path = write_manifest(stl_dir, union_scripts, keep_out_scripts, print_rotates)
 
     return {
@@ -276,6 +301,7 @@ def export_model(
         "plate_stls": plate_stls,
         "keep_out_stls": keep_out_stls,
         "manifest": manifest_path,
+        "format_files": format_files,
         "pose_findings": pose_findings,
     }
 
@@ -296,6 +322,11 @@ def main() -> None:
         help="JSON mapping part id -> orientation ({'rotate': [...]}) from "
         "print_orientation.py; deliverables are written in these poses",
     )
+    parser.add_argument(
+        "--formats",
+        default="",
+        help=f"Comma-separated extra per-union formats ({', '.join(EXTRA_FORMATS)})",
+    )
     args = parser.parse_args()
 
     plan = load_plan(args.plan)
@@ -303,7 +334,14 @@ def main() -> None:
     if args.orientations:
         with open(args.orientations, encoding="utf-8") as f:
             print_orientations = json.load(f)
-    result = export_model(plan, args.parts_dir, args.out, print_orientations, stl_dir=args.stl_out)
+    result = export_model(
+        plan,
+        args.parts_dir,
+        args.out,
+        print_orientations,
+        stl_dir=args.stl_out,
+        formats=[f for f in args.formats.split(",") if f],
+    )
     print(json.dumps(result, indent=2))
     sys.exit(0)
 
