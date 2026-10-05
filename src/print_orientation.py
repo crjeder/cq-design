@@ -299,13 +299,16 @@ def _gentle_incline_fraction(posed: trimesh.Trimesh) -> float:
     return round(bad_area / total, 6)
 
 
-def _stability_metrics(posed: trimesh.Trimesh) -> bool:
+def _stability_metrics(posed: trimesh.Trimesh, center_mass: np.ndarray | None = None) -> bool:
     """Whether the posed mesh rests stably (won't tip) on its bed-contact footprint.
 
     A resting body under gravity is stable when its center of mass, projected onto
     the bed plane (XY), falls within the convex hull of its support polygon (the
     bed-contact footprint). Fewer than 3 distinct footprint points (a point or
     knife-edge contact) can't form a polygon at all, so it is unstable outright.
+    `center_mass` is the posed center of mass when the caller already has it (it is
+    pose-covariant, so optimize_orientation rotates one value instead of re-integrating
+    the mesh per candidate); otherwise it is computed from `posed`.
     """
     contact_mask = _bed_contact_mask(posed)
     footprint = np.unique(np.round(posed.triangles[contact_mask].reshape(-1, 3)[:, :2], 6), axis=0)
@@ -315,7 +318,7 @@ def _stability_metrics(posed: trimesh.Trimesh) -> bool:
         hull = ConvexHull(footprint)
     except Exception:
         return False
-    com_xy = posed.center_mass[:2]
+    com_xy = (posed.center_mass if center_mass is None else center_mass)[:2]
     eqs = hull.equations
     return bool(np.all(eqs[:, :2] @ com_xy + eqs[:, 2] <= 1e-7))
 
@@ -460,10 +463,18 @@ def optimize_orientation(
     show_face_inferred = show_face is None
     show_vec = _infer_show_face(mesh) if show_face_inferred else np.asarray(show_face, dtype=float)
 
+    # Pose-independent data is computed once on a working copy: topology caches are carried
+    # through each candidate's copy + apply_transform, and the center of mass is rotated
+    # per candidate instead of re-integrating the mesh. (Do not set trimesh's center_mass
+    # override here: it changes the data hash and wipes the warmed caches.)
+    base = mesh.copy()
+    base.face_adjacency, base.face_adjacency_edges, base.edges_sorted, base.face_normals  # noqa: B018
+    com0 = np.append(base.center_mass, 1.0)
+
     candidates = []
     for idx, normal in enumerate(enumerate_candidate_normals(mesh)):
         rotation = _rotation_to_bed(normal)
-        posed = mesh.copy()
+        posed = base.copy(include_cache=True)
         posed.apply_transform(rotation)
         fem_strength = _fem_strength_lookup(fem_stress, normal)
         if fem_strength is not None:
@@ -473,7 +484,7 @@ def optimize_orientation(
             strength_source = "declared_load" if load_declared else "neutral"
         support, bed_contact = _support_metrics(posed, overhang_deg, bridge_max_mm)
         visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec)
-        stable = _stability_metrics(posed)
+        stable = _stability_metrics(posed, (rotation @ com0)[:3])
         speed_entry = _speed_lookup(speed_model, normal)
         candidate = {
             "idx": idx,
@@ -501,7 +512,7 @@ def optimize_orientation(
     # Cosmetic stair-step area at the chosen pose: up-facing faces in the gentle-incline
     # band. Reported by the quality gate (visual_quality only); distinct from the scoring
     # `gentle_incline_fraction` above (a both-faces fraction), which is left untouched.
-    posed_chosen = mesh.copy()
+    posed_chosen = base.copy(include_cache=True)
     posed_chosen.apply_transform(chosen["rotation"])
     cosmetic_slope_area = up_facing_incline_area(posed_chosen, FLAT_EPS_DEG, GENTLE_INCLINE_MAX_DEG)
 
