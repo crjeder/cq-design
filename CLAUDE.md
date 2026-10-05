@@ -95,6 +95,8 @@ or calling any script listed below.
 
 ```
 .
+  .claude-plugin/        # plugin.json (skills: ["."]) + marketplace.json; repo root is the plugin root
+  commands/              # /cq-design:design plan init update deliver render status
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
     run_model_shim.py        # runpy shim that auto-exports `result` to STL

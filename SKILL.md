@@ -5,18 +5,13 @@ description: Design or redesign 3D-printable parts as parametric CadQuery models
 
 # cq-design
 
-| Command | Action |
-|---------|--------|
-| `/cq-design` | Full pipeline (phases 0-4) |
-| `/cq-plan` | Phases 1-2 only; stop once `BUILD_PLAN.json` is approved |
-| `/deliver <script.py>` | Export STL and 3MF for an existing script |
-| `/render <script.py>` | Render a multi-view preview PNG for an existing script |
-| `/cq-design:update` | Re-copy the installed skill's tooling into this project's `lib/` and `build/build.py` |
+Commands (`/cq-design:design`, `plan`, `init`, `update`, `deliver`, `render`, `status`) are plugin
+files in `commands/`; each states its own steps. This file is the pipeline contract they share.
 
 ## Prerequisites
 
-`SKILL_DIR` is the absolute path of this file's directory, taken from the "Base directory
-for this skill" line (`$BASH_SOURCE` / `$PSCommandPath` resolve to the working directory
+`SKILL_DIR` is the absolute path of this file's directory (`${CLAUDE_PLUGIN_ROOT}` in a
+plugin install), taken from the "Base directory for this skill" line (`$BASH_SOURCE` / `$PSCommandPath` resolve to the working directory
 in a one-off shell). Substitute the literal path into every command; shell variables do not
 persist between calls. Every invocation is documented at the step that uses it -- never run
 `--help`. Generated output goes to the working directory.
@@ -54,32 +49,6 @@ runnable from this summary.
 
 Agents get everything they need from prompts rendered by `src/render_prompt.py`; do not
 read reference documents, `inventory.json`, or preview images into this session for them.
-
-## /deliver and /render
-
-```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" <script.py> --deliver --formats stl,3mf
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" <script.py> --preview
-```
-
-The script must assign its geometry to `result`. `/deliver` reports `stl`, `threemf`, the
-geometry summary, and any `errors` (stop and show them if `success` is false). `/render`
-shows `preview` and any errors. Each error carries a `hint`; read it rather than guessing
-from the type name.
-
-## /cq-design:update
-
-Only in a directory that already has `lib/` or `.bundle_version.json`; otherwise stop and
-say the project was never bundled (run the normal pipeline). Then:
-
-```bash
-python "$SKILL_DIR/src/bundle_project.py" .
-```
-
-This always copies (no staleness check): `build_template.py` to `build/build.py`, the
-bundled modules and `blocks`/`exporters` to `lib/`, prunes retired files, merges
-permissions, and restamps `.bundle_version.json`. Report the new stamp commit and suggest
-`uv sync` and `uv run python build/build.py`; do not run them or edit part scripts.
 
 ## Coordinate system
 
