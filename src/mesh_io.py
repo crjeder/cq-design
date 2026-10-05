@@ -155,7 +155,7 @@ def _overhang_angles(mesh):
     return np.degrees(np.arcsin(np.clip(-mesh.face_normals[:, 2], 0.0, 1.0)))
 
 
-def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm):
+def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
     """True when the region is a near-horizontal ceiling, at most `bridge_max_mm` across,
     supported on at least two sides of its oriented XY rectangle.
 
@@ -182,13 +182,16 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm):
     _, inv, cnt = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
     boundary = cnt[inv.reshape(-1)] == 1
 
-    # Face across each boundary edge, via the mesh's edge -> face map.
-    adj_edges = np.sort(mesh.face_adjacency_edges, axis=1)
-    lookup = {
-        tuple(e): (int(f[0]), int(f[1]))
-        for e, f in zip(adj_edges, mesh.face_adjacency, strict=True)
-    }
-    centroids_z = mesh.triangles.mean(axis=1)[:, 2]
+    # Face across each boundary edge, via the mesh's edge -> face map. Mesh-wide, so it is
+    # built once per overhang_regions call (shared via `ctx`), not once per region.
+    if "lookup" not in ctx:
+        adj_edges = np.sort(mesh.face_adjacency_edges, axis=1)
+        ctx["lookup"] = {
+            tuple(e): (int(f[0]), int(f[1]))
+            for e, f in zip(adj_edges, mesh.face_adjacency, strict=True)
+        }
+        ctx["centroids_z"] = mesh.triangles.mean(axis=1)[:, 2]
+    lookup, centroids_z = ctx["lookup"], ctx["centroids_z"]
     side_len = [rect[1], rect[1], rect[0], rect[0]]  # sides +x, -x, +y, -y
     covered = np.zeros(4)
     for e, f, is_b in zip(edges, owner, boundary, strict=True):
@@ -236,9 +239,10 @@ def overhang_regions(
     linked = adj[sel[adj[:, 0]] & sel[adj[:, 1]]]
     groups = trimesh.graph.connected_components(linked, nodes=np.nonzero(sel)[0], min_len=1)
     regions = []
+    ctx: dict = {}
     for faces in groups:
         faces = np.asarray(faces)
-        bridge = _is_bridge(mesh, faces, sel, angles, bridge_max_mm)
+        bridge = _is_bridge(mesh, faces, sel, angles, bridge_max_mm, ctx)
         regions.append(
             {"faces": faces, "area_mm2": float(mesh.area_faces[faces].sum()), "bridge": bridge}
         )
