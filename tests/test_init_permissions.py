@@ -152,3 +152,31 @@ def test_seed_default_files_creates_then_never_overwrites(tmp_path):
     (tmp_path / "skill_config.json").write_text("{}", encoding="utf-8")
     assert init_permissions.seed_default_files(str(tmp_path)) == []
     assert (tmp_path / "skill_config.json").read_text(encoding="utf-8") == "{}"
+
+
+def test_merge_env_sets_once_and_preserves_keys(tmp_path):
+    _write_settings(tmp_path, {"permissions": {"allow": ["Bash(x)"]}})
+
+    assert init_permissions.merge_env(str(tmp_path), "/data/venv") is True
+    assert init_permissions.merge_env(str(tmp_path), "/data/venv") is False
+
+    path = tmp_path / ".claude" / "settings.local.json"
+    settings = json.loads(path.read_text(encoding="utf-8"))
+    assert settings["env"]["UV_PROJECT_ENVIRONMENT"] == "/data/venv"
+    assert settings["permissions"]["allow"] == ["Bash(x)"]
+
+
+def test_merge_hooks_replaces_stale_install_path(tmp_path):
+    old = 'python "/old/cache/1.0/src/session_cost.py" --hook'
+    _write_settings(
+        tmp_path, {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": old}]}]}}
+    )
+
+    assert init_permissions.merge_hooks(str(tmp_path)) is True
+
+    path = tmp_path / ".claude" / "settings.local.json"
+    stop = json.loads(path.read_text(encoding="utf-8"))["hooks"]["Stop"]
+    commands = [h["command"] for g in stop for h in g["hooks"]]
+    assert old not in commands
+    assert len(commands) == 1 and commands[0].endswith('session_cost.py" --hook')
+    assert init_permissions.merge_hooks(str(tmp_path)) is False
