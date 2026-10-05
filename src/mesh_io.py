@@ -164,11 +164,14 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
     lip. Anchored edges are binned to the 4 rectangle sides; a side counts as supported
     when anchored length covers BRIDGE_SIDE_COVERAGE of it.
     """
-    area = mesh.area_faces[faces]
+    # Mesh property access re-hashes trimesh's tracked arrays to validate its cache, so
+    # per-region reads go through plain arrays hoisted into `ctx` by overhang_regions.
+    verts = ctx["verts"]
+    area = ctx["area"][faces]
     if np.average(angles[faces], weights=area) < BRIDGE_MIN_DEG:
         return False
-    tri = mesh.faces[faces]
-    pts = mesh.vertices[np.unique(tri)][:, :2]
+    tri = ctx["tri"][faces]
+    pts = verts[np.unique(tri)][:, :2]
     if len(pts) < 3:
         return False
     to_rect, rect = trimesh.bounds.oriented_bounds_2D(pts)
@@ -203,7 +206,7 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
         other = pair[1] if pair[0] == f else pair[0]
         if in_region[other]:
             continue
-        mid = mesh.vertices[e].mean(axis=0)
+        mid = verts[e].mean(axis=0)
         if centroids_z[other] >= mid[2] - 1e-6:
             continue  # wall rises from the edge: the region's own free lip
         x, y, _ = to_rect @ np.array([mid[0], mid[1], 1.0])
@@ -211,7 +214,7 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
             side = 0 if x > 0 else 1
         else:
             side = 2 if y > 0 else 3
-        covered[side] += np.linalg.norm(mesh.vertices[e[0]] - mesh.vertices[e[1]])
+        covered[side] += np.linalg.norm(verts[e[0]] - verts[e[1]])
     supported = sum(
         1 for c, n in zip(covered, side_len, strict=True) if c >= BRIDGE_SIDE_COVERAGE * n
     )
@@ -239,13 +242,12 @@ def overhang_regions(
     linked = adj[sel[adj[:, 0]] & sel[adj[:, 1]]]
     groups = trimesh.graph.connected_components(linked, nodes=np.nonzero(sel)[0], min_len=1)
     regions = []
-    ctx: dict = {}
+    area = np.asarray(mesh.area_faces)
+    ctx: dict = {"area": area, "tri": np.asarray(mesh.faces), "verts": np.asarray(mesh.vertices)}
     for faces in groups:
         faces = np.asarray(faces)
         bridge = _is_bridge(mesh, faces, sel, angles, bridge_max_mm, ctx)
-        regions.append(
-            {"faces": faces, "area_mm2": float(mesh.area_faces[faces].sum()), "bridge": bridge}
-        )
+        regions.append({"faces": faces, "area_mm2": float(area[faces].sum()), "bridge": bridge})
     return regions
 
 
@@ -302,11 +304,12 @@ def support_cost(mesh, overhang_deg, exponent, exclude_mask=None, bridge_max_mm=
     if not regions:
         return 0.0
     angles = _overhang_angles(mesh)
+    area = np.asarray(mesh.area_faces)
     total = 0.0
     for r in regions:
         f = r["faces"]
         lean = (angles[f] - overhang_deg) / (90.0 - overhang_deg)
-        cost = float((mesh.area_faces[f] * np.power(lean, exponent)).sum())
+        cost = float((area[f] * np.power(lean, exponent)).sum())
         total += cost * (BRIDGE_COST_FACTOR if r["bridge"] else 1.0)
     return round(total, 3)
 
