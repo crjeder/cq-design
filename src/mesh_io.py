@@ -151,7 +151,7 @@ def fold_metrics(mesh, min_interior_deg=FOLD_MIN_INTERIOR_DEG, max_report=5):
 def bed_contact_mask(mesh):
     """Faces resting on the bed: steeply down-facing, within one first-layer height of the floor."""
     min_z = float(mesh.vertices[:, 2].min())
-    centroids_z = mesh.triangles.mean(axis=1)[:, 2]
+    centroids_z = mesh.triangles_center[:, 2]  # cached: shared by every call on this pose
     return (mesh.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
 
 
@@ -245,13 +245,12 @@ def overhang_regions(
     linked = adj[sel[adj[:, 0]] & sel[adj[:, 1]]]
     groups = trimesh.graph.connected_components(linked, nodes=np.nonzero(sel)[0], min_len=1)
     regions = []
-    ctx: dict = {}
+    area = np.asarray(mesh.area_faces)
+    ctx: dict = {"area": area, "tri": np.asarray(mesh.faces), "verts": np.asarray(mesh.vertices)}
     for faces in groups:
         faces = np.asarray(faces)
         bridge = _is_bridge(mesh, faces, sel, angles, bridge_max_mm, ctx)
-        regions.append(
-            {"faces": faces, "area_mm2": float(mesh.area_faces[faces].sum()), "bridge": bridge}
-        )
+        regions.append({"faces": faces, "area_mm2": float(area[faces].sum()), "bridge": bridge})
     return regions
 
 
@@ -308,11 +307,12 @@ def support_cost(mesh, overhang_deg, exponent, exclude_mask=None, bridge_max_mm=
     if not regions:
         return 0.0
     angles = _overhang_angles(mesh)
+    area = np.asarray(mesh.area_faces)
     total = 0.0
     for r in regions:
         f = r["faces"]
         lean = (angles[f] - overhang_deg) / (90.0 - overhang_deg)
-        cost = float((mesh.area_faces[f] * np.power(lean, exponent)).sum())
+        cost = float((area[f] * np.power(lean, exponent)).sum())
         total += cost * (BRIDGE_COST_FACTOR if r["bridge"] else 1.0)
     return round(total, 3)
 
