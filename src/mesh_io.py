@@ -5,6 +5,8 @@ Kept separate from preview.py so consumers that only need mesh loading
 pay the pyrender + PyOpenGL import cost. Only depends on trimesh + numpy.
 """
 
+import os
+
 import numpy as np
 import trimesh
 
@@ -23,10 +25,12 @@ def load_mesh(path: str) -> trimesh.Trimesh:
     the failure in-process instead of being killed by sys.exit, and silent
     garbage (zero-face or NaN meshes) is stopped before it reaches pyrender.
     """
+    if not os.path.isfile(path):
+        raise ValueError(f"STL not found: {path} (export it first, e.g. with --deliver)")
     try:
         tm = trimesh.load(path, force="mesh")
     except Exception as e:
-        raise ValueError(f"Failed to load STL: {e}") from e
+        raise ValueError(f"Failed to load STL: {path} is not a valid STL file: {e}") from e
     if not isinstance(tm, trimesh.Trimesh) or len(tm.vertices) == 0:
         raise ValueError("STL file contains no vertices")
     if len(tm.faces) == 0:
@@ -164,13 +168,22 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
     lip. Anchored edges are binned to the 4 rectangle sides; a side counts as supported
     when anchored length covers BRIDGE_SIDE_COVERAGE of it.
     """
-    # Mesh property access re-hashes trimesh's tracked arrays to validate its cache, so
-    # per-region reads go through plain arrays hoisted into `ctx` by overhang_regions.
-    verts = ctx["verts"]
-    area = ctx["area"][faces]
-    if np.average(angles[faces], weights=area) < BRIDGE_MIN_DEG:
+    # Mesh-wide arrays and the edge -> face map are read once per overhang_regions call
+    # (shared via `ctx`): each trimesh property access re-verifies its cache by hashing.
+    if "lookup" not in ctx:
+        ctx["verts"] = np.asarray(mesh.vertices)
+        ctx["tris"] = np.asarray(mesh.faces)
+        ctx["area"] = np.asarray(mesh.area_faces)
+        adj_edges = np.sort(mesh.face_adjacency_edges, axis=1)
+        ctx["lookup"] = {
+            tuple(e): (int(f[0]), int(f[1]))
+            for e, f in zip(adj_edges, mesh.face_adjacency, strict=True)
+        }
+        ctx["centroids_z"] = mesh.triangles.mean(axis=1)[:, 2]
+    verts, lookup, centroids_z = ctx["verts"], ctx["lookup"], ctx["centroids_z"]
+    if np.average(angles[faces], weights=ctx["area"][faces]) < BRIDGE_MIN_DEG:
         return False
-    tri = ctx["tri"][faces]
+    tri = ctx["tris"][faces]
     pts = verts[np.unique(tri)][:, :2]
     if len(pts) < 3:
         return False
@@ -185,16 +198,6 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
     _, inv, cnt = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
     boundary = cnt[inv.reshape(-1)] == 1
 
-    # Face across each boundary edge, via the mesh's edge -> face map. Mesh-wide, so it is
-    # built once per overhang_regions call (shared via `ctx`), not once per region.
-    if "lookup" not in ctx:
-        adj_edges = np.sort(mesh.face_adjacency_edges, axis=1)
-        ctx["lookup"] = {
-            tuple(e): (int(f[0]), int(f[1]))
-            for e, f in zip(adj_edges, mesh.face_adjacency, strict=True)
-        }
-        ctx["centroids_z"] = mesh.triangles.mean(axis=1)[:, 2]
-    lookup, centroids_z = ctx["lookup"], ctx["centroids_z"]
     side_len = [rect[1], rect[1], rect[0], rect[0]]  # sides +x, -x, +y, -y
     covered = np.zeros(4)
     for e, f, is_b in zip(edges, owner, boundary, strict=True):
