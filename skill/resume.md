@@ -77,6 +77,8 @@ line; the format below is what that command writes.
 
 ## Updating an existing project
 
+`/cq-design:update` runs the `bundle_project.py` copy below in one step.
+
 To refresh a project directory's bundled tooling to the current skill:
 
 ```bash
