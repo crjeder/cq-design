@@ -147,7 +147,7 @@ def fold_metrics(mesh, min_interior_deg=FOLD_MIN_INTERIOR_DEG, max_report=5):
 def bed_contact_mask(mesh):
     """Faces resting on the bed: steeply down-facing, within one first-layer height of the floor."""
     min_z = float(mesh.vertices[:, 2].min())
-    centroids_z = mesh.triangles.mean(axis=1)[:, 2]
+    centroids_z = mesh.triangles_center[:, 2]  # cached: shared by every call on this pose
     return (mesh.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
 
 
