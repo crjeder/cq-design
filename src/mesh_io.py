@@ -5,6 +5,8 @@ Kept separate from preview.py so consumers that only need mesh loading
 pay the pyrender + PyOpenGL import cost. Only depends on trimesh + numpy.
 """
 
+import os
+
 import numpy as np
 import trimesh
 
@@ -23,10 +25,12 @@ def load_mesh(path: str) -> trimesh.Trimesh:
     the failure in-process instead of being killed by sys.exit, and silent
     garbage (zero-face or NaN meshes) is stopped before it reaches pyrender.
     """
+    if not os.path.isfile(path):
+        raise ValueError(f"STL not found: {path} (export it first, e.g. with --deliver)")
     try:
         tm = trimesh.load(path, force="mesh")
     except Exception as e:
-        raise ValueError(f"Failed to load STL: {e}") from e
+        raise ValueError(f"Failed to load STL: {path} is not a valid STL file: {e}") from e
     if not isinstance(tm, trimesh.Trimesh) or len(tm.vertices) == 0:
         raise ValueError("STL file contains no vertices")
     if len(tm.faces) == 0:
