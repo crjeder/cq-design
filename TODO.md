@@ -78,6 +78,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
       anchor currently produces a confident wrong number (see `fem-stress-advisor` design.md
       risk list)
 - [x] optimization for print speed
+- [ ] since orca slicer now supports STEP default to export this format
 
 ## Optimisation
 Run-time review (static read of the hot paths, not profiled), ranked by likely time saved.
