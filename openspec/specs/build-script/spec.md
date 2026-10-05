@@ -118,3 +118,52 @@ naming the failing union, so the script is usable in shells and CI.
 
 - **WHEN** a union's part script cannot be loaded or its export fails
 - **THEN** the script reports the failing union and exits with a non-zero status
+
+### Requirement: build.py accepts an export format option
+
+`build.py` SHALL accept `--formats LIST`, a comma-separated list of extra exporter keys (`step`, `obj`, `iges`, `scad`), defaulting to none, and SHALL pass it to `export_model`. `model.3mf` and the STLs SHALL always be written. The reported results SHALL list the files written for each requested format, and an unsupported key SHALL exit non-zero with a message listing the supported keys.
+
+#### Scenario: Default invocation
+
+- **WHEN** `build.py` runs without `--formats`
+- **THEN** it writes `model.3mf`, the per-union STLs, and the per-plate STLs, as before
+
+#### Scenario: STEP requested
+
+- **WHEN** `build.py --formats step` runs
+- **THEN** a `<union-id>.step` file is written for every union, alongside the 3MF and STLs
+- **AND** the reported results list those files
+
+#### Scenario: Unsupported format
+
+- **WHEN** `build.py --formats dxf` runs
+- **THEN** it exits non-zero and names the supported keys
+
+### Requirement: build.py reports progress
+
+`build.py` SHALL print progress to stdout, flushed per line, while building. Each unit of work SHALL be reported as `[k/N] <step> <id>`, where `N` is the number of units in that phase and `k` counts from 1. Phases SHALL be counted separately; no cross-phase percentage SHALL be reported. Unions whose accepted orientation is reused unchanged SHALL NOT be reported in the orientation phase. The existing final summary and the `build failed:` message on stderr SHALL be unchanged.
+
+#### Scenario: Parts loaded
+
+- **WHEN** `build.py` runs on a plan with three parts
+- **THEN** it prints `[1/3]`, `[2/3]` and `[3/3]` loading lines, each naming a part id, before the final summary
+
+#### Scenario: Orientation reused
+
+- **WHEN** every union has a fresh accepted orientation in `orientations.json`
+- **THEN** no orientation progress lines are printed
+
+#### Scenario: Orientation recomputed
+
+- **WHEN** two unions have no accepted orientation or a stale one
+- **THEN** exactly two orientation lines `[1/2]` and `[2/2]` are printed, naming those unions
+
+#### Scenario: Progress is live when piped
+
+- **WHEN** `build.py` stdout is a pipe
+- **THEN** each progress line is flushed as it is printed rather than at process exit
+
+#### Scenario: Failure
+
+- **WHEN** a part script fails to load
+- **THEN** `build failed: ...` is written to stderr and the exit code is non-zero, as before

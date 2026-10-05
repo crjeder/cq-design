@@ -31,11 +31,14 @@ Arguments (all optional):
     --out           where model.3mf is written (default: the project root)
     --stl-out       where the STLs are written (default: <project root>/stl)
     --orientations  accepted orientations JSON (default: orientations.json in --parts-dir)
+    --profile       profile.json (default: the project root); slicer.preferred_format is required
+    --formats       extra per-union formats, comma-separated: step, obj, iges, scad (default: none)
 
 Outputs:
     model.3mf (in --out)         one named object per union, with plate metadata
     <union-id>.stl (in --stl-out)  one assembled-pose STL per union
     plate_<n>.stl (in --stl-out)   one fused STL per multi-union plate
+    <union-id>.<ext> (in --stl-out) assembled pose, one per union per --formats key
 
 When `orientations.json` (the skill's accepted per-union orientations) sits next to
 the part scripts, build.py reuses it so the plates match what the skill delivered;
@@ -59,7 +62,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.p
 import cadquery as cq
 
 from freshness import is_stale, script_hash
-from model_export import export_model, load_part_unions
+from model_export import EXTRA_FORMATS, export_model, load_part_unions
 from print_finishing import orientation_for
 from units import is_copy, load_plan
 
@@ -92,18 +95,36 @@ def resolve_orientations(
     summary: dict[str, dict] = {}
     recomputed: list[str] = []
     parts_by_id = {p["id"]: p for p in plan.get("parts", [])}
+
+    def _script(part: dict) -> str:
+        return os.path.join(
+            parts_dir, f"{part['copy_of']['part'] if is_copy(part) else part['id']}.py"
+        )
+
+    def _union_ids(part: dict) -> list[str]:
+        return [u["id"] for u in part.get("unions", [])] or [part["id"]]
+
+    # Unions that must be computed (no accepted entry, or a stale one) -> was it stale.
+    # Only these are reported as progress, so N is known up front.
+    todo: dict[str, bool] = {}
     for part in plan.get("parts", []):
-        pid = part["id"]
-        script = os.path.join(parts_dir, f"{part['copy_of']['part'] if is_copy(part) else pid}.py")
-        optimize_for = part.get("optimize_for", plan_mode)
-        union_ids = [u["id"] for u in part.get("unions", [])] or [pid]
-        wp_by_uid: dict[str, cq.Workplane] | None = None  # loaded lazily, once per part
-        for uid in union_ids:
+        for uid in _union_ids(part):
             entry = accepted.get(uid)
-            stale = entry is not None and is_stale(entry.get("source_script_hash"), script)
-            if entry is not None and not stale:
-                chosen = entry
+            stale = entry is not None and is_stale(entry.get("source_script_hash"), _script(part))
+            if entry is None or stale:
+                todo[uid] = stale
+    done = 0
+    for part in plan.get("parts", []):
+        script = _script(part)
+        optimize_for = part.get("optimize_for", plan_mode)
+        wp_by_uid: dict[str, cq.Workplane] | None = None  # loaded lazily, once per part
+        for uid in _union_ids(part):
+            stale = todo.get(uid, False)
+            if uid not in todo:
+                chosen = accepted[uid]
             else:
+                done += 1
+                print(f"[{done}/{len(todo)}] orientation {uid}", flush=True)
                 try:
                     if wp_by_uid is None:
                         wp_by_uid = dict(load_part_unions(part, parts_by_id, parts_dir)[2])
@@ -120,6 +141,25 @@ def resolve_orientations(
     return orientations, summary, recomputed
 
 
+def load_preferred_format(profile_path: str) -> tuple[str, str | None]:
+    """Return (preferred_format, slicer_name) from profile.json; raise ValueError if unset."""
+    if not os.path.isfile(profile_path):
+        hint = ""
+        legacy = os.path.join(os.path.dirname(profile_path), "printer_profile.json")
+        if os.path.isfile(legacy):
+            hint = " (rename printer_profile.json to profile.json)"
+        raise ValueError(f"{profile_path} not found{hint}")
+    with open(profile_path, encoding="utf-8") as f:
+        slicer = json.load(f).get("slicer") or {}
+    fmt = slicer.get("preferred_format")
+    if fmt not in ("3mf", "stl", *EXTRA_FORMATS):
+        raise ValueError(
+            f"{profile_path}: slicer.preferred_format must be one of "
+            f"3mf, stl, {', '.join(EXTRA_FORMATS)}; got {fmt!r}"
+        )
+    return fmt, slicer.get("slicer_name")
+
+
 def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]) -> None:
     """Print the chosen orientation and output path for each union, then plates."""
     for pid, chosen in summary.items():
@@ -129,6 +169,9 @@ def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]
     print(f"model.3mf: {result['model_3mf']}")
     for plate, plate_path in result["plate_stls"].items():
         print(f"plate {plate}: {plate_path}")
+    for fmt, files in result["format_files"].items():
+        for uid, path in files.items():
+            print(f"{fmt} {uid}: {path}")
     if recomputed:
         print(f"recomputed (source script changed since accepted): {', '.join(recomputed)}")
 
@@ -164,7 +207,30 @@ def main() -> None:
         default=None,
         help="Accepted orientations JSON (default: orientations.json in --parts-dir)",
     )
+    parser.add_argument(
+        "--profile",
+        default=os.path.join(project_root, "profile.json"),
+        help="Path to profile.json (default: the project root)",
+    )
+    parser.add_argument(
+        "--formats",
+        default="",
+        help=f"Extra per-union formats, comma-separated ({', '.join(EXTRA_FORMATS)})",
+    )
     args = parser.parse_args()
+    formats = [f for f in args.formats.split(",") if f]
+    bad = [f for f in formats if f not in EXTRA_FORMATS]
+    if bad:
+        parser.error(f"unsupported format(s) {bad}; supported: {', '.join(EXTRA_FORMATS)}")
+
+    try:
+        preferred, slicer_name = load_preferred_format(args.profile)
+    except ValueError as exc:
+        sys.stderr.write(f"build failed: {exc}\n")
+        sys.exit(1)
+    if preferred in EXTRA_FORMATS and preferred not in formats:
+        formats.append(preferred)
+    print(f"preferred format: {preferred}" + (f" ({slicer_name})" if slicer_name else ""))
 
     orientations_path = args.orientations or os.path.join(args.parts_dir, "orientations.json")
 
@@ -174,7 +240,15 @@ def main() -> None:
         orientations, summary, recomputed = resolve_orientations(
             plan, args.parts_dir, orientations_path
         )
-        result = export_model(plan, args.parts_dir, args.out, orientations, stl_dir=args.stl_out)
+        result = export_model(
+            plan,
+            args.parts_dir,
+            args.out,
+            orientations,
+            stl_dir=args.stl_out,
+            formats=formats,
+            progress=lambda line: print(line, flush=True),
+        )
     except Exception as exc:
         sys.stderr.write(f"build failed: {exc}\n")
         sys.exit(1)

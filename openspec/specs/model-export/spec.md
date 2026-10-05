@@ -146,3 +146,48 @@ origin, then the translation, and an absent or empty placement is the identity.
 
 - **WHEN** `apply_cq` is called with an absent or empty placement
 - **THEN** the workplane is returned unchanged, with no transform applied
+
+### Requirement: Per-union export in additional formats
+
+`export_model` SHALL accept a `formats` collection of exporter keys from `step`, `obj`, `iges`, `scad` (default empty), written in addition to the 3MF and STLs, which are always written. For each key it SHALL write one file per union, named `<union-id>.<extension>`, in the assembled pose, using the modular exporter registered for that key, into the STL output directory. Keep-out zones SHALL NOT be written in these formats. The returned dict SHALL contain a `format_files` mapping of format key to a mapping of union id to path. An unsupported key (including `stl` and `3mf`, which are not optional) SHALL raise before any file is written.
+
+#### Scenario: STEP requested
+
+- **WHEN** `export_model` is called with `formats=("step",)` on a plan with two unions
+- **THEN** `<union-id>.step` exists for each union in the STL output directory
+- **AND** the STEP geometry is in the assembled pose, matching the per-union STL
+- **AND** `format_files["step"]` maps each union id to its path
+- **AND** `model.3mf`, the per-union STLs and plate STLs are written as before
+
+#### Scenario: Default output unchanged
+
+- **WHEN** `export_model` is called without `formats`
+- **THEN** the files written are exactly those written before this change
+- **AND** `format_files` is empty
+
+#### Scenario: Unsupported format
+
+- **WHEN** `formats` contains a key that is unknown or is `stl`/`3mf`
+- **THEN** export raises an error naming the key and the supported keys
+- **AND** no output files are written
+
+---
+
+### Requirement: Optional progress callback
+
+`export_model` SHALL accept an optional keyword-only `progress` callable taking one string, default `None`. When supplied, it SHALL be called with a `[k/N] <step> <id>` line for each part loaded, each per-union STL written, and each fused plate STL written, each phase counted separately, and once with `writing model.3mf` (no counter) before the 3MF is written. When `None`, `export_model` SHALL produce no progress output. The files written and the returned dict SHALL NOT depend on whether `progress` is supplied.
+
+#### Scenario: Callback receives per-phase lines
+
+- **WHEN** `export_model` is called with a recording callback on a plan with two parts and three unions on one multi-union plate
+- **THEN** the callback receives two part-loading lines numbered `[1/2]` and `[2/2]`, one `writing model.3mf` line, three union-STL lines numbered `[1/3]` to `[3/3]`, and one plate line `[1/1]`
+
+#### Scenario: No callback
+
+- **WHEN** `export_model` is called without `progress`
+- **THEN** nothing is printed by `export_model` and the files written are identical to a call with a callback
+
+#### Scenario: JSON CLI unchanged
+
+- **WHEN** `model_export` is run as a CLI
+- **THEN** stdout is the same JSON document as before and contains no progress lines

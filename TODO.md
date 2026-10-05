@@ -80,6 +80,21 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [x] optimization for print speed
 - [ ] since orca slicer now supports STEP default to export this format
 
+## Optimisation
+Run-time review (static read of the hot paths, not profiled), ranked by likely time saved.
+Profile one real gate run before starting to confirm the order.
+
+- [ ] 1. `measure_stl.py` `_thin_regions`: up to 3000 brute-force ray-vs-all-triangles casts in a Python loop, per union per wrapper run. Fix: batched `trimesh.ray` (embree/rtree) or chunked rays plus a bbox prefilter. Gain: very high
+- [ ] 2. Part script runs ~6x per gate (shim, `--deliver`, edge-treatment, feature-presence, toolpath-speed x2, Gridfinity) plus extra Python/`import cadquery` startups. Fix: memoize `_load_result` per (path, hash, rotate), merge the edge-treatment and feature-presence hooks into one load, let `--deliver` reuse the shim result. Gain: high
+- [ ] 3. `quality_gate.py` runs once per union and re-runs the whole-model stages (kinematic, plate clearance, keep-out) each time, reloading every STL. Fix: run them once per model, or cache on manifest + plan hash. Gain: high on multi-part plans
+- [ ] 4. `kinematic_check.py` sweep: per-pose `mesh.copy()` + `apply_transform`, full-resolution manifold booleans, 8 bisect steps x azimuths, STL reload and `CollisionManager` rebuild per entry. Fix: load/build once, set the fcl transform instead of copying, decimate or bbox-gate the boolean. Gain: high on plans with joints
+- [ ] 5. `print_orientation.py` candidate loop: `mesh.copy()` per candidate recomputes `face_adjacency`, triangles and normals though topology is invariant. Fix: precompute once, rotate only normals/centroid z, merge near-duplicate hull normals first. Gain: high
+- [ ] 6. `mesh_io.py` `_is_bridge`: Python dict of every edge plus per-edge Python loop per region, run in the gate and per orientation candidate. Fix: vectorize with sorted edge keys + `searchsorted` and numpy masks. Gain: medium-high
+- [ ] 7. Repeated tessellation per union (3MF at 0.01, STL, shim default, preview per view) and a 0.01 mesh feeding all trimesh analysis. Fix: tessellate once for STL + 3MF, coarser tolerance (~0.02-0.05) for analysis STLs. Gain: medium, compounds with 1, 4, 5, 6
+- [ ] 8. `exporters/threemf_multi.py`: pure-Python `_weld`, one `ET.SubElement` per vertex/triangle, zip re-parsed for the manifold count. Fix: `np.unique` weld, join f-strings for XML, count from in-memory arrays. Gain: medium on large models
+- [ ] 9. `preview.py`: per-triangle Python shading, per-triangle `verts[list(f)]`, re-tessellation per panel/section. Fix: vectorized `np.cross` shading, `verts[faces]`, tessellate once. Gain: medium
+- [ ] 10. Python-loop mesh helpers: `measure_stl._union_find`, `print_orientation._area_cumulation_normals`, `measure_stl._flat_faces`. Fix: `scipy.sparse.csgraph.connected_components`, `np.unique` + `np.add.at`, sorted-z `searchsorted`. Gain: medium, low effort
+
 ## Related ideas
 Survey of external libraries/tools and whether/how to integrate each --
 strategies defined in [Details](#integration-strategies).
@@ -635,7 +650,7 @@ fill largest-area-first, keep uniform spacing via `scipy.ndimage.binary_dilation
 on the blocked bitmap, build compound plates with OCC (`BRep_Builder` +
 `TopoDS_Compound`), export STL+STEP per plate, report bed utilization %.
 Inputs we already have: per-union assembled/print-oriented STLs, `plate`
-metadata, bed size (would need to come from `printer_profile.json` -- not
+metadata, bed size (would need to come from `profile.json` -- not
 currently a field). Decide scope: full nester, or just a utilization report +
 overflow warning leaving assignment to the operator/slicer. Interacts with
 print-orientation (footprint depends on chosen orientation) and the

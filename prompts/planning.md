@@ -34,7 +34,7 @@ orchestrator raises every `OPEN:` item with the user before building.
 
 `planning_notes` holds only: (a) decisions made *against* something, with the reason -- a
 rejected alternative or archetype, a schema limit, a deviation from the literal request or
-a `printer_profile.json` default, a deliberately empty optional field -- plus any
+a `profile.json` default, a deliberately empty optional field -- plus any
 compensating measure; (b) invariants binding more than one part that no per-part field can
 hold (shared frame anchors, a dimension in one part fixed by another, and why they must
 agree); (c) the assembly procedure (order and direction of assembly, assembly-access

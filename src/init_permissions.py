@@ -3,7 +3,7 @@
 permission allow-patterns, so the user is not prompted for each skill-issued tool call.
 Also scaffolds the documented top-level working-directory tree (build/, stl/, preview/)
 so it exists up front instead of appearing piecemeal as different pipeline scripts run,
-and seeds printer_profile.json and skill_config.json from their defaults when absent.
+and seeds profile.json and skill_config.json from their defaults when absent.
 
 The canonical pattern list lives in skill_permissions.json beside this file. The merge
 is additive and order-preserving: existing entries and other settings keys are never
@@ -77,7 +77,7 @@ def scaffold_directories(working_dir: str) -> list[str]:
 
 
 _SEEDED_FILES = {
-    "printer_profile.json": "printer_profile.default.json",
+    "profile.json": "profile.default.json",
     "skill_config.json": "skill_config.default.json",
 }
 
