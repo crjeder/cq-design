@@ -8,6 +8,7 @@ CadQuery-backed, so integration-speed.
 """
 
 import json
+import shutil
 import subprocess
 import sys
 
@@ -35,12 +36,13 @@ def _setup(tmp_path, skill_src, parts, part_bodies):
     for pid, body in part_bodies.items():
         _write_part(build_dir, pid, body)
     _render_build_py(build_dir)
+    shutil.copy(skill_src / "profile.default.json", tmp_path / "profile.json")
     return build_dir
 
 
-def _run(build_dir, env=None):
+def _run(build_dir, env=None, *args):
     return subprocess.run(
-        [sys.executable, str(build_dir / "build.py")],
+        [sys.executable, str(build_dir / "build.py"), *args],
         capture_output=True,
         text=True,
         cwd=str(build_dir.parent),
@@ -222,3 +224,147 @@ def test_build_py_recomputes_stale_orientation(tmp_path, skill_src):
     assert z < 10
     assert "plate" in proc.stdout
     assert "recomputed" in proc.stdout
+
+
+def test_build_py_formats_step_writes_step_per_union(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path, skill_src, [{"id": "base", "description": "base"}], {"base": _FLAT}
+    )
+
+    proc = _run(build_dir, None, "--formats", "step")
+
+    assert proc.returncode == 0, proc.stderr
+    assert (build_dir.parent / "stl" / "base.step").exists()
+    assert (build_dir.parent / "stl" / "base.stl").exists()
+    assert "base.step" in proc.stdout
+
+
+def test_build_py_formats_unsupported_key_exits_nonzero(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path, skill_src, [{"id": "base", "description": "base"}], {"base": _FLAT}
+    )
+
+    proc = _run(build_dir, None, "--formats", "dxf")
+
+    assert proc.returncode != 0
+    assert "step" in proc.stderr
+    assert not (build_dir.parent / "model.3mf").exists()
+
+
+def test_build_py_prints_numbered_progress_before_summary(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [{"id": "base", "description": "base"}, {"id": "lid", "description": "lid"}],
+        {"base": _FLAT, "lid": _FLAT},
+    )
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    out = proc.stdout
+    # No orientations.json: both unions are computed, so numbered over those two.
+    assert "[1/2] orientation base" in out
+    assert "[2/2] orientation lid" in out
+    assert "[1/2] loading base" in out
+    assert "[2/2] loading lid" in out
+    assert "writing model.3mf" in out
+    assert out.index("[2/2] loading lid") < out.index("model.3mf:")
+
+
+def test_build_py_reused_orientations_print_no_orientation_lines(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [{"id": "plate", "description": "flat plate"}],
+        {"plate": _FLAT},
+    )
+    (build_dir / "orientations.json").write_text(
+        json.dumps({"plate": {"rotate": []}}), encoding="utf-8"
+    )
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    assert "orientation plate" not in proc.stdout
+    assert "[1/1] loading plate" in proc.stdout
+
+
+def test_build_py_recomputed_orientations_numbered_over_recomputed_only(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [
+            {"id": "a", "description": "a"},
+            {"id": "b", "description": "b"},
+            {"id": "c", "description": "c"},
+        ],
+        {"a": _FLAT, "b": _FLAT, "c": _FLAT},
+    )
+    (build_dir / "orientations.json").write_text(
+        json.dumps({"b": {"rotate": []}}), encoding="utf-8"
+    )
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    assert "[1/2] orientation a" in proc.stdout
+    assert "[2/2] orientation c" in proc.stdout
+    assert "orientation b" not in proc.stdout
+
+
+def _set_slicer(build_dir, slicer):
+    path = build_dir.parent / "profile.json"
+    profile = json.loads(path.read_text(encoding="utf-8"))
+    if slicer is None:
+        profile.pop("slicer")
+    else:
+        profile["slicer"] = slicer
+    path.write_text(json.dumps(profile), encoding="utf-8")
+
+
+def _flat_build(tmp_path, skill_src):
+    return _setup(tmp_path, skill_src, [{"id": "base", "description": "base"}], {"base": _FLAT})
+
+
+def test_build_py_preferred_format_written_per_union(tmp_path, skill_src):
+    build_dir = _flat_build(tmp_path, skill_src)
+    _set_slicer(build_dir, {"preferred_format": "step", "slicer_name": "OrcaSlicer"})
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    assert (build_dir.parent / "stl" / "base.step").exists()
+    assert "OrcaSlicer" in proc.stdout
+
+
+def test_build_py_preferred_format_combines_with_formats(tmp_path, skill_src):
+    build_dir = _flat_build(tmp_path, skill_src)
+    _set_slicer(build_dir, {"preferred_format": "step"})
+
+    proc = _run(build_dir, None, "--formats", "obj")
+
+    assert proc.returncode == 0, proc.stderr
+    assert (build_dir.parent / "stl" / "base.step").exists()
+    assert (build_dir.parent / "stl" / "base.obj").exists()
+
+
+def test_build_py_missing_slicer_block_fails_before_export(tmp_path, skill_src):
+    build_dir = _flat_build(tmp_path, skill_src)
+    _set_slicer(build_dir, None)
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 1
+    assert "slicer.preferred_format" in proc.stderr
+    assert not (build_dir.parent / "model.3mf").exists()
+
+
+def test_build_py_missing_profile_fails_with_legacy_hint(tmp_path, skill_src):
+    build_dir = _flat_build(tmp_path, skill_src)
+    (build_dir.parent / "profile.json").rename(build_dir.parent / "printer_profile.json")
+
+    proc = _run(build_dir)
+
+    assert proc.returncode == 1
+    assert "profile.json" in proc.stderr and "rename" in proc.stderr

@@ -139,7 +139,7 @@ uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/toolpath_speed.py" \
     --plan BUILD_PLAN.json --script {{PART_ID}}.py
 ```
 
-`status: "skipped"` (no `motion` block in `printer_profile.json`, or geometry the model
+`status: "skipped"` (no `motion` block in `profile.json`, or geometry the model
 can't represent) means nothing to act on. Otherwise, read the attribution:
 
 - An issue with `attribution` ranks sharp/undersized corners by how much print time

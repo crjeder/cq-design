@@ -2,8 +2,8 @@
 SKILL.md                    # skill definition and workflow phases
 CLAUDE.md                   # development guidance for the pipeline scripts
 src/build_plan_schema.json  # JSON Schema draft-7 for BUILD_PLAN.json
-src/printer_profile_schema.json      # JSON Schema draft-7 for printer_profile.json
-src/printer_profile.default.json     # default printer_profile.json seeded into a fresh directory
+src/printer_profile_schema.json      # JSON Schema draft-7 for profile.json
+src/profile.default.json     # default profile.json seeded into a fresh directory
 pyproject.toml              # dependencies and project metadata (uv)
 
 src/
@@ -11,7 +11,7 @@ src/
   run_model_shim.py         # runpy shim that auto-exports `result` to STL
   quality_gate.py           # DFM + in-process trimesh geometry/overhang analysis (no slicer required), fix rounds, print recipe
   plan.py                   # validate / summary / import-params over BUILD_PLAN.json
-  printer_profile_validate.py # validates printer_profile.json and writes back field overrides
+  printer_profile_validate.py # validates profile.json and writes back field overrides
   measure_stl.py            # geometry feature extractor for reference STLs (trimesh + numpy)
   preview.py                # headless multi-view PNG renderer (CadQuery tessellation + matplotlib)
   render_preview.py         # subprocess entry point for preview.py

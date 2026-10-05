@@ -700,3 +700,104 @@ def test_copy_of_mirrored_and_identical(tmp_path):
     assert c[:, 0].tolist() == pytest.approx([20, 30])
     manifest = json.loads(Path(out["manifest"]).read_text(encoding="utf-8"))
     assert manifest["unions"]["wall_b"]["script_part"] == "wall_a"
+
+
+def _placed_plan(parts_dir):
+    _write_part(parts_dir, "a")
+    _write_part(parts_dir, "b")
+    return _plan(
+        [
+            {"id": "a", "placement": {"translate": [0, 0, 0]}},
+            {"id": "b", "placement": {"translate": [30, 0, 0]}},
+        ]
+    )
+
+
+def test_formats_step_written_per_union_in_assembled_pose(tmp_path):
+    import cadquery as cq
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    plan = _placed_plan(parts_dir)
+    out = tmp_path / "dist"
+
+    result = export_model(plan, str(parts_dir), str(out), formats=["step"])
+
+    assert set(result["format_files"]["step"]) == {"a", "b"}
+    assert Path(result["model_3mf"]).exists()
+    for uid, path in result["format_files"]["step"].items():
+        assert Path(path) == out / f"{uid}.step"
+        stl = trimesh.load(result["union_stls"][uid])
+        shape = cq.importers.importStep(path).val()
+        bb = shape.BoundingBox()
+        assert [bb.xmin, bb.ymin, bb.zmin] == pytest.approx(stl.bounds[0].tolist(), abs=1e-3)
+        assert [bb.xmax, bb.ymax, bb.zmax] == pytest.approx(stl.bounds[1].tolist(), abs=1e-3)
+        assert shape.Volume() == pytest.approx(stl.volume, rel=1e-3)
+
+
+def test_formats_default_writes_no_extra_files(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    out = tmp_path / "dist"
+
+    result = export_model(_placed_plan(parts_dir), str(parts_dir), str(out))
+
+    assert result["format_files"] == {}
+    assert not list(out.glob("*.step"))
+
+
+@pytest.mark.parametrize("bad", ["dxf", "stl", "3mf"])
+def test_formats_unsupported_key_raises_before_writing(tmp_path, bad):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    out = tmp_path / "dist"
+
+    with pytest.raises(ValueError, match=bad):
+        export_model(_placed_plan(parts_dir), str(parts_dir), str(out), formats=["step", bad])
+
+    assert not out.exists() or not list(out.iterdir())
+
+def test_progress_callback_reports_numbered_lines_per_phase(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    _write_multi_union_part(parts_dir, "hinge", "leaf_a", "leaf_b")
+    plan = _plan(
+        [
+            {"id": "base", "description": "Base", "plate": "p"},
+            {
+                "id": "hinge",
+                "description": "Hinge",
+                "unions": [{"id": "leaf_a", "plate": "p"}, {"id": "leaf_b", "plate": "p"}],
+            },
+        ]
+    )
+    lines = []
+
+    export_model(plan, str(parts_dir), str(tmp_path / "dist"), progress=lines.append)
+
+    assert lines == [
+        "[1/2] loading base",
+        "[2/2] loading hinge",
+        "writing model.3mf",
+        "[1/3] stl base",
+        "[2/3] stl leaf_a",
+        "[3/3] stl leaf_b",
+        "[1/1] plate p",
+    ]
+
+
+def test_no_progress_callback_prints_nothing_and_writes_same_files(tmp_path, capsys):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
+    plan = _plan([{"id": "base", "description": "Base"}])
+
+    plain = export_model(plan, str(parts_dir), str(tmp_path / "a"))
+    assert capsys.readouterr().out == ""
+    with_cb = export_model(plan, str(parts_dir), str(tmp_path / "b"), progress=lambda _s: None)
+
+    assert sorted(Path(p).name for p in plain["union_stls"].values()) == sorted(
+        Path(p).name for p in with_cb["union_stls"].values()
+    )
+    assert plain.keys() == with_cb.keys()

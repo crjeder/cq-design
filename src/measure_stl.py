@@ -16,6 +16,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -30,10 +31,12 @@ import trimesh
 
 def _load(path: str) -> trimesh.Trimesh:
     """Load and validate an STL file."""
+    if not os.path.isfile(path):
+        raise ValueError(f"STL not found: {path} (export it first, e.g. with --deliver)")
     try:
         mesh = trimesh.load(path, force="mesh")
     except Exception as e:
-        raise ValueError(f"Cannot load STL: {e}") from e
+        raise ValueError(f"Cannot load STL: {path} is not a valid STL file: {e}") from e
     if not isinstance(mesh, trimesh.Trimesh) or len(mesh.faces) == 0:
         raise ValueError("File contains no usable mesh geometry")
     return mesh
@@ -234,6 +237,39 @@ def _ray_thickness(
     return float(t[hit].min()) if np.any(hit) else float("inf")
 
 
+def _sampled_thickness(
+    mesh: trimesh.Trimesh, idx: np.ndarray, tmin: float, prefilter: bool = True
+) -> np.ndarray:
+    """Inward-ray wall thickness for the faces in ``idx`` (inf elsewhere).
+
+    On a watertight mesh the first crossing of an inward ray is the exit wall, whose
+    outward normal points along the ray (n_tri . d > 0) and which lies in front of the
+    origin. Both are half-space tests, so each ray runs Moeller-Trumbore only on the
+    triangles passing them. ``prefilter=False`` tests every triangle (reference path).
+    """
+    tris = mesh.triangles
+    v0 = tris[:, 0]
+    e1 = tris[:, 1] - v0
+    e2 = tris[:, 2] - v0
+    origins = mesh.triangles_center[idx]
+    dirs = -mesh.face_normals[idx]
+    thickness = np.full(len(mesh.faces), np.inf)
+
+    chunk = 256  # bounds the (n_faces x chunk) facing matrix
+    for s in range(0, len(idx), chunk):
+        facing = (mesh.face_normals @ dirs[s : s + chunk].T) > 1e-9
+        for j in range(facing.shape[1]):
+            k = s + j
+            sel = np.flatnonzero(facing[:, j]) if prefilter else np.arange(len(tris))
+            if prefilter:
+                ahead = ((tris[sel] - origins[k]) @ dirs[k]).max(axis=1) > tmin
+                sel = sel[ahead]
+            t = _ray_thickness(v0[sel], e1[sel], e2[sel], origins[k], dirs[k], tmin)
+            if t < thickness[idx[k]]:
+                thickness[idx[k]] = t
+    return thickness
+
+
 def _nearest_feature(
     point: np.ndarray,
     flat_faces: list[dict],
@@ -293,25 +329,13 @@ def _thin_regions(
     if n_faces > max_samples:
         idx = idx[:: int(np.ceil(n_faces / max_samples))]
 
-    origins = mesh.triangles_center[idx]
-    normals = mesh.face_normals[idx]
-
     # Wall thickness = distance to the opposite wall along the inward normal.
-    # Vectorized Moeller-Trumbore against every triangle (numpy only, no rtree).
-    tris = mesh.triangles
-    v0 = tris[:, 0]
-    e1 = tris[:, 1] - v0
-    e2 = tris[:, 2] - v0
     tmin = 1e-3
 
     sampled = np.zeros(n_faces, dtype=bool)
     sampled[idx] = True
 
-    thickness = np.full(n_faces, np.inf)
-    for k in range(len(idx)):
-        t = _ray_thickness(v0, e1, e2, origins[k], -normals[k], tmin)
-        if t < thickness[idx[k]]:
-            thickness[idx[k]] = t
+    thickness = _sampled_thickness(mesh, idx, tmin)
 
     is_thin = thickness < thin_max_mm
     if int(is_thin.sum()) < 2:

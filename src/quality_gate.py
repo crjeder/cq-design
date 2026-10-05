@@ -409,7 +409,7 @@ def _emit_print_recipe(
     any overhang finding, so the delivered recipe always claimed no support was
     needed even when the gate had just flagged one.
 
-    `layer_height_mm` is read from `printer_profile.json`'s optional `motion` block next
+    `layer_height_mm` is read from `profile.json`'s optional `motion` block next
     to `plan_path` (same lookup `_run_toolpath_speed_stage` already does -- `motion` is
     never part of BUILD_PLAN.json itself) when declared, falling back to the previous
     `nozzle_mm * 0.5` derivation when no `motion` block is present or `plan_path` is not
@@ -422,12 +422,11 @@ def _emit_print_recipe(
 
     layer_height_mm = round(nozzle * 0.5, 2)
     if plan_path is not None:
-        profile_path = os.path.join(
-            os.path.dirname(os.path.abspath(plan_path)), "printer_profile.json"
-        )
+        profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
         if os.path.isfile(profile_path):
-            with open(profile_path, encoding="utf-8") as f:
-                motion = json.load(f).get("motion")
+            from units import read_json
+
+            motion = read_json(profile_path, "profile.json").get("motion")
             if motion:
                 layer_height_mm = motion["layer_height_mm"]
 
@@ -760,8 +759,9 @@ def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | 
         os.path.dirname(os.path.abspath(script_path)), "orientations.json"
     )
     if os.path.isfile(orientations_path):
-        with open(orientations_path, encoding="utf-8") as f:
-            orientations = json.load(f)
+        from units import read_json
+
+        orientations = read_json(orientations_path, "orientations.json")
     stem = os.path.splitext(os.path.basename(script_path))[0]
     if orientation and stem not in orientations:
         orientations[stem] = orientation
@@ -775,7 +775,7 @@ def _run_toolpath_speed_stage(
     """Corner/crowding print-time advisory findings, in the build frame (once, outside
     the fix loop; always advisory).
 
-    Reads `motion` from `printer_profile.json` next to the plan; a missing block is a
+    Reads `motion` from `profile.json` next to the plan; a missing block is a
     stated skip, not an error. Passes the union's posed STL (from `stl_dir`, the
     assembled-pose STL every whole-model stage reads) so the layer-time/stall model can
     run alongside the corner model; a missing STL still yields the authored-corner-only
@@ -784,11 +784,12 @@ def _run_toolpath_speed_stage(
     from toolpath_speed import run_toolpath_speed_check
     from units import resolve_unions
 
-    profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "printer_profile.json")
+    profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
     motion = None
     if os.path.isfile(profile_path):
-        with open(profile_path, encoding="utf-8") as f:
-            motion = json.load(f).get("motion")
+        from units import read_json
+
+        motion = read_json(profile_path, "profile.json").get("motion")
     if not motion:
         return []
 
@@ -1078,8 +1079,9 @@ def run_gate(
             "fix_rounds": int,
         }
     """
-    with open(plan_path, encoding="utf-8") as f:
-        plan = json.load(f)
+    from units import read_json
+
+    plan = read_json(plan_path, "BUILD_PLAN.json")
     overhang_deg = plan.get("constraints", {}).get("overhang_max_deg", 45)
     bridge_max_mm = plan.get("constraints", {}).get("bridge_max_mm", 10.0)
     if stl_dir is None:
@@ -1265,21 +1267,36 @@ def main():
     )
     args = parser.parse_args()
 
-    orientation = None
-    if args.orientation:
-        with open(args.orientation, encoding="utf-8") as f:
-            orientation = json.load(f)
+    from units import InputFileError, read_json
 
-    report = run_gate(
-        args.script,
-        args.plan,
-        stl_path=args.stl,
-        allow_fix=args.fix,
-        stl_dir=args.stl_dir,
-        model_3mf_path=args.model_3mf,
-        orientation=orientation,
-        attempts_log=args.attempts_log,
-    )
+    try:
+        orientation = read_json(args.orientation, "orientation file") if args.orientation else None
+        report = run_gate(
+            args.script,
+            args.plan,
+            stl_path=args.stl,
+            allow_fix=args.fix,
+            stl_dir=args.stl_dir,
+            model_3mf_path=args.model_3mf,
+            orientation=orientation,
+            attempts_log=args.attempts_log,
+        )
+    except InputFileError as e:
+        report = {
+            "passed": False,
+            "issues": [
+                {
+                    "source": "quality_gate",
+                    "severity": "error",
+                    "type": "file_error",
+                    "message": e.message,
+                    "hint": "check the path, or re-run the step that writes the file",
+                    "action": "ask_user",
+                }
+            ],
+            "print_recipe": None,
+            "fix_rounds": 0,
+        }
 
     print(json.dumps(report, indent=2))
     sys.exit(0 if report["passed"] else 1)
