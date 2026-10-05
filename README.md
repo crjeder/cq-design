@@ -70,6 +70,8 @@ also works as a quick check in a script.
 
 ## Updating an existing project
 
+`/cq-design:update` runs the `bundle_project.py` copy below in one step.
+
 A project's `lib/`, `build/build.py`, and `.claude/settings.local.json` are snapshots
 of the skill taken when it was last bundled.
 
