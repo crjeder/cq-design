@@ -8,6 +8,7 @@ import json
 import subprocess
 import sys
 
+import numpy as np
 import trimesh
 
 import measure_stl
@@ -148,3 +149,13 @@ def test_wrapper_emits_thin_interface_error_and_geometry(tmp_path, skill_src):
         assert key in e, f"missing {key} in thin_interface error"
     assert e["orientation"] == "xy"
     assert "thin_regions" in data["geometry"]
+
+
+def test_prefilter_matches_unfiltered_cast():
+    """The facing/in-front pre-filter must not change per-face thickness."""
+    mesh = trimesh.util.concatenate([_box([20, 20, 20]), _box([2, 10, 20], (0, 15, 0))])
+    mesh = mesh.subdivide().subdivide()
+    idx = np.arange(len(mesh.faces))
+    fast = measure_stl._sampled_thickness(mesh, idx, 1e-3, prefilter=True)
+    ref = measure_stl._sampled_thickness(mesh, idx, 1e-3, prefilter=False)
+    assert np.allclose(fast, ref, equal_nan=True)
