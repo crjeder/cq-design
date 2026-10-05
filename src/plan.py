@@ -1418,8 +1418,10 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_summary(args: argparse.Namespace) -> int:
+    from units import load_plan
+
     path = Path(args.plan)
-    print(summarize(json.loads(path.read_text(encoding="utf-8")), path))
+    print(summarize(load_plan(str(path)), path))
     return 0
 
 

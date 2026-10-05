@@ -905,8 +905,22 @@ def main():
         env = os.environ.copy()
         env["PYTHONPATH"] = skill_root + os.pathsep + env.get("PYTHONPATH", "")
         if args.print_rotate:
-            with open(args.print_rotate, encoding="utf-8") as f:
-                env["CQ_PRINT_ROTATE"] = json.dumps(json.load(f)["rotate"])
+            from units import InputFileError, read_json
+
+            try:
+                env["CQ_PRINT_ROTATE"] = json.dumps(
+                    read_json(args.print_rotate, "print-rotate file")["rotate"]
+                )
+            except InputFileError as e:
+                result["errors"].append(
+                    {
+                        "type": "file_error",
+                        "message": e.message,
+                        "hint": "check the --print-rotate path, or re-run print_orientation.py",
+                    }
+                )
+                _emit(args, result)
+                sys.exit(1)
 
         shim = os.path.join(skill_root, "run_model_shim.py")
         started = time.time()
