@@ -4,6 +4,13 @@ Full per-script contract detail for `src/` and `evals/`: JSON shapes, CLI flags,
 error names, edge cases. `CLAUDE.md`'s File Layout section has the one-line index; read
 this file before modifying or calling any script listed here.
 
+**Input-file errors.** A missing, directory, unreadable, or non-JSON input file (`--plan`,
+`--orientation`, `--print-rotate`, `profile.json`, `orientations.json`) never produces a
+traceback. `units.read_json(path, role)` raises `InputFileError` (a `SystemExit`: stderr gets
+`error: <message>`, exit 1). `run_cadquery_model.py` instead emits its normal JSON contract
+with an `errors` entry `{type: "file_error", message, hint}`; `quality_gate.py` emits
+`passed: false` with a `file_error` issue. STL loaders say "STL not found" vs "not a valid STL".
+
 | Script | Role |
 |--------|------|
 | `src/run_cadquery_model.py` | Subprocess wrapper: runs a `.py` model (via `run_model_shim.py`), validates geometry, checks DFM constraints, emits structured JSON with `errors` and `geometry` fields. STL paths are hidden during iteration (temp dir); use `--deliver` to get deliverable files. Sets `PYTHONPATH=<src>` itself so the model can `from blocks import ...`. `--preview` forwards `--extra-section`/`--detail`/`--callout`/`--unlocated-name` to `render_preview.py` exactly as given. When a script's `result` is a `dict[str, Workplane]` (multi-union), it validates each union body, prefixes each finding's `message` with the union id and carries a `union` field, and aggregates `geometry` over the unions (summed volume/faces, bbox envelope); a single-`Workplane` result is byte-identical to the single-body report. With `--wall-min` set, `geometry` gains `thin_regions` (each with `thickness_mm`, `orientation` of `xy`/`z`, `location_xyz_mm`, `thin_direction`, `nearest_feature`); only XY-thin regions below `wall_min` become blocking `thin_interface` errors, Z-thin slabs are reported but advisory only. `--attempts-log <path> --model <name>` appends this run's attempt record via `telemetry.record_attempt` (part id = script stem, `_stub` scripts skipped, record dropped when `build/<id>_prompt.txt` is absent); the builder prompt always passes it, because the `PostToolUse` telemetry hook does not see sub-agent tool calls and skips any command carrying the flag. |

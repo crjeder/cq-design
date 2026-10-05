@@ -16,6 +16,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -30,10 +31,12 @@ import trimesh
 
 def _load(path: str) -> trimesh.Trimesh:
     """Load and validate an STL file."""
+    if not os.path.isfile(path):
+        raise ValueError(f"STL not found: {path} (export it first, e.g. with --deliver)")
     try:
         mesh = trimesh.load(path, force="mesh")
     except Exception as e:
-        raise ValueError(f"Cannot load STL: {e}") from e
+        raise ValueError(f"Cannot load STL: {path} is not a valid STL file: {e}") from e
     if not isinstance(mesh, trimesh.Trimesh) or len(mesh.faces) == 0:
         raise ValueError("File contains no usable mesh geometry")
     return mesh

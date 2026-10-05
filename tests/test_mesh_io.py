@@ -102,7 +102,7 @@ def test_load_mesh_valid(tmp_stl):
 
 
 def test_load_mesh_missing_file(tmp_path):
-    with pytest.raises(ValueError, match="Failed to load STL"):
+    with pytest.raises(ValueError, match="STL not found"):
         mesh_io.load_mesh(str(tmp_path / "nope.stl"))
 
 

@@ -40,6 +40,7 @@ from units import (
     keep_out_zone_key,
     load_plan,
     plate_of,
+    read_json,
     resolve_keep_out,
     resolve_unions,
 )
@@ -332,8 +333,7 @@ def main() -> None:
     plan = load_plan(args.plan)
     print_orientations = None
     if args.orientations:
-        with open(args.orientations, encoding="utf-8") as f:
-            print_orientations = json.load(f)
+        print_orientations = read_json(args.orientations, "orientations file")
     result = export_model(
         plan,
         args.parts_dir,
