@@ -11,6 +11,7 @@ description: Design or redesign 3D-printable parts as parametric CadQuery models
 | `/cq-plan` | Phases 1-2 only; stop once `BUILD_PLAN.json` is approved |
 | `/deliver <script.py>` | Export STL and 3MF for an existing script |
 | `/render <script.py>` | Render a multi-view preview PNG for an existing script |
+| `/cq-design:update` | Re-copy the installed skill's tooling into this project's `lib/` and `build/build.py` |
 
 ## Prerequisites
 
@@ -65,6 +66,20 @@ The script must assign its geometry to `result`. `/deliver` reports `stl`, `thre
 geometry summary, and any `errors` (stop and show them if `success` is false). `/render`
 shows `preview` and any errors. Each error carries a `hint`; read it rather than guessing
 from the type name.
+
+## /cq-design:update
+
+Only in a directory that already has `lib/` or `.bundle_version.json`; otherwise stop and
+say the project was never bundled (run the normal pipeline). Then:
+
+```bash
+python "$SKILL_DIR/src/bundle_project.py" .
+```
+
+This always copies (no staleness check): `build_template.py` to `build/build.py`, the
+bundled modules and `blocks`/`exporters` to `lib/`, prunes retired files, merges
+permissions, and restamps `.bundle_version.json`. Report the new stamp commit and suggest
+`uv sync` and `uv run python build/build.py`; do not run them or edit part scripts.
 
 ## Coordinate system
 
