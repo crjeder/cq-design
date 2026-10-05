@@ -20,7 +20,23 @@ once per directory; ask Claude to "init permissions" to re-seed after updating t
 
 ## Setup
 
-Install [uv](https://docs.astral.sh/uv/), then run the installer from the repo
+### As a plugin (recommended)
+
+Install [uv](https://docs.astral.sh/uv/), then in Claude Code:
+
+```
+/plugin marketplace add crjeder/cq-design
+/plugin install cq-design@cq-design
+```
+
+Commands: `/cq-design:design` (full pipeline), `:plan` (phases 1-2), `:init` (prepare a
+directory), `:update` (refresh a bundled project's tooling), `:deliver <script>`,
+`:render <script>`, `:status` (versions and staleness, read-only). The Python
+environment lives in the plugin's data directory and survives plugin updates.
+
+### With the installer (no slash commands)
+
+Run the installer from the repo
 root. It copies the skill into the Claude Code personal skills directory
 (`~/.claude/skills/cq-design/`) and provisions its Python environment:
 

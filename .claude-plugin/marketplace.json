@@ -1,0 +1,12 @@
+{
+  "name": "cq-design",
+  "owner": { "name": "Christoph" },
+  "description": "cq-design: parametric CadQuery part design for 3D printing.",
+  "plugins": [
+    {
+      "name": "cq-design",
+      "source": "./",
+      "description": "Design 3D-printable parts as parametric CadQuery models."
+    }
+  ]
+}

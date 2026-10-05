@@ -12,6 +12,7 @@ removed, reordered, or duplicated. Directory scaffolding is likewise idempotent.
 Usage:
     python init_permissions.py [DIR]          # merge patterns + scaffold dirs (default: cwd)
     python init_permissions.py [DIR] --check  # report whether init already ran
+    python init_permissions.py [DIR] --venv P # also set UV_PROJECT_ENVIRONMENT=P (plugin install)
 
 Exit codes (merge mode): 0 always on success.
 Exit codes (--check mode): 0 if the sentinel pattern is already present, 1 if not.
@@ -20,6 +21,7 @@ Exit codes (--check mode): 0 if the sentinel pattern is already present, 1 if no
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 from typing import Any
@@ -122,14 +124,34 @@ def _resolved_hooks() -> dict[str, Any]:
     return resolved
 
 
+def _drop_stale(groups: list[dict[str, Any]], new_commands: list[str]) -> bool:
+    """Remove hooks that run the same script as a new command from another path."""
+    tail = re.compile(r"[^\\/]+$")
+    wanted = {m.group() for c in new_commands if (m := tail.search(c))}
+    removed = False
+    for group in groups:
+        keep = []
+        for h in group.get("hooks", []):
+            cmd = h.get("command", "")
+            m = tail.search(cmd)
+            if m and m.group() in wanted and cmd not in new_commands:
+                removed = True
+            else:
+                keep.append(h)
+        group["hooks"] = keep
+    groups[:] = [g for g in groups if g.get("hooks")]
+    return removed
+
+
 def merge_hooks(working_dir: str) -> bool:
     """Seed the canonical hooks (session-cost, telemetry, ...) into working_dir's
     settings.local.json.
 
-    Additive and idempotent: an event's existing hook entries are never removed
-    or reordered, and a canonical entry is added only when its resolved command
-    isn't already present under that event. Returns True only when something
-    was added.
+    Idempotent: a canonical entry is added only when its resolved command isn't
+    already present under that event. Entries are never reordered, and none are
+    removed except a stale copy of a canonical hook (same script, old install
+    path, e.g. after a plugin update), which is replaced. Returns True only when
+    something changed.
     """
     resolved = _resolved_hooks()
     if not resolved:
@@ -141,8 +163,10 @@ def merge_hooks(working_dir: str) -> bool:
     changed = False
     for event, groups in resolved.items():
         existing = hooks.setdefault(event, [])
-        present = " ".join(h.get("command", "") for g in existing for h in g.get("hooks", []))
         new_commands = [h.get("command", "") for g in groups for h in g.get("hooks", [])]
+        if _drop_stale(existing, new_commands):
+            changed = True
+        present = " ".join(h.get("command", "") for g in existing for h in g.get("hooks", []))
         if any(cmd and cmd in present for cmd in new_commands):
             continue
         existing.extend(groups)
@@ -154,6 +178,22 @@ def merge_hooks(working_dir: str) -> bool:
             json.dump(settings, f, indent=2)
             f.write("\n")
     return changed
+
+
+def merge_env(working_dir: str, venv: str) -> bool:
+    """Point uv at `venv` for Bash calls in working_dir (plugin installs keep it outside
+    the plugin root). Returns True when the setting changed."""
+    path = settings_path(working_dir)
+    settings = _load_settings(path)
+    env = settings.setdefault("env", {})
+    if env.get("UV_PROJECT_ENVIRONMENT") == venv:
+        return False
+    env["UV_PROJECT_ENVIRONMENT"] = venv
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    return True
 
 
 def merge_permissions(working_dir: str) -> list[str]:
@@ -193,6 +233,10 @@ def main() -> int:
         action="store_true",
         help="exit 0 if init already ran, 1 otherwise; make no changes",
     )
+    parser.add_argument(
+        "--venv",
+        help="set UV_PROJECT_ENVIRONMENT to this path in the project's settings (plugin installs)",
+    )
     args = parser.parse_args()
 
     canonical = load_canonical()
@@ -210,6 +254,9 @@ def main() -> int:
             print(f"  {pattern}")
     else:
         print(f"No changes; all patterns already present in {settings_path(args.dir)}")
+
+    if args.venv and merge_env(args.dir, args.venv):
+        print(f"Set UV_PROJECT_ENVIRONMENT={args.venv} in {settings_path(args.dir)}")
 
     if merge_hooks(args.dir):
         print(

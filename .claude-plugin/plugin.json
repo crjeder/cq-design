@@ -1,0 +1,11 @@
+{
+  "name": "cq-design",
+  "version": "0.1.0",
+  "description": "Design 3D-printable parts as parametric CadQuery models: sourcing, planning, build loop, export, quality gate.",
+  "author": { "name": "Christoph" },
+  "homepage": "https://github.com/crjeder/cq-design",
+  "repository": "https://github.com/crjeder/cq-design",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cadquery", "3d-printing", "cad", "stl"],
+  "skills": ["."]
+}
