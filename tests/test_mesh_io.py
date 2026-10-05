@@ -249,3 +249,27 @@ def test_fold_metrics_separate_fins_are_separate_clusters():
     r = mesh_io.fold_metrics(two)
     assert r["count"] == 2
     assert [c["angle_deg"] for c in r["clusters"]] == pytest.approx([2.0, 5.0], abs=1e-6)
+
+
+def test_overhang_regions_read_vertices_once_regardless_of_region_count(monkeypatch):
+    # Many disconnected downward triangles -> many regions; vertex reads must not scale.
+    orig = trimesh.Trimesh.__dict__["vertices"]
+    reads = [0]
+
+    def counted(self):
+        reads[0] += 1
+        return orig.fget(self)
+
+    monkeypatch.setattr(trimesh.Trimesh, "vertices", property(counted, orig.fset))
+
+    def reads_for(n):
+        verts = np.array(
+            [[[3 * i, 0, 0], [3 * i + 1, 0, 0], [3 * i, -1, -0.001]] for i in range(n)]
+        )
+        faces = np.arange(3 * n).reshape(n, 3)
+        mesh = trimesh.Trimesh(vertices=verts.reshape(-1, 3), faces=faces, process=False)
+        reads[0] = 0
+        assert len(mesh_io.overhang_regions(mesh, 45.0)) == n
+        return reads[0]
+
+    assert reads_for(50) == reads_for(5)
