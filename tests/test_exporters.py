@@ -62,6 +62,47 @@ def test_threemf_export_is_manifold(tmp_path):
     assert count_nonmanifold_edges(paths[0]) == 0
 
 
+def _old_weld(verts, tris):
+    remap: dict[tuple[float, float, float], int] = {}
+    out: list[tuple[float, float, float]] = []
+    old_to_new = [0] * len(verts)
+    for i, v in enumerate(verts):
+        key = (round(v.x, 6), round(v.y, 6), round(v.z, 6))
+        idx = remap.get(key)
+        if idx is None:
+            idx = remap[key] = len(out)
+            out.append((v.x, v.y, v.z))
+        old_to_new[i] = idx
+    return out, [(old_to_new[a], old_to_new[b], old_to_new[c]) for a, b, c in tris]
+
+
+def test_weld_matches_dict_loop():
+    import cadquery as cq
+
+    from exporters.threemf_multi import _weld
+
+    for shape in (
+        cq.Workplane("XY").box(10, 10, 10),
+        cq.Workplane("XY").cylinder(8, 5),
+    ):
+        verts, tris = shape.findSolid().tessellate(0.01, 0.1)
+        new_v, new_t = _weld(verts, tris)
+        old_v, old_t = _old_weld(verts, tris)
+        assert new_v.tolist() == [list(v) for v in old_v]
+        assert new_t.tolist() == [list(t) for t in old_t]
+
+
+def test_writer_returns_nonmanifold_count(tmp_path):
+    import cadquery as cq
+
+    from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
+
+    shape = cq.Workplane("XY").box(20, 20, 6).faces(">Z").workplane().hole(8).val()
+    path = str(tmp_path / "m.3mf")
+    assert write_named_3mf([("a", "1", shape)], path) == 0
+    assert count_nonmanifold_edges(path) == 0
+
+
 def test_scad_export(simple_box_script, tmp_path):
     paths = run_exporters(str(simple_box_script), ["scad"], str(tmp_path))
     assert len(paths) == 1
