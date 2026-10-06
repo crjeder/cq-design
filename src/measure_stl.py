@@ -250,30 +250,30 @@ def _sampled_thickness(
     """Inward-ray wall thickness for the faces in ``idx`` (inf elsewhere).
 
     On a watertight mesh the first crossing of an inward ray is the exit wall, whose
-    outward normal points along the ray (n_tri . d > 0) and which lies in front of the
-    origin. Both are half-space tests, so each ray runs Moeller-Trumbore only on the
-    triangles passing them. ``prefilter=False`` tests every triangle (reference path).
+    outward normal points along the ray (n_tri . d > 0) and which lies beyond ``tmin``.
+    The default path runs one batched ``mesh.ray`` query for all rays and reduces the
+    qualifying hits per ray. ``prefilter=False`` tests every triangle per ray in a
+    Python loop (reference path).
     """
-    tris = mesh.triangles
-    v0 = tris[:, 0]
-    e1 = tris[:, 1] - v0
-    e2 = tris[:, 2] - v0
     origins = mesh.triangles_center[idx]
     dirs = -mesh.face_normals[idx]
     thickness = np.full(len(mesh.faces), np.inf)
 
-    chunk = 256  # bounds the (n_faces x chunk) facing matrix
-    for s in range(0, len(idx), chunk):
-        facing = (mesh.face_normals @ dirs[s : s + chunk].T) > 1e-9
-        for j in range(facing.shape[1]):
-            k = s + j
-            sel = np.flatnonzero(facing[:, j]) if prefilter else np.arange(len(tris))
-            if prefilter:
-                ahead = ((tris[sel] - origins[k]) @ dirs[k]).max(axis=1) > tmin
-                sel = sel[ahead]
-            t = _ray_thickness(v0[sel], e1[sel], e2[sel], origins[k], dirs[k], tmin)
-            if t < thickness[idx[k]]:
-                thickness[idx[k]] = t
+    if prefilter:
+        loc, ray_i, tri_i = mesh.ray.intersects_location(origins, dirs, multiple_hits=True)
+        t = np.linalg.norm(loc - origins[ray_i], axis=1)
+        keep = (np.einsum("ij,ij->i", mesh.face_normals[tri_i], dirs[ray_i]) > 1e-9) & (t > tmin)
+        best = np.full(len(idx), np.inf)
+        np.minimum.at(best, ray_i[keep], t[keep])
+        thickness[idx] = best
+        return thickness
+
+    tris = mesh.triangles
+    v0 = tris[:, 0]
+    e1 = tris[:, 1] - v0
+    e2 = tris[:, 2] - v0
+    for k in range(len(idx)):
+        thickness[idx[k]] = _ray_thickness(v0, e1, e2, origins[k], dirs[k], tmin)
     return thickness
 
 
