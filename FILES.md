@@ -19,12 +19,13 @@ src/
   placement.py              # assembled-frame placement helper (cq Workplane + trimesh matrix)
   mate_chain.py             # derived pose along a `joints` mate chain from root_part
   units.py                  # part -> unions / keep-out-zone expansion shared by export/validate/checks
-  model_export.py           # model-level export: named multi-object 3MF + per-union/plate/keep-out STL
+  write_assembly.py         # assembled-pose per-union + keep-out STLs and manifest (checks' input)
+  deliverables.py           # user-facing model files: named 3MF, STL + plates, STEP/OBJ/IGES/SCAD
   kinematic_check.py        # whole-model range-of-motion sweep (trimesh + python-fcl)
   plate_clearance_check.py  # whole-model co-plated union clearance check
   keep_out_check.py         # whole-model keep-out-zone check (trimesh + python-fcl)
   print_orientation.py      # auto-rotation optimizer for print orientation
-  build_template.py         # build.py template copied into build/ to regenerate plates
+  build_template.py         # build.py template copied into build/; writes model files to out/
   regen_prompt.py           # exports REGENERATE.md: a fresh-session prompt to re-derive the design
   cq_compat.py              # CadQuery/cq_warehouse compatibility shims
   init_permissions.py       # seeds .claude/settings.local.json with pipeline permissions
@@ -65,7 +66,7 @@ tests/
   test_mesh_io.py           # mesh loader tests
   test_placement.py         # placement helper tests
   test_units.py             # part -> unions / keep-out-zone expansion tests
-  test_model_export.py      # model-level export tests
+  test_assembly_and_deliverables.py  # write_assembly + deliverables tests
   test_mate_chain.py        # derived mate-chain pose tests
   test_kinematic_check.py   # kinematic sweep tests
   test_plate_clearance_check.py

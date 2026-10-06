@@ -37,7 +37,7 @@ STL loaders SHALL report a nonexistent path differently from a file that exists 
 - **THEN** the error says the file is not a valid STL and includes the parser reason
 
 ### Requirement: Shared loader
-All `--plan` CLIs and the plan/orientation/config reads in `quality_gate.py`, `model_export.py` and `run_cadquery_model.py` SHALL obtain their JSON through the shared helper in `units.py` so the wording is identical across scripts.
+All `--plan` CLIs and the plan/orientation/config reads in `quality_gate.py`, `write_assembly.py` and `run_cadquery_model.py` SHALL obtain their JSON through the shared helper in `units.py` so the wording is identical across scripts.
 
 #### Scenario: Same message from different scripts
 - **WHEN** two different CLIs are given the same missing plan path

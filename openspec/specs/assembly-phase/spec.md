@@ -11,8 +11,8 @@ model-level export, rather than from a hand-written fused CadQuery script.
 ### Requirement: Multi-part models are assembled declaratively from placement
 
 The build pipeline SHALL combine multiple validated parts into the final assembled
-model declaratively, from each union's `placement`, via the model-level export
-(`model_export.py`). The pipeline SHALL NOT generate a hand-written fused CadQuery
+model declaratively, from each union's `placement`, via the assembly step
+(`write_assembly.py`). The pipeline SHALL NOT generate a hand-written fused CadQuery
 assembly script, and SHALL NOT write `build/assembly.py`. Each part SHALL remain a
 separately authored and separately validated single-body union; assembled position is
 determined by each union's `placement` (identity when absent), EXCEPT for a part reached
@@ -23,7 +23,7 @@ body.
 
 #### Scenario: No fused assembly script is generated
 - **WHEN** a plan has more than one part and every part passes the part loop
-- **THEN** the pipeline produces the assembled model via `model_export.py` and does not
+- **THEN** the pipeline produces the assembled model via `write_assembly.py` and does not
   generate or write a fused `build/assembly.py` CadQuery script
 
 #### Scenario: Assembled position comes from placement
@@ -55,8 +55,8 @@ script.
 
 #### Scenario: Model export produces per-union assembled STLs
 - **WHEN** the assembly phase runs for a multi-part model
-- **THEN** `model_export.py` emits one assembled-pose STL per union plus the named-object
-  3MF, and the kinematic check reads the per-union STLs from that export
+- **THEN** `write_assembly.py` emits one assembled-pose STL per union, and the kinematic check reads the per-union STLs
+  from that output; the named-object 3MF comes from `build.py`
 
 #### Scenario: Quality gate runs per union for multi-part models
 - **WHEN** the quality gate runs for a multi-part model

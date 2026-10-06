@@ -43,7 +43,7 @@ print a note saying so.
 The skill SHALL bundle the shared build tooling that `build.py` imports into the working
 directory so it resolves without a `SKILL_SRC` path or the skill being installed. The
 bundle SHALL include the full import closure of `build.py` — the `exporters` and `blocks`
-packages (including their data files such as `inventory.json`), `mesh_io`, `model_export`,
+packages (including their data files such as `inventory.json`), `mesh_io`, `write_assembly`, `deliverables`,
 `print_orientation`, and `placement`. The bundle SHALL be copied fresh from the skill's
 `src/` on each Build-phase run.
 

@@ -97,10 +97,10 @@ the line's formatting.
 ### Requirement: Scoped STL regeneration reuses the rest of the model's existing export
 
 Between bisection steps, the tool SHALL regenerate only the STL of the part whose
-script was edited, posed into the assembled frame the same way `model_export.py`
+script was edited, posed into the assembled frame the same way `write_assembly.py`
 poses it (`placement`, or a `joints` mate-chain pose when present), and SHALL reuse
 the other unions' STLs already present in `--stl-dir` unchanged. It SHALL NOT
-re-run `model_export.py` for the whole model on every candidate.
+re-run `write_assembly.py` for the whole model on every candidate.
 
 #### Scenario: Only the searched part's STL changes between steps
 - **WHEN** the tool tests a new candidate value
