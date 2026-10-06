@@ -30,8 +30,8 @@ Install [uv](https://docs.astral.sh/uv/), then in Claude Code:
 ```
 
 Commands: `/cq-design:design` (full pipeline), `:plan` (phases 1-2), `:init` (prepare a
-directory), `:update` (refresh a bundled project's tooling), `:deliver <script>`,
-`:render <script>`, `:status` (versions and staleness, read-only). The Python
+directory), `:update` (refresh a bundled project's tooling), `:build [format]` (generate
+model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only). The Python
 environment lives in the plugin's data directory and survives plugin updates.
 
 ### With the installer (no slash commands)
@@ -105,19 +105,20 @@ they differ from the template; merge new dependencies by hand). Part scripts are
 touched: if `build.py` fails after a refresh, a `blocks` signature probably changed, so
 read the error and edit that part script.
 
-## Regenerating the 3MF / STL files
+## Generating the model files
 
 When the skill finishes it turns your working directory into a self-contained
 [uv](https://docs.astral.sh/uv/) project: a `pyproject.toml`, `.python-version`, and
 committed `uv.lock` at the root, plus a `build/` directory holding the per-part scripts,
 `build.py`, `BUILD_PLAN.json`, and `orientations.json` (when orientations were accepted),
 and a `lib/` directory with the bundled build tooling (`exporters/`, `blocks/`,
-`model_export.py`, and friends).
+`write_assembly.py`, `deliverables.py`, and friends).
 Everything needed to rebuild the model lives here -- the skill does not have to be
 installed.
 
-To rebuild the model files after hand-editing a part script, sync the environment once
-and run `build.py` with uv instead of re-invoking the skill:
+The skill's last phase runs `build.py` for you. To rebuild the model files after
+hand-editing a part script, or to get another format, sync the environment once and run
+`build.py` with uv instead of re-invoking the skill (or use `/cq-design:build [format]`):
 
 ```bash
 uv sync
@@ -125,12 +126,24 @@ uv run python build/build.py
 ```
 
 `uv sync` downloads a compatible Python (3.10-3.12) and installs the pinned dependencies
-(CadQuery, trimesh, ...); later runs reuse the synced `.venv`. The build regenerates
-everything with each object in its print orientation and writes, to the output directory:
+(CadQuery, trimesh, ...); later runs reuse the synced `.venv`. With no arguments the
+build writes only the format your slicer prefers (`slicer.preferred_format` in
+`profile.json`); pick others with `--formats` (`3mf`, `stl`, `step`, `obj`, `iges`,
+`scad`, comma-separated). Everything goes to `out/`, with each object in its print
+orientation where the format has one:
 
-- `model.3mf` -- one named object per union, with plate metadata
-- `<union-id>.stl` -- one assembled-pose STL per union
-- `plate_<n>.stl` -- one fused STL per multi-union plate
+- `3mf`: `model.3mf` -- one named object per union, with plate metadata
+- `stl`: `<union-id>.stl` -- one assembled-pose STL per union; `plate_<n>.stl` -- one
+  fused STL per multi-union plate
+- `step` / `obj` / `iges` / `scad`: `<union-id>.<ext>` per union, assembled pose
+
+The per-union STLs are copied from `stl/` (the assembled-pose STLs the skill's
+`write_assembly.py` step writes for its checks) when those are still current for your
+part scripts; otherwise they are exported again.
+
+```bash
+uv run python build/build.py --formats 3mf,step
+```
 
 `build.py` reuses `build/orientations.json` when present (so the plates match what
 the skill delivered) and recomputes orientations otherwise. While building it prints `[k/N] <step> <id>` progress
@@ -138,7 +151,7 @@ lines to stdout (orientation, loading, stl, plate; each phase counted separately
 when your layout differs:
 
 ```bash
-uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out build
+uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out dist
 ```
 
 ## Regenerating the project with a fresh session
@@ -222,16 +235,16 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 - STEP is the exact B-rep (not a mesh), meant for editing in Fusion 360, FreeCAD and similar CAD tools. It is written as `<name>.step`.
 - `<name>` is the script stem, or the union id for each union of a multi-union part (one file per union; keep-out zones are never exported).
 - Files go to `--output-dir` (default: next to the script) and the JSON lists only the STL (`stls`) and 3MF (`threemfs`) paths; STEP files are on disk but not reported there.
-- `build.py` / `model_export.py` always write `model.3mf` and STLs; add `--formats step` (also `obj`, `iges`, `scad`) to also write `<union-id>.step` per union, in the assembled pose, next to the STLs.
+- `build.py --formats step` (also `3mf`, `stl`, `obj`, `iges`, `scad`) writes `<union-id>.step` per union, in the assembled pose, into `out/`; with no `--formats` it writes only the profile's `preferred_format`.
 - `fem_check.py` takes a part's exported STEP file as its positional input.
 
 **`render_preview.py`** (preview subprocess) takes `--script` **(req)**, `--output` **(req)**, `--views`, `--title`, `--subtitle`, `--density`, `--material`, `--cross-sections`, `--extra-section`, `--detail`, `--callout`, `--unlocated-name` with the same meaning as above. `preview.py --help-note` prints a usage note.
 
 **`section_select.py <script>`** picks section planes through bore/boss axes: `--max N` (default 3), `--reserve AXIS=MM` (repeatable).
 
-**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default root; `model.3mf`), `--stl-out` (default `<root>/stl`), `--orientations` (default `orientations.json` in `--parts-dir`), `--formats` (comma-separated extra per-union formats: `step`, `obj`, `iges`, `scad`; default none).
+**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default `<root>/out`), `--orientations` (default `orientations.json` in `--parts-dir`), `--profile` (default `<root>/profile.json`), `--formats` (comma-separated: `3mf`, `stl`, `step`, `obj`, `iges`, `scad`; default the profile's `preferred_format`).
 
-**`model_export.py`**: `--plan` **(req)**, `--parts-dir` **(req)**, `--out` **(req)**, `--stl-out` (default: `--out`), `--orientations FILE` (part id to orientation JSON; deliverables are written in these poses), `--formats` (as for `build.py`).
+**`write_assembly.py`**: `--plan` **(req)**, `--parts-dir` **(req)**, `--out` **(req**, the STL directory, normally `stl`**)**, `--orientations FILE` (part id to orientation JSON; part scripts see it as their finishing pose). Writes assembled-pose STLs, keep-out STLs and `export_manifest.json`; no user-facing files.
 
 **`export_standalone.py`**: `--parts-dir` (default `build`), `--out` (default `standalone`), `--parameters` (default `parameters.py`).
 

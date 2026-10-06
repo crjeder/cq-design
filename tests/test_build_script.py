@@ -24,6 +24,13 @@ def _render_build_py(build_dir):
     return build_dir / "build.py"
 
 
+def _set_slicer_format(root, fmt):
+    path = root / "profile.json"
+    profile = json.loads(path.read_text(encoding="utf-8"))
+    profile["slicer"]["preferred_format"] = fmt
+    path.write_text(json.dumps(profile), encoding="utf-8")
+
+
 def _write_part(build_dir, pid, body):
     (build_dir / f"{pid}.py").write_text(body, encoding="utf-8")
 
@@ -37,6 +44,7 @@ def _setup(tmp_path, skill_src, parts, part_bodies):
         _write_part(build_dir, pid, body)
     _render_build_py(build_dir)
     shutil.copy(skill_src / "profile.default.json", tmp_path / "profile.json")
+    _set_slicer_format(tmp_path, "3mf")
     return build_dir
 
 
@@ -81,8 +89,8 @@ def test_build_py_resolves_tooling_without_src_on_pythonpath(tmp_path, skill_src
     proc = _run(build_dir, env=env)
 
     assert proc.returncode == 0, proc.stderr
-    assert (build_dir.parent / "model.3mf").exists()
-    assert (build_dir.parent / "stl" / "base.stl").exists()
+    assert (build_dir.parent / "out" / "model.3mf").exists()
+    assert not (build_dir.parent / "out" / "base.stl").exists()  # preferred format only
 
 
 def test_build_py_regenerates_all_plates(tmp_path, skill_src):
@@ -96,14 +104,14 @@ def test_build_py_regenerates_all_plates(tmp_path, skill_src):
         {"base": _FLAT, "lid": _FLAT},
     )
 
-    proc = _run(build_dir)
+    proc = _run(build_dir, None, "--formats", "3mf,stl")
 
     assert proc.returncode == 0, proc.stderr
-    assert (build_dir.parent / "model.3mf").exists()
-    assert (build_dir.parent / "stl" / "base.stl").exists()
-    assert (build_dir.parent / "stl" / "lid.stl").exists()
+    assert (build_dir.parent / "out" / "model.3mf").exists()
+    assert (build_dir.parent / "out" / "base.stl").exists()
+    assert (build_dir.parent / "out" / "lid.stl").exists()
     # Two unions on one plate -> one fused plate STL.
-    assert (build_dir.parent / "stl" / "plate_shared.stl").exists()
+    assert (build_dir.parent / "out" / "plate_shared.stl").exists()
 
 
 def test_build_py_missing_part_fails_naming_union(tmp_path, skill_src):
@@ -131,7 +139,7 @@ def test_build_py_applies_print_orientation_and_is_deterministic(tmp_path, skill
 
     proc1 = _run(build_dir)
     assert proc1.returncode == 0, proc1.stderr
-    model = build_dir.parent / "model.3mf"
+    model = build_dir.parent / "out" / "model.3mf"
     z1 = float(trimesh.load(model).extents[2])
 
     # The authored post is 20 mm tall; laid down for strength it is ~4 mm in Z.
@@ -162,7 +170,7 @@ def test_build_py_reuses_orientations_json(tmp_path, skill_src):
     proc = _run(build_dir)
 
     assert proc.returncode == 0, proc.stderr
-    z = float(trimesh.load(build_dir.parent / "model.3mf").extents[2])
+    z = float(trimesh.load(build_dir.parent / "out" / "model.3mf").extents[2])
     assert z > 18
 
 
@@ -191,7 +199,7 @@ def test_build_py_reuses_orientations_json_with_matching_stamp(tmp_path, skill_s
     proc = _run(build_dir)
 
     assert proc.returncode == 0, proc.stderr
-    z = float(trimesh.load(build_dir.parent / "model.3mf").extents[2])
+    z = float(trimesh.load(build_dir.parent / "out" / "model.3mf").extents[2])
     assert z > 18
 
 
@@ -220,7 +228,7 @@ def test_build_py_recomputes_stale_orientation(tmp_path, skill_src):
     proc = _run(build_dir)
 
     assert proc.returncode == 0, proc.stderr
-    z = float(trimesh.load(build_dir.parent / "model.3mf").extents[2])
+    z = float(trimesh.load(build_dir.parent / "out" / "model.3mf").extents[2])
     assert z < 10
     assert "plate" in proc.stdout
     assert "recomputed" in proc.stdout
@@ -234,8 +242,10 @@ def test_build_py_formats_step_writes_step_per_union(tmp_path, skill_src):
     proc = _run(build_dir, None, "--formats", "step")
 
     assert proc.returncode == 0, proc.stderr
-    assert (build_dir.parent / "stl" / "base.step").exists()
-    assert (build_dir.parent / "stl" / "base.stl").exists()
+    assert (build_dir.parent / "out" / "base.step").exists()
+    # Only the requested format is written.
+    assert not (build_dir.parent / "out" / "model.3mf").exists()
+    assert not (build_dir.parent / "out" / "base.stl").exists()
     assert "base.step" in proc.stdout
 
 
@@ -248,7 +258,7 @@ def test_build_py_formats_unsupported_key_exits_nonzero(tmp_path, skill_src):
 
     assert proc.returncode != 0
     assert "step" in proc.stderr
-    assert not (build_dir.parent / "model.3mf").exists()
+    assert not (build_dir.parent / "out" / "model.3mf").exists()
 
 
 def test_build_py_prints_numbered_progress_before_summary(tmp_path, skill_src):
@@ -334,19 +344,53 @@ def test_build_py_preferred_format_written_per_union(tmp_path, skill_src):
     proc = _run(build_dir)
 
     assert proc.returncode == 0, proc.stderr
-    assert (build_dir.parent / "stl" / "base.step").exists()
+    assert (build_dir.parent / "out" / "base.step").exists()
     assert "OrcaSlicer" in proc.stdout
 
 
-def test_build_py_preferred_format_combines_with_formats(tmp_path, skill_src):
+def test_build_py_formats_overrides_preferred_format(tmp_path, skill_src):
     build_dir = _flat_build(tmp_path, skill_src)
     _set_slicer(build_dir, {"preferred_format": "step"})
 
-    proc = _run(build_dir, None, "--formats", "obj")
+    proc = _run(build_dir, None, "--formats", "obj,3mf")
 
     assert proc.returncode == 0, proc.stderr
-    assert (build_dir.parent / "stl" / "base.step").exists()
-    assert (build_dir.parent / "stl" / "base.obj").exists()
+    assert (build_dir.parent / "out" / "base.obj").exists()
+    assert (build_dir.parent / "out" / "model.3mf").exists()
+    assert not (build_dir.parent / "out" / "base.step").exists()
+
+
+def test_build_py_stl_out_flag_is_rejected(tmp_path, skill_src):
+    build_dir = _flat_build(tmp_path, skill_src)
+
+    proc = _run(build_dir, None, "--stl-out", "x")
+
+    assert proc.returncode != 0
+    assert "--stl-out" in proc.stderr
+
+
+def test_build_py_copies_fresh_assembly_stls_and_regenerates_stale(tmp_path, skill_src):
+    build_dir = _flat_build(tmp_path, skill_src)
+    root = build_dir.parent
+    _set_slicer_format(root, "stl")
+    sys.path.insert(0, str(root / "lib"))
+    try:
+        from units import load_plan
+        from write_assembly import write_assembly
+
+        write_assembly(load_plan(str(root / "BUILD_PLAN.json")), str(build_dir), str(root / "stl"))
+    finally:
+        sys.path.remove(str(root / "lib"))
+
+    fresh = _run(build_dir)
+    assert fresh.returncode == 0, fresh.stderr
+    assert "copied from the assembly output" in fresh.stdout
+    assert (root / "out" / "base.stl").exists()
+
+    _write_part(build_dir, "base", _POST)
+    stale = _run(build_dir)
+    assert stale.returncode == 0, stale.stderr
+    assert "per-union STLs exported" in stale.stdout
 
 
 def test_build_py_missing_slicer_block_fails_before_export(tmp_path, skill_src):
@@ -357,7 +401,7 @@ def test_build_py_missing_slicer_block_fails_before_export(tmp_path, skill_src):
 
     assert proc.returncode == 1
     assert "slicer.preferred_format" in proc.stderr
-    assert not (build_dir.parent / "model.3mf").exists()
+    assert not (build_dir.parent / "out" / "model.3mf").exists()
 
 
 def test_build_py_missing_profile_fails_with_legacy_hint(tmp_path, skill_src):

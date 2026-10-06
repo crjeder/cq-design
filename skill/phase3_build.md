@@ -76,7 +76,7 @@ reference from the user, restate it with the plan name and its callout badge num
 ## Part loop
 
 For each part in `plan["parts"]`, in order (skip any part with `copy_of`: it has no script;
-`model_export.py` builds it from its source part's geometry, so build the source first):
+`write_assembly.py` builds it from its source part's geometry, so build the source first):
 
 1. **Render** the builder prompt:
    ```bash
@@ -293,45 +293,44 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
 
 Orientation-dependent features (teardrop peak direction) are authored through
 `blocks.print_up()`, which returns +Z until the accepted pose is known. No separate
-command: `model_export.py --orientations build/orientations.json` (next section)
-re-loads each part script with `CQ_PRINT_ROTATE` set to that part's accepted `rotate`,
-so the deliverables carry the finished geometry with no builder round. Only a part
+command: `write_assembly.py --orientations build/orientations.json` (next section),
+and later `build/build.py`, re-load each part script with `CQ_PRINT_ROTATE` set to that part's accepted `rotate`,
+so the assembly and the deliverables carry the finished geometry with no builder round. Only a part
 script that mentions `print_up` changes; others are unaffected. To check a single script
 under a pose, add `--print-rotate build/<part_id>.orientation.json` to `run_cadquery_model.py`.
 
-The export re-scores orientation on each finished `print_up` part and returns advisory
+The assembly step re-scores orientation on each finished `print_up` part and returns advisory
 `pose_findings` (`pose_shift`) if the optimizer would now choose a different pose; the
-accepted pose is kept. Surface them in the delivery report. The export manifest records
+accepted pose is kept. Surface them in the delivery report. The manifest records
 the `print_rotate` used per union (`freshness.pose_stale_ids` flags a mismatch after
 orientation is re-accepted). A `copy_of` part and a multi-union part whose orientation is
 keyed by union id are loaded pose-free (+Z).
 
-## Model export
+## Write assembly
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan.py" validate BUILD_PLAN.json --require-rationale
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/model_export.py" \
-    --plan BUILD_PLAN.json --parts-dir build --out . --stl-out stl \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/write_assembly.py" \
+    --plan BUILD_PLAN.json --parts-dir build --out stl \
     --orientations build/orientations.json
 ```
 
-A validation failure blocks the export. The export writes `model.3mf` (each union a named
-object in print pose, with plate metadata), fused `stl/plate_<n>.stl` per multi-union plate
-(print pose), and `stl/<part_id>.stl` per union in **assembled** pose for the whole-model
-checks.
+A validation failure blocks the step. It writes `stl/<part_id>.stl` per union in
+**assembled** pose and one `stl/keep_out__*.stl` per declared zone for the whole-model
+checks, plus `stl/export_manifest.json`. It writes no user-facing file: `model.3mf`, plate
+STLs and the other formats come from `build/build.py` in Phase 4.
 
-Then make the working directory a self-contained uv project that regenerates the plates
+Then make the working directory a self-contained uv project that builds the model files
 without the skill:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/bundle_project.py" .
 uv sync
-uv run python build/build.py
 ```
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
-    phase3/model_exported "model.3mf + <n> STL(s) written"
+    phase3/assembly_written "<n> assembled STL(s) + manifest written"
 ```
 
 ## Quality gate

@@ -1,7 +1,7 @@
 """Tests for the keep-out-zone validation stage.
 
 Fixtures use trimesh-generated box STLs (no CadQuery) so the suite stays fast. Zone STLs
-follow the `keep_out__<part_id>__<zone_name>.stl` naming convention `model_export` writes
+follow the `keep_out__<part_id>__<zone_name>.stl` naming convention `write_assembly` writes
 and `keep_out_check` discovers -- built here with `units.keep_out_stl_name` so the tests
 can't drift from the real naming convention.
 """

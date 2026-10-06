@@ -2,7 +2,7 @@
 """Keep-out-zone validation stage.
 
 A part's script may declare one or more named keep-out zones (the reserved `keep_out`
-result key -- see `units.resolve_keep_out`). `model_export.export_model` poses each zone
+result key -- see `units.resolve_keep_out`). `write_assembly.assemble` poses each zone
 the same way as its declaring part's real unions and writes it to its own assembled-pose
 STL, named by `units.keep_out_stl_name`, alongside the per-union STLs it already produces.
 

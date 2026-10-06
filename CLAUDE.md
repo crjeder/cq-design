@@ -96,7 +96,7 @@ or calling any script listed below.
 ```
 .
   .claude-plugin/        # plugin.json (skills: ["."]) + marketplace.json; repo root is the plugin root
-  commands/              # /cq-design:design plan init update deliver render status
+  commands/              # /cq-design:design plan init update build render status
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
@@ -135,8 +135,9 @@ or calling any script listed below.
     mate_chain.py            # Derived pose along a `joints` mate chain from root_part
     units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
-    model_export.py          # Model-level export: named 3MF + per-union/plate/keep-out-zone STL
-    build_template.py        # build.py template copied to build/; regenerates plates in print orientation
+    write_assembly.py        # Assembly writer: assembled-pose per-union + keep-out-zone STLs + manifest (the checks' input); assemble() poses unions
+    deliverables.py          # User-facing files: named 3MF, per-union/plate STL, STEP/OBJ/IGES/SCAD (called by build.py)
+    build_template.py        # build.py template copied to build/; writes the preferred (or --formats) model files to out/
     log.py                   # Build-time logs: `attempt` (per-attempt log -> build/attempts.jsonl;
                              # fold_attempts, --hook PostToolUse entry point), `journal` (milestone
                              # log -> build/journal.md, see skill/resume.md), `request` (BUILD_PLAN.json's
