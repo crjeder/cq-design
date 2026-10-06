@@ -65,7 +65,7 @@ def scaffold_directories(working_dir: str) -> list[str]:
 
     Idempotent: only creates directories that don't already exist. These would
     otherwise appear one at a time, lazily, as different pipeline scripts first
-    need them (run_cadquery_model.py for build/, model_export.py for stl/,
+    need them (run_cadquery_model.py for build/, write_assembly.py for stl/,
     the preview renderer for preview/), so the layout is unpredictable mid-run.
     Returns the list of directories actually created.
     """

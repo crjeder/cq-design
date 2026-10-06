@@ -6,11 +6,11 @@ relative positions. If any pair comes closer than one layer height anywhere, the
 bridges the gap and they fuse into one solid -- a working joint locks up, or two parts
 meant to separate come out as one.
 
-`model_export` fuses each plate as a rigid cluster: the unions keep their assembled
+`write_assembly` fuses each plate as a rigid cluster: the unions keep their assembled
 relative transforms and the whole cluster is rotated together into print orientation. A
 rigid rotation preserves distances, so the minimum surface-to-surface gap between two
 co-plated unions is identical in the assembled pose and in print orientation. This stage
-therefore measures the gap on the assembled per-union STLs `model_export.py` already emits
+therefore measures the gap on the assembled per-union STLs `write_assembly.py` already emits
 for the kinematic check (placement applied), with no new export and no print-orientation
 bookkeeping.
 

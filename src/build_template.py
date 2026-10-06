@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Regenerate all build plates with each object in its print orientation.
+"""Write the model files (3MF, STL, STEP, ...) with each object in its print orientation.
 
 This script is a deliverable: the cq-design skill copies it into the `build/`
 directory of your working directory, alongside the per-part scripts. The bundled
-build tooling (`exporters/`, `blocks/`, `model_export.py`, `print_orientation.py`,
-`mesh_io.py`, `placement.py`, `mate_chain.py`) lives in a sibling `lib/` directory,
-not build/ itself -- build/ holds only the part scripts you actually edit. The
-working directory is a self-contained uv project, so everything needed to rebuild
+build tooling (`exporters/`, `blocks/`, `write_assembly.py`, `deliverables.py`,
+`print_orientation.py`, `mesh_io.py`, `placement.py`, `mate_chain.py`) lives in a
+sibling `lib/` directory, not build/ itself -- build/ holds only the part scripts you
+actually edit. The working directory is a self-contained uv project, so everything needed to rebuild
 the model lives here -- the skill does not have to be installed.
 
-How to re-generate the 3MF / STL files
----------------------------------------
+How to generate the model files
+-------------------------------
 The working directory is a uv project (it has its own `pyproject.toml`,
 `.python-version`, and committed `uv.lock`). Sync the environment once, then run the
 build with uv from the working-directory root:
@@ -20,32 +20,35 @@ build with uv from the working-directory root:
 
 `uv sync` downloads a compatible Python (3.10-3.12) and installs the pinned
 dependencies (CadQuery, trimesh, ...). Subsequent runs reuse the synced `.venv`.
+With no arguments only the format your slicer prefers (profile.json's
+`slicer.preferred_format`) is written. Ask for others with `--formats`:
 
-Override the defaults when your layout differs:
-
-    uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out . --stl-out stl
+    uv run python build/build.py --formats 3mf,step
 
 Arguments (all optional):
     --plan          BUILD_PLAN.json (default: the parent of build/, i.e. the project root)
     --parts-dir     directory of <part-id>.py scripts (default: this script's dir)
-    --out           where model.3mf is written (default: the project root)
-    --stl-out       where the STLs are written (default: <project root>/stl)
+    --out           where the model files are written (default: <project root>/out)
     --orientations  accepted orientations JSON (default: orientations.json in --parts-dir)
     --profile       profile.json (default: the project root); slicer.preferred_format is required
-    --formats       extra per-union formats, comma-separated: step, obj, iges, scad (default: none)
+    --formats       formats to write, comma-separated: 3mf, stl, step, obj, iges, scad
+                    (default: the profile's preferred_format only)
 
-Outputs:
-    model.3mf (in --out)         one named object per union, with plate metadata
-    <union-id>.stl (in --stl-out)  one assembled-pose STL per union
-    plate_<n>.stl (in --stl-out)   one fused STL per multi-union plate
-    <union-id>.<ext> (in --stl-out) assembled pose, one per union per --formats key
+Outputs (all in --out, only for the formats requested):
+    3mf:  model.3mf        one named object per union, with plate metadata
+    stl:  <union-id>.stl   one assembled-pose STL per union
+          plate_<n>.stl    one fused print-pose STL per multi-union plate
+    step/obj/iges/scad:  <union-id>.<ext>  assembled pose, one per union
+
+The per-union STLs are copied from `stl/` (written by the skill's write_assembly step)
+when that output is still current for the part scripts and accepted orientations;
+otherwise they are exported again.
 
 When `orientations.json` (the skill's accepted per-union orientations) sits next to
 the part scripts, build.py reuses it so the plates match what the skill delivered;
 otherwise it computes each orientation fresh with the same `print_orientation` tooling,
 honoring the plan's `optimize_for` mode (per-part override, else plan-level, else
-`strength`). Either way the deliverables are written via `model_export`, exactly as the
-skill writes them.
+`strength`). The files are written via `deliverables`, exactly as the skill writes them.
 
 The bundled tooling sits in a `lib/` directory next to this script's own directory
 (i.e. `../lib` relative to build.py), so it is added to `sys.path` explicitly below
@@ -61,10 +64,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.p
 
 import cadquery as cq
 
+from deliverables import FORMATS, write_deliverables
 from freshness import is_stale, script_hash
-from model_export import EXTRA_FORMATS, export_model, load_part_unions
 from print_finishing import orientation_for
 from units import is_copy, load_plan
+from write_assembly import load_part_unions
 
 
 def resolve_orientations(
@@ -152,26 +156,25 @@ def load_preferred_format(profile_path: str) -> tuple[str, str | None]:
     with open(profile_path, encoding="utf-8") as f:
         slicer = json.load(f).get("slicer") or {}
     fmt = slicer.get("preferred_format")
-    if fmt not in ("3mf", "stl", *EXTRA_FORMATS):
+    if fmt not in FORMATS:
         raise ValueError(
             f"{profile_path}: slicer.preferred_format must be one of "
-            f"3mf, stl, {', '.join(EXTRA_FORMATS)}; got {fmt!r}"
+            f"{', '.join(FORMATS)}; got {fmt!r}"
         )
     return fmt, slicer.get("slicer_name")
 
 
 def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]) -> None:
-    """Print the chosen orientation and output path for each union, then plates."""
+    """Print the chosen orientation per union, then the files written per format."""
     for pid, chosen in summary.items():
         rot = ", ".join(f"{s['axis']}{s['angle_deg']:+g}" for s in chosen["rotate"])
-        path = result["union_stls"].get(pid, "?")
-        print(f"{pid}: orientation [{rot}] -> {path}")
-    print(f"model.3mf: {result['model_3mf']}")
-    for plate, plate_path in result["plate_stls"].items():
-        print(f"plate {plate}: {plate_path}")
-    for fmt, files in result["format_files"].items():
-        for uid, path in files.items():
-            print(f"{fmt} {uid}: {path}")
+        print(f"{pid}: orientation [{rot}]")
+    for fmt, files in result["files"].items():
+        for name, path in files.items():
+            print(f"{fmt} {name}: {path}")
+    if "stl" in result["files"]:
+        how = "copied from the assembly output" if result["union_stls_copied"] else "exported"
+        print(f"per-union STLs {how}")
     if recomputed:
         print(f"recomputed (source script changed since accepted): {', '.join(recomputed)}")
 
@@ -180,7 +183,7 @@ def main() -> None:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.join(script_dir, os.pardir)
     parser = argparse.ArgumentParser(
-        description="Regenerate build plates with objects in print orientation"
+        description="Write the model files (3mf, stl, step, ...) in print orientation"
     )
     parser.add_argument(
         "--plan",
@@ -194,13 +197,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--out",
-        default=project_root,
-        help="Output directory for model.3mf (default: the project root)",
-    )
-    parser.add_argument(
-        "--stl-out",
-        default=os.path.join(project_root, "stl"),
-        help="Output directory for the STLs (default: <project root>/stl)",
+        default=os.path.join(project_root, "out"),
+        help="Output directory for the model files (default: <project root>/out)",
     )
     parser.add_argument(
         "--orientations",
@@ -215,21 +213,21 @@ def main() -> None:
     parser.add_argument(
         "--formats",
         default="",
-        help=f"Extra per-union formats, comma-separated ({', '.join(EXTRA_FORMATS)})",
+        help=f"Formats to write, comma-separated ({', '.join(FORMATS)}); "
+        "default: the profile's preferred_format",
     )
     args = parser.parse_args()
     formats = [f for f in args.formats.split(",") if f]
-    bad = [f for f in formats if f not in EXTRA_FORMATS]
+    bad = [f for f in formats if f not in FORMATS]
     if bad:
-        parser.error(f"unsupported format(s) {bad}; supported: {', '.join(EXTRA_FORMATS)}")
+        parser.error(f"unsupported format(s) {bad}; supported: {', '.join(FORMATS)}")
 
     try:
         preferred, slicer_name = load_preferred_format(args.profile)
     except ValueError as exc:
         sys.stderr.write(f"build failed: {exc}\n")
         sys.exit(1)
-    if preferred in EXTRA_FORMATS and preferred not in formats:
-        formats.append(preferred)
+    formats = formats or [preferred]
     print(f"preferred format: {preferred}" + (f" ({slicer_name})" if slicer_name else ""))
 
     orientations_path = args.orientations or os.path.join(args.parts_dir, "orientations.json")
@@ -240,13 +238,13 @@ def main() -> None:
         orientations, summary, recomputed = resolve_orientations(
             plan, args.parts_dir, orientations_path
         )
-        result = export_model(
+        result = write_deliverables(
             plan,
             args.parts_dir,
             args.out,
             orientations,
-            stl_dir=args.stl_out,
-            formats=formats,
+            formats,
+            assembly_dir=os.path.join(project_root, "stl"),
             progress=lambda line: print(line, flush=True),
         )
     except Exception as exc:

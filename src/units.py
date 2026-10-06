@@ -26,11 +26,37 @@ KEEP_OUT_KEY = "keep_out"
 """Reserved `result` key for a part's declared keep-out zones. Never itself a union id."""
 
 
+class InputFileError(SystemExit):
+    """An input file is missing, unreadable, or not valid JSON. A SystemExit subclass so an
+    uncaught one prints `error: <message>` to stderr and exits 1 with no traceback; JSON-contract
+    scripts catch it and report a `file_error` instead."""
+
+    def __init__(self, message: str):
+        super().__init__(f"error: {message}")
+        self.message = message
+
+
+def read_json(path: str, role: str) -> Any:
+    """Parse the JSON file at `path`; `role` names it in errors (e.g. "BUILD_PLAN.json")."""
+    if os.path.isdir(path):  # open() raises PermissionError for a directory on Windows
+        raise InputFileError(f"{role} is a directory, expected a file: {path}")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise InputFileError(f"{role} not found: {path}") from None
+    except OSError as e:
+        raise InputFileError(f"cannot read {role} {path}: {e.strerror or e}") from None
+    except json.JSONDecodeError as e:
+        raise InputFileError(
+            f"{role} {path} is not valid JSON (line {e.lineno}, col {e.colno}): {e.msg}"
+        ) from None
+
+
 def load_plan(path: str) -> dict:
     """Load and parse a BUILD_PLAN.json-shaped file. Shared by every CLI entry point that
     takes a `--plan` argument."""
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    return read_json(path, "BUILD_PLAN.json")
 
 
 def add_plan_argument(parser: argparse.ArgumentParser) -> None:
@@ -103,7 +129,7 @@ def make_issue(
 
 
 def stl_path(stl_dir: str, union_id: str) -> str:
-    """Assembled-pose STL path for a union/part id: the naming convention `model_export.py`
+    """Assembled-pose STL path for a union/part id: the naming convention `write_assembly.py`
     writes and every whole-model check stage reads."""
     return os.path.join(stl_dir, f"{union_id}.stl")
 
@@ -214,7 +240,7 @@ def _sanitize_zone_name(zone_name: str) -> str:
 
 def keep_out_stl_name(part_id: str, zone_name: str) -> str:
     """Filename for a declared zone's assembled-pose STL, used by both the writer
-    (`model_export.export_model`) and the reader (`keep_out_check`).
+    (`write_assembly.assemble`) and the reader (`keep_out_check`).
 
     Prefixed and part-qualified so it is unambiguous in a shared STL directory and never
     collides with a real union's `<union_id>.stl`. `zone_name` is author-supplied (a dict
@@ -230,7 +256,7 @@ def keep_out_zone_key(part_id: str, zone_name: str) -> str:
 
     `keep_out_check.py` can only ever recover the *sanitized* zone name (it discovers
     zones by parsing `keep_out_stl_name`'s filename, which is a lossy many-to-one map),
-    so the writer (`model_export.py`) must key the manifest the same sanitized way, or a
+    so the writer (`write_assembly.py`) must key the manifest the same sanitized way, or a
     zone name containing any non-identifier character never matches between the two and
     staleness detection silently never fires for it.
     """
