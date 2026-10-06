@@ -1,6 +1,7 @@
 # mypy: ignore-errors
 # type: ignore  # CAD/trimesh stub-union noise; tests are ruff-linted, not type-checked
-"""Tests for the model-level export (placement, named 3MF, STL fallback).
+"""Tests for write_assembly (assembled-pose STLs, manifest, keep-out STLs) and
+deliverables (named 3MF, STL + fused plates, extra formats).
 
 Uses CadQuery to produce real part scripts, so these are integration-speed.
 """
@@ -14,9 +15,28 @@ import pytest
 import trimesh
 from conftest import minimal_plan as _plan
 
-from model_export import export_model
+from deliverables import write_deliverables
+from write_assembly import write_assembly
 
 _NS = "{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}"
+
+
+def _export(plan, parts_dir, out, orientations=None, formats=("3mf", "stl")):
+    """Run write_assembly and write_deliverables into one directory; merge the results."""
+    asm = write_assembly(plan, parts_dir, str(out), orientations)
+    files = write_deliverables(plan, parts_dir, str(out), orientations or {}, list(formats))[
+        "files"
+    ]
+    return {
+        **asm,
+        "model_3mf": files.get("3mf", {}).get("model.3mf"),
+        "plate_stls": {
+            k.removeprefix("plate_"): v
+            for k, v in files.get("stl", {}).items()
+            if k.startswith("plate_")
+        },
+        "files": files,
+    }
 
 
 def _write_part(parts_dir, pid):
@@ -80,7 +100,7 @@ def test_model_settings_config_assigns_distinct_plates(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     ids_by_name = _read_3mf_object_ids_by_name(result["model_3mf"])
     plates = _read_model_settings_plates(result["model_3mf"])
@@ -106,7 +126,7 @@ def test_model_settings_config_groups_co_plated_unions(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     plates = _read_model_settings_plates(result["model_3mf"])
     assert len(plates) == 1
@@ -135,7 +155,7 @@ def test_named_3mf_with_plate_and_placement(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     # 3MF carries both unions as objects named from their descriptions, with plate
     # metadata.
@@ -151,41 +171,67 @@ def test_named_3mf_with_plate_and_placement(tmp_path):
     assert scene.bounds[1][2] > 25  # lid lifted by the placement
 
 
-def test_stl_dir_splits_stl_output_from_model_dir(tmp_path):
-    """model.3mf lands in model_dir (the project root); STLs land in the separate
-    stl_dir when given, keeping the two artifact kinds apart."""
+def test_write_assembly_writes_only_assembly_files(tmp_path):
     import os
 
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
     _write_part(parts_dir, "base")
-    model_dir = tmp_path / "root"
-    stl_dir = tmp_path / "root" / "stl"
+    _write_part(parts_dir, "lid")
+    out = tmp_path / "stl"
+    plan = _plan([{"id": "base", "plate": "shared"}, {"id": "lid", "plate": "shared"}])
+
+    result = write_assembly(plan, str(parts_dir), str(out))
+
+    assert sorted(os.listdir(out)) == ["base.stl", "export_manifest.json", "lid.stl"]
+    assert set(result) == {"union_stls", "keep_out_stls", "manifest", "pose_findings"}
+
+
+def test_deliverables_write_only_requested_formats(tmp_path):
+    import os
+
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")
     plan = _plan([{"id": "base"}])
 
-    result = export_model(plan, str(parts_dir), str(model_dir), stl_dir=str(stl_dir))
+    only_3mf = tmp_path / "a"
+    write_deliverables(plan, str(parts_dir), str(only_3mf), {}, ["3mf"])
+    assert os.listdir(only_3mf) == ["model.3mf"]
 
-    assert result["model_3mf"] == os.path.join(str(model_dir), "model.3mf")
-    assert os.path.exists(result["model_3mf"])
-    assert result["union_stls"]["base"] == os.path.join(str(stl_dir), "base.stl")
-    assert os.path.exists(result["union_stls"]["base"])
-    # STL did not also land in model_dir.
-    assert not os.path.exists(os.path.join(str(model_dir), "base.stl"))
+    only_stl = tmp_path / "b"
+    write_deliverables(plan, str(parts_dir), str(only_stl), {}, ["stl"])
+    assert os.listdir(only_stl) == ["base.stl"]
+
+    with pytest.raises(ValueError, match="dxf"):
+        write_deliverables(plan, str(parts_dir), str(tmp_path / "c"), {}, ["dxf"])
+    assert not (tmp_path / "c").exists()
 
 
-def test_stl_dir_omitted_falls_back_to_model_dir(tmp_path):
-    """Backward compat: omitting stl_dir keeps the old single-directory behavior."""
-    import os
-
+def test_deliverable_stls_copied_when_assembly_fresh_else_exported(tmp_path):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
     _write_part(parts_dir, "base")
-    out = tmp_path / "dist"
+    plan = _plan([{"id": "base"}])
+    asm_dir = tmp_path / "stl"
+    write_assembly(plan, str(parts_dir), str(asm_dir))
 
-    result = export_model(_plan([{"id": "base"}]), str(parts_dir), str(out))
+    fresh = write_deliverables(
+        plan, str(parts_dir), str(tmp_path / "out"), {}, ["stl"], assembly_dir=str(asm_dir)
+    )
+    assert fresh["union_stls_copied"] is True
+    assert (tmp_path / "out" / "base.stl").read_bytes() == (asm_dir / "base.stl").read_bytes()
 
-    assert os.path.dirname(result["model_3mf"]) == str(out)
-    assert os.path.dirname(result["union_stls"]["base"]) == str(out)
+    (parts_dir / "base.py").write_text(
+        "import cadquery as cq\nresult = cq.Workplane('XY').box(30, 20, 4)\n"
+    )
+    stale = write_deliverables(
+        plan, str(parts_dir), str(tmp_path / "out2"), {}, ["stl"], assembly_dir=str(asm_dir)
+    )
+    assert stale["union_stls_copied"] is False
+    assert trimesh.load(str(tmp_path / "out2" / "base.stl")).extents[0] == pytest.approx(
+        30, abs=0.1
+    )
 
 
 def test_deliverable_uses_print_orientation_union_stl_unchanged(tmp_path):
@@ -198,7 +244,7 @@ def test_deliverable_uses_print_orientation_union_stl_unchanged(tmp_path):
     # width and the 20 mm axis points up.
     orientations = {"plate": {"rotate": [{"axis": "X", "angle_deg": 90}]}}
 
-    result = export_model(plan, str(parts_dir), str(out), orientations)
+    result = _export(plan, str(parts_dir), str(out), orientations)
 
     # The 3MF deliverable is written in the print orientation: ~20 mm tall now.
     scene = trimesh.load(result["model_3mf"])
@@ -223,7 +269,7 @@ def test_per_union_and_fused_plate_stl(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     # One assembled STL per union.
     assert set(result["union_stls"]) == {"base", "lid"}
@@ -246,7 +292,7 @@ def test_export_writes_provenance_manifest(tmp_path):
     out = tmp_path / "dist"
     plan = _plan([{"id": "base"}, {"id": "lid"}])
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     manifest = read_manifest(str(out))
     assert manifest is not None
@@ -268,7 +314,7 @@ def test_export_manifest_covers_keep_out_zones(tmp_path):
     out = tmp_path / "dist"
     plan = _plan([{"id": "enclosure", "description": "Enclosure"}])
 
-    export_model(plan, str(parts_dir), str(out))
+    _export(plan, str(parts_dir), str(out))
 
     manifest = read_manifest(str(out))
     entry = manifest["keep_out_zones"]["enclosure::clearance"]
@@ -283,7 +329,7 @@ def test_single_union_plate_has_no_fused_stl(tmp_path):
     out = tmp_path / "dist"
     plan = _plan([{"id": "solo"}])  # own plate by default
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     assert set(result["union_stls"]) == {"solo"}
     assert result["plate_stls"] == {}  # no multi-union plate
@@ -307,7 +353,7 @@ def test_named_3mf_has_no_nonmanifold_edges(tmp_path):
     out = tmp_path / "dist"
     plan = _plan([{"id": "bracket"}])
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     # The slicer reads vertex indices verbatim; welding must close every seam.
     assert count_nonmanifold_edges(result["model_3mf"]) == 0
@@ -321,7 +367,7 @@ def test_object_name_sanitizes_hostile_and_oversized_description(tmp_path):
     long_desc = "Mounting\tbracket\nwith\rcable routing " + "x" * 80
     plan = _plan([{"id": "widget", "description": long_desc}])
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     name = next(iter(_read_3mf_objects(result["model_3mf"])))
     assert "\n" not in name and "\r" not in name and "\t" not in name
@@ -357,7 +403,7 @@ def test_block_importing_part_with_rotation_exports_without_bintools_error(tmp_p
     # Non-identity print orientation: stand the part up.
     orientations = {"boss": {"rotate": [{"axis": "X", "angle_deg": 90}]}}
 
-    result = export_model(plan, str(parts_dir), str(out), orientations)
+    result = _export(plan, str(parts_dir), str(out), orientations)
 
     # 3MF written in the print orientation, and all STLs produced + watertight.
     scene = trimesh.load(result["model_3mf"])
@@ -374,7 +420,7 @@ def test_object_name_falls_back_to_id_when_description_empty(tmp_path):
     # Description sanitizes to empty (only control/whitespace chars).
     plan = _plan([{"id": "spacer", "description": "\t\n  \r"}])
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     assert set(_read_3mf_objects(result["model_3mf"])) == {"spacer"}
 
@@ -392,7 +438,7 @@ def test_duplicate_descriptions_are_disambiguated_by_part_id(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     names = set(_read_3mf_objects(result["model_3mf"]))
     # Two distinct names, each the shared description suffixed with its part id.
@@ -426,7 +472,7 @@ def test_multi_union_part_exports_object_and_stl_per_union(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     # Two distinct unions, keyed by union id (not part id).
     assert set(result["union_stls"]) == {"leaf_a", "leaf_b"}
@@ -459,7 +505,7 @@ def test_multi_union_part_co_plated_produces_fused_plate(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     assert set(result["union_stls"]) == {"leaf_a", "leaf_b"}
     assert set(result["plate_stls"]) == {"shared"}
@@ -478,7 +524,7 @@ def test_multi_union_result_key_mismatch_errors(tmp_path):
     )
 
     with pytest.raises(ValueError, match="do not match declared unions"):
-        export_model(plan, str(parts_dir), str(out))
+        _export(plan, str(parts_dir), str(out))
 
 
 def test_single_union_part_unchanged(tmp_path):
@@ -489,7 +535,7 @@ def test_single_union_part_unchanged(tmp_path):
     out = tmp_path / "dist"
     plan = _plan([{"id": "solo", "description": "Solo"}])
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     assert set(result["union_stls"]) == {"solo"}
     assert set(_read_3mf_objects(result["model_3mf"])) == {"Solo"}
@@ -508,7 +554,7 @@ def test_distinct_descriptions_keep_plain_names(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     # No collision -> no id suffix appended.
     assert set(_read_3mf_objects(result["model_3mf"])) == {"Enclosure base", "Snap lid"}
@@ -550,7 +596,7 @@ def test_mate_chain_part_pose_replaces_placement(tmp_path):
     plan["root_part"] = "door"
     plan["joints"] = _hinge_joint(wall_dock={"translate_mm": [0, 0, 10]})
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     # wall's dock offsets leaf_b by +10mm in Z within wall's own frame, so wall's
     # derived world pose is -10mm in Z: its box (authored at z in [-2, 2]) lands
@@ -587,7 +633,7 @@ def test_keep_out_zone_excluded_from_3mf_plate_and_union_stl(tmp_path):
     out = tmp_path / "dist"
     plan = _plan([{"id": "enclosure", "description": "Enclosure"}])
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     assert set(result["union_stls"]) == {"enclosure"}
     assert result["plate_stls"] == {}
@@ -612,7 +658,7 @@ def test_keep_out_zone_inherits_part_placement(tmp_path):
         ]
     )
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     # zone box is 5x5x5 authored at the origin; the part's placement shifts it +50 in Z.
     zone_mesh = trimesh.load(result["keep_out_stls"]["enclosure::clearance"], force="mesh")
@@ -637,7 +683,7 @@ def test_keep_out_zone_inherits_mate_chain_pose(tmp_path):
     plan["root_part"] = "door"
     plan["joints"] = _hinge_joint(wall_dock={"translate_mm": [0, 0, 10]})
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     # wall's derived pose is -10mm in Z (see test_mate_chain_part_pose_replaces_placement);
     # the zone (5x5x5 box authored at the origin in wall's own frame) follows the same pose.
@@ -668,7 +714,7 @@ def test_part_outside_mate_chain_still_uses_own_placement(tmp_path):
     plan["root_part"] = "door"
     plan["joints"] = _hinge_joint()
 
-    result = export_model(plan, str(parts_dir), str(out))
+    result = _export(plan, str(parts_dir), str(out))
 
     standalone_stl = trimesh.load(result["union_stls"]["standalone"], force="mesh")
     assert abs(standalone_stl.bounds[0][2] - 28) < 0.01
@@ -692,7 +738,7 @@ def test_copy_of_mirrored_and_identical(tmp_path):
             },
         ]
     }
-    out = export_model(plan, str(parts_dir), str(tmp_path / "out"))
+    out = _export(plan, str(parts_dir), str(tmp_path / "out"))
     assert not (parts_dir / "wall_b.py").exists()
     b = trimesh.load(out["union_stls"]["wall_b"]).bounds
     c = trimesh.load(out["union_stls"]["wall_c"]).bounds
@@ -721,11 +767,11 @@ def test_formats_step_written_per_union_in_assembled_pose(tmp_path):
     plan = _placed_plan(parts_dir)
     out = tmp_path / "dist"
 
-    result = export_model(plan, str(parts_dir), str(out), formats=["step"])
+    result = _export(plan, str(parts_dir), str(out), formats=["step"])
 
-    assert set(result["format_files"]["step"]) == {"a", "b"}
-    assert Path(result["model_3mf"]).exists()
-    for uid, path in result["format_files"]["step"].items():
+    assert set(result["files"]["step"]) == {"a", "b"}
+    assert result["model_3mf"] is None
+    for uid, path in result["files"]["step"].items():
         assert Path(path) == out / f"{uid}.step"
         stl = trimesh.load(result["union_stls"][uid])
         shape = cq.importers.importStep(path).val()
@@ -735,29 +781,19 @@ def test_formats_step_written_per_union_in_assembled_pose(tmp_path):
         assert shape.Volume() == pytest.approx(stl.volume, rel=1e-3)
 
 
-def test_formats_default_writes_no_extra_files(tmp_path):
-    parts_dir = tmp_path / "parts"
-    parts_dir.mkdir()
-    out = tmp_path / "dist"
-
-    result = export_model(_placed_plan(parts_dir), str(parts_dir), str(out))
-
-    assert result["format_files"] == {}
-    assert not list(out.glob("*.step"))
-
-
-@pytest.mark.parametrize("bad", ["dxf", "stl", "3mf"])
+@pytest.mark.parametrize("bad", ["dxf", "gcode"])
 def test_formats_unsupported_key_raises_before_writing(tmp_path, bad):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
     out = tmp_path / "dist"
 
     with pytest.raises(ValueError, match=bad):
-        export_model(_placed_plan(parts_dir), str(parts_dir), str(out), formats=["step", bad])
+        write_deliverables(_placed_plan(parts_dir), str(parts_dir), str(out), {}, ["step", bad])
 
-    assert not out.exists() or not list(out.iterdir())
+    assert not out.exists()
 
-def test_progress_callback_reports_numbered_lines_per_phase(tmp_path):
+
+def test_write_assembly_progress_reports_numbered_lines(tmp_path):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
     _write_part(parts_dir, "base")
@@ -774,30 +810,28 @@ def test_progress_callback_reports_numbered_lines_per_phase(tmp_path):
     )
     lines = []
 
-    export_model(plan, str(parts_dir), str(tmp_path / "dist"), progress=lines.append)
+    write_assembly(plan, str(parts_dir), str(tmp_path / "dist"), progress=lines.append)
 
     assert lines == [
         "[1/2] loading base",
         "[2/2] loading hinge",
-        "writing model.3mf",
         "[1/3] stl base",
         "[2/3] stl leaf_a",
         "[3/3] stl leaf_b",
-        "[1/1] plate p",
     ]
 
 
-def test_no_progress_callback_prints_nothing_and_writes_same_files(tmp_path, capsys):
+def test_write_assembly_without_progress_prints_nothing(tmp_path, capsys):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
     _write_part(parts_dir, "base")
     plan = _plan([{"id": "base", "description": "Base"}])
 
-    plain = export_model(plan, str(parts_dir), str(tmp_path / "a"))
+    plain = write_assembly(plan, str(parts_dir), str(tmp_path / "a"))
     assert capsys.readouterr().out == ""
-    with_cb = export_model(plan, str(parts_dir), str(tmp_path / "b"), progress=lambda _s: None)
+    with_cb = write_assembly(plan, str(parts_dir), str(tmp_path / "b"), progress=lambda _s: None)
 
+    assert plain.keys() == with_cb.keys()
     assert sorted(Path(p).name for p in plain["union_stls"].values()) == sorted(
         Path(p).name for p in with_cb["union_stls"].values()
     )
-    assert plain.keys() == with_cb.keys()

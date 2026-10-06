@@ -12,7 +12,7 @@ from conftest import run_wrapper as run
 from blocks import print_up, teardrop_bore, teardrop_post
 from exporters import _load_result
 from freshness import pose_stale_ids, read_manifest
-from model_export import export_model
+from write_assembly import write_assembly
 
 FLIP_X = [{"axis": "X", "angle_deg": 180}]
 TILT_Y = [{"axis": "Y", "angle_deg": 90}]
@@ -99,7 +99,7 @@ def test_export_runs_finishing_pass_and_stamps_pose(tmp_path):
     (parts / "slab.py").write_text(_POSE_SCRIPT)
     plan = minimal_plan([{"id": "slab", "description": "slab"}])
     out = tmp_path / "out"
-    posed = export_model(plan, str(parts), str(out), {"slab": {"rotate": FLIP_X}})
+    posed = write_assembly(plan, str(parts), str(out), {"slab": {"rotate": FLIP_X}})
     manifest = read_manifest(str(out))
     assert manifest is not None
     assert manifest["unions"]["slab"]["print_rotate"] == FLIP_X
@@ -108,7 +108,7 @@ def test_export_runs_finishing_pass_and_stamps_pose(tmp_path):
     assert trimesh.load(posed["union_stls"]["slab"]).extents[2] == pytest.approx(6, abs=1e-3)
     assert isinstance(posed["pose_findings"], list)
 
-    plain = export_model(plan, str(parts), str(tmp_path / "out2"))
+    plain = write_assembly(plan, str(parts), str(tmp_path / "out2"))
     assert trimesh.load(plain["union_stls"]["slab"]).extents[2] == pytest.approx(4, abs=1e-3)
     manifest2 = read_manifest(str(tmp_path / "out2"))
     assert manifest2 is not None

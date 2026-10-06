@@ -32,8 +32,8 @@ import cadquery as cq
 
 from kinematic_check import run_kinematic_check
 from mate_chain import compute_mate_poses
-from model_export import _pose_union
 from units import load_plan, resolve_unions
+from write_assembly import pose_union
 
 _TMP_SUFFIX = "__minimal_cutout_search_tmp"
 
@@ -133,7 +133,7 @@ def set_parameter_value(script_path: str, name: str, value: float) -> None:
 
 def _export_part_stls(script_path: str, plan: dict, part_id: str, stl_dir: str) -> list[str]:
     """Regenerate the assembled-frame STL(s) for one part's union(s), posed the same way
-    `model_export.export_model` poses them (`placement`, or a `joints` mate-chain pose when
+    `write_assembly.assemble` poses them (`placement`, or a `joints` mate-chain pose when
     present) -- so the result matches what `run_kinematic_check` expects in `stl_dir`. Every
     other union's STL already in `stl_dir` is left untouched."""
     part = next(p for p in plan["parts"] if p["id"] == part_id)
@@ -143,7 +143,7 @@ def _export_part_stls(script_path: str, plan: dict, part_id: str, stl_dir: str) 
     os.makedirs(stl_dir, exist_ok=True)
     paths = []
     for uid, wp in resolve_unions(part, result):
-        posed = _pose_union(wp, part, mate_pose)
+        posed = pose_union(wp, part, mate_pose)
         out_path = os.path.join(stl_dir, f"{uid}.stl")
         cq.exporters.export(posed, out_path)
         paths.append(out_path)

@@ -33,7 +33,7 @@ def bad_plans(tmp_path):
 def test_plan_cli_message(bad_plans, tmp_path, kind):
     path, expected = bad_plans[kind]
     r = _run(
-        "model_export.py", "--plan", path, "--parts-dir", str(tmp_path), "--out", str(tmp_path)
+        "write_assembly.py", "--plan", path, "--parts-dir", str(tmp_path), "--out", str(tmp_path)
     )
     assert r.returncode == 1
     assert "Traceback" not in r.stderr
@@ -43,7 +43,7 @@ def test_plan_cli_message(bad_plans, tmp_path, kind):
 
 def test_same_message_across_scripts(tmp_path):
     missing = str(tmp_path / "nope.json")
-    a = _run("model_export.py", "--plan", missing, "--parts-dir", ".", "--out", ".")
+    a = _run("write_assembly.py", "--plan", missing, "--parts-dir", ".", "--out", ".")
     b = _run("toolpath_speed.py", "--plan", missing, "--script", "x.py")
     assert a.stderr == b.stderr
 

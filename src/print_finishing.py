@@ -1,7 +1,7 @@
 """Print-pose finishing helpers: orientation scoring and the pose-stability guard.
 
 A part script that calls ``blocks.print_up()`` produces different geometry once the accepted
-print pose is known (``CQ_PRINT_ROTATE``, see ``exporters._load_result``). ``model_export``
+print pose is known (``CQ_PRINT_ROTATE``, see ``exporters._load_result``). ``write_assembly``
 re-loads each script under that pose; ``pose_stability_finding`` then re-scores orientation
 on the finished solid and reports when the optimizer would now pick a different pose.
 """

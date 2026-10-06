@@ -17,7 +17,7 @@ aligned, no rotation solving), and estimated cost per accepted part from
 telemetry prompt sizes and `model_prices.json`.
 
 Produced solids are enumerated from the run's `stl/` directory (per
-`model_export`'s naming contract, excluding fused `plate_*.stl` and
+`write_assembly`'s naming contract, excluding fused `plate_*.stl` and
 `keep_out__*.stl`) and matched to golden meshes by a one-to-one geometric
 assignment (sorted bbox extents + volume as the cost, solved with
 `scipy.optimize.linear_sum_assignment`) -- not by part id, which the golden
@@ -134,7 +134,7 @@ def load_mesh(path: Path) -> trimesh.Trimesh:
 
 
 def find_produced_stls(case_run_dir: Path) -> list[Path]:
-    """Every produced solid in a case run, per `model_export`'s naming contract.
+    """Every produced solid in a case run, per `write_assembly`'s naming contract.
 
     Excludes fused `plate_*.stl` duplicates (the constituent unions are already
     present individually) and `keep_out__*.stl` (declared keep-out zones, never
