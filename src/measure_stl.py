@@ -72,7 +72,11 @@ def _flat_faces(mesh: trimesh.Trimesh, min_area_mm2: float) -> list[dict]:
     for i in range(len(idx)):
         if used[i]:
             continue
-        group = (~used) & (np.abs(z_s - z_s[i]) < 0.3)
+        # z_s is sorted: only a window around z_s[i] can be within 0.3 mm
+        lo = np.searchsorted(z_s, z_s[i] - 0.3 - 1e-9, "left")
+        hi = np.searchsorted(z_s, z_s[i] + 0.3 + 1e-9, "right")
+        group = np.zeros(len(idx), dtype=bool)
+        group[lo:hi] = (~used[lo:hi]) & (np.abs(z_s[lo:hi] - z_s[i]) < 0.3)
         total_area = float(a_s[group].sum())
         if total_area < min_area_mm2:
             used |= group
@@ -108,26 +112,29 @@ def _flat_faces(mesh: trimesh.Trimesh, min_area_mm2: float) -> list[dict]:
 
 
 def _union_find(nodes: list[int], edges: np.ndarray) -> list[list[int]]:
-    """Return connected components as lists of node IDs."""
-    parent = {n: n for n in nodes}
+    """Return connected components as lists of node IDs.
 
-    def find(x: int) -> int:
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
+    Components are ordered by their first node in `nodes`; members keep `nodes` order.
+    """
+    if not nodes:
+        return []
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
 
-    for a, b in edges:
-        ra, rb = find(int(a)), find(int(b))
-        if ra != rb:
-            parent[ra] = rb
+    arr = np.asarray(nodes, dtype=np.int64)
+    lookup = np.full(int(arr.max()) + 1, -1, dtype=np.int64)
+    lookup[arr] = np.arange(len(arr))
+    edges = np.asarray(edges, dtype=np.int64).reshape(-1, 2)
+    ij = lookup[edges]  # callers only pass edges whose endpoints are in `nodes`
+    n = len(arr)
+    graph = coo_matrix((np.ones(len(ij), dtype=np.int8), (ij[:, 0], ij[:, 1])), shape=(n, n))
+    _, label = connected_components(graph, directed=False)
 
-    groups: dict[int, list[int]] = {}
-    for n in nodes:
-        root = find(n)
-        groups.setdefault(root, []).append(n)
-
-    return list(groups.values())
+    order = np.argsort(label, kind="stable")  # stable: members stay in `nodes` order
+    starts = np.flatnonzero(np.diff(label[order], prepend=-1))
+    groups = np.split(arr[order], starts[1:])
+    first = order[starts]  # position in `nodes` of each group's first member
+    return [groups[g].tolist() for g in np.argsort(first)]
 
 
 def _cylinders(mesh: trimesh.Trimesh, min_radius_mm: float, min_area_mm2: float) -> list[dict]:

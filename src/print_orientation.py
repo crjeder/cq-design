@@ -134,17 +134,19 @@ def _area_cumulation_normals(
     bounded, complementing the convex-hull facets on dense/organic meshes where
     a large planar region may be split across many hull facets.
     """
-    keys = np.round(mesh.face_normals, 2)
-    buckets: dict[tuple, list] = {}
-    for key, normal, area in zip(map(tuple, keys), mesh.face_normals, mesh.area_faces, strict=True):
-        acc = buckets.get(key)
-        if acc is None:
-            buckets[key] = [float(area), normal * area]
-        else:
-            acc[0] += float(area)
-            acc[1] = acc[1] + normal * area
-    ranked = sorted(buckets.values(), key=lambda b: b[0], reverse=True)
-    return [_unit(b[1]) for b in ranked[:top_n]]
+    normals = np.asarray(mesh.face_normals)
+    areas = np.asarray(mesh.area_faces)
+    keys = np.round(normals, 2) + 0.0  # +0.0 folds -0.0 into 0.0
+    _, first, inv = np.unique(keys, axis=0, return_index=True, return_inverse=True)
+    inv = inv.reshape(-1)
+    total = np.zeros(len(first))
+    weighted = np.zeros((len(first), 3))
+    np.add.at(total, inv, areas)
+    np.add.at(weighted, inv, normals * areas[:, None])
+    # first-seen bucket order, then stable area-descending (ties keep first-seen order)
+    seen = np.argsort(first)
+    ranked = seen[np.argsort(-total[seen], kind="stable")]
+    return [_unit(weighted[b]) for b in ranked[:top_n]]
 
 
 def enumerate_candidate_normals(
