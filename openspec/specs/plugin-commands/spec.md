@@ -8,11 +8,11 @@ TBD - Defines the namespaced `/cq-design:*` slash commands the plugin provides.
 
 ### Requirement: Namespaced command set
 
-The plugin SHALL provide exactly these commands as files under `commands/`: `design`, `plan`, `init`, `update`, `deliver`, `render`, `status`, invoked as `/cq-design:<name>`. `SKILL.md` SHALL NOT carry a competing command table.
+The plugin SHALL provide exactly these commands as files under `commands/`: `design`, `plan`, `init`, `update`, `build`, `render`, `status`, invoked as `/cq-design:<name>`. `SKILL.md` SHALL NOT carry a competing command table.
 
 #### Scenario: Commands listed
 - **WHEN** the plugin is enabled
-- **THEN** `/cq-design:design`, `:plan`, `:init`, `:update`, `:deliver`, `:render`, `:status` are offered
+- **THEN** `/cq-design:design`, `:plan`, `:init`, `:update`, `:build`, `:render`, `:status` are offered
 
 ### Requirement: design and plan run the pipeline
 
@@ -42,9 +42,9 @@ The plugin SHALL provide exactly these commands as files under `commands/`: `des
 - **WHEN** the directory has neither `lib/` nor `.bundle_version.json`
 - **THEN** the command stops without creating a bundle
 
-### Requirement: deliver and render wrap run_cadquery_model
+### Requirement: render wraps run_cadquery_model
 
-`/cq-design:deliver <script.py>` SHALL run `--deliver --formats stl,3mf` and `/cq-design:render <script.py>` SHALL run `--preview`, each reporting the JSON `errors` and their hints.
+`/cq-design:render <script.py>` SHALL run `--preview`, reporting the JSON `errors` and their hints. (`/cq-design:build` is specified by the `build-command` capability.)
 
 #### Scenario: Failing script
 - **WHEN** `success` is false
