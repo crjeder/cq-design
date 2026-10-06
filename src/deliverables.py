@@ -14,7 +14,7 @@ from collections.abc import Callable
 import cadquery as cq
 
 from exporters import _REGISTRY
-from exporters.threemf_multi import count_nonmanifold_edges, write_named_3mf
+from exporters.threemf_multi import write_named_3mf
 from freshness import pose_stale_ids, read_manifest, stale_ids
 from placement import apply_cq
 from units import is_copy, plate_of
@@ -209,14 +209,8 @@ def _write_3mf(
     ]
     path = os.path.join(out_dir, "model.3mf")
     report("writing model.3mf")
-    write_named_3mf(objects, path)
+    nonmanifold = write_named_3mf(objects, path)
 
-    # Verify the index topology the way a slicer reads it (no vertex welding on load); a
-    # non-zero count means the writer regressed.
-    try:
-        nonmanifold = count_nonmanifold_edges(path)
-    except ImportError:
-        nonmanifold = 0  # trimesh absent: skip the guard rather than fail the build
     if nonmanifold:
         raise RuntimeError(
             f"{path} has {nonmanifold} non-manifold edges; vertex welding failed in "
