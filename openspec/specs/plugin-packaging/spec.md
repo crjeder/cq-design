@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - Defines how the repository is packaged and installed as a Claude Code plugin.
+Packages the cq-design skill as an installable Claude Code plugin with a persistent Python environment.
 
 ## Requirements
 

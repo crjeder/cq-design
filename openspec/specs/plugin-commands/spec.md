@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - Defines the namespaced `/cq-design:*` slash commands the plugin provides.
+The namespaced `/cq-design:*` commands the plugin provides and what each runs.
 
 ## Requirements
 
