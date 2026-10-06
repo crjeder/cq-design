@@ -4,7 +4,7 @@
 
 import numpy as np
 
-from placement import apply_cq, to_matrix, transform_direction, transform_point
+from placement import apply_cq, apply_matrix, to_matrix, transform_direction, transform_point
 
 
 def test_identity_when_empty():
@@ -93,3 +93,19 @@ def test_apply_cq_does_not_deepcopy_with_patch_active(tmp_path):
     out = tmp_path / "moved.stl"
     cq.exporters.export(moved, str(out))
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_apply_matrix_matches_apply_cq():
+    """apply_matrix(to_matrix(p)) positions a solid identically to apply_cq(p)."""
+    import cadquery as cq
+
+    placement = {
+        "rotate": [{"axis": "X", "angle_deg": 90}, {"axis": "Z", "angle_deg": 45}],
+        "translate_mm": [1, 2, 3],
+    }
+    wp = cq.Workplane("XY").box(10, 4, 2).translate((5, 0, 0))
+    a = apply_cq(wp, placement).val()
+    b = apply_matrix(wp, to_matrix(placement)).val()
+    assert np.allclose(a.Center().toTuple(), b.Center().toTuple(), atol=1e-6)
+    assert np.allclose(a.BoundingBox().xlen, b.BoundingBox().xlen, atol=1e-6)
+    assert np.allclose(a.BoundingBox().zlen, b.BoundingBox().zlen, atol=1e-6)

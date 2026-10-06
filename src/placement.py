@@ -80,14 +80,27 @@ def to_matrix(placement: dict[str, Any] | None) -> Any:
     return matrix
 
 
+def _apply_trsf(workplane: Any, trsf: Any) -> Any:
+    """Apply a `gp_Trsf` to each shape of a Workplane through the OCCT kernel.
+
+    Uses `BRepBuilderAPI_Transform` on each shape's `.wrapped` (kernel copy flag) rather
+    than `Workplane.rotate`/`translate`. This bypasses the patched `Shape._apply_transform`
+    / `Shape.copy` that `cq_warehouse.extensions` installs, so no `copy.deepcopy` /
+    `BinTools` serialization round-trip occurs.
+    """
+    from cadquery.occ_impl.shapes import Shape
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+
+    transformed = [
+        Shape.cast(BRepBuilderAPI_Transform(v.wrapped, trsf, True).Shape())
+        for v in workplane.vals()
+    ]
+    return workplane.newObject(transformed)
+
+
 def apply_cq(workplane: Any, placement: dict[str, Any] | None) -> Any:
     """Position a CadQuery Workplane by a placement: rotations then translation.
 
-    Applies the transform directly through the OCCT kernel
-    (`BRepBuilderAPI_Transform` on each shape's `.wrapped`, with the kernel copy
-    flag) rather than via `Workplane.rotate`/`translate`. This bypasses the
-    patched `Shape._apply_transform`/`Shape.copy` that `cq_warehouse.extensions`
-    installs, so no `copy.deepcopy` / `BinTools` serialization round-trip occurs.
     The composed `gp_Trsf` is `T * R_n * ... * R_1`, matching `to_matrix`.
     """
     if not placement:
@@ -95,8 +108,6 @@ def apply_cq(workplane: Any, placement: dict[str, Any] | None) -> Any:
 
     from math import radians
 
-    from cadquery.occ_impl.shapes import Shape
-    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
     from OCP.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 
     trsf = gp_Trsf()
@@ -112,11 +123,7 @@ def apply_cq(workplane: Any, placement: dict[str, Any] | None) -> Any:
         tr.SetTranslation(gp_Vec(*translate))
         trsf = tr.Multiplied(trsf)  # translate after rotations
 
-    transformed = [
-        Shape.cast(BRepBuilderAPI_Transform(v.wrapped, trsf, True).Shape())
-        for v in workplane.vals()
-    ]
-    return workplane.newObject(transformed)
+    return _apply_trsf(workplane, trsf)
 
 
 def apply_matrix(workplane: Any, matrix: Any) -> Any:
@@ -124,33 +131,16 @@ def apply_matrix(workplane: Any, matrix: Any) -> Any:
 
     For a derived mate-chain pose (`mate_chain.compute_mate_poses`), which is a
     composition of rotate/translate steps and does not generally decompose back
-    into a single ordered `placement`-shaped list. Builds the `gp_Trsf` directly
-    from the matrix's top 3 rows (rotation + translation) via `SetValues`, using
-    the same OCCT-transform-on-`.wrapped` approach as `apply_cq` (bypasses the
-    patched `Shape._apply_transform`/`Shape.copy` cq_warehouse installs).
+    into a single ordered `placement`-shaped list. Builds the `gp_Trsf` from the
+    matrix's top 3 rows (rotation + translation) via `SetValues`.
     """
-    from cadquery.occ_impl.shapes import Shape
-    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
     from OCP.gp import gp_Trsf
 
     m = matrix
     trsf = gp_Trsf()
     trsf.SetValues(
-        m[0, 0],
-        m[0, 1],
-        m[0, 2],
-        m[0, 3],
-        m[1, 0],
-        m[1, 1],
-        m[1, 2],
-        m[1, 3],
-        m[2, 0],
-        m[2, 1],
-        m[2, 2],
-        m[2, 3],
-    )
-    transformed = [
-        Shape.cast(BRepBuilderAPI_Transform(v.wrapped, trsf, True).Shape())
-        for v in workplane.vals()
-    ]
-    return workplane.newObject(transformed)
+        m[0, 0], m[0, 1], m[0, 2], m[0, 3],
+        m[1, 0], m[1, 1], m[1, 2], m[1, 3],
+        m[2, 0], m[2, 1], m[2, 2], m[2, 3],
+    )  # fmt: skip
+    return _apply_trsf(workplane, trsf)
