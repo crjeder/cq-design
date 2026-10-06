@@ -35,7 +35,7 @@ itself, a part that is itself a copy, or a part that declares `unions`.
 
 ### Requirement: Copies are exported from the source geometry
 
-`model_export.export_model` SHALL NOT load a script for a copy part. It SHALL take the source
+`write_assembly.assemble` SHALL NOT load a script for a copy part. It SHALL take the source
 part's authored geometry, reflect it across the plane normal to `mirror` when present, apply the
 copy's own placement (or mate-chain pose), and emit the copy as its own union, STL, and 3MF object.
 

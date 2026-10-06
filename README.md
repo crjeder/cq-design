@@ -30,8 +30,8 @@ Install [uv](https://docs.astral.sh/uv/), then in Claude Code:
 ```
 
 Commands: `/cq-design:design` (full pipeline), `:plan` (phases 1-2), `:init` (prepare a
-directory), `:update` (refresh a bundled project's tooling), `:deliver <script>`,
-`:render <script>`, `:status` (versions and staleness, read-only). The Python
+directory), `:update` (refresh a bundled project's tooling), `:build [format]` (generate
+model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only). The Python
 environment lives in the plugin's data directory and survives plugin updates.
 
 ### With the installer (no slash commands)
@@ -105,19 +105,20 @@ they differ from the template; merge new dependencies by hand). Part scripts are
 touched: if `build.py` fails after a refresh, a `blocks` signature probably changed, so
 read the error and edit that part script.
 
-## Regenerating the 3MF / STL files
+## Generating the model files
 
 When the skill finishes it turns your working directory into a self-contained
 [uv](https://docs.astral.sh/uv/) project: a `pyproject.toml`, `.python-version`, and
 committed `uv.lock` at the root, plus a `build/` directory holding the per-part scripts,
 `build.py`, `BUILD_PLAN.json`, and `orientations.json` (when orientations were accepted),
 and a `lib/` directory with the bundled build tooling (`exporters/`, `blocks/`,
-`model_export.py`, and friends).
+`write_assembly.py`, `deliverables.py`, and friends).
 Everything needed to rebuild the model lives here -- the skill does not have to be
 installed.
 
-To rebuild the model files after hand-editing a part script, sync the environment once
-and run `build.py` with uv instead of re-invoking the skill:
+The skill's last phase runs `build.py` for you. To rebuild the model files after
+hand-editing a part script, or to get another format, sync the environment once and run
+`build.py` with uv instead of re-invoking the skill (or use `/cq-design:build [format]`):
 
 ```bash
 uv sync
@@ -125,12 +126,24 @@ uv run python build/build.py
 ```
 
 `uv sync` downloads a compatible Python (3.10-3.12) and installs the pinned dependencies
-(CadQuery, trimesh, ...); later runs reuse the synced `.venv`. The build regenerates
-everything with each object in its print orientation and writes, to the output directory:
+(CadQuery, trimesh, ...); later runs reuse the synced `.venv`. With no arguments the
+build writes only the format your slicer prefers (`slicer.preferred_format` in
+`profile.json`); pick others with `--formats` (`3mf`, `stl`, `step`, `obj`, `iges`,
+`scad`, comma-separated). Everything goes to `out/`, with each object in its print
+orientation where the format has one:
 
-- `model.3mf` -- one named object per union, with plate metadata
-- `<union-id>.stl` -- one assembled-pose STL per union
-- `plate_<n>.stl` -- one fused STL per multi-union plate
+- `3mf`: `model.3mf` -- one named object per union, with plate metadata
+- `stl`: `<union-id>.stl` -- one assembled-pose STL per union; `plate_<n>.stl` -- one
+  fused STL per multi-union plate
+- `step` / `obj` / `iges` / `scad`: `<union-id>.<ext>` per union, assembled pose
+
+The per-union STLs are copied from `stl/` (the assembled-pose STLs the skill's
+`write_assembly.py` step writes for its checks) when those are still current for your
+part scripts; otherwise they are exported again.
+
+```bash
+uv run python build/build.py --formats 3mf,step
+```
 
 `build.py` reuses `build/orientations.json` when present (so the plates match what
 the skill delivered) and recomputes orientations otherwise. While building it prints `[k/N] <step> <id>` progress
@@ -138,7 +151,7 @@ lines to stdout (orientation, loading, stl, plate; each phase counted separately
 when your layout differs:
 
 ```bash
-uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out build
+uv run python build/build.py --plan BUILD_PLAN.json --parts-dir build --out dist
 ```
 
 ## Regenerating the project with a fresh session
@@ -222,16 +235,16 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 - STEP is the exact B-rep (not a mesh), meant for editing in Fusion 360, FreeCAD and similar CAD tools. It is written as `<name>.step`.
 - `<name>` is the script stem, or the union id for each union of a multi-union part (one file per union; keep-out zones are never exported).
 - Files go to `--output-dir` (default: next to the script) and the JSON lists only the STL (`stls`) and 3MF (`threemfs`) paths; STEP files are on disk but not reported there.
-- `build.py` / `model_export.py` always write `model.3mf` and STLs; add `--formats step` (also `obj`, `iges`, `scad`) to also write `<union-id>.step` per union, in the assembled pose, next to the STLs.
+- `build.py --formats step` (also `3mf`, `stl`, `obj`, `iges`, `scad`) writes `<union-id>.step` per union, in the assembled pose, into `out/`; with no `--formats` it writes only the profile's `preferred_format`.
 - `fem_check.py` takes a part's exported STEP file as its positional input.
 
 **`render_preview.py`** (preview subprocess) takes `--script` **(req)**, `--output` **(req)**, `--views`, `--title`, `--subtitle`, `--density`, `--material`, `--cross-sections`, `--extra-section`, `--detail`, `--callout`, `--unlocated-name` with the same meaning as above. `preview.py --help-note` prints a usage note.
 
 **`section_select.py <script>`** picks section planes through bore/boss axes: `--max N` (default 3), `--reserve AXIS=MM` (repeatable).
 
-**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default root; `model.3mf`), `--stl-out` (default `<root>/stl`), `--orientations` (default `orientations.json` in `--parts-dir`), `--formats` (comma-separated extra per-union formats: `step`, `obj`, `iges`, `scad`; default none).
+**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default `<root>/out`), `--orientations` (default `orientations.json` in `--parts-dir`), `--profile` (default `<root>/profile.json`), `--formats` (comma-separated: `3mf`, `stl`, `step`, `obj`, `iges`, `scad`; default the profile's `preferred_format`).
 
-**`model_export.py`**: `--plan` **(req)**, `--parts-dir` **(req)**, `--out` **(req)**, `--stl-out` (default: `--out`), `--orientations FILE` (part id to orientation JSON; deliverables are written in these poses), `--formats` (as for `build.py`).
+**`write_assembly.py`**: `--plan` **(req)**, `--parts-dir` **(req)**, `--out` **(req**, the STL directory, normally `stl`**)**, `--orientations FILE` (part id to orientation JSON; part scripts see it as their finishing pose). Writes assembled-pose STLs, keep-out STLs and `export_manifest.json`; no user-facing files.
 
 **`export_standalone.py`**: `--parts-dir` (default `build`), `--out` (default `standalone`), `--parameters` (default `parameters.py`).
 
@@ -316,90 +329,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 **`blocks/validate.py`**: `--search KEYWORD` (find blocks mentioning a keyword).
 
 ## Files
-
-```
-SKILL.md                    # skill definition and workflow phases
-CLAUDE.md                   # development guidance for the pipeline scripts
-src/build_plan_schema.json  # JSON Schema draft-7 for BUILD_PLAN.json
-src/printer_profile_schema.json      # JSON Schema draft-7 for profile.json
-src/profile.default.json     # default profile.json seeded into a fresh directory
-pyproject.toml              # dependencies and project metadata (uv)
-
-src/
-  run_cadquery_model.py     # subprocess wrapper: runs a .py model, validates geometry, emits JSON
-  run_model_shim.py         # runpy shim that auto-exports `result` to STL
-  quality_gate.py           # DFM + in-process trimesh geometry/overhang analysis (no slicer required), fix rounds, print recipe
-  plan.py                   # validate / summary / import-params over BUILD_PLAN.json
-  printer_profile_validate.py # validates profile.json and writes back field overrides
-  measure_stl.py            # geometry feature extractor for reference STLs (trimesh + numpy)
-  preview.py                # headless multi-view PNG renderer (CadQuery tessellation + matplotlib)
-  render_preview.py         # subprocess entry point for preview.py
-  mesh_io.py                # STL loader with watertightness validation (trimesh + numpy only)
-  placement.py              # assembled-frame placement helper (cq Workplane + trimesh matrix)
-  mate_chain.py             # derived pose along a `joints` mate chain from root_part
-  units.py                  # part -> unions / keep-out-zone expansion shared by export/validate/checks
-  model_export.py           # model-level export: named multi-object 3MF + per-union/plate/keep-out STL
-  kinematic_check.py        # whole-model range-of-motion sweep (trimesh + python-fcl)
-  plate_clearance_check.py  # whole-model co-plated union clearance check
-  keep_out_check.py         # whole-model keep-out-zone check (trimesh + python-fcl)
-  print_orientation.py      # auto-rotation optimizer for print orientation
-  build_template.py         # build.py template copied into build/ to regenerate plates
-  regen_prompt.py           # exports REGENERATE.md: a fresh-session prompt to re-derive the design
-  cq_compat.py              # CadQuery/cq_warehouse compatibility shims
-  init_permissions.py       # seeds .claude/settings.local.json with pipeline permissions
-  skill_permissions.json    # permission patterns seeded by init_permissions.py
-  skill_version.py          # reports/compares the installed commit -- see "Checking what's installed"
-
-  project_template/
-    pyproject.toml          # scaffolded into the working directory as a self-contained uv project
-    .python-version         # pinned Python version for the scaffolded project
-
-  blocks/
-    __init__.py             # re-exports all blocks flat (import via `from blocks import <name>`)
-    primitives.py           # fillet_box, hollow_box
-    fasteners.py            # screw_boss, pcb_standoff, snap hooks, alignment pins
-    connectors.py           # port_cutout, cable_slot, vent_grid, teardrop bore/post
-    hardware.py             # cq_warehouse-backed fastener geometry (heat-set, screws, nuts, traps)
-    joints.py               # dovetail, finger, mortise/tenon, dowel, ball, hinge, living-hinge, shadow-gap
-    validate.py             # inventory loader and validator
-    inventory.json          # machine-readable block descriptors
-    inventory_schema.json   # JSON Schema for inventory.json
-
-  exporters/
-    __init__.py             # run_exporters(script, formats, output_dir)
-    stl.py  step.py  threemf.py  threemf_multi.py  obj.py  iges.py  scad.py
-
-prompts/
-  planning.md               # planning phase prompt (outputs BUILD_PLAN.json)
-  part.md                   # per-part code generation prompt
-
-tests/
-  test_run_wrapper.py       # integration tests for the subprocess wrapper
-  test_blocks.py            # block geometry tests
-  test_block_imports.py     # flat block-import contract (every inventory block flat-importable; no runtime injection)
-  test_exporters.py         # exporter tests
-  test_preview.py           # preview.py / render_preview.py tests
-  test_thin_interfaces.py   # thin-wall detection tests
-  test_plan.py              # plan validate/summary/import-params tests -- fast, no CadQuery
-  test_mesh_io.py           # mesh loader tests
-  test_placement.py         # placement helper tests
-  test_units.py             # part -> unions / keep-out-zone expansion tests
-  test_model_export.py      # model-level export tests
-  test_mate_chain.py        # derived mate-chain pose tests
-  test_kinematic_check.py   # kinematic sweep tests
-  test_plate_clearance_check.py
-  test_keep_out_check.py    # keep-out-zone check tests
-  test_print_orientation.py
-  test_printer_profile_validate.py
-  test_build_script.py
-  test_gate_plan_validation.py
-  test_quality_gate.py
-  test_init_permissions.py
-  test_cq_compat.py
-  test_hardware_lazy_import.py
-  test_cq_warehouse_integration.py
-  test_stl_to_3mf.py
-```
+see FILES.md
 
 ## Related projects
 Projects surveyed for ideas -- see [`info/related_projects.md`](documentation/related_projects.md).

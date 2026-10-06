@@ -48,16 +48,16 @@ line; the format below is what that command writes.
 | 3 | `escalation:<part_id>` | The user resolves a blocked-builder escalation — records the outcome (hint verbatim / accepted as-is / skipped) |
 | 3 | `design_approved` | The user approves the Design approval checkpoint (all parts done) |
 | 3 | `orientation_chosen` | Print-orientation optimization completes for every union |
-| 3 | `model_exported` | `model.3mf` and per-union/plate STLs are written |
+| 3 | `assembly_written` | Assembled-pose per-union STLs and the manifest are written (`write_assembly.py`) |
 | 3 | `gate_result` | The quality gate finishes — records pass/fail and remaining error count |
-| 4 | `delivered` | Phase 4's report and `README.md` are complete |
+| 4 | `delivered` | Phase 4's model files (`build.py`), report and `README.md` are complete |
 
 ## Resume procedure
 
 1. Read `build/journal.md` in full.
 2. Cross-check the on-disk artifacts the journal's milestones point to
    (`BUILD_PLAN.json`, `parameters.py`, `build/*.py`, `build/attempts.jsonl`, `stl/`,
-   `preview/`) — these are authoritative for **content**; the journal is authoritative
+   `out/`, `preview/`) — these are authoritative for **content**; the journal is authoritative
    only for **which decisions were already made**. If a part script looks hand-edited
    since its `part_accepted` line (e.g. its `PARAMETERS` block disagrees with
    `BUILD_PLAN.json`'s `dimensions`), treat the script as current per the Design

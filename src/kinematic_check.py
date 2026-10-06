@@ -30,7 +30,7 @@ joint achieves its author-declared range of motion:
      interpenetrating poses beyond it -- so it emits a `contact_limited_stop` warning
      naming the shortfall instead of a `motion_collision` error.
 
-Meshes are the assembled per-union STLs from `model_export.py` (placement already
+Meshes are the assembled per-union STLs from `write_assembly.py` (placement already
 applied), so `--stl-dir` points at that export. The inventory limit is a nominal
 sanity bound; the sweep is authoritative for a specific assembled instance. Findings
 use the shared quality-gate issue contract: `{source, severity, type, message,

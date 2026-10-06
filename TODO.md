@@ -78,6 +78,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
       anchor currently produces a confident wrong number (see `fem-stress-advisor` design.md
       risk list)
 - [x] optimization for print speed
+- [ ] since orca slicer now supports STEP default to export this format
 
 ## Optimisation
 Run-time review (static read of the hot paths, not profiled), ranked by likely time saved.
@@ -438,7 +439,7 @@ Proposed retrofit work (all advisory, `check_block_thinness` tier -- printed aft
 
 ### C5 quality-gate overhang authored frame
 `quality_gate._analyze_stl` ran `mesh_io.overhang_metrics` on the STL as written
-by `model_export.py` -- the part's authored / `placement` frame -- and never
+by `write_assembly.py` -- the part's authored / `placement` frame -- and never
 applied the chosen print orientation's rotation. `print_orientation.py` (run
 earlier in Phase 3) evaluates overhang at the real print pose; the gate did not.
 So whenever the optimizer rotates a part away from its authored pose, the gate's
@@ -633,7 +634,7 @@ Capture coupling (e.g. helical screw pitch, ball cone) as a later field.
 
 ### Export print-plate structure
 Separate unions into print-plates. Today all unions compile to one "world"
-result and `model_export` already writes each as a separately named 3MF
+result and `write_assembly` already writes each as a separately named 3MF
 `<object>` with `plate` metadata. Core 3MF has no native print-plate concept
 (objects + `<build><item>` only); true multi-plate assignment is a
 slicer-specific extension (Bambu/Prusa project-3MF). Decide: emit the slicer
@@ -680,7 +681,7 @@ viewer stack is a loss.
    (`kinematic_check`, `plate_clearance_check`, `keep_out_check`).
 2. Covers half the consumers. `placement.py` must yield both a CadQuery transform
    (`apply_cq`) and a numpy 4x4 (`to_matrix`) from one JSON dict, because
-   everything downstream of `model_export` is trimesh, not OCCT. `to_matrix` stays
+   everything downstream of `write_assembly` is trimesh, not OCCT. `to_matrix` stays
    either way. And `apply_cq` deliberately goes straight to
    `BRepBuilderAPI_Transform` on `.wrapped` to dodge the `cq_warehouse.extensions`
    deepcopy patch -- an Assembly `Location` path would re-enter that.
@@ -692,7 +693,7 @@ viewer stack is a loss.
 One spin-off worth keeping: `cq.Assembly.save("x.step")` writes a
 multi-component STEP with per-component names and colors. STEP is currently
 per-part (`exporters/step.py`); there is no assembled STEP for CAD handoff. If
-wanted, that is a standalone ~15-line exporter in `model_export.py` -- build a
+wanted, that is a standalone ~15-line exporter in `write_assembly.py` -- build a
 throwaway `cq.Assembly`, `.add(wp, loc=Location(matrix), name=part_id)` using the
 poses already computed, save. No constraints, no solver, no schema change. Add it
 when someone actually asks to open the model in FreeCAD/Fusion.
@@ -1084,7 +1085,7 @@ deepcopy-based `Shape.copy()` -> OCC `BinTools` serialization round-trip
 BRep_PointRepresentation = 42`, sometimes flaky). Currently worked around by
 avoiding the triggering geometry shapes (documented in `occ-error.md`), root
 cause not fixed. Leads to investigate: replace cq_warehouse's deepcopy copy
-with OCC's native `BRepBuilderAPI_Copy`; or make `model_export.py` rotate
+with OCC's native `BRepBuilderAPI_Copy`; or make `write_assembly.py` rotate
 the trimesh (mesh-based) for print-oriented 3MF objects instead of the
 B-rep, sidestepping the deepcopy path entirely (the kinematic-check STLs
 already do this).
