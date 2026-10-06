@@ -1,6 +1,5 @@
 
 .claude/*
-!.claude/worktrees/
 .playwright/
 .playwright-mcp/
 .venv/
