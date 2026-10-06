@@ -18,6 +18,8 @@ import xml.etree.ElementTree as ET
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
+import numpy as np
+
 _CORE = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
 _REL_3DMODEL = "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"
 
@@ -44,44 +46,49 @@ _CONTENT_TYPES = (
 )
 
 
-def _weld(verts: list, tris: list) -> tuple[list, list]:
+def _weld(verts: list, tris: list) -> tuple[np.ndarray, np.ndarray]:
     """Merge coincident tessellation vertices and remap triangle indices.
 
     OCC tessellates each face independently and does not share vertices across
     face seams, so a shared edge gets two distinct index pairs. Written verbatim
     to 3MF (an index-based format) those seam edges are used by only one triangle
     each and slicers report them as non-manifold. STL hides this (no shared
-    vertices at all); 3MF does not. Welding by exact position restores a single
-    shared index per physical vertex so every interior edge is used twice.
+    vertices at all); 3MF does not. Welding by position (rounded to 6 decimals)
+    restores a single shared index per physical vertex so every interior edge is
+    used twice. Vertices keep first-seen order and their original coordinates.
     """
-    remap: dict[tuple[float, float, float], int] = {}
-    out_verts: list = []
-    old_to_new: list[int] = [0] * len(verts)
-    for i, v in enumerate(verts):
-        key = (round(v.x, 6), round(v.y, 6), round(v.z, 6))
-        idx = remap.get(key)
-        if idx is None:
-            idx = len(out_verts)
-            remap[key] = idx
-            out_verts.append(v)
-        old_to_new[i] = idx
-    out_tris = [(old_to_new[a], old_to_new[b], old_to_new[c]) for a, b, c in tris]
-    return out_verts, out_tris
+    pts = np.array([v.toTuple() for v in verts], dtype=float).reshape(-1, 3)
+    _, first, inverse = np.unique(np.round(pts, 6), axis=0, return_index=True, return_inverse=True)
+    order = np.argsort(first)  # unique ids sorted by first occurrence
+    rank = np.empty_like(order)
+    rank[order] = np.arange(len(order))
+    out_tris = rank[inverse.ravel()][np.array(tris, dtype=int).reshape(-1, 3)]
+    return pts[first[order]], out_tris
+
+
+def _nonmanifold_edges(tris: np.ndarray) -> int:
+    """Count edges used by other than exactly two triangles, by vertex index."""
+    edges = np.sort(tris[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2), axis=1)
+    _, counts = np.unique(edges, axis=0, return_counts=True)
+    return int((counts != 2).sum())
 
 
 def _add_object(
     resources: ET.Element,
+    fragments: dict[str, str],
     obj_id: str,
     name: str,
     plate: str | None,
     shape: Any,
     tolerance: float,
     angular_tolerance: float,
-) -> None:
+) -> int:
     """Append one named <object>, welding tessellation vertices before writing.
 
     A `plate` of None omits the plate metadata (single-object exports have no
-    plate grouping).
+    plate grouping). The mesh body is pre-serialised into `fragments` (spliced in
+    by `_write_zip`) to avoid one Element per vertex/triangle. Returns the
+    object's non-manifold edge count.
     """
     verts, tris = shape.tessellate(tolerance, angular_tolerance)
     verts, tris = _weld(verts, tris)
@@ -89,13 +96,12 @@ def _add_object(
     if plate is not None:
         meta_group = ET.SubElement(obj, "metadatagroup")
         ET.SubElement(meta_group, "metadata", name="plate").text = plate
-    mesh = ET.SubElement(obj, "mesh")
-    vertices = ET.SubElement(mesh, "vertices")
-    for v in verts:
-        ET.SubElement(vertices, "vertex", x=str(v.x), y=str(v.y), z=str(v.z))
-    triangles = ET.SubElement(mesh, "triangles")
-    for t in tris:
-        ET.SubElement(triangles, "triangle", v1=str(t[0]), v2=str(t[1]), v3=str(t[2]))
+    token = f"@@MESH{obj_id}@@"
+    ET.SubElement(obj, "mesh").text = token
+    vertex_xml = "".join(f'<vertex x="{x}" y="{y}" z="{z}"/>' for x, y, z in verts.tolist())
+    tri_xml = "".join(f'<triangle v1="{a}" v2="{b}" v3="{c}"/>' for a, b, c in tris.tolist())
+    fragments[token] = f"<vertices>{vertex_xml}</vertices><triangles>{tri_xml}</triangles>"
+    return _nonmanifold_edges(tris)
 
 
 def _model_settings_config(plate_assignments: list[tuple[str, str]]) -> bytes:
@@ -138,7 +144,7 @@ def write_named_3mf(
     path: str,
     tolerance: float | None = None,
     angular_tolerance: float | None = None,
-) -> None:
+) -> int:
     """Write a 3MF with one named object per union, grouped onto slicer plates.
 
     Args:
@@ -148,6 +154,8 @@ def write_named_3mf(
             `mesh_io.EXPORT_TESSELLATION_TOLERANCE_MM`
         angular_tolerance: angular tessellation tolerance in degrees; defaults to
             `mesh_io.EXPORT_TESSELLATION_ANGULAR_TOLERANCE_DEG`
+
+    Returns the total non-manifold edge count of the written index topology.
     """
     import mesh_io
 
@@ -162,14 +170,19 @@ def write_named_3mf(
     build = ET.SubElement(model, "build")
 
     plate_assignments: list[tuple[str, str]] = []
+    fragments: dict[str, str] = {}
+    nonmanifold = 0
     for i, (name, plate, shape) in enumerate(objects):
         obj_id = str(i + 1)
-        _add_object(resources, obj_id, name, plate, shape, tolerance, angular_tolerance)
+        nonmanifold += _add_object(
+            resources, fragments, obj_id, name, plate, shape, tolerance, angular_tolerance
+        )
         ET.SubElement(build, "item", objectid=obj_id)
         plate_assignments.append((obj_id, plate))
 
     extra_files = {"Metadata/model_settings.config": _model_settings_config(plate_assignments)}
-    _write_zip(model, path, extra_files)
+    _write_zip(model, path, fragments, extra_files)
+    return nonmanifold
 
 
 def write_single_3mf(
@@ -178,12 +191,12 @@ def write_single_3mf(
     name: str = "model",
     tolerance: float | None = None,
     angular_tolerance: float | None = None,
-) -> None:
+) -> int:
     """Write a single-object 3MF (no plate metadata) with welded vertices.
 
     Used by the generic 3MF exporter. CadQuery's native ThreeMFWriter emits the
     raw per-face tessellation without welding, which slicers flag as non-manifold;
-    this path welds first (see `_weld`).
+    this path welds first (see `_weld`). Returns the non-manifold edge count.
     """
     import mesh_io
 
@@ -195,20 +208,34 @@ def write_single_3mf(
     model = ET.Element("model", {"unit": "millimeter", "xml:lang": "en-US", "xmlns": _CORE})
     resources = ET.SubElement(model, "resources")
     build = ET.SubElement(model, "build")
-    _add_object(resources, "1", name, None, shape, tolerance, angular_tolerance)
+    fragments: dict[str, str] = {}
+    nonmanifold = _add_object(
+        resources, fragments, "1", name, None, shape, tolerance, angular_tolerance
+    )
     ET.SubElement(build, "item", objectid="1")
-    _write_zip(model, path)
+    _write_zip(model, path, fragments)
+    return nonmanifold
 
 
-def _write_zip(model: ET.Element, path: str, extra_files: dict[str, bytes] | None = None) -> None:
+def _write_zip(
+    model: ET.Element,
+    path: str,
+    fragments: dict[str, str],
+    extra_files: dict[str, bytes] | None = None,
+) -> None:
     """Pack a model element into a minimal 3MF OPC container.
+
+    `fragments` maps each mesh placeholder token to its pre-serialised body.
 
     `extra_files` are additional zip entries (e.g. `Metadata/model_settings.config`)
     written verbatim; BambuStudio/OrcaSlicer locate their proprietary metadata files
     by fixed path during zip iteration, not via OPC relationships, so no `.rels` or
     `[Content_Types].xml` entry is required for them.
     """
-    xml = ET.tostring(model, xml_declaration=True, encoding="utf-8")
+    text = ET.tostring(model, xml_declaration=True, encoding="utf-8").decode("utf-8")
+    for token, body in fragments.items():
+        text = text.replace(token, body)
+    xml = text.encode("utf-8")
     with ZipFile(path, "w", ZIP_DEFLATED) as zf:
         zf.writestr("_rels/.rels", _RELS)
         zf.writestr("[Content_Types].xml", _CONTENT_TYPES)
