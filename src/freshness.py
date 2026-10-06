@@ -47,7 +47,7 @@ def write_manifest(
     """Write the export manifest into `stl_dir`; return its path.
 
     `union_scripts` maps union id -> (part_id, script_path). `keep_out_scripts` maps
-    "<part_id>::<zone_name>" -> (part_id, script_path), matching `export_model`'s
+    "<part_id>::<zone_name>" -> (part_id, script_path), matching `write_assembly`'s
     `keep_out_stls` key convention. Each entry records the script's provenance stamp.
     """
     rotates = print_rotates or {}

@@ -92,7 +92,7 @@ both the cold (builder agent) and inline (progressive) render modes.
 
 ### Requirement: The plan is re-validated after the last handback and before export
 
-After the final part's `placement` write-back and before `model_export.py` runs,
+After the final part's `placement` write-back and before `write_assembly.py` runs,
 `plan.py validate` SHALL be run again against `BUILD_PLAN.json`. That run SHALL be the
 authoritative validation for any check that consumes `placement`, including the
 joint-contract axis arm. A failure SHALL block the export.

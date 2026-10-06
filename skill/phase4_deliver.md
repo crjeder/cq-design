@@ -1,5 +1,15 @@
 # Phase 4: Deliver
 
+First generate the model files (the project was bundled and synced at the end of Phase 3):
+
+```bash
+uv run python build/build.py
+```
+
+This writes the profile's `slicer.preferred_format` into `out/`. If `build.py` fails, show its
+`build failed:` message and stop. A different format later is `uv run python build/build.py
+--formats <list>` or `/cq-design:build <format>`.
+
 Report to the user:
 
 1. **Status** - which parts passed, which had remaining warnings or errors. If
@@ -18,10 +28,10 @@ Report to the user:
    without the user's explicit approval (see `toolpath-speed-advisor`)
 2. **Preview images** - display any `.png` files from `preview/`
 3. **Print recipe** - show `print_recipe` from `build/quality_gate.json`
-4. **Output files** - list `model.3mf` (project root) and the STLs in `stl/`, and note
+4. **Output files** - list the files `build.py` wrote to `out/`, and note
    that the working directory is a self-contained uv project (committed `uv.lock`): the
-   user regenerates the plates in print orientation with `uv run python build/build.py`,
-   no skill re-invoke. Also list `standalone/` (see step 8): the part scripts alone, with only
+   user regenerates them, or any other format, with `uv run python build/build.py
+   [--formats 3mf,stl,step,...]` or `/cq-design:build [format]`, no skill re-invoke. Also list `standalone/` (see step 8): the part scripts alone, with only
    the helper modules they import and a cadquery-only `pyproject.toml`
 5. **Hardware to buy** - when `BUILD_PLAN.json`'s `bom` is non-empty, list every row
    (item, spec, qty, parts, note) so the user knows what to source before assembly
@@ -37,12 +47,13 @@ Report to the user:
      omitted when `bom` is absent or empty
    - The directory layout:
      ```
-     README.md, REGENERATE.md, parameters.py, model.3mf, BUILD_PLAN.json, profile.json
+     README.md, REGENERATE.md, parameters.py, BUILD_PLAN.json, profile.json
      pyproject.toml, .python-version, uv.lock
      build/   <part_id>.py (editable part scripts), build.py, orientations.json, *.orientation.json
      lib/     bundled build tooling
      standalone/ <part_id>.py + only the helpers they import, pyproject.toml (cadquery only)
-     stl/     <part_id>.stl (assembled pose), plate_<n>.stl (print pose)
+     stl/     <part_id>.stl (assembled pose, input to the checks), export_manifest.json
+     out/     the requested model files: model.3mf, or <part_id>.stl + plate_<n>.stl, or step/obj/iges/scad per union
      preview/ <part_id>_preview.png, _section_*.png, _detail_*.png
      ```
    - A one-line pointer to `REGENERATE.md` (see step 7)

@@ -27,7 +27,8 @@ SRC = Path(__file__).resolve().parent
 STAMP = ".bundle_version.json"
 BUNDLE_MODULES = (
     "mesh_io.py",
-    "model_export.py",
+    "write_assembly.py",
+    "deliverables.py",
     "print_orientation.py",
     "print_finishing.py",
     "placement.py",

@@ -17,7 +17,7 @@ values, coordinate system, generated script rules, and the key-files quick
 reference - and SHALL be under 10 KB.
 
 #### Scenario: Trigger load cost
-- **WHEN** the skill triggers for any invocation (`/cq-design:render`, `/cq-design:deliver`,
+- **WHEN** the skill triggers for any invocation (`/cq-design:render`, `/cq-design:build`,
   `/cq-design:plan`, or a full design request)
 - **THEN** the initially loaded SKILL.md is under 10 KB and contains no phase-local
   step-by-step procedures
