@@ -168,19 +168,20 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
     lip. Anchored edges are binned to the 4 rectangle sides; a side counts as supported
     when anchored length covers BRIDGE_SIDE_COVERAGE of it.
     """
-    # Mesh-wide arrays and the edge -> face map are read once per overhang_regions call
-    # (shared via `ctx`): each trimesh property access re-verifies its cache by hashing.
-    if "lookup" not in ctx:
+    # Mesh-wide arrays and the sorted edge-key -> face-pair map are built once per
+    # overhang_regions call (shared via `ctx`): each trimesh property access re-verifies
+    # its cache by hashing.
+    if "keys" not in ctx:
         ctx["verts"] = np.asarray(mesh.vertices)
         ctx["tris"] = np.asarray(mesh.faces)
         ctx["area"] = np.asarray(mesh.area_faces)
-        adj_edges = np.sort(mesh.face_adjacency_edges, axis=1)
-        ctx["lookup"] = {
-            tuple(e): (int(f[0]), int(f[1]))
-            for e, f in zip(adj_edges, mesh.face_adjacency, strict=True)
-        }
+        adj_edges = np.sort(mesh.face_adjacency_edges, axis=1).astype(np.int64)
+        keys = adj_edges[:, 0] * len(ctx["verts"]) + adj_edges[:, 1]
+        order = np.argsort(keys, kind="stable")  # stable: duplicate edges resolve to the last pair
+        ctx["keys"] = keys[order]
+        ctx["pairs"] = np.asarray(mesh.face_adjacency)[order]
         ctx["centroids_z"] = mesh.triangles.mean(axis=1)[:, 2]
-    verts, lookup, centroids_z = ctx["verts"], ctx["lookup"], ctx["centroids_z"]
+    verts, centroids_z = ctx["verts"], ctx["centroids_z"]
     if np.average(angles[faces], weights=ctx["area"][faces]) < BRIDGE_MIN_DEG:
         return False
     tri = ctx["tris"][faces]
@@ -199,25 +200,21 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
     boundary = cnt[inv.reshape(-1)] == 1
 
     side_len = [rect[1], rect[1], rect[0], rect[0]]  # sides +x, -x, +y, -y
-    covered = np.zeros(4)
-    for e, f, is_b in zip(edges, owner, boundary, strict=True):
-        if not is_b:
-            continue
-        pair = lookup.get(tuple(e))
-        if pair is None:
-            continue
-        other = pair[1] if pair[0] == f else pair[0]
-        if in_region[other]:
-            continue
-        mid = verts[e].mean(axis=0)
-        if centroids_z[other] >= mid[2] - 1e-6:
-            continue  # wall rises from the edge: the region's own free lip
-        x, y, _ = to_rect @ np.array([mid[0], mid[1], 1.0])
-        if abs(x) / (rect[0] / 2) >= abs(y) / (rect[1] / 2):
-            side = 0 if x > 0 else 1
-        else:
-            side = 2 if y > 0 else 3
-        covered[side] += np.linalg.norm(verts[e[0]] - verts[e[1]])
+    e, f = edges[boundary], owner[boundary]
+    if not len(ctx["keys"]):
+        return False  # no adjacent faces: nothing anchors the region
+    ek = e[:, 0].astype(np.int64) * len(verts) + e[:, 1]
+    idx = np.searchsorted(ctx["keys"], ek, side="right") - 1
+    found = (idx >= 0) & (ctx["keys"][np.maximum(idx, 0)] == ek)
+    e, f, pair = e[found], f[found], ctx["pairs"][idx[found]]
+    other = np.where(pair[:, 0] == f, pair[:, 1], pair[:, 0])
+    a, b = verts[e[:, 0]], verts[e[:, 1]]
+    mid = (a + b) / 2
+    keep = ~in_region[other] & (centroids_z[other] < mid[:, 2] - 1e-6)  # else: free lip
+    x, y = (np.column_stack([mid[:, :2], np.ones(len(mid))]) @ to_rect.T)[keep].T[:2]
+    along_x = np.abs(x) / (rect[0] / 2) >= np.abs(y) / (rect[1] / 2)
+    side = np.where(along_x, np.where(x > 0, 0, 1), np.where(y > 0, 2, 3))
+    covered = np.bincount(side, weights=np.linalg.norm((a - b)[keep], axis=1), minlength=4)
     supported = sum(
         1 for c, n in zip(covered, side_len, strict=True) if c >= BRIDGE_SIDE_COVERAGE * n
     )

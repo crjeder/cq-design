@@ -246,7 +246,10 @@ def _speed_lookup(
 
 
 def _support_metrics(
-    posed: trimesh.Trimesh, overhang_deg: float, bridge_max_mm: float = BRIDGE_MAX_MM
+    posed: trimesh.Trimesh,
+    overhang_deg: float,
+    bridge_max_mm: float = BRIDGE_MAX_MM,
+    contact_mask: np.ndarray | None = None,
 ) -> tuple[float, float]:
     """Return (support_cost, bed_contact_area) for the mesh already posed.
 
@@ -254,9 +257,11 @@ def _support_metrics(
     `mesh_io.support_cost`); lower is better. The flat face resting on the bed is
     supported by the bed, not by support material, so it is excluded from the
     cost. Bed contact is counted within one first-layer height of the floor, so a
-    marginally non-coplanar resting face still counts as contact.
+    marginally non-coplanar resting face still counts as contact. `contact_mask` is the
+    pose's bed-contact mask when the caller already has it.
     """
-    contact_mask = _bed_contact_mask(posed)
+    if contact_mask is None:
+        contact_mask = _bed_contact_mask(posed)
     bed_contact = float(posed.area_faces[contact_mask].sum())
     cost = support_cost(posed, overhang_deg, OV_H, contact_mask, bridge_max_mm)
     return round(cost, 3), round(bed_contact, 3)
@@ -278,14 +283,15 @@ def _infer_show_face(mesh: trimesh.Trimesh) -> np.ndarray:
     return _unit(np.asarray(mesh.face_normals[largest_tri], dtype=float))
 
 
-def _gentle_incline_fraction(posed: trimesh.Trimesh) -> float:
+def _gentle_incline_fraction(posed: trimesh.Trimesh, on_bed: np.ndarray | None = None) -> float:
     """Fraction of visible face area that is a gentle (stair-stepping) incline.
 
     At the candidate pose, a face's slope from horizontal is the angle between its
     normal and the build axis Z (0 = flat top/bottom, 90 = vertical wall). Faces
     sloped within (FLAT_EPS_DEG, GENTLE_INCLINE_MAX_DEG) stair-step visibly in FDM;
     near-flat and near-vertical faces do not. Faces resting on the bed are excluded
-    (not visible). Returns the bad-zone area over the total area (lower is better).
+    (not visible; `on_bed` is the bed-contact mask when the caller already has it).
+    Returns the bad-zone area over the total area (lower is better).
     """
     total = float(posed.area)
     if total <= 0.0:
@@ -295,13 +301,17 @@ def _gentle_incline_fraction(posed: trimesh.Trimesh) -> float:
     slope = np.degrees(np.arccos(np.clip(np.abs(nz), 0.0, 1.0)))
     gentle = (slope > FLAT_EPS_DEG) & (slope < GENTLE_INCLINE_MAX_DEG)
 
-    on_bed = bed_contact_mask(posed)
+    bed = on_bed if on_bed is not None else bed_contact_mask(posed)
 
-    bad_area = float(posed.area_faces[gentle & ~on_bed].sum())
+    bad_area = float(posed.area_faces[gentle & ~bed].sum())
     return round(bad_area / total, 6)
 
 
-def _stability_metrics(posed: trimesh.Trimesh, center_mass: np.ndarray | None = None) -> bool:
+def _stability_metrics(
+    posed: trimesh.Trimesh,
+    center_mass: np.ndarray | None = None,
+    contact_mask: np.ndarray | None = None,
+) -> bool:
     """Whether the posed mesh rests stably (won't tip) on its bed-contact footprint.
 
     A resting body under gravity is stable when its center of mass, projected onto
@@ -310,9 +320,11 @@ def _stability_metrics(posed: trimesh.Trimesh, center_mass: np.ndarray | None = 
     knife-edge contact) can't form a polygon at all, so it is unstable outright.
     `center_mass` is the posed center of mass when the caller already has it (it is
     pose-covariant, so optimize_orientation rotates one value instead of re-integrating
-    the mesh per candidate); otherwise it is computed from `posed`.
+    the mesh per candidate); otherwise it is computed from `posed`. `contact_mask` is
+    the pose's bed-contact mask when the caller already has it.
     """
-    contact_mask = _bed_contact_mask(posed)
+    if contact_mask is None:
+        contact_mask = _bed_contact_mask(posed)
     footprint = np.unique(np.round(posed.triangles[contact_mask].reshape(-1, 3)[:, :2], 6), axis=0)
     if len(footprint) < 3:
         return False
@@ -326,7 +338,10 @@ def _stability_metrics(posed: trimesh.Trimesh, center_mass: np.ndarray | None = 
 
 
 def _visual_metrics(
-    posed: trimesh.Trimesh, rotation: np.ndarray, show_face_dir: np.ndarray
+    posed: trimesh.Trimesh,
+    rotation: np.ndarray,
+    show_face_dir: np.ndarray,
+    contact_mask: np.ndarray | None = None,
 ) -> tuple[float, float, float]:
     """Return (visual, cosmetic_down, gentle_incline_fraction) for the pose.
 
@@ -337,7 +352,7 @@ def _visual_metrics(
     """
     cosmetic_after = rotation[:3, :3] @ _unit(show_face_dir)
     cosmetic_down = max(0.0, float(np.dot(cosmetic_after, _DOWN)))
-    incline = _gentle_incline_fraction(posed)
+    incline = _gentle_incline_fraction(posed, contact_mask)
     visual = cosmetic_down - VISUAL_INCLINE_WEIGHT * incline
     return round(visual, 6), round(cosmetic_down, 6), incline
 
@@ -472,21 +487,24 @@ def optimize_orientation(
     base = mesh.copy()
     base.face_adjacency, base.face_adjacency_edges, base.edges_sorted, base.face_normals  # noqa: B018
     com0 = np.append(base.center_mass, 1.0)
+    base_areas = np.asarray(base.area_faces)  # rotation-invariant: shared by every pose
 
     candidates = []
     for idx, normal in enumerate(enumerate_candidate_normals(mesh)):
         rotation = _rotation_to_bed(normal)
         posed = base.copy(include_cache=True)
         posed.apply_transform(rotation)
+        posed._cache["area_faces"] = base_areas
+        contact_mask = _bed_contact_mask(posed)
         fem_strength = _fem_strength_lookup(fem_stress, normal)
         if fem_strength is not None:
             strength, strength_source = fem_strength, "fem"
         else:
             strength = _strength_score(rotation, load_vec, load_type)
             strength_source = "declared_load" if load_declared else "neutral"
-        support, bed_contact = _support_metrics(posed, overhang_deg, bridge_max_mm)
-        visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec)
-        stable = _stability_metrics(posed, (rotation @ com0)[:3])
+        support, bed_contact = _support_metrics(posed, overhang_deg, bridge_max_mm, contact_mask)
+        visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec, contact_mask)
+        stable = _stability_metrics(posed, (rotation @ com0)[:3], contact_mask)
         speed_entry = _speed_lookup(speed_model, normal)
         candidate = {
             "idx": idx,
