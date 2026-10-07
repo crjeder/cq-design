@@ -136,3 +136,36 @@ def test_unknown_format_raises(simple_box_script, tmp_path):
 def test_missing_result_variable_raises(script_without_result, tmp_path):
     with pytest.raises(ExportError, match="result"):
         run_exporters(str(script_without_result), ["stl"], str(tmp_path))
+
+
+# ---- _load_result memoization ----
+
+
+def _counting_script(tmp_path):
+    counter = tmp_path / "runs.txt"
+    script = tmp_path / "counted.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        f"open({str(counter)!r}, 'a').write('x')\n"
+        "result = cq.Workplane('XY').box(5, 5, 5)\n"
+    )
+    return script, counter
+
+
+def test_load_result_memoized_and_invalidated(tmp_path):
+    from exporters import _load_result
+
+    script, counter = _counting_script(tmp_path)
+    first = _load_result(str(script))
+    assert _load_result(str(script)) is first
+    assert len(counter.read_text()) == 1
+
+    _load_result(str(script), [{"axis": "x", "deg": 90}])  # distinct pose runs again
+    assert len(counter.read_text()) == 2
+
+    _load_result(str(script), fresh=True)  # hooked loads always execute
+    assert len(counter.read_text()) == 3
+
+    script.write_text(script.read_text() + "# edit\n")  # content change invalidates
+    _load_result(str(script))
+    assert len(counter.read_text()) == 4

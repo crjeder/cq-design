@@ -651,3 +651,19 @@ def test_render_preview_cli_detail_produces_named_files(tmp_path):
     last_line = proc.stdout.strip().splitlines()[-1]
     reported = json.loads(last_line)
     assert reported["extra_previews"] == [str(detail_path)]
+
+
+def test_deliver_executes_script_once(tmp_path):
+    """--deliver reuses the shim load instead of importing the script again."""
+    counter = tmp_path / "runs.txt"
+    script = tmp_path / "once.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        f"open({str(counter)!r}, 'a').write('x')\n"
+        "result = cq.Workplane('XY').box(10, 10, 10)\n",
+        encoding="utf-8",
+    )
+    rc, data = run(script, "--deliver", "--formats", "stl,3mf")
+    assert rc == 0, data
+    assert data["stl"].endswith("once.stl") and data["threemf"].endswith("once.3mf")
+    assert counter.read_text() == "x"

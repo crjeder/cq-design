@@ -705,15 +705,26 @@ def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: 
     return False
 
 
-def _handle_deliver(args, script_path: str, result: dict) -> None:
-    """Run the modular exporter and populate stl/stls/threemf paths in `result`."""
-    try:
-        from exporters import run_exporters
+def _handle_deliver(args, script_path: str, result: dict, manifest_path: str | None = None) -> None:
+    """Populate stl/stls/threemf paths in `result` from the delivered files.
 
-        out_dir = args.output_dir or os.path.dirname(script_path)
-        os.makedirs(out_dir, exist_ok=True)
-        formats = [f.strip() for f in args.formats.split(",") if f.strip()]
-        delivered = run_exporters(script_path, formats, out_dir)
+    Reads the shim's delivery manifest when it wrote one (no second script import);
+    otherwise runs the modular exporter, which re-imports the script.
+    """
+    try:
+        if manifest_path and os.path.isfile(manifest_path):
+            with open(manifest_path, encoding="utf-8") as f:
+                manifest = json.load(f)
+            if "error" in manifest:
+                raise RuntimeError(manifest["error"])
+            delivered = manifest["paths"]
+        else:
+            from exporters import run_exporters
+
+            out_dir = args.output_dir or os.path.dirname(script_path)
+            os.makedirs(out_dir, exist_ok=True)
+            formats = [f.strip() for f in args.formats.split(",") if f.strip()]
+            delivered = run_exporters(script_path, formats, out_dir)
         result["stls"] = [p for p in delivered if p.endswith(".stl")]
         result["threemfs"] = [p for p in delivered if p.endswith(".3mf")]
         result["stl"] = result["stls"][0] if result["stls"] else None
@@ -922,6 +933,17 @@ def main():
                 _emit(args, result)
                 sys.exit(1)
 
+        # A rotated run holds the posed frame but --deliver exports the authored frame, so
+        # only an unrotated run can have the shim deliver from its own load.
+        deliver_manifest = None
+        if args.deliver and not args.print_rotate:
+            deliver_manifest = os.path.join(run_dir, "deliver_manifest.json")
+            env["CQ_DELIVER_MANIFEST"] = deliver_manifest
+            env["CQ_DELIVER_FORMATS"] = ",".join(
+                f.strip() for f in args.formats.split(",") if f.strip()
+            )
+            env["CQ_DELIVER_DIR"] = os.path.abspath(args.output_dir or os.path.dirname(script_path))
+
         shim = os.path.join(skill_root, "run_model_shim.py")
         started = time.time()
         try:
@@ -996,7 +1018,7 @@ def main():
 
         # --deliver: run modular exporter and expose output paths
         if args.deliver and stls_in_temp:
-            _handle_deliver(args, script_path, result)
+            _handle_deliver(args, script_path, result, deliver_manifest)
 
         # Mark success=False if any error-severity issues were found
         error_types = {e["type"] for e in result["errors"]}

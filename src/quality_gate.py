@@ -31,6 +31,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
+from typing import Any
 
 SKILL_ROOT = os.path.dirname(os.path.abspath(__file__))
 MAX_FIX_ROUNDS = 2
@@ -743,17 +744,13 @@ def _run_keep_out_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) 
     return _run_stl_dir_stage(run_keep_out_check, plan, stl_dir, parts_dir)
 
 
-def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | None) -> list[dict]:
-    """Enforce the Chamfer / Fillet rule on this part's fillet/chamfer calls (once, outside
-    the fix loop; advisory warnings only).
+def _read_orientations(script_path: str, orientation: dict | None) -> dict:
+    """Per-union print orientations for the edge-treatment rule (classified in the build frame).
 
-    Classifies each treated edge in the build frame, so it needs the per-union print
-    orientation: reads `orientations.json` next to the script (the pipeline's
-    `build/orientations.json`, keyed by union id) and falls back to the single
-    `--orientation` result for this part's own union when that file is absent.
+    Reads `orientations.json` next to the script (the pipeline's `build/orientations.json`,
+    keyed by union id) and falls back to the single `--orientation` result for this part's
+    own union when that file is absent.
     """
-    from edge_treatment_check import run_edge_treatment_check
-
     orientations: dict = {}
     orientations_path = os.path.join(
         os.path.dirname(os.path.abspath(script_path)), "orientations.json"
@@ -765,8 +762,46 @@ def _run_edge_treatment_stage(plan: dict, script_path: str, orientation: dict | 
     stem = os.path.splitext(os.path.basename(script_path))[0]
     if orientation and stem not in orientations:
         orientations[stem] = orientation
+    return orientations
 
-    return run_edge_treatment_check(plan, script_path, orientations)
+
+def _run_hooked_stages(
+    plan: dict, script_path: str, orientation: dict | None
+) -> tuple[list[dict], list[dict]]:
+    """Edge-treatment and feature-presence findings from one script execution.
+
+    Their hooks patch disjoint CadQuery methods (fillet/chamfer vs cut/union), so the
+    feature check runs nested inside the edge check's load. Feature-presence asserts in the
+    authored frame, so a part with a non-identity print rotate keeps its own load.
+    """
+    from edge_treatment_check import run_edge_treatment_check
+    from exporters import _load_result
+    from feature_presence_check import run_feature_presence_check
+
+    orientations = _read_orientations(script_path, orientation)
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    rotate = (orientations.get(stem) or {}).get("rotate")
+    if rotate:
+        return (
+            run_edge_treatment_check(plan, script_path, orientations),
+            run_feature_presence_check(plan, script_path),
+        )
+
+    box: dict = {}
+
+    def authored_load() -> Any:
+        box["result"] = _load_result(script_path, None, fresh=True)
+        return box["result"]
+
+    def edge_load() -> Any:
+        box["feature"] = run_feature_presence_check(plan, script_path, authored_load)
+        return box["result"] if "result" in box else authored_load()
+
+    edge = run_edge_treatment_check(plan, script_path, orientations, edge_load)
+    feature = box.get("feature")
+    if feature is None:  # edge check returned before loading (no matching part)
+        feature = run_feature_presence_check(plan, script_path)
+    return edge, feature
 
 
 def _run_toolpath_speed_stage(
@@ -815,14 +850,6 @@ def _run_toolpath_speed_stage(
     if check_result.get("status") != "ok":
         return []
     return check_result.get("issues", [])
-
-
-def _run_feature_presence_stage(plan: dict, script_path: str) -> list[dict]:
-    """Assert this part's declared-position interface features were actually built (once,
-    outside the fix loop). `feature_absent` is blocking; drift/skips are advisory."""
-    from feature_presence_check import run_feature_presence_check
-
-    return run_feature_presence_check(plan, script_path)
 
 
 def _is_hinge_associated_union(plan: dict, union_id: str) -> bool:
@@ -1192,12 +1219,13 @@ def run_gate(
         all_issues += _run_plate_clearance_stage(plan, stl_dir, parts_dir)
         # ---- keep-out zone check (once, outside the fix loop) ----
         all_issues += _run_keep_out_stage(plan, stl_dir, parts_dir)
-        # ---- edge-treatment (chamfer/fillet) check (once, outside the fix loop) ----
-        all_issues += _run_edge_treatment_stage(plan, script_path, orientation)
+        # ---- edge-treatment (chamfer/fillet) + feature-presence (declared interfaces built):
+        # one shared script execution, both once outside the fix loop ----
+        edge_issues, feature_issues = _run_hooked_stages(plan, script_path, orientation)
+        all_issues += edge_issues
         # ---- toolpath-speed advisor (corner/crowding print-time; once, outside the fix loop) ----
         all_issues += _run_toolpath_speed_stage(plan, plan_path, script_path, stl_dir)
-        # ---- feature-presence check (declared interfaces built; once, outside the fix loop) ----
-        all_issues += _run_feature_presence_stage(plan, script_path)
+        all_issues += feature_issues
         # ---- hinge-guard-lint (revolute-hinge script missing its seating guard; advisory) ----
         all_issues += _run_hinge_guard_stage(plan, script_path)
         # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
