@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import trimesh
 
+import print_orientation
 from freshness import script_hash
 from print_orientation import (
     _area_cumulation_normals,
@@ -597,3 +598,38 @@ def test_speed_model_fields_present_only_when_matched():
         assert result["speed_efficiency"] == pytest.approx(0.9)
     else:
         assert "speed_efficiency" not in result and "stalled" not in result
+
+
+def test_shared_bed_mask_leaves_metrics_unchanged():
+    cone = trimesh.creation.cone(radius=10.0, height=15.0)
+    cone.apply_transform(trimesh.transformations.rotation_matrix(0.4, [1.0, 0.3, 0.0]))
+    cone.apply_translation([0.0, 0.0, -cone.bounds[0][2]])
+    mask = print_orientation.bed_contact_mask(cone)
+    assert _support_metrics(cone, 45.0) == _support_metrics(cone, 45.0, contact_mask=mask)
+    assert _gentle_incline_fraction(cone) == _gentle_incline_fraction(cone, mask)
+    assert _stability_metrics(cone) == _stability_metrics(cone, contact_mask=mask)
+
+
+def test_optimize_orientation_evaluates_bed_mask_once_per_pose(monkeypatch):
+    calls = [0]
+    real = print_orientation.bed_contact_mask
+
+    def counted(mesh):
+        calls[0] += 1
+        return real(mesh)
+
+    monkeypatch.setattr(print_orientation, "bed_contact_mask", counted)
+    monkeypatch.setattr(print_orientation, "_bed_contact_mask", counted)
+    box = trimesh.creation.box([30.0, 20.0, 10.0])
+    optimize_orientation(box, overhang_deg=45.0)
+    assert calls[0] == len(enumerate_candidate_normals(box))
+
+
+def test_base_face_areas_equal_posed_face_areas():
+    mesh = trimesh.creation.icosphere(subdivisions=2)
+    mesh.apply_scale([1.0, 2.0, 3.0])
+    rotation = _rotation_to_bed(np.array([0.3, -0.5, 0.8]) / np.linalg.norm([0.3, -0.5, 0.8]))
+    posed = mesh.copy()
+    posed.apply_transform(rotation)
+    fresh = trimesh.Trimesh(posed.vertices, posed.faces, process=False).area_faces
+    assert np.allclose(mesh.area_faces, fresh)
