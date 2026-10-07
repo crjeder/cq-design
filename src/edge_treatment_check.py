@@ -36,6 +36,7 @@ import argparse
 import json
 import math
 import os
+from collections.abc import Callable
 from typing import Any
 
 from placement import transform_direction
@@ -90,11 +91,14 @@ def _record_edge(records: list[dict], treatment: str, edge: Any) -> None:
     records.append({"treatment": treatment, "tangents": tangents, "midpoint": midpoint})
 
 
-def _run_with_hook(script_path: str, print_rotate: list | None = None) -> tuple[Any, list[dict]]:
+def _run_with_hook(
+    script_path: str, print_rotate: list | None = None, load: Callable[[], Any] | None = None
+) -> tuple[Any, list[dict]]:
     """Re-run the part script with fillet/chamfer wrapped; return ``(result, records)``.
 
     The wrappers capture each call's edges *before* delegating to the original op (which
-    consumes the stack), so recording never changes the produced geometry.
+    consumes the stack), so recording never changes the produced geometry. `load` replaces
+    the script execution so another hooked check can share it (see `quality_gate`).
     """
     import cadquery as cq
 
@@ -119,7 +123,7 @@ def _run_with_hook(script_path: str, print_rotate: list | None = None) -> tuple[
     cq.Workplane.fillet = fillet  # type: ignore[method-assign]
     cq.Workplane.chamfer = chamfer  # type: ignore[method-assign]
     try:
-        result = _load_result(script_path, print_rotate)
+        result = (load or (lambda: _load_result(script_path, print_rotate, fresh=True)))()
     finally:
         cq.Workplane.fillet = orig_fillet  # type: ignore[method-assign]
         cq.Workplane.chamfer = orig_chamfer  # type: ignore[method-assign]
@@ -191,7 +195,9 @@ _REASON = {
 }
 
 
-def run_edge_treatment_check(plan: dict, script_path: str, orientations: dict) -> list[dict]:
+def run_edge_treatment_check(
+    plan: dict, script_path: str, orientations: dict, load: Callable[[], Any] | None = None
+) -> list[dict]:
     """Check one part script's fillet/chamfer calls against the Chamfer / Fillet rule.
 
     `orientations` maps union id -> an orientation result (uses its `rotate` to reach the
@@ -208,7 +214,9 @@ def run_edge_treatment_check(plan: dict, script_path: str, orientations: dict) -
         return []
 
     try:
-        result, records = _run_with_hook(script_path, (orientations.get(stem) or {}).get("rotate"))
+        result, records = _run_with_hook(
+            script_path, (orientations.get(stem) or {}).get("rotate"), load
+        )
         if not records:
             return []
         unions = resolve_unions(part, result)

@@ -35,6 +35,7 @@ Usage:
 import argparse
 import math
 import os
+from collections.abc import Callable
 from typing import Any
 
 from units import add_plan_argument, bbox_envelope, emit_issues, load_plan, make_issue
@@ -68,11 +69,12 @@ def _tool_bbox(tool: Any) -> tuple[tuple[float, float, float], tuple[float, floa
     return center, extents
 
 
-def _run_with_hook(script_path: str) -> list[dict]:
+def _run_with_hook(script_path: str, load: Callable[[], Any] | None = None) -> list[dict]:
     """Re-run the part script with `.cut`/`.union` wrapped; return the recorded features.
 
     Each wrapper records its positioned tool's bbox *before* delegating to the original op,
-    so recording never changes the produced geometry.
+    so recording never changes the produced geometry. `load` replaces the script execution
+    so another hooked check can share it (see `quality_gate`).
     """
     import cadquery as cq
 
@@ -100,7 +102,7 @@ def _run_with_hook(script_path: str) -> list[dict]:
     cq.Workplane.cut = cut  # type: ignore[method-assign]
     cq.Workplane.union = union  # type: ignore[method-assign]
     try:
-        _load_result(script_path)
+        (load or (lambda: _load_result(script_path, fresh=True)))()
     finally:
         cq.Workplane.cut = orig_cut  # type: ignore[method-assign]
         cq.Workplane.union = orig_union  # type: ignore[method-assign]
@@ -131,7 +133,9 @@ def _dist(a: tuple[float, float, float], b: list[float]) -> float:
     return math.sqrt(sum((a[i] - b[i]) ** 2 for i in range(3)))
 
 
-def run_feature_presence_check(plan: dict, script_path: str) -> list[dict]:
+def run_feature_presence_check(
+    plan: dict, script_path: str, load: Callable[[], Any] | None = None
+) -> list[dict]:
     """Assert one part script's declared-position interfaces are realized. Returns issues.
 
     Returns `[]` without re-running when the part declares no positioned interface (nothing
@@ -148,7 +152,7 @@ def run_feature_presence_check(plan: dict, script_path: str) -> list[dict]:
         return []
 
     try:
-        records = _run_with_hook(script_path)
+        records = _run_with_hook(script_path, load)
     except ImportError as exc:
         return [
             make_issue(

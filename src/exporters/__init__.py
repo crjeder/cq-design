@@ -10,6 +10,7 @@ Adding a new format:
     No other files need modification.
 """
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -41,8 +42,11 @@ class ExportError(Exception):
     pass
 
 
+_LOAD_CACHE: dict[tuple, object] = {}
+
+
 def _load_result(
-    script_path: str, print_rotate: list | None = None
+    script_path: str, print_rotate: list | None = None, fresh: bool = False
 ) -> "cq.Workplane | dict[str, cq.Workplane]":
     """Import a model script and return its top-level `result` variable.
 
@@ -52,8 +56,17 @@ def _load_result(
     `print_rotate` (an orientation's `rotate` list) is exposed to the script as
     `CQ_PRINT_ROTATE` for the duration of the load, so `blocks.print_up()` resolves the
     accepted print pose; None leaves the authoring default (+Z).
+
+    The result is memoized per process on (path, sha256 of the script, rotate), so callers
+    must not mutate it. A caller that needs the script to actually run (a hook wrapping
+    CadQuery calls) passes `fresh=True`: no lookup, but the new result replaces the entry.
     """
     script_path = os.path.abspath(script_path)
+    with open(script_path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    key = (script_path, digest, json.dumps(print_rotate))
+    if not fresh and key in _LOAD_CACHE:
+        return _LOAD_CACHE[key]  # type: ignore[return-value]
     script_dir = os.path.dirname(script_path)
     # __file__ is src/exporters/__init__.py; go up two levels to src/, not one -- a
     # part script's `from blocks import ...` needs src/ on the path, not src/exporters/.
@@ -83,6 +96,7 @@ def _load_result(
                 f"Script '{script_path}' does not define a top-level 'result' variable. "
                 "Add: result = <your_cq_workplane> before the export call."
             )
+        _LOAD_CACHE[key] = module.result
         return module.result
     finally:
         os.chdir(old_cwd)
@@ -110,12 +124,24 @@ def run_exporters(script_path: str, formats: list[str], output_dir: str) -> list
     if unknown:
         raise ExportError(f"Unknown export format(s): {unknown}. Supported: {sorted(_REGISTRY)}")
 
-    os.makedirs(output_dir, exist_ok=True)
     cq_result = _load_result(script_path)
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    return export_loaded(cq_result, stem, formats, output_dir)
+
+
+def export_loaded(cq_result, stem: str, formats: list[str], output_dir: str) -> list[str]:
+    """Export an already-loaded `result` (Workplane or union dict) to `formats`.
+
+    Returns the output paths. Raises `ExportError` on an unknown format.
+    """
+    unknown = [f for f in formats if f not in _REGISTRY]
+    if unknown:
+        raise ExportError(f"Unknown export format(s): {unknown}. Supported: {sorted(_REGISTRY)}")
+
+    os.makedirs(output_dir, exist_ok=True)
 
     from units import KEEP_OUT_KEY
 
-    stem = os.path.splitext(os.path.basename(script_path))[0]
     produced = []
 
     # A multi-union part sets `result` to a dict {union_id: Workplane}; export one file
