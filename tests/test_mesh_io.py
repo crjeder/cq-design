@@ -273,3 +273,86 @@ def test_overhang_regions_read_vertices_once_regardless_of_region_count(monkeypa
         return reads[0]
 
     assert reads_for(50) == reads_for(5)
+
+
+def _reference_is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
+    """Per-edge Python implementation of `mesh_io._is_bridge` (pre-vectorization behavior)."""
+    if "lookup" not in ctx:
+        adj_edges = np.sort(mesh.face_adjacency_edges, axis=1)
+        ctx["lookup"] = {
+            tuple(e): (int(f[0]), int(f[1]))
+            for e, f in zip(adj_edges, mesh.face_adjacency, strict=True)
+        }
+    verts, lookup = np.asarray(mesh.vertices), ctx["lookup"]
+    centroids_z = mesh.triangles.mean(axis=1)[:, 2]
+    area = np.asarray(mesh.area_faces)
+    if np.average(angles[faces], weights=area[faces]) < mesh_io.BRIDGE_MIN_DEG:
+        return False
+    tri = np.asarray(mesh.faces)[faces]
+    pts = verts[np.unique(tri)][:, :2]
+    if len(pts) < 3:
+        return False
+    to_rect, rect = trimesh.bounds.oriented_bounds_2D(pts)
+    short = float(rect.min())
+    if short > bridge_max_mm or short <= 0.0:
+        return False
+    edges = np.sort(tri[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2), axis=1)
+    owner = np.repeat(faces, 3)
+    _, inv, cnt = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
+    boundary = cnt[inv.reshape(-1)] == 1
+    side_len = [rect[1], rect[1], rect[0], rect[0]]
+    covered = np.zeros(4)
+    for e, f, is_b in zip(edges, owner, boundary, strict=True):
+        if not is_b:
+            continue
+        pair = lookup.get(tuple(e))
+        if pair is None:
+            continue
+        other = pair[1] if pair[0] == f else pair[0]
+        if in_region[other]:
+            continue
+        mid = verts[e].mean(axis=0)
+        if centroids_z[other] >= mid[2] - 1e-6:
+            continue
+        x, y, _ = to_rect @ np.array([mid[0], mid[1], 1.0])
+        if abs(x) / (rect[0] / 2) >= abs(y) / (rect[1] / 2):
+            side = 0 if x > 0 else 1
+        else:
+            side = 2 if y > 0 else 3
+        covered[side] += np.linalg.norm(verts[e[0]] - verts[e[1]])
+    supported = sum(
+        1 for c, n in zip(covered, side_len, strict=True) if c >= mesh_io.BRIDGE_SIDE_COVERAGE * n
+    )
+    return supported >= 2
+
+
+def _two_bridges_and_ledge():
+    """Disjoint copies of a bridge, a long span and a ledge, so one mesh has several regions."""
+    parts = []
+    for i, m in enumerate((_slab_on_pillars(6.0), _slab_on_pillars(25.0), _slab_on_pillars(6.0))):
+        m = m.copy()
+        m.apply_translation([0.0, 40.0 * i, 0.0])
+        parts.append(m)
+    return trimesh.util.concatenate(parts)
+
+
+@pytest.mark.parametrize(
+    "make_mesh",
+    [
+        lambda: _slab_on_pillars(6.0),
+        lambda: _slab_on_pillars(25.0),
+        lambda: _slab_on_pillars(0.0, overhang_right=6.0),
+        lambda: _slab_on_pillars(6.0).subdivide(),
+        _two_bridges_and_ledge,
+    ],
+    ids=["bridge", "long-span", "ledge", "subdivided-bridge", "multi-region"],
+)
+def test_vectorized_bridge_matches_per_edge_reference(make_mesh, monkeypatch):
+    mesh = make_mesh()
+    new_regions = mesh_io.overhang_regions(mesh, 45.0, bridge_max_mm=10.0)
+    new_cost = mesh_io.support_cost(mesh, 45.0, 2.0, bridge_max_mm=10.0)
+    monkeypatch.setattr(mesh_io, "_is_bridge", _reference_is_bridge)
+    old_regions = mesh_io.overhang_regions(mesh, 45.0, bridge_max_mm=10.0)
+    old_cost = mesh_io.support_cost(mesh, 45.0, 2.0, bridge_max_mm=10.0)
+    assert [r["bridge"] for r in new_regions] == [r["bridge"] for r in old_regions]
+    assert new_cost == old_cost
