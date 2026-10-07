@@ -790,3 +790,53 @@ def test_recipe_ignores_profile_when_plan_path_not_given():
 
     assert recipe["top_bottom_layers"] == 4
     assert recipe["layer_height_mm"] == 0.2
+
+
+def test_hooked_stages_share_one_script_execution(tmp_path):
+    """Edge-treatment and feature-presence findings come from a single script run."""
+    from edge_treatment_check import run_edge_treatment_check
+    from feature_presence_check import run_feature_presence_check
+
+    counter = tmp_path / "runs.txt"
+    script = tmp_path / "body.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        f"open({str(counter)!r}, 'a').write('x')\n"
+        "result = (cq.Workplane('XY').box(40, 30, 30).edges('|Z').chamfer(2)\n"
+        "          .cut(cq.Workplane('XY').box(9, 4, 3).translate((10, 0, 15))))\n",
+        encoding="utf-8",
+    )
+    plan = {
+        "parts": [
+            {
+                "id": "body",
+                "interfaces": [{"type": "port_cutout", "position_mm": [10, 0, 17]}],
+            }
+        ]
+    }
+    orientation: dict[str, Any] = {"rotate": []}
+
+    edge, feature = quality_gate._run_hooked_stages(plan, str(script), orientation)
+    assert counter.read_text() == "x"
+    assert edge == run_edge_treatment_check(plan, str(script), {"body": orientation})
+    assert feature == run_feature_presence_check(plan, str(script))
+    assert [i["type"] for i in edge] == ["edge_treatment"]
+    assert [i["type"] for i in feature] == ["feature_drift"]
+
+
+def test_hooked_load_feeds_later_stages_from_cache(tmp_path):
+    """Toolpath-speed and Gridfinity load the same (script, no rotate) key as the hooked stage."""
+    from exporters import _load_result
+
+    counter = tmp_path / "runs.txt"
+    script = tmp_path / "body.py"
+    script.write_text(
+        "import cadquery as cq\n"
+        f"open({str(counter)!r}, 'a').write('x')\n"
+        "result = cq.Workplane('XY').box(20, 20, 10)\n",
+        encoding="utf-8",
+    )
+    plan = {"parts": [{"id": "body"}]}
+    quality_gate._run_hooked_stages(plan, str(script), {"rotate": []})
+    _load_result(str(script))
+    assert counter.read_text() == "x"

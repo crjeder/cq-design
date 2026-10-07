@@ -9,6 +9,7 @@ exported STL lands there where the wrapper can find it.
 """
 
 import glob
+import json
 import os
 import runpy
 import sys
@@ -27,6 +28,27 @@ def main() -> None:
     if result is None:
         # Script exports its own files or has no geometry -- nothing to do.
         return
+
+    # --deliver without --print-rotate: write the delivery formats from this load instead of
+    # having the wrapper import the script a second time. The wrapper reads the manifest.
+    deliver_manifest = os.environ.get("CQ_DELIVER_MANIFEST")
+    if deliver_manifest:
+        from exporters import export_loaded
+
+        stem = os.path.splitext(os.path.basename(script_path))[0]
+        manifest: dict[str, object]
+        try:
+            paths = export_loaded(
+                result,
+                stem,
+                os.environ["CQ_DELIVER_FORMATS"].split(","),
+                os.environ["CQ_DELIVER_DIR"],
+            )
+            manifest = {"paths": paths}
+        except Exception as exc:
+            manifest = {"error": str(exc)}
+        with open(deliver_manifest, "w", encoding="utf-8") as f:
+            json.dump(manifest, f)
 
     # Skip auto-export if the script already wrote an STL itself.
     if glob.glob("*.stl") or glob.glob("*.STL"):
