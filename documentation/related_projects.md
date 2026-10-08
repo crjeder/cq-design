@@ -126,6 +126,11 @@ Projects surveyed for ideas relevant to this skill. Status/adoption tracking liv
 | https://github.com/danwahl/cadqueryeval |
 | https://github.com/filaPro/cad-recode |
 | https://github.com/Text-to-CadQuery/Text-to-CadQuery |
+| https://get-quot3d.com/technology | Quot3D delivers accurate quotes with a purpose-built slicing engine | |
+| https://multipart3d.com/| splits large parts| | |
+| https://pypi.org/project/estampo/ | reproduceable slicer settings | |
+| https://github.com/pfrankov/slicer-copilot | optimize slicer settings | |
+| https://deepwiki.com/jarczakpawel/OrcaStudio/3-core-slicing-engine-(libslic3r) | slicing library | |
 
 
 https://github.com/topics/text-to-cad?o=asc&s=forks
