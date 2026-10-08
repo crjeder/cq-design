@@ -23,6 +23,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 
 ## Backlog
 
+- [ ] custom  support https://github.com/gittrahan/support-fins
 - [x] cross section selection tool. important features should show up in the cross section
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d modells
