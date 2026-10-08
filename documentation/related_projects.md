@@ -141,5 +141,5 @@ Projects surveyed for ideas relevant to this skill. Status/adoption tracking liv
 | https://github.com/VishalPatra/3dprintcostcalculator | cost calculator | |
 | https://github.com/AndreasReitberger/3D-Print-Cost-Calculator | cost calculator | |
 | https://github.com/pyrech/gcode-estimator | cost estimator | |
-
-https://github.com/topics/text-to-cad?o=asc&s=forks
+| https://create.slant3d.com/ | building blocks example | |
+| https://completecalculators.com/calculators/3d-printing/infill-weight-strength-calculator | | |
