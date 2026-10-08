@@ -32,7 +32,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] tool to produce cable traces where cables are held press fit for 
 
 ### Skill improvement
-- [ ] cover more of the workflow (slicing, parameters, print)
+
 - [x] cross section selection tool. important features should show up in the cross section
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d modells
@@ -87,6 +87,7 @@ sets]
 
 ### Orthers
 
+- [ ] cover more of the workflow (slicing, parameters, print)
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Add textures capability
 - [x] optimization for print speed
