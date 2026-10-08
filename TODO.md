@@ -24,6 +24,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 ## Backlog
 
 - [ ] custom  support https://github.com/gittrahan/support-fins
+- [ ] cover more of the workflow (slicing, parameters, print)
 - [x] cross section selection tool. important features should show up in the cross section
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d modells
@@ -82,9 +83,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] fem: more infill only for compression load. infill direction = load direction (can I choose it arbitarily? if not: use part orientation) see: https://filamentfeed.com/article/designing-for-strength-3d-prints-june-2026
 - [x] optimization for print speed
 - [x] since orca slicer now supports STEP default to export this format
-- [ ] https://completecalculators.com/calculators/3d-printing/infill-weight-strength-calculator
+
 - [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible)
-- [ ] building blocks example: https://create.slant3d.com/
 
 ## Optimisation
 Run-time review (static read of the hot paths, not profiled), ranked by likely time saved.
