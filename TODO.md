@@ -23,49 +23,45 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 
 ## Backlog
 
+### Geometry / Blocks
+
 - [ ] custom  support https://github.com/gittrahan/support-fins
+- [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-
+- [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
+
+### Tools
+
+- [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
+- [ ] tool to produce cable traces where cables are held press fit for 
+
+### Skill improvement
 - [ ] cover more of the workflow (slicing, parameters, print)
 - [x] cross section selection tool. important features should show up in the cross section
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d modells
 - [x] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit) -- **REJECTED** (no reusable gap: exporters/ already covers STEP/IGES/STL/3MF/OBJ/SCAD, no history of boolean-fuse failures here so fuzzy booleans solve a problem we don't have, and selectors/XSection/Ribbon don't map to blocks/'s interface-aware primitive library; stale API surface too)
-- [x] evaluate bernhard-42/jupyter-cadquery not relevant
+- [x] evaluate bernhard-42/jupyter-cadquery **REJECTED** -> not relevant
 - [x] evaluate cq's assembly system and https://github.com/bernhard-42/cadquery-massembly -- **REJECTED** (already covered by `placement.py` / `mate_chain.py`); one optional spin-off: assembled multi-component STEP export -- [details](#cq-assembly-and-massembly)
 - [x] show differences: https://github.com/bdlucas1/diff3d -- `src/diff_models.py` (boolean diff, JSON + PNG; no alignment, no diff3d dependency)
-- [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-sets]
+sets]
 - [x] for selectors: evaluate https://github.com/voneiden/cq-filter and https://github.com/jmwright/selector_synthesis -- **REJECTED** (cq-filter's filter/sort/[] are native since CQ 2.4 and already in reference/; its only extras, group/last, need a Workplane subclass for little gain; selector_synthesis is a GUI click-to-selector research stub, and there is no picking step here)
 - [ ] optimisation: https://github.com/yeicor-3d/dl4to4ocp
-- [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
-- [ ] Read back parameters on any user-initiated planning/authoring round
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
-- [ ] Kinematic: ground/seating-plane check (lid-hits-floor) -- [details](#kinematic-ground-plane)
-- [ ] Kinematic: articulated chains (a moving union carries other unions through the sweep) -- [details](#kinematic-articulated-chains)
-- [ ] Joints: multi-DOF / coupled simultaneous movements -- [details](#joints-multi-dof)
-- [ ] Export: 3MF print-plate structure (slicer-specific extension) -- [details](#export-print-plate-structure)
-- [x] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](#export-plate-nesting)
-- [ ] Blocks: assembly placeholder / keep-clear-for-assembly geometry -- [details](#blocks-assembly-placeholder)
-- [x] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](#bill-of-non-printed-materials)
-- [ ] Joints: side-tagged `face_mount` docks for automatic union membership/axis derivation -- [details](#face-mount-docks)
-- [ ] Preview: z-buffered renderer (removes painter's-algorithm shading artifacts) -- [details](#preview-z-buffered-renderer)
-- [ ] Preview: render feature-detail previews more proactively -- [details](#preview-proactive-detail-renders)
-- [ ] Anchors: BOSL2-style attachment helper for intra-part feature placement -- [details](#bosl2-style-anchors)
-- [ ] Add textures capability
-- [ ] Reverse-engineer a 3D mesh / point cloud into primitives; import STL -- [details](#reverse-engineer-mesh)
-- [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
-- [ ] HitsterTower: dovetail-corner-joint disassembly form fell outside the joints schema's single-rooted tree -- [details](#hitstertower-dovetail-form)
 - [x] Deduplicate pairwise-mirrored parts into one script/STL -- `copy_of` on a part (`dedupe-identical-parts` change) -- [details](#mirrored-parts-dedup)
 - [x] A minimal deliverable for a parametric part -- `src/export_standalone.py` -> `standalone/` (`minimal-part-deliverable` change)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
-- [ ] Accept Markdown / formatted UTF-8 text input
-- [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
-- [ ] Engineering of multi-material interfaces and properties
-- [x] User intent as an invariant over generation loops -- DONE (capture via
-      `REQUIREMENTS.md`/`intent`, `intent`/`request_log` kept in sync by the `intent_ts`
-      reconciliation gate, and every review now checks its render against `intent`/
-      `request_log` as a second bar). The `parameter`-level routing rule is now a gate
-      warning (`parameter-entry-routing-check`); remaining gaps in [details](#intent-as-invariant)
-- [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
-- [ ] tool to produce cable traces where cables are held press fit for 
+
+
+
+### Kinematic, Joints and Simulation
+
+- [ ] Kinematic: ground/seating-plane check (lid-hits-floor) -- [details](#kinematic-ground-plane)
+- [ ] Kinematic: articulated chains (a moving union carries other unions through the sweep) -- [details](#kinematic-articulated-chains)
+- [ ] Joints: multi-DOF / coupled simultaneous movements -- [details](#joints-multi-dof)
+- [ ] Blocks: assembly placeholder / keep-clear-for-assembly geometry -- [details](#blocks-assembly-placeholder)
+- [ ] Joints: side-tagged `face_mount` docks for automatic union membership/axis derivation -- [details](#face-mount-docks)
+- [ ] Anchors: BOSL2-style attachment helper for intra-part feature placement -- [details](#bosl2-style-anchors)
+- [ ] HitsterTower: dovetail-corner-joint disassembly form fell outside the joints schema's single-rooted tree -- [details](#hitstertower-dovetail-form)
 - [x] integrate a FEM-simulation for strength optimisation -- `src/fem_check.py` (`fem-stress-advisor`
       change): advisory only (never gates, never gets a quality_gate.py stage -- BC quality
       doesn't earn that yet), replaces `src/FEM.py`'s bounding-box-guessed stub
@@ -81,7 +77,39 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
       risk list)
 - [ ] fem: calculate required wall thickness step 1: global, step 2: regional (open question: how to do? slicer vs modell)
 - [ ] fem: more infill only for compression load. infill direction = load direction (can I choose it arbitarily? if not: use part orientation) see: https://filamentfeed.com/article/designing-for-strength-3d-prints-june-2026
+
+### Import / Export / View
+
+- [ ] Export: 3MF print-plate structure (slicer-specific extension) -- [details](#export-print-plate-structure)
+- [x] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](#export-plate-nesting)
+- [ ] Preview: z-buffered renderer (removes painter's-algorithm shading artifacts) -- [details](#preview-z-buffered-renderer)
+- [ ] Preview: render feature-detail previews more proactively -- [details](#preview-proactive-detail-renders)
+- [ ] Reverse-engineer a 3D mesh / point cloud into primitives; import STL -- [details](#reverse-engineer-mesh)
+- [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
+- [ ] Read back parameters on any user-initiated planning/authoring round
+- [x] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](#bill-of-non-printed-materials)
+- [ ] Accept Markdown / formatted UTF-8 text input
+
+
+- [ ] Add textures capability
+
 - [x] optimization for print speed
+
+
+
+
+- [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
+- [ ] Engineering of multi-material interfaces and properties
+- [x] User intent as an invariant over generation loops -- DONE (capture via
+      `REQUIREMENTS.md`/`intent`, `intent`/`request_log` kept in sync by the `intent_ts`
+      reconciliation gate, and every review now checks its render against `intent`/
+      `request_log` as a second bar). The `parameter`-level routing rule is now a gate
+      warning (`parameter-entry-routing-check`); remaining gaps in [details](#intent-as-invariant)
+
+
+
+
+
 - [x] since orca slicer now supports STEP default to export this format
 
 - [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible)
