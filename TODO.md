@@ -11,12 +11,14 @@ linked from the item.
 V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 
 ## Test cases
+
 - [ ] Salacia case
 - [ ] [SUP Silencer](https://makerworld.com/de/models/2871437-paddleboard-sup-deflation-silencer#profileId-3205902)
 - [ ] beamer-halter
 - [x] Katzenwendeltreppe
 
 ## Defects
+
 - [x] bridges are treated as overhangs -> ignore bridges of lengt l (l: printer parameter) -- `constraints.bridge_max_mm`, supported on >= 2 sides
 - [x] arc fillets do not produce the intended result -- root-caused: not tessellation (folds survive 75x finer meshing) but hand-built tangent spandrel/prism fillets whose zero-thickness cusp runs past a tapered, chamfered rib; detected by the `sliver_fin` gate finding (`sliver-fin-detection` change). Remedy for authors: end the fillet where the wall is deeper than the fillet plus chamfers, or use `.edges(...).fillet()`
 - [x] teardrop shaped holes not used -- `teardrop-hole-enforcement` change (prompt rule, `peak` param, lint + gate hint)
@@ -98,7 +100,6 @@ sets]
       reconciliation gate, and every review now checks its render against `intent`/
       `request_log` as a second bar). The `parameter`-level routing rule is now a gate
       warning (`parameter-entry-routing-check`); remaining gaps in [details](#intent-as-invariant)
-- [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible)
 
 ### Optimisation
@@ -1059,10 +1060,8 @@ cqparts/cqparts, 148 stars, unmaintained since 2020 -- wrapper framework,
 assembly abstraction conflicts with this skill's direct-Workplane block
 pattern. Not adopted.
 
-#### cqMore and cqterrain
-`documentation/Block_Sources.md`, rated High usability -- no repo link or
-star count recorded in the source survey; re-find and evaluate before
-deciding reimplement vs pinned dep.
+#### cqterrain
+https://github.com/medicationforall/cqterrain: `documentation/Block_Sources.md`, rated High usability
 
 #### partcad
 `partcad/partcad` (`documentation/related_projects.md`) -- package manager
