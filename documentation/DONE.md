@@ -356,7 +356,7 @@
 
 ## Closed at V1.0 release (from TODO.md)
 
-- [x] Implement typed `request_log` entries -- [details](../TODO.md#typed-request_log-entries)
+- [x] Implement typed `request_log` entries -- [details](related_projects.md#typed-request_log-entries)
 - [x] Compass-language mixup in orientation reasoning -- FIXED 2026-09-11: `coordinate_frame` schema field + `plan_validate.check_coordinate_frame_usage` advisory -- [details](../TODO.md#c5-compass-language)
 - [x] Hinge ear: primitive placed center-aligned to another part's edge -- FIXED 2026-09-11: `quality_gate._run_hinge_guard_stage` flags a hinge-associated union missing `verify_seated`/`verify_backed`/`pin_hinge` -- [details](../TODO.md#c5-hinge-ear-center-vs-edge)
 - [x] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- FIXED 2026-09-11: `check_shared_interfaces` broadened to flag coincident unnamed interfaces (positional match), plus `check_hinge_intent_without_joints` -- [details](../TODO.md#c5-knuckle-pivot-ping-pong)
@@ -372,12 +372,52 @@
 - [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
 - [x] Intent-based prompt reformulation -- DONE, merged into item 4 below and shipped
       as `REQUIREMENTS.md` -- [details](../TODO.md#intent-based-prompt-reformulation)
-- [x] Gear geometry (lwidm/cq_gears) -- DONE -- [details](../TODO.md#gear-geometry)
-- [x] `cq-gridfinity` -- DONE (reimplemented as `blocks/gridfinity.py`; see the gridfinity tool item above) -- [details](../TODO.md#cq-gridfinity)
-- [x] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly local doc snapshot -- DONE -- [details](../TODO.md#cadquery-authoring-guidance)
-- [x] DeepCAD Chamfer-distance golden-mesh regression metric -- DONE -- [details](../TODO.md#chamfer-distance-metric)
-- [x] Text-to-CadQuery corpus import (arXiv 2505.06507) -- importer landed, `evals/import_external_corpus.py` -- [details](../TODO.md#text-to-cadquery-corpus)
-- [x] WKJBryan/cadquery-library import -- importer landed, `evals/import_external_corpus.py` -- [details](../TODO.md#wkjbryancadquery-library)
+- [x] Gear geometry (lwidm/cq_gears) -- DONE -- [details](related_projects.md#gear-geometry)
+- [x] `cq-gridfinity` -- DONE (reimplemented as `blocks/gridfinity.py`; see the gridfinity tool item above) -- [details](related_projects.md#cq-gridfinity)
+- [x] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly local doc snapshot -- DONE -- [details](related_projects.md#cadquery-authoring-guidance)
+- [x] DeepCAD Chamfer-distance golden-mesh regression metric -- DONE -- [details](related_projects.md#chamfer-distance-metric)
+- [x] Text-to-CadQuery corpus import (arXiv 2505.06507) -- importer landed, `evals/import_external_corpus.py` -- [details](related_projects.md#text-to-cadquery-corpus)
+- [x] WKJBryan/cadquery-library import -- importer landed, `evals/import_external_corpus.py` -- [details](related_projects.md#wkjbryancadquery-library)
 - [x] 4. Canonical intent restatement artifact -- DONE, shipped ahead of the freeze
-      status below as `REQUIREMENTS.md` -- [details](../TODO.md#canonical-intent-restatement)
+      status below as `REQUIREMENTS.md` -- [details](related_projects.md#canonical-intent-restatement)
 - [x] code quality audit
+
+## Closed in V1.1.0 (from TODO.md)
+
+- [x] Katzenwendeltreppe
+- [x] bridges are treated as overhangs -> ignore bridges of lengt l (l: printer parameter) -- `constraints.bridge_max_mm`, supported on >= 2 sides
+- [x] arc fillets do not produce the intended result -- root-caused: not tessellation (folds survive 75x finer meshing) but hand-built tangent spandrel/prism fillets whose zero-thickness cusp runs past a tapered, chamfered rib; detected by the `sliver_fin` gate finding (`sliver-fin-detection` change). Remedy for authors: end the fillet where the wall is deeper than the fillet plus chamfers, or use `.edges(...).fillet()`
+- [x] teardrop shaped holes not used -- `teardrop-hole-enforcement` change (prompt rule, `peak` param, lint + gate hint)
+- [x] cross section selection tool. important features should show up in the cross section
+- [x] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit) -- **REJECTED** (no reusable gap: exporters/ already covers STEP/IGES/STL/3MF/OBJ/SCAD, no history of boolean-fuse failures here so fuzzy booleans solve a problem we don't have, and selectors/XSection/Ribbon don't map to blocks/'s interface-aware primitive library; stale API surface too)
+- [x] evaluate bernhard-42/jupyter-cadquery **REJECTED** -> not relevant
+- [x] evaluate cq's assembly system and https://github.com/bernhard-42/cadquery-massembly -- **REJECTED** (already covered by `placement.py` / `mate_chain.py`); one optional spin-off: assembled multi-component STEP export -- [details](../TODO.md#cq-assembly-and-massembly)
+- [x] show differences: https://github.com/bdlucas1/diff3d -- `src/diff_models.py` (boolean diff, JSON + PNG; no alignment, no diff3d dependency)
+- [x] for selectors: evaluate https://github.com/voneiden/cq-filter and https://github.com/jmwright/selector_synthesis -- **REJECTED** (cq-filter's filter/sort/[] are native since CQ 2.4 and already in reference/; its only extras, group/last, need a Workplane subclass for little gain; selector_synthesis is a GUI click-to-selector research stub, and there is no picking step here)
+- [x] Deduplicate pairwise-mirrored parts into one script/STL -- `copy_of` on a part (`dedupe-identical-parts` change) -- [details](../TODO.md#mirrored-parts-dedup)
+- [x] A minimal deliverable for a parametric part -- `src/export_standalone.py` -> `standalone/` (`minimal-part-deliverable` change)
+- [x] integrate a FEM-simulation for strength optimisation -- `src/fem_check.py` (`fem-stress-advisor`
+      change): advisory only (never gates, never gets a quality_gate.py stage -- BC quality
+      doesn't earn that yet), replaces `src/FEM.py`'s bounding-box-guessed stub
+- [x] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](../TODO.md#export-plate-nesting)
+- [x] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](../TODO.md#bill-of-non-printed-materials)
+- [x] since orca slicer now supports STEP default to export this format
+- [x] optimization for print speed
+- [x] User intent as an invariant over generation loops -- DONE (capture via
+      `REQUIREMENTS.md`/`intent`, `intent`/`request_log` kept in sync by the `intent_ts`
+      reconciliation gate, and every review now checks its render against `intent`/
+      `request_log` as a second bar). The `parameter`-level routing rule is now a gate
+      warning (`parameter-entry-routing-check`); remaining gaps in [details](../TODO.md#intent-as-invariant)
+- [x] 1. `measure_stl.py` `_thin_regions`: up to 3000 brute-force ray-vs-all-triangles casts in a Python loop, per union per wrapper run. Fix: batched `trimesh.ray` (embree/rtree) or chunked rays plus a bbox prefilter. Gain: very high
+- [x] 2. Part script runs ~6x per gate (shim, `--deliver`, edge-treatment, feature-presence, toolpath-speed x2, Gridfinity) plus extra Python/`import cadquery` startups. Fix: memoize `_load_result` per (path, hash, rotate), merge the edge-treatment and feature-presence hooks into one load, let `--deliver` reuse the shim result. Gain: high
+- [x] 5. `print_orientation.py` candidate loop (~0.5 s/candidate; 205 candidates = 107 s of a 129 s build). Topology caches and near-duplicate normal merging (5 deg) are already done, so the cost is per-pose. Profile: `_is_bridge` 52 s (about 754 regions/candidate; only ~10% pass the 80 deg gate but they pay a qhull `ConvexHull` with a `mkstemp` per call plus two `np.unique`, one with `axis=0`); `triangles_center`/`triangles.mean` recomputed per pose 3x/candidate, ~20 s plus a 6.5 s `triangles` gather (also behind `bed_contact_mask`, 17 s); `_overhang_angles` 4.6 s; `_build_height` 5.8 s. Fix: (a) base-mesh centroids once, per-pose centroid z = `centroids @ R[2] + tz`, shared by `bed_contact_mask` and `_is_bridge`; build the adjacency `keys`/`pairs` once per mesh, not per candidate; (b) in `_is_bridge`, gate all regions at once with `bincount` over component labels and loop only over survivors; replace `np.unique(edges, axis=0)` with 1-D edge keys; skip qhull for tiny regions (closed-form or numpy rectangle); (c) only if the profile shows support cost dominating and `_select` is monotone in it, prune candidates with a lower bound (true cost >= `BRIDGE_COST_FACTOR` x no-bridge cost). Before (b): histogram region face counts and line-profile one candidate. Gain: high (done in 2026-10-08-speed-up-print-orientation-candidates: all of (a), and (b) except the tiny-region qhull skip; (c) candidate pruning deferred, revisit only if a profile shows support cost still dominates)
+- [x] 6. `mesh_io.py` `_is_bridge`: Python dict of every edge plus per-edge Python loop per region, run in the gate and per orientation candidate. Fix: vectorize with sorted edge keys + `searchsorted` and numpy masks. Gain: medium-high (done in 522504b; remaining per-region overhead is tracked in item 5)
+- [x] 8. `exporters/threemf_multi.py`: pure-Python `_weld`, one `ET.SubElement` per vertex/triangle, zip re-parsed for the manifold count. Fix: `np.unique` weld, join f-strings for XML, count from in-memory arrays. Gain: medium on large models
+- [x] 10. Python-loop mesh helpers: `measure_stl._union_find`, `print_orientation._area_cumulation_normals`, `measure_stl._flat_faces`. Fix: `scipy.sparse.csgraph.connected_components`, `np.unique` + `np.add.at`, sorted-z `searchsorted`. Gain: medium, low effort
+- [x] progressive overhang penalty (severity exponent `OV_H`)
+- [x] `FIRST_LAY_H` band for bottom-contact (replaces tight `CONTACT_Z_EPS_MM`)
+- [x] Print-friendly parameterizations: teardrop/bridged holes (Gridfinity) -- `teardrop-hole-enforcement` + `two-pass-print-finishing` (teardrops follow the accepted print pose) -- [details](related_projects.md#print-friendly-parameterizations)
+- [x] 1. Typed `request_log` entries (`level` + `targets`) -- DONE, `openspec/changes/
+      archive/2026-09-01-typed-request-log/` -- [details](related_projects.md#typed-request_log-entries)
+- [x] 3. Request-relative acceptance in the implementation audit -- DONE, `openspec/
+      changes/archive/2026-09-01-request-relative-acceptance/` -- [details](related_projects.md#request-relative-acceptance)
