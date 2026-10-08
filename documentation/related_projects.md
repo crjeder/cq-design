@@ -143,3 +143,4 @@ Projects surveyed for ideas relevant to this skill. Status/adoption tracking liv
 | https://github.com/pyrech/gcode-estimator | cost estimator | |
 | https://create.slant3d.com/ | building blocks example | |
 | https://completecalculators.com/calculators/3d-printing/infill-weight-strength-calculator | | |
+| https://github.com/JustinSDK/cqMore | cqMore aims to add more fundamental API to CadQuery. | |
