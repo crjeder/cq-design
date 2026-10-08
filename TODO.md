@@ -23,14 +23,11 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 
 ## Backlog
 
-### Geometry / Blocks
+### Geometry / Blocks / Tools
 
 - [ ] custom  support https://github.com/gittrahan/support-fins
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
-
-### Tools
-
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] tool to produce cable traces where cables are held press fit for 
 
@@ -50,8 +47,6 @@ sets]
 - [x] Deduplicate pairwise-mirrored parts into one script/STL -- `copy_of` on a part (`dedupe-identical-parts` change) -- [details](#mirrored-parts-dedup)
 - [x] A minimal deliverable for a parametric part -- `src/export_standalone.py` -> `standalone/` (`minimal-part-deliverable` change)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
-
-
 
 ### Kinematic, Joints and Simulation
 
@@ -88,16 +83,13 @@ sets]
 - [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
 - [ ] Read back parameters on any user-initiated planning/authoring round
 - [x] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](#bill-of-non-printed-materials)
+- [x] since orca slicer now supports STEP default to export this format
+
+### Orthers
+
 - [ ] Accept Markdown / formatted UTF-8 text input
-
-
 - [ ] Add textures capability
-
 - [x] optimization for print speed
-
-
-
-
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties
 - [x] User intent as an invariant over generation loops -- DONE (capture via
@@ -105,18 +97,10 @@ sets]
       reconciliation gate, and every review now checks its render against `intent`/
       `request_log` as a second bar). The `parameter`-level routing rule is now a gate
       warning (`parameter-entry-routing-check`); remaining gaps in [details](#intent-as-invariant)
-
-
-
-
-
-- [x] since orca slicer now supports STEP default to export this format
-
+- [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible)
 
-## Optimisation
-Run-time review (static read of the hot paths, not profiled), ranked by likely time saved.
-Profile one real gate run before starting to confirm the order.
+### Optimisation
 
 - [x] 1. `measure_stl.py` `_thin_regions`: up to 3000 brute-force ray-vs-all-triangles casts in a Python loop, per union per wrapper run. Fix: batched `trimesh.ray` (embree/rtree) or chunked rays plus a bbox prefilter. Gain: very high
 - [x] 2. Part script runs ~6x per gate (shim, `--deliver`, edge-treatment, feature-presence, toolpath-speed x2, Gridfinity) plus extra Python/`import cadquery` startups. Fix: memoize `_load_result` per (path, hash, rotate), merge the edge-treatment and feature-presence hooks into one load, let `--deliver` reuse the shim result. Gain: high
