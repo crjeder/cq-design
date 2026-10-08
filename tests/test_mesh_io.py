@@ -356,3 +356,39 @@ def test_vectorized_bridge_matches_per_edge_reference(make_mesh, monkeypatch):
     old_cost = mesh_io.support_cost(mesh, 45.0, 2.0, bridge_max_mm=10.0)
     assert [r["bridge"] for r in new_regions] == [r["bridge"] for r in old_regions]
     assert new_cost == old_cost
+
+
+def _many_overhangs():
+    parts = [trimesh.creation.box([60, 40, 10])]
+    for i in range(4):
+        for j in range(3):
+            s = trimesh.creation.icosphere(subdivisions=2, radius=1.5)
+            s.apply_translation([-20 + i * 13, -12 + j * 11, 7 + (i + j) % 3])
+            parts.append(s)
+    return trimesh.util.concatenate(parts)
+
+
+def test_seeded_ctx_and_bulk_gate_match_per_region_bridge_flags():
+    import mesh_io
+
+    mesh = _many_overhangs()
+    rot = trimesh.transformations.rotation_matrix(0.7, [1, 0.3, 0])
+    mesh.apply_transform(rot)
+    mesh.apply_translation([0, 0, -mesh.bounds[0, 2]])
+    seeded = {
+        "centroids_z": np.asarray(mesh.triangles_center)[:, 2],
+        "keys": mesh_io.edge_lookup(mesh)[0],
+        "pairs": mesh_io.edge_lookup(mesh)[1],
+    }
+    plain = mesh_io.overhang_regions(mesh, 45.0, exclude_bed=True)
+    fast = mesh_io.overhang_regions(mesh, 45.0, exclude_bed=True, ctx=seeded)
+    assert plain and len(plain) == len(fast)
+    for a, b in zip(plain, fast, strict=True):
+        assert np.array_equal(a["faces"], b["faces"]) and a["bridge"] == b["bridge"]
+    # bulk gate must agree with the in-function gate on every region
+    angles = mesh_io._overhang_angles(mesh)
+    sel = np.zeros(len(mesh.faces), bool)
+    for r in plain:
+        sel[r["faces"]] = True
+        ref = mesh_io._is_bridge(mesh, r["faces"], sel, angles, mesh_io.BRIDGE_MAX_MM, {})
+        assert ref == r["bridge"]
