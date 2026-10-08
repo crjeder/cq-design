@@ -6,9 +6,7 @@ Define how a recommended print orientation is chosen for each union: enumerate s
 bed-down candidate orientations, score each on layer-plane strength and slicer-free
 support, select strength-first and support-second, and emit the chosen orientation as a
 rotation transform with rationale that the design phase can act on.
-
 ## Requirements
-
 ### Requirement: Enumerate stable candidate print orientations
 
 The system SHALL enumerate candidate bed-down print orientations for a union mesh as the
@@ -413,3 +411,15 @@ Given the same mesh and options, the optimizer SHALL return the same orientation
 #### Scenario: Bed mask not recomputed
 - **WHEN** one candidate pose is scored
 - **THEN** `bed_contact_mask` is evaluated once for that pose
+
+### Requirement: Pose-invariant geometry is computed once per mesh
+`optimize_orientation` SHALL compute triangle centroids and the face-adjacency edge keys once on the base mesh, SHALL derive each pose's centroid z from them by the pose's rotation and translation, and SHALL share that z between the bed-contact mask and bridge detection.
+
+#### Scenario: Scores unchanged
+- **WHEN** `optimize_orientation` runs on any mesh and mode
+- **THEN** every candidate's scores and the chosen orientation are identical to those produced before the change
+
+#### Scenario: No per-pose centroid recomputation
+- **WHEN** one candidate pose is scored
+- **THEN** triangle centroids are not recomputed from the posed mesh's vertices
+
