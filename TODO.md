@@ -78,8 +78,12 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
       a footprint-radius node selection around a declared interface -- a mis-declared
       anchor currently produces a confident wrong number (see `fem-stress-advisor` design.md
       risk list)
+- [ ] fem: calculate required wall thickness step 1: global, step 2: regional (open question: how to do? slicer vs modell)
+- [ ] fem: more infill only for compression load. infill direction = load direction (can I choose it arbitarily? if not: use part orientation)
 - [x] optimization for print speed
 - [x] since orca slicer now supports STEP default to export this format
+- [ ] https://completecalculators.com/calculators/3d-printing/infill-weight-strength-calculator
+- [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible)
 
 ## Optimisation
 Run-time review (static read of the hot paths, not profiled), ranked by likely time saved.
