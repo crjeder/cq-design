@@ -6,9 +6,7 @@ Define how the quality gate performs overhang and printability analysis on expor
 STL geometry entirely in-process (trimesh + numpy, no external slicer or MCP), how
 overhang faces are detected relative to the plan overhang limit, and how findings are
 reported using the structured quality gate issue contract.
-
 ## Requirements
-
 ### Requirement: Overhang analysis runs in-process via trimesh with no slicer or MCP
 
 The quality gate SHALL perform overhang and printability analysis on the exported
@@ -174,3 +172,15 @@ The analysis SHALL group unsupported down-facing faces into connected regions an
 #### Scenario: Setup cost does not scale in Python per edge
 - **WHEN** a mesh with 100,000 or more adjacency edges is analyzed
 - **THEN** the edge-to-face lookup is built from sorted array keys without a per-edge Python loop or dict
+
+### Requirement: Bridge detection gates regions in bulk
+`overhang_regions` SHALL evaluate the bridge angle gate for all regions with one vectorized pass and SHALL invoke the per-region bridge analysis only for regions that pass it, and bridge analysis SHALL NOT compute a convex hull or a row-wise `np.unique` for regions that fail the gate.
+
+#### Scenario: Results unchanged
+- **WHEN** `overhang_regions`, `overhang_metrics` or `support_cost` runs on any mesh
+- **THEN** each region's `bridge` flag and area, and the resulting costs, are identical to those produced before the change
+
+#### Scenario: Failing regions skip geometry work
+- **WHEN** a region's area-weighted mean overhang angle is below `BRIDGE_MIN_DEG`
+- **THEN** it is reported with `bridge` false without oriented-bounds or boundary-edge computation
+

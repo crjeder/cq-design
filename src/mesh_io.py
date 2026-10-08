@@ -148,15 +148,27 @@ def fold_metrics(mesh, min_interior_deg=FOLD_MIN_INTERIOR_DEG, max_report=5):
     }
 
 
-def bed_contact_mask(mesh):
-    """Faces resting on the bed: steeply down-facing, within one first-layer height of the floor."""
+def bed_contact_mask(mesh, centroids_z=None):
+    """Faces resting on the bed: steeply down-facing, within one first-layer height of the floor.
+
+    `centroids_z` is the per-face centroid z at this pose when the caller already has it.
+    """
     min_z = float(mesh.vertices[:, 2].min())
-    centroids_z = mesh.triangles_center[:, 2]  # cached: shared by every call on this pose
+    if centroids_z is None:
+        centroids_z = mesh.triangles_center[:, 2]  # cached: shared by every call on this pose
     return (mesh.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
 
 
 def _overhang_angles(mesh):
     return np.degrees(np.arcsin(np.clip(-mesh.face_normals[:, 2], 0.0, 1.0)))
+
+
+def edge_lookup(mesh):
+    """Sorted edge keys and the face pair across each: pure connectivity, pose-invariant."""
+    adj_edges = np.sort(mesh.face_adjacency_edges, axis=1).astype(np.int64)
+    keys = adj_edges[:, 0] * len(mesh.vertices) + adj_edges[:, 1]
+    order = np.argsort(keys, kind="stable")  # stable: duplicate edges resolve to the last pair
+    return keys[order], np.asarray(mesh.face_adjacency)[order]
 
 
 def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
@@ -170,16 +182,15 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
     """
     # Mesh-wide arrays and the sorted edge-key -> face-pair map are built once per
     # overhang_regions call (shared via `ctx`): each trimesh property access re-verifies
-    # its cache by hashing.
-    if "keys" not in ctx:
+    # its cache by hashing. A caller scoring many poses of one mesh may pre-seed "keys",
+    # "pairs" (rotation-invariant) and "centroids_z" (per pose).
+    if "verts" not in ctx:
         ctx["verts"] = np.asarray(mesh.vertices)
         ctx["tris"] = np.asarray(mesh.faces)
         ctx["area"] = np.asarray(mesh.area_faces)
-        adj_edges = np.sort(mesh.face_adjacency_edges, axis=1).astype(np.int64)
-        keys = adj_edges[:, 0] * len(ctx["verts"]) + adj_edges[:, 1]
-        order = np.argsort(keys, kind="stable")  # stable: duplicate edges resolve to the last pair
-        ctx["keys"] = keys[order]
-        ctx["pairs"] = np.asarray(mesh.face_adjacency)[order]
+    if "keys" not in ctx:
+        ctx["keys"], ctx["pairs"] = edge_lookup(mesh)
+    if "centroids_z" not in ctx:
         ctx["centroids_z"] = mesh.triangles.mean(axis=1)[:, 2]
     verts, centroids_z = ctx["verts"], ctx["centroids_z"]
     if np.average(angles[faces], weights=ctx["area"][faces]) < BRIDGE_MIN_DEG:
@@ -196,7 +207,11 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
     # Region boundary edges: appear once among the region's own faces.
     edges = np.sort(tri[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2), axis=1)
     owner = np.repeat(faces, 3)
-    _, inv, cnt = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
+    _, inv, cnt = np.unique(
+        edges[:, 0].astype(np.int64) * len(verts) + edges[:, 1],
+        return_inverse=True,
+        return_counts=True,
+    )
     boundary = cnt[inv.reshape(-1)] == 1
 
     side_len = [rect[1], rect[1], rect[0], rect[0]]  # sides +x, -x, +y, -y
@@ -222,18 +237,25 @@ def _is_bridge(mesh, faces, in_region, angles, bridge_max_mm, ctx):
 
 
 def overhang_regions(
-    mesh, overhang_deg, exclude_mask=None, bridge_max_mm=BRIDGE_MAX_MM, exclude_bed=False
+    mesh,
+    overhang_deg,
+    exclude_mask=None,
+    bridge_max_mm=BRIDGE_MAX_MM,
+    exclude_bed=False,
+    ctx=None,
 ):
     """Connected regions of unsupported down-facing faces, each flagged as bridge or not.
 
     Returns a list of dicts {faces, area_mm2, bridge}. Faces in `exclude_mask`, and bed-contact
     faces when `exclude_bed`, are dropped first. Build direction
-    is +Z, so this is pose-dependent.
+    is +Z, so this is pose-dependent. `ctx` optionally pre-seeds `_is_bridge`'s shared
+    arrays ("keys", "pairs", "centroids_z"; see `_is_bridge`).
     """
+    ctx = {} if ctx is None else ctx
     angles = _overhang_angles(mesh)
     sel = (mesh.face_normals[:, 2] < 0) & (angles > overhang_deg)
     if exclude_bed:
-        sel = sel & ~bed_contact_mask(mesh)
+        sel = sel & ~bed_contact_mask(mesh, ctx.get("centroids_z"))
     if exclude_mask is not None:
         sel = sel & ~exclude_mask
     if not np.any(sel):
@@ -243,10 +265,15 @@ def overhang_regions(
     groups = trimesh.graph.connected_components(linked, nodes=np.nonzero(sel)[0], min_len=1)
     regions = []
     area = np.asarray(mesh.area_faces)
-    ctx: dict = {"area": area, "tri": np.asarray(mesh.faces), "verts": np.asarray(mesh.vertices)}
-    for faces in groups:
-        faces = np.asarray(faces)
-        bridge = _is_bridge(mesh, faces, sel, angles, bridge_max_mm, ctx)
+    ctx.update(area=area, tris=np.asarray(mesh.faces), verts=np.asarray(mesh.vertices))
+    # Bulk angle gate: only regions averaging at least BRIDGE_MIN_DEG reach the geometry work.
+    groups = [np.asarray(g) for g in groups]
+    label = np.repeat(np.arange(len(groups)), [len(g) for g in groups])
+    allf = np.concatenate(groups)
+    w = np.bincount(label, weights=area[allf])
+    gated = np.bincount(label, weights=angles[allf] * area[allf]) / w >= BRIDGE_MIN_DEG
+    for faces, passes in zip(groups, gated, strict=True):
+        bridge = bool(passes) and _is_bridge(mesh, faces, sel, angles, bridge_max_mm, ctx)
         regions.append({"faces": faces, "area_mm2": float(area[faces].sum()), "bridge": bridge})
     return regions
 
@@ -288,7 +315,9 @@ def overhang_metrics(mesh, overhang_deg, bridge_max_mm=BRIDGE_MAX_MM):
     return out
 
 
-def support_cost(mesh, overhang_deg, exponent, exclude_mask=None, bridge_max_mm=BRIDGE_MAX_MM):
+def support_cost(
+    mesh, overhang_deg, exponent, exclude_mask=None, bridge_max_mm=BRIDGE_MAX_MM, ctx=None
+):
     """Severity-weighted unsupported-overhang cost at the mesh's current pose.
 
     Each unsupported down-facing face contributes its area scaled by how far it leans
@@ -300,7 +329,7 @@ def support_cost(mesh, overhang_deg, exponent, exclude_mask=None, bridge_max_mm=
     on the bed). Used for print-orientation ranking; `overhang_metrics` reports the
     true overhang area.
     """
-    regions = overhang_regions(mesh, overhang_deg, exclude_mask, bridge_max_mm)
+    regions = overhang_regions(mesh, overhang_deg, exclude_mask, bridge_max_mm, ctx=ctx)
     if not regions:
         return 0.0
     angles = _overhang_angles(mesh)
