@@ -63,6 +63,7 @@ from freshness import script_hash
 from mesh_io import (
     BRIDGE_MAX_MM,
     bed_contact_mask,
+    edge_lookup,
     load_mesh,
     support_cost,
     up_facing_incline_area,
@@ -250,6 +251,7 @@ def _support_metrics(
     overhang_deg: float,
     bridge_max_mm: float = BRIDGE_MAX_MM,
     contact_mask: np.ndarray | None = None,
+    ctx: dict | None = None,
 ) -> tuple[float, float]:
     """Return (support_cost, bed_contact_area) for the mesh already posed.
 
@@ -258,12 +260,13 @@ def _support_metrics(
     supported by the bed, not by support material, so it is excluded from the
     cost. Bed contact is counted within one first-layer height of the floor, so a
     marginally non-coplanar resting face still counts as contact. `contact_mask` is the
-    pose's bed-contact mask when the caller already has it.
+    pose's bed-contact mask when the caller already has it; `ctx` pre-seeds the shared
+    bridge-detection arrays (see `mesh_io.overhang_regions`).
     """
     if contact_mask is None:
         contact_mask = _bed_contact_mask(posed)
     bed_contact = float(posed.area_faces[contact_mask].sum())
-    cost = support_cost(posed, overhang_deg, OV_H, contact_mask, bridge_max_mm)
+    cost = support_cost(posed, overhang_deg, OV_H, contact_mask, bridge_max_mm, ctx)
     return round(cost, 3), round(bed_contact, 3)
 
 
@@ -488,6 +491,8 @@ def optimize_orientation(
     base.face_adjacency, base.face_adjacency_edges, base.edges_sorted, base.face_normals  # noqa: B018
     com0 = np.append(base.center_mass, 1.0)
     base_areas = np.asarray(base.area_faces)  # rotation-invariant: shared by every pose
+    base_centroids = np.asarray(base.triangles_center)  # per-pose z is one dot product
+    base_keys, base_pairs = edge_lookup(base)  # connectivity: rotation-invariant
 
     candidates = []
     for idx, normal in enumerate(enumerate_candidate_normals(mesh)):
@@ -495,14 +500,18 @@ def optimize_orientation(
         posed = base.copy(include_cache=True)
         posed.apply_transform(rotation)
         posed._cache["area_faces"] = base_areas
-        contact_mask = _bed_contact_mask(posed)
+        centroids_z = base_centroids @ rotation[2, :3] + rotation[2, 3]
+        contact_mask = _bed_contact_mask(posed, centroids_z)
+        ctx = {"keys": base_keys, "pairs": base_pairs, "centroids_z": centroids_z}
         fem_strength = _fem_strength_lookup(fem_stress, normal)
         if fem_strength is not None:
             strength, strength_source = fem_strength, "fem"
         else:
             strength = _strength_score(rotation, load_vec, load_type)
             strength_source = "declared_load" if load_declared else "neutral"
-        support, bed_contact = _support_metrics(posed, overhang_deg, bridge_max_mm, contact_mask)
+        support, bed_contact = _support_metrics(
+            posed, overhang_deg, bridge_max_mm, contact_mask, ctx
+        )
         visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec, contact_mask)
         stable = _stability_metrics(posed, (rotation @ com0)[:3], contact_mask)
         speed_entry = _speed_lookup(speed_model, normal)

@@ -614,9 +614,9 @@ def test_optimize_orientation_evaluates_bed_mask_once_per_pose(monkeypatch):
     calls = [0]
     real = print_orientation.bed_contact_mask
 
-    def counted(mesh):
+    def counted(mesh, *args):
         calls[0] += 1
-        return real(mesh)
+        return real(mesh, *args)
 
     monkeypatch.setattr(print_orientation, "bed_contact_mask", counted)
     monkeypatch.setattr(print_orientation, "_bed_contact_mask", counted)
