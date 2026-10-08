@@ -131,6 +131,15 @@ Projects surveyed for ideas relevant to this skill. Status/adoption tracking liv
 | https://pypi.org/project/estampo/ | reproduceable slicer settings | |
 | https://github.com/pfrankov/slicer-copilot | optimize slicer settings | |
 | https://deepwiki.com/jarczakpawel/OrcaStudio/3-core-slicing-engine-(libslic3r) | slicing library | |
-
+| https://github.com/VinukaThejana/slicer_rs | api for calculating 3d prunt cost | |
+| https://github.com/GladiusSlicer/GladiusSlicer | rust slicer | old, probably nothing |
+| https://github.com/khushiyant/kerf | g-code verifier | Documentation! | 
+| https://github.com/Ultimaker/CuraEngine | slicer | |
+| https://github.com/prusa3d/PrusaSlicer | slicer | |
+| https://github.com/jkga/3dpcalc | cost calculator | |
+| https://github.com/Gluhy/3d-print-pricer | cost calculator | | 
+| https://github.com/VishalPatra/3dprintcostcalculator | cost calculator | |
+| https://github.com/AndreasReitberger/3D-Print-Cost-Calculator | cost calculator | |
+| https://github.com/pyrech/gcode-estimator | cost estimator | |
 
 https://github.com/topics/text-to-cad?o=asc&s=forks
