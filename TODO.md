@@ -29,15 +29,16 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place combine standoffs and clip heads.
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
-- [ ] tool to produce cable traces where cables are held press fit for 
+- [ ] tool to produce cable traces where cables are held press fit
 
 ### Skill improvement
 
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d models
-- [ ] optimisation: https://github.com/yeicor-3d/dl4to4ocp
+- [ ] optimization: https://github.com/yeicor-3d/dl4to4ocp
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
+- [ ] the skill should have a way to distinguish between geometry which is fixed and one that is flexible and can be changed by the skill any time e. g. during optimization
 
 ### Kinematic, Joints and Simulation
 
