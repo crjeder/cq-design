@@ -137,6 +137,7 @@ or calling any script listed below.
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
     write_assembly.py        # Assembly writer: assembled-pose per-union + keep-out-zone STLs + manifest (the checks' input); assemble() poses unions
     deliverables.py          # User-facing files: named 3MF, per-union/plate STL, STEP/OBJ/IGES/SCAD (called by build.py)
+    estampo_export.py        # estampo.toml writer for `--formats estampo` (pure text; called by deliverables.py)
     build_template.py        # build.py template copied to build/; writes the preferred (or --formats) model files to out/
     log.py                   # Build-time logs: `attempt` (per-attempt log -> build/attempts.jsonl;
                              # fold_attempts, --hook PostToolUse entry point), `journal` (milestone
