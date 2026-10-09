@@ -16,20 +16,25 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] [SUP Silencer](https://makerworld.com/de/models/2871437-paddleboard-sup-deflation-silencer#profileId-3205902)
 - [ ] beamer-halter
 
+## Defects
+
+- [ ] every feature which is named in prose has to be shown and named in preview.
+- [ ] always write the files in print position
+
 ## Backlog
 
 ### Geometry / Blocks / Tools
 
 - [ ] custom  support https://github.com/gittrahan/support-fins
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-
-- [ ] PCB Clip generator. instead of using screws to hold to PCBs in place comine standoffs and clip heads.
+- [ ] PCB Clip generator. instead of using screws to hold to PCBs in place combine standoffs and clip heads.
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] tool to produce cable traces where cables are held press fit for 
 
 ### Skill improvement
 
 - [ ] generic parametric SCAD importer -> build blocks on the fly
-- [ ] search tool for specific parametric cadquery / SCAD / build123d modells
+- [ ] search tool for specific parametric cadquery / SCAD / build123d models
 - [ ] optimisation: https://github.com/yeicor-3d/dl4to4ocp
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
@@ -46,8 +51,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] `fem_check.py`: solve orthotropic instead of isotropic (currently applies FDM
       anisotropy only at the failure criterion, not the stiffness -- confirmed acceptable
       for a screening tool, but a real gap if the advisor is ever asked to do more)
-- [ ] `fem_check.py`: source `material_properties.json`'s E/nu/allowables from measured
-      filament data (own tensile tests, or a vendor datasheet) instead of literature-typical
+- [ ] `fem_check.py`: source `material_properties.json`'s E/nu/allowable from measured
+      filament data (own tensile tests, or a vendor data sheet) instead of literature-typical
       estimates
 - [ ] `fem_check.py`: model boundary conditions as a real contact/fastener patch instead of
       a footprint-radius node selection around a declared interface -- a mis-declared
