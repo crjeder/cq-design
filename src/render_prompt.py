@@ -389,7 +389,11 @@ def render_planning(
             profile = json.loads(_read(profile_path))
             status = "loaded"
             profile_text = json.dumps(
-                {k: profile[k] for k in ("printer", "material", "nozzle_mm", "constraints")},
+                {
+                    k: profile[k]
+                    for k in ("printer", "material", "nozzle_mm", "constraints", "fit_clearance_mm")
+                    if k in profile
+                },
                 indent=2,
             )
 
