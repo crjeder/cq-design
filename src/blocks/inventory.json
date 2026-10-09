@@ -43,7 +43,7 @@
     "name": "screw_boss",
     "module": "blocks.fasteners",
     "function": "screw_boss",
-    "use": "A solid cylinder boss with a central through-hole for a self-tapping screw. Union onto an enclosure floor or wall. The screw cuts its own thread on first insertion. Use for M2–M4 self-tapping screws.",
+    "use": "A solid cylinder boss with a central through-hole for a self-tapping screw. Union onto an enclosure floor or wall. The screw cuts its own thread on first insertion. Use for M2\u00e2\u20ac\u201cM4 self-tapping screws.",
     "supplied_hardware": "self-tapping screw",
     "params": {
       "d_screw": "mm screw shaft diameter",
@@ -212,7 +212,7 @@
     "name": "alignment_pin",
     "module": "blocks.fasteners",
     "function": "alignment_pin",
-    "use": "A slightly tapered cylinder pin for press-fit part registration and alignment. Union onto one part face. Mates with alignment_socket on the mating part. Use 2–4 pins per mating surface.",
+    "use": "A slightly tapered cylinder pin for press-fit part registration and alignment. Union onto one part face. Mates with alignment_socket on the mating part. Use 2\u00e2\u20ac\u201c4 pins per mating surface.",
     "params": {
       "d": "mm pin base diameter",
       "h": "mm pin height"
@@ -274,7 +274,7 @@
     "name": "port_cutout",
     "module": "blocks.connectors",
     "function": "port_cutout",
-    "use": "A rectangular opening to subtract from a wall for a connector port. Use for USB-C (9x3.5 mm), USB-A (12x6 mm), barrel jack, HDMI, or any rectangular port opening. Add 0.3–0.5 mm clearance to both dimensions.",
+    "use": "A rectangular opening to subtract from a wall for a connector port. Use for USB-C (9x3.5 mm), USB-A (12x6 mm), barrel jack, HDMI, or any rectangular port opening. Add 0.3\u00e2\u20ac\u201c0.5 mm clearance to both dimensions.",
     "params": {
       "w": "mm opening width (connector width + clearance)",
       "h": "mm opening height (connector height + clearance)",
@@ -603,7 +603,7 @@
         200
       ]
     },
-    "use": "Sliding dovetail lid panel for a rectangular box. The tongue IS the lid — height equals depth (lid_t), so the lid sits flush with the box top (no extra height added). Slides along +Y into dovetail_groove(). Use clearance=0.1 for smooth sliding, 0.05 for snug fit. Params must match the mating dovetail_groove.",
+    "use": "Sliding dovetail lid panel for a rectangular box. The tongue IS the lid \u00e2\u20ac\u201d height equals depth (lid_t), so the lid sits flush with the box top (no extra height added). Slides along +Y into dovetail_groove(). Use clearance=0.1 for smooth sliding, 0.05 for snug fit. Params must match the mating dovetail_groove.",
     "params": {
       "width": "mm outer box width (must match dovetail_groove width)",
       "wall": "mm wall thickness (must match dovetail_groove wall)",
@@ -639,7 +639,7 @@
       "pins",
       "tails"
     ],
-    "use": "Classic multi-pin dovetail CORNER (box) joint that joins two SEPARATE boards at a corner by pressing them straight together (NOT the sliding-rail dovetail_groove/dovetail_tongue pair, which slides a lid lengthwise into a slot). Returns two named member unions as a dict of Workplanes: 'pins' (union onto the pin board's end face) and 'tails' (a socket-shaped cutting tool to .cut() from the tail board's end face). The two boards are ordinarily separate parts wired via a top-level joints entry (block: dovetail_corner_joint, members [{member: pins, part: <pin board>}, {member: tails, part: <tail board>}]); for one monolithic part carrying both halves, declare them as the part's two unions [{id: pins}, {id: tails}] instead. TOLERANCE: clearance is a real per-side mating gap grown onto the tail sockets only (default 0.1 separable; negative for a press fit) — the reference this ports had none. ANGLES, two DISTINCT params: flare_deg is the per-tooth taper from the tooth's straight side (0 = rectangular finger tooth, larger = more undercut) and is NOT dovetail_groove/dovetail_tongue's angle (measured from vertical, opposite sense); corner_angle_deg is the dihedral angle between the two boards (default 90 = perpendicular corner), generalizing a fixed right-angle assumption and shaping ONLY the tooth/socket feature, not mitering the board bodies. PRINT FLAT with the tooth-tiling (X) edge in the build plane so the trapezoid undercuts self-support.",
+    "use": "Classic multi-pin dovetail CORNER (box) joint that joins two SEPARATE boards at a corner by pressing them straight together (NOT the sliding-rail dovetail_groove/dovetail_tongue pair, which slides a lid lengthwise into a slot). Returns two named member unions as a dict of Workplanes: 'pins' (union onto the pin board's end face) and 'tails' (a socket-shaped cutting tool to .cut() from the tail board's end face). The two boards are ordinarily separate parts wired via a top-level joints entry (block: dovetail_corner_joint, members [{member: pins, part: <pin board>}, {member: tails, part: <tail board>}]); for one monolithic part carrying both halves, declare them as the part's two unions [{id: pins}, {id: tails}] instead. TOLERANCE: clearance is a real per-side mating gap grown onto the tail sockets only (default 0.1 separable; negative for a press fit) \u00e2\u20ac\u201d the reference this ports had none. ANGLES, two DISTINCT params: flare_deg is the per-tooth taper from the tooth's straight side (0 = rectangular finger tooth, larger = more undercut) and is NOT dovetail_groove/dovetail_tongue's angle (measured from vertical, opposite sense); corner_angle_deg is the dihedral angle between the two boards (default 90 = perpendicular corner), generalizing a fixed right-angle assumption and shaping ONLY the tooth/socket feature, not mitering the board bodies. PRINT FLAT with the tooth-tiling (X) edge in the build plane so the trapezoid undercuts self-support.",
     "params": {
       "pin_count": "count of pins (teeth) tiled across the corner edge (X)",
       "pin_width": "mm pin width at the base, widest, at the board face (X)",
@@ -1164,6 +1164,77 @@
           0,
           0,
           4.75
+        ]
+      }
+    ]
+  },
+  {
+    "name": "keeper_lock_eye",
+    "module": "blocks.fasteners",
+    "function": "keeper_lock_eye",
+    "use": "Eye half of a printed snap keeper lock: a plate with a flat U-arch that flexes outward (+Y). Pairs with keeper_lock_hook; locked, the arch bridge sits in the hook's neck groove behind the head overhang, released by flexing the arch outward over the head. Built in the shared assembled frame (X=0 centerline, Y=0 back faces, +Y outward, Z=0 at the eye plate's top edge), so author both parts with no pose transform. Returns a solid to use as the part body. Defaults are the PLA 0.4 mm-nozzle test-fit (opening 10 mm, arch inner R5).",
+    "params": {
+      "plate_w": "mm plate width (X)",
+      "plate_d": "mm plate thickness (Y); arch front face is flush",
+      "plate_h": "mm plate height (Z, below Z=0)",
+      "strap_w": "mm arch strap width",
+      "arch_t": "mm arch strap thickness (Y); sets flex stiffness",
+      "leg_inner_x": "mm arch inner radius = half the opening width",
+      "leg_h": "mm straight leg length above Z=0",
+      "leg_embed": "mm legs run into the plate (default 1.0)"
+    },
+    "dimensions": [
+      30,
+      5,
+      35.5
+    ],
+    "interfaces": [
+      {
+        "type": "snap_socket",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "keeper_lock_hook",
+    "module": "blocks.fasteners",
+    "function": "keeper_lock_hook",
+    "use": "Hook half of a printed snap keeper lock: a plate with a pill-shaped neck and head stud with a lead-in ramp. Pairs with keeper_lock_eye in the same assembled frame (see keeper_lock_eye). Pass the eye's plate_d (as eye_plate_d), arch_t, leg_h and leg_inner_x: plate thickness, neck height, stud position and head width are derived from them plus clearance, so the pair stays mated when either half is resized. Set clearance from the printer profile's fit_clearance_mm.snap_fit. Thicker head_t is stiffer to release and raises arch strain (about 2 % PLA limit at the original test-fit, clearance 0.4). Returns a solid to use as the part body.",
+    "params": {
+      "eye_plate_d": "mm the eye's plate_d (arch front face Y)",
+      "arch_t": "mm the eye's arch_t",
+      "leg_h": "mm the eye's leg_h",
+      "leg_inner_x": "mm the eye's leg_inner_x (half the arch opening)",
+      "clearance": "mm gap between mating faces; profile fit_clearance_mm.snap_fit (default 0.15)",
+      "catch_overlap": "mm head top tip passes the arch inner apex (Z), default 0.8",
+      "z_play": "mm Z gap between neck top tip and arch inner apex, default 0.7",
+      "side_gap": "mm X gap per side between head and arch opening, default 0.5",
+      "plate_w": "mm plate width (X)",
+      "plate_h": "mm plate height (Z); must back the whole arch",
+      "neck_w": "mm neck width (X)",
+      "head_l": "mm head length (Z)",
+      "head_t": "mm head thickness (Y)",
+      "ramp_len": "mm lead-in ramp length along Z",
+      "wall_min": "mm head thickness left at the top tip"
+    },
+    "dimensions": [
+      30,
+      6.95,
+      22
+    ],
+    "interfaces": [
+      {
+        "type": "snap_hook",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
         ]
       }
     ]

@@ -39,6 +39,14 @@ def test_valid_profile_passes(profile_file):
     assert errors == []
 
 
+def test_slicer_estampo_block_accepted_and_unknown_key_rejected(profile_file):
+    estampo: dict[str, Any] = {"printer": "P", "filaments": ["F"]}
+    slicer = {"preferred_format": "3mf", "estampo": estampo}
+    assert validate_profile(profile_file({**VALID_PROFILE, "slicer": slicer})) == []
+    estampo["bogus"] = 1
+    assert validate_profile(profile_file({**VALID_PROFILE, "slicer": slicer}))
+
+
 def test_missing_required_field_rejected(profile_file):
     profile = {k: v for k, v in VALID_PROFILE.items() if k != "nozzle_mm"}
     errors = validate_profile(profile_file(profile))

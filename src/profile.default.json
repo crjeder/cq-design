@@ -20,5 +20,11 @@
   "slicer": {
     "preferred_format": "step",
     "slicer_name": "Snapmaker Orca"
+  },
+  "fit_clearance_mm": {
+    "press_fit": 0.0,
+    "snap_fit": 0.15,
+    "sliding": 0.25,
+    "loose": 0.5
   }
 }

@@ -139,10 +139,10 @@ def test_render_detail_view_zoomed_fills_more_of_frame_than_whole_part(box_workp
     preview.render_detail_view(
         box_workplane, str(whole_path), focus_center=(0, 0, 0), focus_size=10.0, view_size=200
     )
-    # A 3mm window centered on a cube corner: still inside the solid, but zoomed
-    # in tightly enough that the solid fills virtually the whole frame.
+    # A 3mm window at the cube center: entirely inside the solid's silhouette, so
+    # the solid fills the whole frame.
     preview.render_detail_view(
-        box_workplane, str(zoomed_path), focus_center=(4, 4, 4), focus_size=3.0, view_size=200
+        box_workplane, str(zoomed_path), focus_center=(0, 0, 0), focus_size=3.0, view_size=200
     )
 
     def _bg_fraction(path):
@@ -295,3 +295,28 @@ def test_no_callouts_renders_unchanged_tile(box_workplane, tmp_path):
 
     img = Image.open(str(out))
     assert img.width == 204
+
+
+def test_flat_face_shades_uniformly_and_nearer_occludes(tmp_path):
+    """Z-buffer: a flat top face is one uniform color (no per-triangle patches), and
+    a nearer box changes the silhouette of the union."""
+    big = cq.Workplane("XY").box(20, 20, 4)
+    both = big.union(cq.Workplane("XY").workplane(offset=2).box(6, 6, 4))
+
+    flat = np.asarray(preview._render_cq_view(big, 90, -90, 200, 200, ortho=True), dtype=int)
+    center = flat[80:120, 80:120].reshape(-1, 3)
+    assert (center == center[0]).all()
+
+    img = np.asarray(preview._render_cq_view(both, 90, -90, 200, 200, ortho=True), dtype=int)
+    # Top of the small box and the big top face share +Z normal (same shade), so
+    # check the side view instead: small box silhouette rises above the big box.
+    side = np.asarray(preview._render_cq_view(both, 0, -90, 200, 200, ortho=True), dtype=int)
+    bg = np.array([0xE8, 0xE8, 0xEC])
+    side_big = np.asarray(preview._render_cq_view(big, 0, -90, 200, 200, ortho=True), dtype=int)
+
+    def rows(a):
+        return (np.abs(a - bg).sum(axis=-1) > 10).any(axis=1).sum()
+
+    solid_rows, solid_rows_big = rows(side), rows(side_big)
+    assert img.shape == (200, 200, 3)
+    assert solid_rows > solid_rows_big

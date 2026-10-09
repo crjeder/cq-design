@@ -2,10 +2,10 @@
 
 ## Purpose
 
-Defines how the skill renders preview PNG images from CadQuery geometry using OCC tessellation and matplotlib, without any OpenGL or display-server dependency.
+Defines how the skill renders preview PNG images from CadQuery geometry using OCC tessellation and a numpy z-buffer rasterizer, without any OpenGL or display-server dependency.
 ## Requirements
 ### Requirement: Preview rendering uses CadQuery tessellation without OpenGL
-The preview renderer SHALL generate PNG images from a CadQuery `Workplane` or `Shape` object using the OCC tessellation API and matplotlib (Agg backend). It SHALL NOT require OpenGL, EGL, osmesa, or any display server.
+The preview renderer SHALL generate PNG images from a CadQuery `Workplane` or `Shape` object using the OCC tessellation API and a numpy z-buffer rasterizer. It SHALL NOT require OpenGL, EGL, osmesa, or any display server.
 
 #### Scenario: Headless preview succeeds without display
 - **WHEN** `run_cadquery_model.py model.py --preview` is invoked in an environment with no display server and no GPU
@@ -61,8 +61,8 @@ tile with these four panels:
 - **Isometric** (pictorial) in the bottom-right
 
 The three orthographic panels SHALL use true orthographic projection
-(`ax.set_proj_type("ortho")`) with exact axis-aligned camera angles and no
-perspective tilt, so edges are undistorted. The isometric panel remains pictorial.
+(orthographic camera)
+with exact axis-aligned camera angles and no perspective tilt, so edges are undistorted. The isometric panel is also orthographic but at a pictorial (non-axis-aligned) angle.
 
 Each panel SHALL be labeled using the compass convention documented in
 `prompts/planning.md` (North=+Y, East=+X, up=+Z), naming the viewing station (e.g.
@@ -108,3 +108,17 @@ count, and PLA weight estimate; no dimension lines SHALL be drawn on the panels.
 - **WHEN** `import preview` is executed
 - **THEN** no import of `pyrender` or `OpenGL` occurs
 
+### Requirement: Z-buffered rasterization
+The preview renderer SHALL rasterize tessellated geometry with a per-pixel depth test using a pure numpy/Pillow rasterizer, replacing matplotlib mplot3d triangle sorting. It SHALL NOT require OpenGL, EGL, osmesa, a display server, or any new dependency.
+
+#### Scenario: Flat face is shaded uniformly
+- **WHEN** a box is rendered from above
+- **THEN** every pixel in the interior of the top face has the same color (no per-triangle shading patches)
+
+#### Scenario: Nearer geometry occludes farther geometry
+- **WHEN** a smaller box protrudes toward the camera from a larger box
+- **THEN** the rendered silhouette and pixels reflect the nearer geometry regardless of triangle order
+
+#### Scenario: Callouts follow the projection
+- **WHEN** callouts are supplied to a multi-view render
+- **THEN** badges appear on the three orthographic panels at the feature's projected position and not on the isometric panel
