@@ -22,6 +22,8 @@ from blocks.fasteners import (
     counterbore_hole,
     countersink_hole,
     hex_nut_trap,
+    keeper_lock_eye,
+    keeper_lock_hook,
     pcb_standoff,
     screw_boss,
     servo_spline,
@@ -343,6 +345,33 @@ def test_hex_nut_trap_as_cut():
     wall = cq.Workplane("XY").box(20, 20, 10)
     r = wall.cut(hex_nut_trap(5.5, 2.4, 10.0, d_screw=3.4))
     assert _is_solid(r)
+
+
+def test_keeper_lock_eye_bbox():
+    r = keeper_lock_eye()
+    assert _is_solid(r)
+    bb = r.val().BoundingBox()
+    assert abs(bb.xlen - 30) < 0.01 and abs(bb.ylen - 5) < 0.01 and abs(bb.zlen - 35.5) < 0.01
+
+
+def test_keeper_lock_hook_bbox():
+    r = keeper_lock_hook()
+    assert _is_solid(r)
+    bb = r.val().BoundingBox()
+    assert abs(bb.xlen - 30) < 0.01 and abs(bb.ylen - 6.95) < 0.01 and abs(bb.zlen - 22) < 0.01
+    # clearance 0.4 reproduces the original test-fit hook (Y 7.2)
+    assert abs(keeper_lock_hook(clearance=0.4).val().BoundingBox().ylen - 7.2) < 0.01
+
+
+@pytest.mark.parametrize("c", [0.15, 0.4])
+def test_keeper_lock_pair_does_not_collide(c):
+    assert keeper_lock_eye().intersect(keeper_lock_hook(clearance=c)).val().Volume() < 1e-6
+
+
+def test_keeper_lock_hook_follows_eye_dims():
+    kw = {"eye_plate_d": 6.0, "arch_t": 2.0, "leg_h": 14.0, "leg_inner_x": 6.0, "plate_h": 26.0}
+    eye = keeper_lock_eye(plate_d=6.0, arch_t=2.0, leg_h=14.0, leg_inner_x=6.0)
+    assert eye.intersect(keeper_lock_hook(**kw)).val().Volume() < 1e-6
 
 
 # ---- hardware (cq_warehouse-backed) ----
