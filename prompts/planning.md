@@ -72,7 +72,8 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
     design needs nothing the user must supply.
 
 4. **Resolve each mating interface's `clearance_mm`** from the fit type, preferring the
-   user's stated value: press_fit 0.0, snap_fit 0.15, sliding 0.25, loose/cover 0.5 mm.
+   user's stated value, then the profile's `fit_clearance_mm` (press_fit, snap_fit, sliding,
+   loose) when present, else: press_fit 0.0, snap_fit 0.15, sliding 0.25, loose/cover 0.5 mm.
    Add for material: PETG +0.1, TPU +0.2 (and walls >= 3.0 mm, flexible snaps); PLA/ABS
    +0.0. An unclear fit type is an `OPEN:` item.
 
