@@ -63,6 +63,13 @@ run real CadQuery scripts (a few seconds each).
 
 ## Key Constraints
 
+- **Three poses**: *build pose* is the frame a part script is authored in; every
+  direction from the user, the plan or a CLI flag (`load.dir`, `--load`, `--show-face`,
+  "top"/"front") is in build pose. *Assembly pose* is build pose plus `placement`
+  (`write_assembly.py`'s `stl/` meshes, the whole-model checks' input, never delivered).
+  *Print pose* is build pose rotated by the accepted `orientations.json` `rotate` (the
+  only build -> print mapping); every file `build.py` writes is in print pose.
+
 - **JSON contract**: `run_cadquery_model.py` always emits `success`, `errors`, `geometry`,
   `stl`, `stls`, `preview`, `previews`, `watertight`, `stdout`, `stderr`, `returncode`.
   Do not rename or remove keys — Claude parses them inline during the part loop.
@@ -136,7 +143,7 @@ or calling any script listed below.
     units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
     write_assembly.py        # Assembly writer: assembled-pose per-union + keep-out-zone STLs + manifest (the checks' input); assemble() poses unions
-    deliverables.py          # User-facing files: named 3MF, per-union/plate STL, STEP/OBJ/IGES/SCAD (called by build.py)
+    deliverables.py          # User-facing files, all in print pose: named 3MF, per-union/plate STL, STEP/OBJ/IGES/SCAD (called by build.py)
     build_template.py        # build.py template copied to build/; writes the preferred (or --formats) model files to out/
     log.py                   # Build-time logs: `attempt` (per-attempt log -> build/attempts.jsonl;
                              # fold_attempts, --hook PostToolUse entry point), `journal` (milestone
