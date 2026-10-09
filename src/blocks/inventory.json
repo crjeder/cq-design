@@ -1172,21 +1172,18 @@
     "name": "keeper_lock_eye",
     "module": "blocks.fasteners",
     "function": "keeper_lock_eye",
-    "use": "Eye half of a printed snap keeper lock: a plate with a flat U-arch that flexes outward (+Y). Pairs with keeper_lock_hook; locked, the arch bridge sits in the hook's neck groove behind the head overhang, released by flexing the arch outward over the head. Built in the shared assembled frame (X=0 centerline, Y=0 back faces, +Y outward, Z=0 at the eye plate's top edge), so author both parts with no pose transform. Returns a solid to use as the part body. Defaults are the PLA 0.4 mm-nozzle test-fit (opening 10 mm, arch inner R5).",
+    "use": "Eye half of a printed snap keeper lock: a flat U-arch (no backplate; fuse into the host part) that flexes outward (+Y). Pairs with keeper_lock_hook; locked, the arch bridge sits in the hook's neck groove behind the head overhang, released by flexing the arch outward over the head. Built in the shared assembled frame (X=0 centerline, Y=0 back faces, +Y outward, Z=0 at the arch leg bases), so author both parts with no pose transform. Returns a solid to use as the part body. Defaults are the PLA 0.4 mm-nozzle test-fit (opening 10 mm, arch inner R5).",
     "params": {
-      "plate_w": "mm plate width (X)",
-      "plate_d": "mm plate thickness (Y); arch front face is flush",
-      "plate_h": "mm plate height (Z, below Z=0)",
+      "plate_d": "mm Y of the omitted plate front face; arch front face is flush with it",
       "strap_w": "mm arch strap width",
       "arch_t": "mm arch strap thickness (Y); sets flex stiffness",
       "leg_inner_x": "mm arch inner radius = half the opening width",
-      "leg_h": "mm straight leg length above Z=0",
-      "leg_embed": "mm legs run into the plate (default 1.0)"
+      "leg_h": "mm straight leg length above Z=0"
     },
     "dimensions": [
-      30,
-      5,
-      35.5
+      18,
+      1.6,
+      21.5
     ],
     "interfaces": [
       {
@@ -1204,7 +1201,7 @@
     "name": "keeper_lock_hook",
     "module": "blocks.fasteners",
     "function": "keeper_lock_hook",
-    "use": "Hook half of a printed snap keeper lock: a plate with a pill-shaped neck and head stud with a lead-in ramp. Pairs with keeper_lock_eye in the same assembled frame (see keeper_lock_eye). Pass the eye's plate_d (as eye_plate_d), arch_t, leg_h and leg_inner_x: plate thickness, neck height, stud position and head width are derived from them plus clearance, so the pair stays mated when either half is resized. Set clearance from the printer profile's fit_clearance_mm.snap_fit. Thicker head_t is stiffer to release and raises arch strain (about 2 % PLA limit at the original test-fit, clearance 0.4). Returns a solid to use as the part body.",
+    "use": "Hook half of a printed snap keeper lock: a pill-shaped neck and head stud (no backplate; fuse into the host part) with a lead-in ramp. Pairs with keeper_lock_eye in the same assembled frame (see keeper_lock_eye). Pass the eye's plate_d (as eye_plate_d), arch_t, leg_h and leg_inner_x: neck start, neck height, stud position and head width are derived from them plus clearance, so the pair stays mated when either half is resized. Set clearance from the printer profile's fit_clearance_mm.snap_fit. Thicker head_t is stiffer to release and raises arch strain (about 2 % PLA limit at the original test-fit, clearance 0.4). Returns a solid to use as the part body.",
     "params": {
       "eye_plate_d": "mm the eye's plate_d (arch front face Y)",
       "arch_t": "mm the eye's arch_t",
@@ -1214,8 +1211,6 @@
       "catch_overlap": "mm head top tip passes the arch inner apex (Z), default 0.8",
       "z_play": "mm Z gap between neck top tip and arch inner apex, default 0.7",
       "side_gap": "mm X gap per side between head and arch opening, default 0.5",
-      "plate_w": "mm plate width (X)",
-      "plate_h": "mm plate height (Z); must back the whole arch",
       "neck_w": "mm neck width (X)",
       "head_l": "mm head length (Z)",
       "head_t": "mm head thickness (Y)",
@@ -1223,9 +1218,9 @@
       "wall_min": "mm head thickness left at the top tip"
     },
     "dimensions": [
-      30,
-      6.95,
-      22
+      9,
+      3.7,
+      16
     ],
     "interfaces": [
       {
