@@ -249,6 +249,20 @@ def test_build_py_formats_step_writes_step_per_union(tmp_path, skill_src):
     assert "base.step" in proc.stdout
 
 
+def test_build_py_formats_estampo_writes_toml_and_stls(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path, skill_src, [{"id": "base", "description": "base"}], {"base": _FLAT}
+    )
+
+    proc = _run(build_dir, None, "--formats", "estampo")
+
+    assert proc.returncode == 0, proc.stderr
+    out = build_dir.parent / "out"
+    assert (out / "base.stl").exists()
+    assert 'file = "base.stl"' in (out / "estampo.toml").read_text(encoding="utf-8")
+    assert not (out / "model.3mf").exists()
+
+
 def test_build_py_formats_unsupported_key_exits_nonzero(tmp_path, skill_src):
     build_dir = _setup(
         tmp_path, skill_src, [{"id": "base", "description": "base"}], {"base": _FLAT}

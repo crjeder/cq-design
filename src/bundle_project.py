@@ -29,6 +29,7 @@ BUNDLE_MODULES = (
     "mesh_io.py",
     "write_assembly.py",
     "deliverables.py",
+    "estampo_export.py",
     "print_orientation.py",
     "print_finishing.py",
     "placement.py",
