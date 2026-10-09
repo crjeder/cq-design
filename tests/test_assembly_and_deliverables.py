@@ -24,9 +24,9 @@ _NS = "{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}"
 def _export(plan, parts_dir, out, orientations=None, formats=("3mf", "stl")):
     """Run write_assembly and write_deliverables into one directory; merge the results."""
     asm = write_assembly(plan, parts_dir, str(out), orientations)
-    files = write_deliverables(plan, parts_dir, str(out), orientations or {}, list(formats))[
-        "files"
-    ]
+    files = write_deliverables(
+        plan, parts_dir, str(Path(out) / "deliver"), orientations or {}, list(formats)
+    )["files"]
     return {
         **asm,
         "model_3mf": files.get("3mf", {}).get("model.3mf"),
@@ -165,10 +165,11 @@ def test_named_3mf_with_plate_and_placement(tmp_path):
         "Hinged lid that snaps onto the base": "shared",
     }
 
-    # Placement was applied: the lid sits high in Z, the base near zero.
+    # Deliverables are print pose (build pose here: no orientation), so the placement
+    # does not move the lid.
     scene = trimesh.load(result["model_3mf"])
     assert len(scene.geometry) == 2
-    assert scene.bounds[1][2] > 25  # lid lifted by the placement
+    assert scene.bounds[1][2] < 10
 
 
 def test_write_assembly_writes_only_assembly_files(tmp_path):
@@ -208,30 +209,40 @@ def test_deliverables_write_only_requested_formats(tmp_path):
     assert not (tmp_path / "c").exists()
 
 
-def test_deliverable_stls_copied_when_assembly_fresh_else_exported(tmp_path):
+def test_deliverable_stl_is_print_pose_not_assembly_pose(tmp_path):
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
-    _write_part(parts_dir, "base")
+    _write_part(parts_dir, "base")  # 20 x 20 x 4 box
     plan = _plan([{"id": "base"}])
+    orientations = {"base": {"rotate": [{"axis": "X", "angle_deg": 90}]}}
     asm_dir = tmp_path / "stl"
-    write_assembly(plan, str(parts_dir), str(asm_dir))
+    write_assembly(plan, str(parts_dir), str(asm_dir), orientations)
+    asm_bytes = (asm_dir / "base.stl").read_bytes()
 
-    fresh = write_deliverables(
-        plan, str(parts_dir), str(tmp_path / "out"), {}, ["stl"], assembly_dir=str(asm_dir)
-    )
-    assert fresh["union_stls_copied"] is True
-    assert (tmp_path / "out" / "base.stl").read_bytes() == (asm_dir / "base.stl").read_bytes()
+    result = write_deliverables(plan, str(parts_dir), str(tmp_path / "out"), orientations, ["stl"])
 
-    (parts_dir / "base.py").write_text(
-        "import cadquery as cq\nresult = cq.Workplane('XY').box(30, 20, 4)\n"
-    )
-    stale = write_deliverables(
-        plan, str(parts_dir), str(tmp_path / "out2"), {}, ["stl"], assembly_dir=str(asm_dir)
-    )
-    assert stale["union_stls_copied"] is False
-    assert trimesh.load(str(tmp_path / "out2" / "base.stl")).extents[0] == pytest.approx(
-        30, abs=0.1
-    )
+    assert "union_stls_copied" not in result
+    assert trimesh.load(str(tmp_path / "out" / "base.stl")).extents[2] == pytest.approx(20, abs=0.1)
+    assert (asm_dir / "base.stl").read_bytes() == asm_bytes  # check meshes untouched
+    assert trimesh.load(str(asm_dir / "base.stl")).extents[2] == pytest.approx(4, abs=0.1)
+
+
+def test_extra_formats_are_print_pose_and_fall_back_to_build_pose(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "base")  # 20 x 20 x 4 box
+    plan = _plan([{"id": "base", "placement": {"translate_mm": [0, 0, 50]}}])
+    rotated = {"base": {"rotate": [{"axis": "X", "angle_deg": 90}]}}
+
+    with_rot = write_deliverables(plan, str(parts_dir), str(tmp_path / "a"), rotated, ["obj"])
+    mesh = trimesh.load(with_rot["files"]["obj"]["base"], force="mesh")
+    assert mesh.extents[2] == pytest.approx(20, abs=0.1)
+
+    # No orientation: build pose (the placement's z=50 shift is not applied).
+    no_rot = write_deliverables(plan, str(parts_dir), str(tmp_path / "b"), {}, ["obj", "stl"])
+    for path in (no_rot["files"]["obj"]["base"], no_rot["files"]["stl"]["base"]):
+        mesh = trimesh.load(path, force="mesh")
+        assert mesh.bounds[1][2] < 10
 
 
 def test_deliverable_uses_print_orientation_union_stl_unchanged(tmp_path):
@@ -759,26 +770,27 @@ def _placed_plan(parts_dir):
     )
 
 
-def test_formats_step_written_per_union_in_assembled_pose(tmp_path):
+def test_formats_step_written_per_union_in_print_pose(tmp_path):
     import cadquery as cq
 
     parts_dir = tmp_path / "parts"
     parts_dir.mkdir()
     plan = _placed_plan(parts_dir)
     out = tmp_path / "dist"
+    orientations = {"a": {"rotate": [{"axis": "X", "angle_deg": 90}]}}
 
-    result = _export(plan, str(parts_dir), str(out), formats=["step"])
+    result = _export(plan, str(parts_dir), str(out), orientations, formats=["step"])
 
     assert set(result["files"]["step"]) == {"a", "b"}
     assert result["model_3mf"] is None
     for uid, path in result["files"]["step"].items():
-        assert Path(path) == out / f"{uid}.step"
-        stl = trimesh.load(result["union_stls"][uid])
-        shape = cq.importers.importStep(path).val()
-        bb = shape.BoundingBox()
-        assert [bb.xmin, bb.ymin, bb.zmin] == pytest.approx(stl.bounds[0].tolist(), abs=1e-3)
-        assert [bb.xmax, bb.ymax, bb.zmax] == pytest.approx(stl.bounds[1].tolist(), abs=1e-3)
-        assert shape.Volume() == pytest.approx(stl.volume, rel=1e-3)
+        assert Path(path) == out / "deliver" / f"{uid}.step"
+    # a: rotated into print pose (20 mm tall); b: no orientation -> build pose (4 mm tall)
+    a_bb = cq.importers.importStep(result["files"]["step"]["a"]).val().BoundingBox()
+    b_bb = cq.importers.importStep(result["files"]["step"]["b"]).val().BoundingBox()
+    assert a_bb.zlen == pytest.approx(20, abs=1e-3)
+    assert b_bb.zlen == pytest.approx(4, abs=1e-3)
+    assert b_bb.xmin == pytest.approx(-10, abs=1e-3)  # build pose: placement not applied
 
 
 @pytest.mark.parametrize("bad", ["dxf", "gcode"])
