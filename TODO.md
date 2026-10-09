@@ -77,7 +77,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Add textures capability
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties
-- [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible)
+- [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible) -- layer height and infill already exported via `--formats estampo`; walls/support/brim remain
 
 ### Optimisation
 

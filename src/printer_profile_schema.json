@@ -73,6 +73,16 @@
           "type": "string",
           "minLength": 1,
           "description": "Slicer name, e.g. 'OrcaSlicer'. Informational only."
+        },
+        "estampo": {
+          "type": "object",
+          "description": "Orca profile names written into estampo.toml by build.py --formats estampo. Omitted names become commented placeholders.",
+          "additionalProperties": false,
+          "properties": {
+            "printer": {"type": "string", "minLength": 1},
+            "process": {"type": "string", "minLength": 1},
+            "filaments": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1}
+          }
         }
       }
     },
