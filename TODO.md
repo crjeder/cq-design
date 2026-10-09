@@ -64,7 +64,6 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 ### Import / Export / View
 
 - [ ] Export: 3MF print-plate structure (slicer-specific extension) -- [details](#export-print-plate-structure)
-- [ ] Preview: z-buffered renderer (removes painter's-algorithm shading artifacts) -- [details](#preview-z-buffered-renderer)
 - [ ] Preview: render feature-detail previews more proactively -- [details](#preview-proactive-detail-renders)
 - [ ] Reverse-engineer a 3D mesh / point cloud into primitives; import STL -- [details](#reverse-engineer-mesh)
 - [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
@@ -835,16 +834,6 @@ Side-tagged `face_mount` docks so the planner derives union membership and
 the world joint axis automatically (interface naming: keep assembly/mating
 docks conceptually distinct from kinematic axes even though both live in the
 block `interfaces` array).
-
-### Preview z-buffered renderer
-matplotlib mplot3d has no z-buffer and depth-sorts whole triangles
-(painter's algorithm), so flat faces show cosmetic triangular shading
-patches where angled wall/fillet triangles paint over coplanar ones.
-Geometry and normals are correct (STL/3MF watertight + winding-consistent);
-the artifact is preview-only. Switching `preview.py` to a z-buffered
-renderer (trimesh + pyrender / `Scene.save_image`) removes it, at the cost
-of an OpenGL dependency that `preview.py`/`mesh_io.py` currently avoid by
-design.
 
 ### Preview proactive detail renders
 Render feature detail previews more proactively. The `--detail` capability

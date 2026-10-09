@@ -148,7 +148,8 @@ or calling any script listed below.
     regen_prompt.py          # BUILD_PLAN.json + parameters.py + sketches/ -> REGENERATE.md (Phase 4)
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     diff_models.py           # Two-STL diff: volume summary JSON + gray/red/green diff PNG (trimesh + manifold3d)
-    preview.py               # CadQuery tessellation + matplotlib preview renderer
+    preview.py               # CadQuery tessellation + z-buffered preview renderer
+    zbuffer.py               # numpy z-buffer rasterizer + orthographic camera (no OpenGL)
     render_preview.py        # Subprocess entry point for preview.py
     section_select.py        # Picks axis-aligned section planes through bore/boss axes (--auto-sections; standalone CLI)
     mesh_io.py               # Trimesh loader + watertightness validation; lateral_area() feeds toolpath_speed.py;
