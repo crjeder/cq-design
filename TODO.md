@@ -89,7 +89,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 
 Ranked by value/cost out of the open ideas in
 [documentation/related_projects.md](documentation/related_projects.md) (rating
-column + "Open ideas" list). Each item is written to be implementable without
+column; open ideas are marked **Open**). Each item is written to be implementable without
 re-reading the survey; the background lives in that file's Details section.
 Order matters: 1 produces the evidence 4 needs, 2 and 3 cut fix-loop failures,
 5 and 6 are prompt-only. Every item: one openspec change, one runnable test.
