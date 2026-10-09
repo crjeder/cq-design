@@ -31,7 +31,7 @@ Arguments (all optional):
     --out           where the model files are written (default: <project root>/out)
     --orientations  accepted orientations JSON (default: orientations.json in --parts-dir)
     --profile       profile.json (default: the project root); slicer.preferred_format is required
-    --formats       formats to write, comma-separated: 3mf, stl, step, obj, iges, scad
+    --formats       formats to write, comma-separated: 3mf, stl, step, obj, iges, scad, estampo
                     (default: the profile's preferred_format only)
 
 Outputs (all in --out, only for the formats requested):
@@ -39,6 +39,7 @@ Outputs (all in --out, only for the formats requested):
     stl:  <union-id>.stl   one assembled-pose STL per union
           plate_<n>.stl    one fused print-pose STL per multi-union plate
     step/obj/iges/scad:  <union-id>.<ext>  assembled pose, one per union
+    estampo:  estampo.toml  slicer config for the STLs (also written)
 
 The per-union STLs are copied from `stl/` (written by the skill's write_assembly step)
 when that output is still current for the part scripts and accepted orientations;
@@ -145,8 +146,8 @@ def resolve_orientations(
     return orientations, summary, recomputed
 
 
-def load_preferred_format(profile_path: str) -> tuple[str, str | None]:
-    """Return (preferred_format, slicer_name) from profile.json; raise ValueError if unset."""
+def load_preferred_format(profile_path: str) -> tuple[str, str | None, dict]:
+    """Return (preferred_format, slicer_name, profile) from profile.json; ValueError if unset."""
     if not os.path.isfile(profile_path):
         hint = ""
         legacy = os.path.join(os.path.dirname(profile_path), "printer_profile.json")
@@ -154,14 +155,15 @@ def load_preferred_format(profile_path: str) -> tuple[str, str | None]:
             hint = " (rename printer_profile.json to profile.json)"
         raise ValueError(f"{profile_path} not found{hint}")
     with open(profile_path, encoding="utf-8") as f:
-        slicer = json.load(f).get("slicer") or {}
+        profile = json.load(f)
+    slicer = profile.get("slicer") or {}
     fmt = slicer.get("preferred_format")
     if fmt not in FORMATS:
         raise ValueError(
             f"{profile_path}: slicer.preferred_format must be one of "
             f"{', '.join(FORMATS)}; got {fmt!r}"
         )
-    return fmt, slicer.get("slicer_name")
+    return fmt, slicer.get("slicer_name"), profile
 
 
 def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]) -> None:
@@ -220,7 +222,7 @@ def main() -> None:
         parser.error(f"unsupported format(s) {bad}; supported: {', '.join(FORMATS)}")
 
     try:
-        preferred, slicer_name = load_preferred_format(args.profile)
+        preferred, slicer_name, profile = load_preferred_format(args.profile)
     except ValueError as exc:
         sys.stderr.write(f"build failed: {exc}\n")
         sys.exit(1)
@@ -242,6 +244,7 @@ def main() -> None:
             orientations,
             formats,
             progress=lambda line: print(line, flush=True),
+            profile=profile,
         )
     except Exception as exc:
         sys.stderr.write(f"build failed: {exc}\n")

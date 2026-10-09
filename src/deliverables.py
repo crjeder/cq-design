@@ -12,6 +12,7 @@ from collections.abc import Callable
 
 import cadquery as cq
 
+from estampo_export import write_estampo_toml
 from exporters import _REGISTRY
 from exporters.threemf_multi import write_named_3mf
 from placement import apply_cq
@@ -22,7 +23,7 @@ _NAME_MAX_LEN = 64
 
 # 3mf and stl are selectable too, but are written by write_deliverables itself.
 EXTRA_FORMATS = tuple(k for k in _REGISTRY if k not in ("stl", "3mf"))
-FORMATS = ("3mf", "stl", *EXTRA_FORMATS)
+FORMATS = ("3mf", "stl", *EXTRA_FORMATS, "estampo")
 
 
 def _object_name(description: str, fallback: str) -> str:
@@ -91,6 +92,7 @@ def write_deliverables(
     formats: list[str],
     *,
     progress: Callable[[str], None] | None = None,
+    profile: dict | None = None,
 ) -> dict:
     """Write each of `formats` into `out_dir`; return what was written.
 
@@ -100,6 +102,8 @@ def write_deliverables(
     - `stl`: `<union>.stl` per union and a fused `plate_<n>.stl` per plate holding more
       than one union.
     - `step`/`obj`/`iges`/`scad`: `<union>.<ext>` per union.
+    - `estampo`: `estampo.toml` (see `estampo_export`) referencing the STLs, which are
+      written too; `profile` is the parsed profile.json.
 
     Returns `{"files": {format: {name: path}}}`. An unsupported
     key raises ValueError before anything is written. `progress` is called with a
@@ -109,6 +113,8 @@ def write_deliverables(
     if bad:
         raise ValueError(f"Unsupported format(s) {bad}; supported: {', '.join(FORMATS)}")
     formats = list(dict.fromkeys(formats))
+    if "estampo" in formats and "stl" not in formats:
+        formats.append("stl")
     os.makedirs(out_dir, exist_ok=True)
     report = progress or (lambda _line: None)
 
@@ -140,6 +146,10 @@ def write_deliverables(
             cq.exporters.export(fused, path)
             stls[f"plate_{plate}"] = path
         files["stl"] = stls
+        if "estampo" in formats:
+            members = {uid for ids in multi_plates.values() for uid in ids}
+            listed = [p for name, p in stls.items() if name not in members]
+            files["estampo"] = {"estampo.toml": write_estampo_toml(listed, profile or {}, out_dir)}
 
     for fmt in formats:
         if fmt in EXTRA_FORMATS:

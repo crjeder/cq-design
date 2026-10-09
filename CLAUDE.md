@@ -144,6 +144,7 @@ or calling any script listed below.
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
     write_assembly.py        # Assembly writer: assembled-pose per-union + keep-out-zone STLs + manifest (the checks' input); assemble() poses unions
     deliverables.py          # User-facing files, all in print pose: named 3MF, per-union/plate STL, STEP/OBJ/IGES/SCAD (called by build.py)
+    estampo_export.py        # estampo.toml writer for `--formats estampo` (pure text; called by deliverables.py)
     build_template.py        # build.py template copied to build/; writes the preferred (or --formats) model files to out/
     log.py                   # Build-time logs: `attempt` (per-attempt log -> build/attempts.jsonl;
                              # fold_attempts, --hook PostToolUse entry point), `journal` (milestone
@@ -154,7 +155,8 @@ or calling any script listed below.
     regen_prompt.py          # BUILD_PLAN.json + parameters.py + sketches/ -> REGENERATE.md (Phase 4)
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
     diff_models.py           # Two-STL diff: volume summary JSON + gray/red/green diff PNG (trimesh + manifold3d)
-    preview.py               # CadQuery tessellation + matplotlib preview renderer
+    preview.py               # CadQuery tessellation + z-buffered preview renderer
+    zbuffer.py               # numpy z-buffer rasterizer + orthographic camera (no OpenGL)
     render_preview.py        # Subprocess entry point for preview.py
     section_select.py        # Picks axis-aligned section planes through bore/boss axes (--auto-sections; standalone CLI)
     mesh_io.py               # Trimesh loader + watertightness validation; lateral_area() feeds toolpath_speed.py;

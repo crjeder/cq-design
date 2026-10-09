@@ -29,15 +29,16 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place combine standoffs and clip heads.
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
-- [ ] tool to produce cable traces where cables are held press fit for 
+- [ ] tool to produce cable traces where cables are held press fit
 
 ### Skill improvement
 
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d models
-- [ ] optimisation: https://github.com/yeicor-3d/dl4to4ocp
+- [ ] optimization: https://github.com/yeicor-3d/dl4to4ocp
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
+- [ ] the skill should have a way to distinguish between geometry which is fixed and one that is flexible and can be changed by the skill any time e. g. during optimization
 
 ### Kinematic, Joints and Simulation
 
@@ -64,7 +65,6 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 ### Import / Export / View
 
 - [ ] Export: 3MF print-plate structure (slicer-specific extension) -- [details](#export-print-plate-structure)
-- [ ] Preview: z-buffered renderer (removes painter's-algorithm shading artifacts) -- [details](#preview-z-buffered-renderer)
 - [ ] Preview: render feature-detail previews more proactively -- [details](#preview-proactive-detail-renders)
 - [ ] Reverse-engineer a 3D mesh / point cloud into primitives; import STL -- [details](#reverse-engineer-mesh)
 - [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
@@ -77,7 +77,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Add textures capability
 - [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties
-- [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible)
+- [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible) -- layer height and infill already exported via `--formats estampo`; walls/support/brim remain
 
 ### Optimisation
 
@@ -835,16 +835,6 @@ Side-tagged `face_mount` docks so the planner derives union membership and
 the world joint axis automatically (interface naming: keep assembly/mating
 docks conceptually distinct from kinematic axes even though both live in the
 block `interfaces` array).
-
-### Preview z-buffered renderer
-matplotlib mplot3d has no z-buffer and depth-sorts whole triangles
-(painter's algorithm), so flat faces show cosmetic triangular shading
-patches where angled wall/fillet triangles paint over coplanar ones.
-Geometry and normals are correct (STL/3MF watertight + winding-consistent);
-the artifact is preview-only. Switching `preview.py` to a z-buffered
-renderer (trimesh + pyrender / `Scene.save_image`) removes it, at the cost
-of an OpenGL dependency that `preview.py`/`mesh_io.py` currently avoid by
-design.
 
 ### Preview proactive detail renders
 Render feature detail previews more proactively. The `--detail` capability
