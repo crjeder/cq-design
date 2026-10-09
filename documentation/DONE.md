@@ -426,3 +426,4 @@
       archive/2026-09-01-typed-request-log/` -- [details](related_projects.md#typed-request_log-entries)
 - [x] 3. Request-relative acceptance in the implementation audit -- DONE, `openspec/
       changes/archive/2026-09-01-request-relative-acceptance/` -- [details](related_projects.md#request-relative-acceptance)
+- [x] Preview: z-buffered renderer -- numpy rasterizer `src/zbuffer.py` replaced the matplotlib mplot3d path (openspec change `optional-z-buffer-renderer`); no OpenGL.
