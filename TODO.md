@@ -16,10 +16,6 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] [SUP Silencer](https://makerworld.com/de/models/2871437-paddleboard-sup-deflation-silencer#profileId-3205902)
 - [ ] beamer-halter
 
-## Defects
-
-- [ ] OCC deepcopy crash on print-orientation rotation -- [details](documentation/related_projects.md#occ-deepcopy-crash)
-
 ## Backlog
 
 ### Geometry / Blocks / Tools
