@@ -174,9 +174,6 @@ def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]
     for fmt, files in result["files"].items():
         for name, path in files.items():
             print(f"{fmt} {name}: {path}")
-    if "stl" in result["files"]:
-        how = "copied from the assembly output" if result["union_stls_copied"] else "exported"
-        print(f"per-union STLs {how}")
     if recomputed:
         print(f"recomputed (source script changed since accepted): {', '.join(recomputed)}")
 
@@ -246,7 +243,6 @@ def main() -> None:
             args.out,
             orientations,
             formats,
-            assembly_dir=os.path.join(project_root, "stl"),
             progress=lambda line: print(line, flush=True),
             profile=profile,
         )

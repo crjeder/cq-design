@@ -1,13 +1,12 @@
 """User-facing model files: named-object 3MF, STLs, and per-union STEP/OBJ/IGES/SCAD.
 
-`build/build.py` is the only caller. The assembled-pose STLs the checks read come from
-`write_assembly.py`; when those are still current (see `assembly_fresh`) the per-union STLs
-are copied from there instead of re-exported.
+`build/build.py` is the only caller. Every requested format is in print pose (the build-pose
+geometry rotated by the union's accepted orientation; build pose when it has none). The
+assembled-pose STLs the checks read come from `write_assembly.py` and are never delivered.
 """
 
 import os
 import re
-import shutil
 from collections import Counter
 from collections.abc import Callable
 
@@ -16,7 +15,6 @@ import cadquery as cq
 from estampo_export import write_estampo_toml
 from exporters import _REGISTRY
 from exporters.threemf_multi import write_named_3mf
-from freshness import pose_stale_ids, read_manifest, stale_ids
 from placement import apply_cq
 from units import is_copy, plate_of
 from write_assembly import assemble
@@ -69,29 +67,11 @@ def _union_scripts(plan: dict, parts_dir: str) -> dict[str, str]:
     return scripts
 
 
-def assembly_fresh(
-    plan: dict,
-    parts_dir: str,
-    assembly_dir: str,
-    orientations: dict[str, dict],
-) -> bool:
-    """True when `assembly_dir` holds a current `write_assembly` output for every union.
-
-    Current means the manifest exists, no union's script hash or print pose is stale
-    against the current scripts and `orientations`, and every `<union>.stl` exists.
-    """
-    manifest = read_manifest(assembly_dir)
-    if manifest is None:
-        return False
-    scripts = _union_scripts(plan, parts_dir)
-    section = manifest.get("unions", {})
-    rotates = {uid: (orientations.get(uid) or {}).get("rotate") for uid in scripts}
-    return (
-        all(uid in section for uid in scripts)
-        and not stale_ids(section, scripts)
-        and not pose_stale_ids(section, rotates)
-        and all(os.path.isfile(os.path.join(assembly_dir, f"{uid}.stl")) for uid in scripts)
-    )
+def _print_pose(asm: dict, print_orientations: dict[str, dict], uid: str) -> cq.Workplane:
+    """The union's build-pose geometry rotated into its print pose (build pose if none)."""
+    rotate = (print_orientations.get(uid) or {}).get("rotate")
+    wp = asm["authored"][uid]
+    return apply_cq(wp, {"rotate": rotate}) if rotate else wp
 
 
 def _plate_members(plan: dict) -> dict[str, list[str]]:
@@ -111,22 +91,21 @@ def write_deliverables(
     print_orientations: dict[str, dict],
     formats: list[str],
     *,
-    assembly_dir: str | None = None,
     progress: Callable[[str], None] | None = None,
     profile: dict | None = None,
 ) -> dict:
     """Write each of `formats` into `out_dir`; return what was written.
 
-    - `3mf`: `model.3mf`, each union a named object in its print orientation (assembled
-      pose when it has none), tagged with its plate.
-    - `stl`: `<union>.stl` per union (assembled pose) and a fused print-pose
-      `plate_<n>.stl` per plate holding more than one union. The per-union STLs are copied
-      from `assembly_dir` when `assembly_fresh`, else exported.
-    - `step`/`obj`/`iges`/`scad`: `<union>.<ext>` per union in the assembled pose.
+    Every format is in print pose (build pose when a union has no orientation):
+
+    - `3mf`: `model.3mf`, each union a named object, tagged with its plate.
+    - `stl`: `<union>.stl` per union and a fused `plate_<n>.stl` per plate holding more
+      than one union.
+    - `step`/`obj`/`iges`/`scad`: `<union>.<ext>` per union.
     - `estampo`: `estampo.toml` (see `estampo_export`) referencing the STLs, which are
       written too; `profile` is the parsed profile.json.
 
-    Returns `{"files": {format: {name: path}}, "union_stls_copied": bool}`. An unsupported
+    Returns `{"files": {format: {name: path}}}`. An unsupported
     key raises ValueError before anything is written. `progress` is called with a
     `[k/N] <step> <id>` line per part loaded, union STL and plate, and `writing model.3mf`.
     """
@@ -139,17 +118,8 @@ def write_deliverables(
     os.makedirs(out_dir, exist_ok=True)
     report = progress or (lambda _line: None)
 
-    copy_stls = (
-        "stl" in formats
-        and assembly_dir is not None
-        and assembly_fresh(plan, parts_dir, assembly_dir, print_orientations)
-    )
     multi_plates = {p: ids for p, ids in _plate_members(plan).items() if len(ids) > 1}
-    needs_geometry = bool(
-        set(formats) & {"3mf", *EXTRA_FORMATS}
-        or ("stl" in formats and (multi_plates or not copy_stls))
-    )
-    asm = assemble(plan, parts_dir, print_orientations, progress) if needs_geometry else {}
+    asm = assemble(plan, parts_dir, print_orientations, progress)
     files: dict[str, dict[str, str]] = {}
 
     if "3mf" in formats:
@@ -161,12 +131,7 @@ def write_deliverables(
         for k, uid in enumerate(uids, 1):
             report(f"[{k}/{len(uids)}] stl {uid}")
             path = os.path.join(out_dir, f"{uid}.stl")
-            if copy_stls and assembly_dir is not None:
-                src = os.path.join(assembly_dir, f"{uid}.stl")
-                if os.path.abspath(src) != os.path.abspath(path):
-                    shutil.copy2(src, path)
-            else:
-                cq.exporters.export(asm["placed"][uid], path)
+            cq.exporters.export(_print_pose(asm, print_orientations, uid), path)
             stls[uid] = path
         # Fuse each multi-union plate in its assembled relative poses (print-in-place), then
         # adopt the first union's print orientation so the plate sits on the bed.
@@ -190,11 +155,11 @@ def write_deliverables(
         if fmt in EXTRA_FORMATS:
             exporter, ext = _REGISTRY[fmt]
             files[fmt] = {}
-            for uid, wp in asm["placed"].items():
+            for uid in asm["placed"]:
                 path = os.path.join(out_dir, uid + ext)
-                exporter.export(wp, path)
+                exporter.export(_print_pose(asm, print_orientations, uid), path)
                 files[fmt][uid] = path
-    return {"files": files, "union_stls_copied": copy_stls}
+    return {"files": files}
 
 
 def _write_3mf(
@@ -202,18 +167,12 @@ def _write_3mf(
 ) -> str:
     """Write `model.3mf` (one named object per union) and guard its index topology."""
 
-    def _deliverable(uid: str) -> cq.Workplane:
-        orientation = print_orientations.get(uid)
-        if orientation:
-            return apply_cq(asm["authored"][uid], {"rotate": orientation.get("rotate", [])})
-        return asm["placed"][uid]
-
     names = _dedupe_object_names(asm["records"])
     objects = [
         (
             name,
             asm["plate_by_uid"][uid],
-            cq.Compound.makeCompound(_deliverable(uid).vals()),  # type: ignore[arg-type]
+            cq.Compound.makeCompound(_print_pose(asm, print_orientations, uid).vals()),  # type: ignore[arg-type]
         )
         for name, (uid, _part) in zip(names, asm["records"], strict=True)
     ]
