@@ -2,7 +2,7 @@
 """
 Render preview images of a CadQuery model for visual inspection.
 
-Renders using CadQuery tessellation and matplotlib (Agg backend).
+Renders using CadQuery tessellation and a numpy z-buffer rasterizer (zbuffer.py).
 No OpenGL or display server required.
 
 Usage (via render_preview.py subprocess):
@@ -26,15 +26,12 @@ import os
 import sys
 
 import cadquery as cq
-import mpl_toolkits.mplot3d  # noqa: F401 -- registers the '3d' projection
 import numpy as np
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import proj3d
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from PIL import Image, ImageDraw, ImageFont
 
-# Cycled leader-line offsets (screen points) so badges near the same projected
+import zbuffer
+
+# Cycled leader-line offsets (pixels at the default view size) so badges near the same projected
 # area don't stack directly on top of each other.
 _CALLOUT_OFFSETS = [(20, 20), (-20, 20), (20, -20), (-20, -20)]
 
@@ -72,19 +69,18 @@ def _get_shape(wp):
 
 
 def _tessellate(wp, tolerance=0.05):
-    """Tessellate CadQuery geometry for matplotlib rendering.
+    """Tessellate CadQuery geometry for rasterizing.
 
     Returns (verts, triangles) where:
         verts: np.ndarray of shape (N, 3)
-        triangles: list of (3, 3) float arrays suitable for Poly3DCollection
+        triangles: np.ndarray of shape (n, 3, 3)
     """
     shape = _get_shape(wp)
     raw_verts, raw_faces = shape.tessellate(tolerance, angularTolerance=0.1)
     if not raw_verts or not raw_faces:
-        return np.zeros((0, 3), dtype=float), []
+        return np.zeros((0, 3), dtype=float), np.zeros((0, 3, 3), dtype=float)
     verts = np.array([[v.x, v.y, v.z] for v in raw_verts], dtype=float)
-    triangles = [verts[list(f)] for f in raw_faces]
-    return verts, triangles
+    return verts, verts[np.array(raw_faces)]
 
 
 def _bbox_info(wp):
@@ -107,24 +103,19 @@ def _bbox_info(wp):
 def _shade_triangles(triangles):
     """Compute per-face flat-shading colors using a fixed light direction.
 
-    Returns a list of RGB tuples for use as Poly3DCollection facecolors.
+    Returns an (n, 3) float array of RGB colors in 0..1.
     """
     light = np.array([1.0, 1.0, 2.0])
     light = light / np.linalg.norm(light)
     base = np.array([0.42, 0.62, 0.92])  # medium blue
     ambient = 0.35
 
-    colors = []
-    for tri in triangles:
-        v0, v1, v2 = tri
-        normal = np.cross(v1 - v0, v2 - v0)
-        n_len = np.linalg.norm(normal)
-        if n_len > 0:
-            normal = normal / n_len
-        diffuse = max(0.0, float(np.dot(normal, light)))
-        intensity = ambient + (1.0 - ambient) * diffuse
-        colors.append(tuple(np.clip(base * intensity, 0, 1)))
-    return colors
+    normal = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    n_len = np.linalg.norm(normal, axis=1, keepdims=True)
+    normal = np.divide(normal, n_len, out=np.zeros_like(normal), where=n_len > 0)
+    diffuse = np.maximum(0.0, normal @ light)
+    intensity = ambient + (1.0 - ambient) * diffuse
+    return np.clip(base * intensity[:, None], 0, 1)
 
 
 def _cut_half(shape, axis: str, center: float, remove_positive: bool = True):
@@ -193,39 +184,26 @@ def _info_lines(wp, n_triangles, density_g_cm3=1.24, material="PLA"):
 # ---------------------------------------------------------------------------
 
 
-def _draw_callouts(ax, callouts):
+def _draw_callouts(img, callouts, project):
     """Draw a numbered badge + leader line at each callout's projected 2D position.
 
-    Projects each callout's authored-frame `center` through the panel's own live
-    camera (`ax.get_proj()`) -- pure 3D-to-2D projection, no vision or heuristic
-    placement (design D2). Badge numbers follow `callouts` order (1-based).
+    Projects each callout's authored-frame `center` through the panel's own camera
+    (`project`) -- pure 3D-to-2D projection, no vision or heuristic placement
+    (design D2). Badge numbers follow `callouts` order (1-based).
     """
-    proj = ax.get_proj()
+    draw = ImageDraw.Draw(img)
+    k = img.width / DEFAULT_VIEW_SIZE
+    font = _get_font(max(int(14 * k), 8))
+    rad = 11 * k
     for i, callout in enumerate(callouts, start=1):
-        cx, cy, cz = callout["center"]
-        x2, y2, _ = proj3d.proj_transform(cx, cy, cz, proj)
+        x, y, _ = project(callout["center"])
         dx, dy = _CALLOUT_OFFSETS[(i - 1) % len(_CALLOUT_OFFSETS)]
-        ax.annotate(
-            str(i),
-            xy=(x2, y2),
-            xycoords="data",
-            xytext=(dx, dy),
-            textcoords="offset points",
-            ha="center",
-            va="center",
-            fontsize=10,
-            fontweight="bold",
-            color="black",
-            bbox={"boxstyle": "circle,pad=0.3", "fc": "#FFD400", "ec": "black", "lw": 1.2},
-            arrowprops={
-                "arrowstyle": "-",
-                "color": "black",
-                "lw": 1.1,
-                "shrinkA": 0,
-                "shrinkB": 6,
-            },
-            annotation_clip=False,
+        bx, by = x + dx * k, y - dy * k
+        draw.line([(x, y), (bx, by)], fill="black", width=max(int(k), 1))
+        draw.ellipse(
+            [bx - rad, by - rad, bx + rad, by + rad], fill="#FFD400", outline="black", width=2
         )
+        draw.text((bx, by), str(i), fill="black", font=font, anchor="mm")
 
 
 def _render_cq_view(
@@ -240,73 +218,33 @@ def _render_cq_view(
 ):
     """Render one view of a CadQuery object. Returns a PIL Image (RGB).
 
-    Uses FigureCanvasAgg directly so no display server or global pyplot
-    state is needed.
+    Rasterizes with a numpy z-buffer (zbuffer.py): per-pixel depth test, so coplanar
+    flat faces shade uniformly. No display server or OpenGL needed. Every view is
+    orthographic.
 
     `focus` is an optional `(center_xyz, size_mm)` pair overriding the default
-    whole-mesh-fit axis limits with a fixed-size cubic window centered on a point
-    -- used for feature detail views where the feature is small relative to the
-    whole part and would be imperceptible at the default whole-part framing.
+    whole-mesh-fit framing with a fixed-size window centered on a point -- used for
+    feature detail views where the feature is small relative to the whole part and
+    would be imperceptible at the default whole-part framing.
 
-    `ortho` selects true orthographic projection (parallel edges stay parallel, no
-    perspective convergence). Used for the axis-aligned drei-tafel panels where an
-    undistorted measured projection matters; the isometric panel leaves it False.
+    `ortho` marks the axis-aligned drei-tafel panels where an undistorted measured
+    projection matters; it gates `callouts`.
 
     `callouts`, when given, is a list of `{"name": str, "center": (x, y, z)}` --
     only meaningful when `ortho=True` (see `render_multi_view`); each draws a
     numbered badge via `_draw_callouts`.
     """
     verts, triangles = _tessellate(wp)
+    bg = tuple(int(_BG_COLOR[i : i + 2], 16) for i in (1, 3, 5))
+    if len(triangles) == 0:
+        return Image.new("RGB", (width, height), bg)
 
-    dpi = 100
-    fig = Figure(figsize=(width / dpi, height / dpi), dpi=dpi)
-    canvas = FigureCanvasAgg(fig)
-    fig.patch.set_facecolor(_BG_COLOR)
-
-    ax = fig.add_subplot(111, projection="3d")
-    if ortho:
-        ax.set_proj_type("ortho")
-    ax.set_facecolor(_BG_COLOR)
-
-    if triangles:
-        # NOTE: flat faces can show triangular bright/dark patches here. This is a
-        # matplotlib mplot3d limitation, not a geometry or normals bug: mplot3d has
-        # no z-buffer and depth-sorts whole triangles by average depth (painter's
-        # algorithm). A steeply-shaded wall/fillet triangle occasionally sorts in
-        # front of a coplanar flat-face triangle and paints over it. The exported
-        # STL/3MF are watertight and winding-consistent, and _shade_triangles
-        # computes correct per-face normals (a flat top face is uniformly +Z). The
-        # artifact is cosmetic and confined to the preview. A real z-buffered
-        # renderer would remove it -- see TODO ("preview: z-buffered renderer").
-        face_colors = _shade_triangles(triangles)
-        coll = Poly3DCollection(triangles, facecolors=face_colors, edgecolor="none")
-        ax.add_collection3d(coll)
-
-        if focus is not None:
-            (mid_x, mid_y, mid_z), size = focus
-            half = max(float(size), 1.0) * 0.6
-        else:
-            # Equal-aspect axis limits fit to the whole mesh
-            x_range = verts[:, 0].max() - verts[:, 0].min()
-            y_range = verts[:, 1].max() - verts[:, 1].min()
-            z_range = verts[:, 2].max() - verts[:, 2].min()
-            half = max(x_range, y_range, z_range, 1.0) * 0.6
-            mid_x = (verts[:, 0].max() + verts[:, 0].min()) / 2
-            mid_y = (verts[:, 1].max() + verts[:, 1].min()) / 2
-            mid_z = (verts[:, 2].max() + verts[:, 2].min()) / 2
-        ax.set_xlim(mid_x - half, mid_x + half)
-        ax.set_ylim(mid_y - half, mid_y + half)
-        ax.set_zlim(mid_z - half, mid_z + half)
-
-    ax.view_init(elev=elev, azim=azim)
+    project = zbuffer.make_camera(verts, elev, azim, width, height, focus)
+    arr = zbuffer.rasterize(triangles, _shade_triangles(triangles), project, width, height, bg)
+    img = Image.fromarray(arr, "RGB")
     if callouts and ortho:
-        _draw_callouts(ax, callouts)
-    ax.set_axis_off()
-
-    canvas.draw()
-    buf = canvas.buffer_rgba()
-    img = Image.frombytes("RGBA", canvas.get_width_height(), bytes(buf))
-    return img.convert("RGB")
+        _draw_callouts(img, callouts, project)
+    return img
 
 
 def render_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW_SIZE):
