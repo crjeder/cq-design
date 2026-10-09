@@ -1,5 +1,10 @@
 # Completed tasks for V1.0
 
+- [x] OCC deepcopy crash on print-orientation rotation -- fixed via openspec changes
+      `bypass-cq-warehouse-copy-patch` (`src/cq_compat.py` restores native `Shape.copy`) and
+      `fix-orientation-bintools-deepcopy` (`placement.apply_cq` uses `BRepBuilderAPI_Transform`);
+      specs `shape-transform-safety` and `model-export`. Known gap: a part script importing
+      `cq_warehouse` directly (bypassing `blocks.hardware`) re-installs the patch.
 - [x] consolidate tasks / ideas from `Block_Sources.md`, `market_research.md`, `occ-error.md`
       and `README.md` into `TODO.md` (here). DONE: README's `Related projects` table moved to
       `info/related_projects.md` (status/relevance column dropped -- that tracking lives here);

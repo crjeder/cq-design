@@ -335,9 +335,8 @@ fluent-only.
 pocket ceiling with no flat cap) crashes inside cq_warehouse's
 deepcopy-based `Shape.copy()` -> OCC `BinTools` serialization round-trip
 (`Standard_Failure: BinTools_SurfaceSet::ReadGeometry: UnExpected
-BRep_PointRepresentation = 42`, sometimes flaky). Currently worked around by
-avoiding the triggering geometry shapes (documented in `occ-error.md`), root
-cause not fixed. Leads to investigate: replace cq_warehouse's deepcopy copy
+BRep_PointRepresentation = 42`, sometimes flaky). **Fixed** (see DONE.md); original
+leads kept for history: replace cq_warehouse's deepcopy copy
 with OCC's native `BRepBuilderAPI_Copy`; or make `write_assembly.py` rotate
 the trimesh (mesh-based) for print-oriented 3MF objects instead of the
 B-rep, sidestepping the deepcopy path entirely (the kinematic-check STLs
