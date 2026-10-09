@@ -229,54 +229,44 @@ def hex_nut_trap(nut_flat: float, nut_h: float, depth: float, d_screw: float = 0
 
 
 def keeper_lock_eye(
-    plate_w: float = 30.0,
     plate_d: float = 5.0,
-    plate_h: float = 14.0,
     strap_w: float = 4.0,
     arch_t: float = 1.6,
     leg_inner_x: float = 5.0,
     leg_h: float = 12.5,
-    leg_embed: float = 1.0,
 ) -> cq.Workplane:
-    """Eye half of a snap keeper lock: plate with a flat U-arch that flexes outward (+Y).
+    """Eye half of a snap keeper lock: a flat U-arch that flexes outward (+Y).
 
     Mates with keeper_lock_hook; both are built in one shared assembled frame
-    (X=0 centerline, Y=0 back faces, +Y outward, Z=0 at the eye plate's top edge),
+    (X=0 centerline, Y=0 back faces, +Y outward, Z=0 at the arch leg bases),
     so the locked pair lines up without a transform. The arch bridge snaps into
-    the hook's neck groove behind the head overhang.
+    the hook's neck groove behind the head overhang. No backplate: the arch
+    sits where the eye's plate front face would be and is meant to be fused
+    into the host part.
 
     Args:
-        plate_w: plate width (X) in mm
-        plate_d: plate thickness (Y) in mm; arch front face is flush with it
-        plate_h: plate height (Z, below Z=0) in mm
+        plate_d: Y of the (omitted) plate front face in mm; arch front face is flush with it
         strap_w: arch strap width in the XZ plane in mm
         arch_t: arch strap thickness (Y) in mm; sets the flex stiffness
         leg_inner_x: arch inner radius = half the opening width in mm
         leg_h: straight leg length above Z=0 before the arc starts in mm
-        leg_embed: how far the legs run into the plate for a solid union in mm
     """
     r_out = leg_inner_x + strap_w
-    plate = (
-        cq.Workplane("XY")
-        .box(plate_w, plate_d, plate_h, centered=(True, False, False))
-        .translate((0, 0, -plate_h))
-    )
     # XZ normal is -Y, so extrude(-t) grows into +Y
-    strap = (
+    return (
         cq.Workplane("XZ")
-        .moveTo(-r_out, -leg_embed)
+        .moveTo(-r_out, 0)
         .lineTo(-r_out, leg_h)
         .threePointArc((0, leg_h + r_out), (r_out, leg_h))
-        .lineTo(r_out, -leg_embed)
-        .lineTo(leg_inner_x, -leg_embed)
+        .lineTo(r_out, 0)
+        .lineTo(leg_inner_x, 0)
         .lineTo(leg_inner_x, leg_h)
         .threePointArc((0, leg_h + leg_inner_x), (-leg_inner_x, leg_h))
-        .lineTo(-leg_inner_x, -leg_embed)
+        .lineTo(-leg_inner_x, 0)
         .close()
         .extrude(-arch_t)
         .translate((0, plate_d - arch_t, 0))
     )
-    return plate.union(strap)
 
 
 def keeper_lock_hook(
@@ -288,19 +278,17 @@ def keeper_lock_hook(
     catch_overlap: float = 0.8,
     z_play: float = 0.7,
     side_gap: float = 0.5,
-    plate_w: float = 30.0,
-    plate_h: float = 22.0,
     neck_w: float = 7.0,
     head_l: float = 16.0,
     head_t: float = 1.8,
     ramp_len: float = 3.0,
     wall_min: float = 1.2,
 ) -> cq.Workplane:
-    """Hook half of a snap keeper lock: plate with a pill-shaped neck + head stud.
+    """Hook half of a snap keeper lock: pill-shaped neck + head stud (no backplate).
 
     Mates with keeper_lock_eye in the shared assembled frame (see keeper_lock_eye).
-    Pass the eye's plate_d (as eye_plate_d), arch_t, leg_h and leg_inner_x: plate
-    thickness, neck height, stud position and head width are derived from them, so
+    Pass the eye's plate_d (as eye_plate_d), arch_t, leg_h and leg_inner_x: neck
+    start, neck height, stud position and head width are derived from them, so
     the pair stays mated when either half is resized. The head has a lead-in ramp
     at its top end so the eye's arch bridge rides up and over it.
 
@@ -310,13 +298,11 @@ def keeper_lock_hook(
         leg_h: the eye's leg_h in mm
         leg_inner_x: the eye's leg_inner_x in mm
         clearance: gap between mating faces in mm; use the printer profile's
-            fit_clearance_mm.snap_fit (0.15 default). Sets plate thickness, neck
-            height and the plate's Z offset below the eye
+            fit_clearance_mm.snap_fit (0.15 default). Sets neck start Y and neck
+            height
         catch_overlap: how far the head's top tip passes the arch inner apex (Z) in mm
         z_play: Z gap between the neck's top tip and the arch inner apex in mm
         side_gap: X gap per side between head and arch opening in mm
-        plate_w: plate width (X) in mm
-        plate_h: plate height (Z) in mm; must back the whole arch (>= leg_h + leg_inner_x + strap_w)
         neck_w: neck width (X) in mm
         head_l: head length (Z) in mm
         head_t: head thickness (Y) in mm; thicker = stiffer release
@@ -329,15 +315,9 @@ def keeper_lock_hook(
     apex_z = leg_h + leg_inner_x
     stud_zc = apex_z + catch_overlap - head_l / 2
     neck_l = 2 * (apex_z - z_play - stud_zc)
-    plate_z0 = clearance
     head_y0 = plate_t + neck_t
     head_y1 = head_y0 + head_t
     head_top_z = stud_zc + head_l / 2
-    plate = (
-        cq.Workplane("XY")
-        .box(plate_w, plate_t, plate_h, centered=(True, False, False))
-        .translate((0, 0, plate_z0))
-    )
     # XZ normal is -Y, so extrude(-t) grows into +Y
     neck = (
         cq.Workplane("XZ", origin=(0, plate_t, 0))
@@ -351,7 +331,7 @@ def keeper_lock_hook(
         .slot2D(head_l, head_w, 90)
         .extrude(-head_t)
     )
-    body = plate.union(neck).union(head)
+    body = neck.union(head)
     ramp = (
         cq.Workplane("YZ")
         .polyline(
