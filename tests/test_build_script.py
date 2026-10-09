@@ -369,7 +369,7 @@ def test_build_py_stl_out_flag_is_rejected(tmp_path, skill_src):
     assert "--stl-out" in proc.stderr
 
 
-def test_build_py_copies_fresh_assembly_stls_and_regenerates_stale(tmp_path, skill_src):
+def test_build_py_stl_is_exported_and_leaves_assembly_stls_alone(tmp_path, skill_src):
     build_dir = _flat_build(tmp_path, skill_src)
     root = build_dir.parent
     _set_slicer_format(root, "stl")
@@ -381,16 +381,14 @@ def test_build_py_copies_fresh_assembly_stls_and_regenerates_stale(tmp_path, ski
         write_assembly(load_plan(str(root / "BUILD_PLAN.json")), str(build_dir), str(root / "stl"))
     finally:
         sys.path.remove(str(root / "lib"))
+    assembly_bytes = (root / "stl" / "base.stl").read_bytes()
 
-    fresh = _run(build_dir)
-    assert fresh.returncode == 0, fresh.stderr
-    assert "copied from the assembly output" in fresh.stdout
+    proc = _run(build_dir)
+
+    assert proc.returncode == 0, proc.stderr
+    assert "copied from the assembly output" not in proc.stdout
     assert (root / "out" / "base.stl").exists()
-
-    _write_part(build_dir, "base", _POST)
-    stale = _run(build_dir)
-    assert stale.returncode == 0, stale.stderr
-    assert "per-union STLs exported" in stale.stdout
+    assert (root / "stl" / "base.stl").read_bytes() == assembly_bytes
 
 
 def test_build_py_missing_slicer_block_fails_before_export(tmp_path, skill_src):

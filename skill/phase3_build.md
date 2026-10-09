@@ -243,7 +243,7 @@ at the quality gate; see `quality-gate-fix-policy`.
 
 ## Print-orientation optimization
 
-Per union, on its part-frame STL (orientation is a property of the part, not its
+Per union, on its part-frame (build pose) STL (all directions here are build pose; orientation is a property of the part, not its
 assembled pose), using the part's effective `optimize_for` (default `strength`):
 
 ```bash

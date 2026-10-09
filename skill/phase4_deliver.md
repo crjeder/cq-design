@@ -53,7 +53,7 @@ Report to the user:
      lib/     bundled build tooling
      standalone/ <part_id>.py + only the helpers they import, pyproject.toml (cadquery only)
      stl/     <part_id>.stl (assembled pose, input to the checks), export_manifest.json
-     out/     the requested model files: model.3mf, or <part_id>.stl + plate_<n>.stl, or step/obj/iges/scad per union
+     out/     the requested model files, all in print pose: model.3mf, or <part_id>.stl + plate_<n>.stl, or step/obj/iges/scad per union
      preview/ <part_id>_preview.png, _section_*.png, _detail_*.png
      ```
    - A one-line pointer to `REGENERATE.md` (see step 7)
