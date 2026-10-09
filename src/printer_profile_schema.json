@@ -86,6 +86,17 @@
         }
       }
     },
+    "fit_clearance_mm": {
+      "type": "object",
+      "description": "Mating-face clearance per fit type for this printer/material. Optional; absent means the planning prompt's built-in table (press 0.0, snap 0.15, sliding 0.25, loose 0.5).",
+      "additionalProperties": false,
+      "properties": {
+        "press_fit": {"type": "number", "minimum": 0},
+        "snap_fit": {"type": "number", "minimum": 0},
+        "sliding": {"type": "number", "minimum": 0},
+        "loose": {"type": "number", "minimum": 0}
+      }
+    },
     "printer": {
       "type": "string",
       "description": "Printer model, e.g. 'Bambu P1S', 'Prusa MK4', 'Ender 3'"
