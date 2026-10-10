@@ -19,7 +19,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 ## Defects
 
 - [ ] every feature which is named in prose has to be shown and named in preview.
-- [ ] always write the files in print position
+- [x] always write the files in print position
 
 ## Backlog
 
@@ -59,8 +59,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
       a footprint-radius node selection around a declared interface -- a mis-declared
       anchor currently produces a confident wrong number (see `fem-stress-advisor` design.md
       risk list)
-- [ ] fem: calculate required wall thickness step 1: global, step 2: regional (open question: how to do? slicer vs modell)
-- [ ] fem: more infill only for compression load. infill direction = load direction (can I choose it arbitarily? if not: use part orientation) see: https://filamentfeed.com/article/designing-for-strength-3d-prints-june-2026
+- [ ] fem: calculate required wall thickness step 1: global, step 2: regional (open question: how to do? slicer vs model)
+- [ ] fem: more infill only for compression load. infill direction = load direction see: https://filamentfeed.com/article/designing-for-strength-3d-prints-june-2026
 
 ### Import / Export / View
 
@@ -70,7 +70,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
 - [ ] Read back parameters on any user-initiated planning/authoring round
 
-### Orthers
+### Others
 
 - [ ] cover more of the workflow (slicing, parameters, print)
 - [ ] Accept Markdown / formatted UTF-8 text input
