@@ -11,8 +11,10 @@ Solving for the unknown side gives the derivation used here:
 
     world_pose(part_B) = world_pose(part_A) @ dock_A @ inverse(dock_B)
 
-`plan_validate.py`'s `_check_joints` guarantees the mate graph is a tree rooted at
-`root_part` before this module runs; no cycle handling is needed here.
+`plan.py`'s `_check_joints` guarantees every mated part is reachable from `root_part` and
+that any extra (loop-closing) edge is a rigid joint whose `edge_residual` is within
+tolerance, before this module runs. Poses come from the BFS spanning tree; closure edges
+are skipped here because the part they reach already has a pose.
 """
 
 from typing import Any
@@ -60,3 +62,31 @@ def compute_mate_poses(plan: dict) -> dict[str, Any]:
 
     del poses[root_part_id]
     return poses
+
+
+def edge_residual(plan: dict, poses: dict[str, Any], joint: dict) -> tuple[float, float]:
+    """(translation mm, rotation deg) by which `joint`'s two docks disagree under `poses`.
+
+    `poses` is `compute_mate_poses(plan)`; `root_part` is not in it, so its own
+    placement is used. Zero for a tree edge; nonzero for a loop-closure edge whose docks
+    do not compose with the rest of the ring.
+    """
+    import math
+
+    import numpy as np
+
+    from placement import to_matrix
+
+    parts_by_id = {p["id"]: p for p in plan.get("parts", [])}
+
+    def pose(pid: str) -> Any:
+        if pid in poses:
+            return poses[pid]
+        return to_matrix(parts_by_id[pid].get("placement"))
+
+    m0, m1 = joint["members"]
+    a = pose(m0["part"]) @ to_matrix(m0.get("dock"))
+    b = pose(m1["part"]) @ to_matrix(m1.get("dock"))
+    r = np.linalg.inv(b) @ a
+    cos = (np.trace(r[:3, :3]) - 1.0) / 2.0
+    return float(np.linalg.norm(r[:3, 3])), math.degrees(math.acos(max(-1.0, min(1.0, cos))))
