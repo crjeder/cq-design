@@ -910,6 +910,9 @@ the dovetail mating is declared through each wall's `interfaces` instead.
 Functionally equivalent, just not chained through the schema's joint-tree
 mechanism.
 
+Resolved by `openspec/changes/rigid-joint-loops/`: `joints` now accepts loops of rigid
+joints (closure-checked). Migrating the tower itself onto `joints` is a follow-up eval case.
+
 ### Mirrored parts dedup
 Plan states that parts are pairwise mirrored. LLM generated two files:
 "wall_a vs wall_b: You're right -- I over-built. wall_b.py is geometrically
