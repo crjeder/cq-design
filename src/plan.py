@@ -451,45 +451,68 @@ def _check_single_joint(
     return None, errors
 
 
-def _bfs_mate_tree(
-    root_part: str, adjacency: dict[str, list[str]]
-) -> tuple[dict[str, str | None], set[str]]:
-    """BFS the undirected mate graph from `root_part`.
+_CLOSURE_TOL_MM = 0.01
+_CLOSURE_TOL_DEG = 0.01
 
-    Tracks each node's parent so the edge back to where we came from isn't
-    mistaken for a cycle. Returns (parent, conflicting) -- `conflicting` holds
-    parts reachable via more than one mate path.
+
+def _bfs_mate_tree(
+    root_part: str, edges: list[tuple[str, str]]
+) -> tuple[dict[str, tuple[str, int] | None], list[int]]:
+    """BFS the undirected mate graph from `root_part`, tracking edges by joint index.
+
+    Returns (parent, closure): `parent[node]` is (parent_node, joint_index) of the
+    spanning-tree edge that reached it; `closure` lists the joint indexes of edges
+    not on the tree whose endpoints are both reached (a second joint between two
+    already-linked parts is one). The tree edge is the first in `joints` order.
     """
-    parent: dict[str, str | None] = {root_part: None}
+    adjacency: dict[str, list[tuple[str, int]]] = {}
+    for i, (a, b) in enumerate(edges):
+        adjacency.setdefault(a, []).append((b, i))
+        adjacency.setdefault(b, []).append((a, i))
+    parent: dict[str, tuple[str, int] | None] = {root_part: None}
     order = [root_part]
-    conflicting: set[str] = set()
-    i = 0
-    while i < len(order):
-        cur = order[i]
-        i += 1
-        for nxt in adjacency.get(cur, []):
-            if nxt == parent.get(cur):
-                continue
-            if nxt in parent:
-                conflicting.add(nxt)
-                continue
-            parent[nxt] = cur
-            order.append(nxt)
-    return parent, conflicting
+    tree_edges: set[int] = set()
+    for cur in order:
+        for nxt, i in adjacency.get(cur, []):
+            if nxt not in parent:
+                parent[nxt] = (cur, i)
+                tree_edges.add(i)
+                order.append(nxt)
+    closure = [i for i, (a, b) in enumerate(edges) if i not in tree_edges and a in parent]
+    return parent, closure
+
+
+def _tree_path_edges(parent: dict, a: str, b: str) -> list[int]:
+    """Joint indexes on the spanning-tree path between parts `a` and `b`."""
+
+    def chain(x: str) -> list[tuple[str, int]]:
+        out = []
+        while parent[x] is not None:
+            out.append((x, parent[x][1]))
+            x = parent[x][0]
+        return out
+
+    ca, cb = chain(a), chain(b)
+    ancestors_a = {n for n, _ in ca}
+    ancestors_b = {n for n, _ in cb}
+    return [i for n, i in ca if n not in ancestors_b] + [i for n, i in cb if n not in ancestors_a]
 
 
 def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
-    """Cross-check `joints` entries and validate the mate graph is a single tree.
+    """Cross-check `joints` entries and validate the mate graph.
 
     Each entry's `members` must reference the block's declared `emits` ids (two
-    distinct ones) and two distinct existing part ids. The mate graph (parts as
-    nodes, each `joints` entry an edge) must form a single tree rooted at
-    `root_part`: every part named in some `joints` entry must be reachable via
-    exactly one path (a second path is a conflicting mate path -- closed loops are
-    out of scope, the same tree-only boundary as the `kinematics` tree), and no
-    such part other than `root_part` itself may also declare its own `placement`
+    distinct ones) and two distinct existing part ids. Every part named in some
+    `joints` entry must be reachable from `root_part`; poses derive along the BFS
+    spanning tree. A loop-closing edge is allowed only when every joint on the loop
+    is rigid (its block has no `dof`) and its docks close within tolerance; a loop
+    through a `dof` joint is a conflicting mate path (closed kinematic chains are out
+    of scope, the same tree-only boundary as the `kinematics` tree). No part other
+    than `root_part` that the chain reaches may also declare its own `placement`
     (double-anchored).
     """
+    from blocks.validate import get_block
+
     joints = plan.get("joints", [])
     if not joints:
         return []
@@ -499,18 +522,17 @@ def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
     parts_by_id = {p["id"]: p for p in plan.get("parts", [])}
     root_part = plan.get("root_part")
 
-    adjacency: dict[str, list[str]] = {}
+    edges: list[tuple[str, str]] = []
+    edge_joints: list[dict[str, Any]] = []
     graph_parts: set[str] = set()
 
     for joint in joints:
         edge, joint_errors = _check_single_joint(joint, part_ids, inventory_path)
         errors.extend(joint_errors)
         if edge is not None:
-            a, b = edge
-            adjacency.setdefault(a, []).append(b)
-            adjacency.setdefault(b, []).append(a)
-            graph_parts.add(a)
-            graph_parts.add(b)
+            edges.append(edge)
+            edge_joints.append(joint)
+            graph_parts.update(edge)
 
     if not graph_parts:
         return errors
@@ -522,15 +544,26 @@ def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
         errors.append(f"root_part '{root_part}' is not a declared part id")
         return errors
 
-    parent, conflicting = _bfs_mate_tree(root_part, adjacency)
+    parent, closure = _bfs_mate_tree(root_part, edges)
 
-    for p in sorted(conflicting):
-        errors.append(
-            f"Part '{p}' is reachable via more than one mate path (conflicting mate path)"
-        )
+    def rigid(i: int) -> bool:
+        block = get_block(edge_joints[i]["block"], inventory_path)
+        return block is not None and not block.get("dof")
 
-    unanchored = sorted(graph_parts - set(parent) - conflicting)
-    for p in unanchored:
+    open_loops = []
+    for i in closure:
+        loop = [i, *_tree_path_edges(parent, *edges[i])]
+        bad = [edge_joints[j]["joint_id"] for j in loop if not rigid(j)]
+        if bad:
+            errors.append(
+                f"Joint '{edge_joints[i]['joint_id']}' closes a loop through non-rigid joint(s) "
+                f"{bad}: parts {edges[i][0]}/{edges[i][1]} are reachable via more than one "
+                "mate path (conflicting mate path)"
+            )
+        else:
+            open_loops.append(i)
+
+    for p in sorted(graph_parts - set(parent)):
         errors.append(f"Part '{p}' is unanchored: not reachable from root_part '{root_part}'")
 
     for p in parent:
@@ -541,6 +574,18 @@ def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
                 f"Part '{p}' is double-anchored: reachable via the mate chain but also "
                 "declares its own placement"
             )
+
+    if open_loops and not errors:
+        from mate_chain import compute_mate_poses, edge_residual
+
+        poses = compute_mate_poses(plan)
+        for i in open_loops:
+            mm, deg = edge_residual(plan, poses, edge_joints[i])
+            if mm > _CLOSURE_TOL_MM or deg > _CLOSURE_TOL_DEG:
+                errors.append(
+                    f"Joint '{edge_joints[i]['joint_id']}' does not close the loop between "
+                    f"{edges[i][0]} and {edges[i][1]}: residual {mm:.3f} mm, {deg:.3f} deg"
+                )
 
     return errors
 

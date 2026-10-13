@@ -928,6 +928,79 @@ def test_joint_cycle_rejected(plan_file):
     assert any("conflicting mate path" in e for e in errors)
 
 
+def _ring_plan(n=4, off_mm=0.0, block="dovetail_corner_joint", members=("pins", "tails")):
+    """n parts in a ring; each joint docks +10 mm along X and the ring's last joint
+    returns -(n-1)*10 so the docks compose to identity (off_mm perturbs it)."""
+    plan = json.loads(json.dumps(VALID_PLAN))
+    ids = [f"p{i}" for i in range(n)]
+    plan["parts"] = [_part(i) for i in ids]
+    plan["root_part"] = ids[0]
+    plan["joints"] = []
+    for k in range(n):
+        x = 10.0 if k < n - 1 else -(n - 1) * 10.0 + off_mm
+        plan["joints"].append(
+            {
+                "joint_id": f"j{k}",
+                "block": block,
+                "params": {},
+                "members": [
+                    {"member": members[0], "part": ids[k], "dock": {"translate_mm": [x, 0, 0]}},
+                    {"member": members[1], "part": ids[(k + 1) % n]},
+                ],
+            }
+        )
+    return plan
+
+
+def test_joint_rigid_loop_accepted(plan_file):
+    assert validate_plan(plan_file(_ring_plan())) == []
+
+
+def test_joint_rigid_loop_poses_match_spanning_tree(plan_file):
+    import numpy as np
+
+    from mate_chain import compute_mate_poses
+
+    plan = _ring_plan()
+    poses = compute_mate_poses(plan)
+    assert set(poses) == {"p1", "p2", "p3"}
+    assert np.allclose(poses["p3"][:3, 3], [30, 0, 0])
+
+
+def test_joint_rigid_loop_residual_rejected(plan_file):
+    errors = validate_plan(plan_file(_ring_plan(off_mm=2.0)))
+    assert any("does not close the loop" in e and "2.000 mm" in e for e in errors)
+
+
+def test_joint_duplicate_pair_checked(plan_file):
+    plan = _joints_plan(
+        joint_over={
+            "block": "dovetail_corner_joint",
+            "members": [{"member": "pins", "part": "door"}, {"member": "tails", "part": "wall"}],
+        }
+    )
+    dup = json.loads(json.dumps(plan["joints"][0]))
+    dup["joint_id"] = "dup"
+    plan["joints"].append(dup)
+    assert validate_plan(plan_file(plan)) == []
+    plan["joints"][1]["members"][0]["dock"] = {"translate_mm": [0, 0, 3]}
+    errors = validate_plan(plan_file(plan))
+    assert any("'dup' does not close the loop" in e for e in errors)
+
+
+def test_joint_mixed_rigid_and_hinge_loop_rejected(plan_file):
+    plan = _ring_plan()
+    plan["joints"][1].update(
+        block="pin_hinge",
+        members=[
+            {"member": "leaf_a", "part": "p1"},
+            {"member": "leaf_b", "part": "p2"},
+        ],
+    )
+    errors = validate_plan(plan_file(plan))
+    assert any("conflicting mate path" in e for e in errors)
+
+
 def test_joint_double_anchored_part_rejected(plan_file):
     plan = _joints_plan(wall_over={"placement": {"translate_mm": [0, 0, 10]}})
     errors = validate_plan(plan_file(plan))

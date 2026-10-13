@@ -366,11 +366,11 @@
     },
     "root_part": {
       "type": "string",
-      "description": "The one part anchored directly into the world: its own `placement` (identity when absent) is its edge into the assembled frame. Required when `joints` is non-empty; every other part named in a `joints` entry gets its pose derived along the mate chain from this part instead of declaring its own `placement`."
+      "description": "The one part anchored directly into the world: its own `placement` (identity when absent) is its edge into the assembled frame. Required when `joints` is non-empty; every other part named in a `joints` entry gets its pose derived along the mate chain (BFS spanning tree) from this part instead of declaring its own `placement`."
     },
     "joints": {
       "type": "array",
-      "description": "Cross-part matched-pair joints. Each entry names a matched-pair block (one whose inventory descriptor carries `emits`) and its two members, each fusing into a named part. A mated part's assembled pose is derived by composing the mate chain from `root_part`, instead of that part declaring its own `placement`. Optional; absent or empty needs no `root_part` and leaves every part's placement mechanism unchanged.",
+      "description": "Cross-part matched-pair joints. Each entry names a matched-pair block (one whose inventory descriptor carries `emits`) and its two members, each fusing into a named part. A mated part's assembled pose is derived by composing the mate chain from `root_part`, instead of that part declaring its own `placement`. Cycles are allowed only when every joint on the loop is rigid (its block has no `dof`) and the docks close; a loop through a `dof` joint is rejected. Optional; absent or empty needs no `root_part` and leaves every part's placement mechanism unchanged.",
       "items": {
         "type": "object",
         "required": ["joint_id", "block", "params", "members"],
