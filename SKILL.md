@@ -49,7 +49,7 @@ read reference documents, `inventory.json`, or preview images into this session 
 ## Coordinate system
 
 North / East / South / West / Up / Down = +Y / +X / -Y / -X / +Z / -Z. Three right-handed
-frames: the **part frame** (per part, chosen by the planner; the builder works in it), the
-**assembled frame** (shared; `pose_intent` + builder-written `placement`, rotation and
-translation only), and the **print frame** (chosen by the orientation optimizer, Z = 0 is
-the bed). Every deliverable is in print frame.
+frames: the **build pose** (per part, chosen by the planner; the builder works in it), the
+**assembly pose** (shared; `pose_intent` + builder-written `placement`, rotation and
+translation only), and the **print pose** (chosen by the orientation optimizer, Z = 0 is
+the bed). Every deliverable is in print pose.

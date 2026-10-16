@@ -270,7 +270,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 
 **`script_lint.py <script>`**: AST pre-flight lint, no options.
 
-**`edge_treatment_check.py`**: `--script` **(req)**, `--orientations FILE` (omit to classify in the authored frame).
+**`edge_treatment_check.py`**: `--script` **(req)**, `--orientations FILE` (omit to classify in the build pose).
 **`feature_presence_check.py`**: `--script` **(req)**.
 **`gridfinity_check.py`**: `--script` **(req)**, `--kind {auto,bin,baseplate}` (default `auto`), `--cells COLSxROWS` (default: read from the footprint).
 
@@ -286,7 +286,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 |---|---|---|
 | `--overhang-max-deg` | 45 | Overhang angle above which support is needed |
 | `--bridge-max-mm` | built-in | Longest span treated as a bridge |
-| `--load x,y,z` | none | Principal load direction in the authored frame |
+| `--load x,y,z` | none | Principal load direction in the build pose |
 | `--load-type` | `tension` | `tension`, `bending`, `shear`, or `compression` |
 | `--optimize-for` | `strength` | `strength`, `min_support`, `visual_quality`, `min_build_height`, or `min_print_time` |
 | `--show-face x,y,z` | inferred | Cosmetic surface normal |
@@ -294,7 +294,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 | `--fem-stress FILE` | none | `fem_check.py` result; strength = `1 - fi_p99` when status is `ok` |
 | `--speed-model FILE` | none | `toolpath_speed.py --emit-candidates` result; enables `min_print_time` ordering |
 
-**`toolpath_speed.py`**: `--script` **(req)**, `--stl FILE` (posed union STL; omit for authored-frame corner findings only), `--profile FILE` (default `profile.json` next to `--plan`), `--emit-candidates UNION` (per-candidate table for `--speed-model`; needs `--stl`).
+**`toolpath_speed.py`**: `--script` **(req)**, `--stl FILE` (posed union STL; omit for build-pose corner findings only), `--profile FILE` (default `profile.json` next to `--plan`), `--emit-candidates UNION` (per-candidate table for `--speed-model`; needs `--stl`).
 
 **`fem_check.py <step>`**: `--plan` **(req)**, `--part` **(req)**, `--mesh-size MM` **(req)**, no default by design. Needs the `fem` dependency group.
 

@@ -1462,8 +1462,8 @@ def test_positional_check_skips_interfaces_without_position_or_diameter():
 
 
 def test_positional_coincidence_after_placement_transform():
-    """Two interfaces at different authored-frame positions that land at the same
-    assembled-frame point once each part's placement is applied still flag."""
+    """Two interfaces at different build-pose positions that land at the same
+    assembly-pose point once each part's placement is applied still flag."""
     plan = _joints_plan()
     del plan["joints"]
     del plan["root_part"]

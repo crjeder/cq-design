@@ -43,7 +43,7 @@ different formulas.
 
 ### Requirement: Print time decomposes into ideal, corner, and crowding terms
 
-The system SHALL compute, for a part's authored-frame edge/face graph oriented to a given
+The system SHALL compute, for a part's build-pose edge/face graph oriented to a given
 build pose, three time quantities that satisfy
 `T_actual = T_ideal + T_corners + T_crowding` exactly:
 - `T_ideal`: total path length divided by `v_cruise`.
@@ -59,7 +59,7 @@ build pose, three time quantities that satisfy
 `speed_efficiency = T_ideal / T_actual`.
 
 #### Scenario: Terms sum to actual time
-- **WHEN** the three time quantities are computed for any part's authored-frame path
+- **WHEN** the three time quantities are computed for any part's build-pose path
 - **THEN** `T_ideal + T_corners + T_crowding` equals `T_actual` to within floating-point
   tolerance
 
@@ -181,21 +181,21 @@ explicit user approval, recorded the same way any other plan correction is recor
 - **THEN** `BUILD_PLAN.json`, plate assignment, and part count are unchanged by the
   advisor's own action
 
-### Requirement: The advisor runs in the authored frame during build and the build frame at the gate
+### Requirement: The advisor runs in build pose during build and print pose at the gate
 
 During Phase 3 part authoring, the system SHALL report corner and crowding findings using
-the part's authored-frame geometry, stating that the findings are conditional on the
+the part's build-pose geometry, stating that the findings are conditional on the
 part's eventual build orientation. At the quality-gate stage, the system SHALL recompute
 the same findings using the union's accepted print orientation, re-extracting the corner
 model from the union's geometry rigidly transformed into that orientation, producing the
 pose-real numbers reported in the delivered print recipe.
 
-#### Scenario: Authored-frame hint during part authoring
+#### Scenario: Build-pose hint during part authoring
 - **WHEN** the advisor runs during Phase 3 before an orientation has been chosen
-- **THEN** its findings are computed in the part's authored frame and state that they are
+- **THEN** its findings are computed in the part's build pose and state that they are
   conditional on final build orientation
 
-#### Scenario: Build-frame numbers at delivery
+#### Scenario: Print-pose numbers at delivery
 - **WHEN** the advisor runs at the quality gate with an accepted orientation available
 - **THEN** its findings are computed by re-extracting the corner model from the union's
   geometry transformed into that orientation, and the reported numbers reflect the

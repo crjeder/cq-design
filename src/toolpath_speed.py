@@ -334,7 +334,7 @@ def _turn_angle(d_prev, d_cur) -> float:
 
 
 def extract_corner_model(workplane: Any, junction_deviation_mm: float) -> dict | None:
-    """Corner/wall model for a union's authored-frame geometry, from `_N_SLICES`
+    """Corner/wall model for a union's build-pose geometry, from `_N_SLICES`
     representative section heights.
 
     Returns `{"corners": [...], "wall_lengths_mm": [...], "height_mm": H,
@@ -654,7 +654,7 @@ def main() -> None:
     parser.add_argument(
         "--stl",
         default=None,
-        help="Posed union STL for the layer-time/stall model; omit for the authored-frame "
+        help="Posed union STL for the layer-time/stall model; omit for the build-pose "
         "corner findings only",
     )
     parser.add_argument(

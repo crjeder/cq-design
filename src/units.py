@@ -137,7 +137,7 @@ def stl_path(stl_dir: str, union_id: str) -> str:
 def bbox_envelope(
     shapes: list[Any],
 ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-    """Authored-frame (lo, hi) bbox enveloping every CadQuery shape/solid in `shapes`, or
+    """Build-pose (lo, hi) bbox enveloping every CadQuery shape/solid in `shapes`, or
     None if none have a usable `.BoundingBox()`. Shared by `edge_treatment_check` and
     `feature_presence_check`, which construction-time-hook fillet/chamfer/cut/union to
     record positioned features and need the same min/max accumulation over their solids."""

@@ -39,7 +39,7 @@ requirement below).
 `interfaces[]` entry with both `position_mm` and `diameter_mm`, whose
 positions coincide within `feature_presence_check`'s existing position
 tolerance after each is transformed through its part's `placement` (identity
-when absent) into the assembled frame, and whose `diameter_mm` values are
+when absent) into the assembly pose, and whose `diameter_mm` values are
 within a small relative tolerance of each other — when no `joints` entry
 links the two parts. This applies whether the two interfaces' `name` fields
 are both null, both set but different, or one is null and the other set; it
@@ -50,7 +50,7 @@ above.
 - **WHEN** two parts each declare a round `interfaces[]` entry with
   `name` absent, the same `diameter_mm` (within tolerance), and
   `position_mm` that, after each part's `placement` transform, land at the
-  same assembled-frame point (within tolerance) — and no `joints` entry
+  same assembly-pose point (within tolerance) — and no `joints` entry
   links the two parts
 - **THEN** `plan.py`'s advisory findings include one naming both
   parts and noting the coincident round feature
@@ -66,7 +66,7 @@ above.
 
 #### Scenario: Different positions are not flagged
 - **WHEN** two parts each declare a round interface with the same
-  `diameter_mm` but their assembled-frame positions differ by more than the
+  `diameter_mm` but their assembly-pose positions differ by more than the
   position tolerance
 - **THEN** no positional finding is emitted for that pair
 

@@ -21,7 +21,7 @@ Detect zero-thickness fins and knife-edge folds in the exported mesh (adjacent f
 - **THEN** they are reported as a single cluster, not one per pair
 
 ### Requirement: The gate reports fins as an advisory finding
-`quality_gate._analyze_stl` SHALL emit one `sliver_fin` issue, using the shared `{source, severity, type, message, hint, ...}` contract with `severity: "warning"`, when `fold_metrics` finds any fold with an interior angle below 10 degrees. The issue SHALL carry the cluster count, the sharpest interior angle in degrees, and the location in the build frame of up to the five sharpest clusters. It SHALL NOT fail the gate on its own.
+`quality_gate._analyze_stl` SHALL emit one `sliver_fin` issue, using the shared `{source, severity, type, message, hint, ...}` contract with `severity: "warning"`, when `fold_metrics` finds any fold with an interior angle below 10 degrees. The issue SHALL carry the cluster count, the sharpest interior angle in degrees, and the location in print pose of up to the five sharpest clusters. It SHALL NOT fail the gate on its own.
 
 #### Scenario: Tangent prism fillet running past a tapered, chamfered rib
 - **WHEN** a part unions a spandrel prism fillet along a rib that tapers and has a bottom chamfer, and the prism continues past the point where the rib flank is as deep as the fillet
@@ -35,7 +35,7 @@ Detect zero-thickness fins and knife-edge folds in the exported mesh (adjacent f
 - **WHEN** a part has a deliberate wedge tip of about 20 degrees
 - **THEN** no `sliver_fin` issue is emitted for it
 
-#### Scenario: Location uses the build frame
+#### Scenario: Location uses print pose
 - **WHEN** the part's print orientation rotates the part
 - **THEN** the reported locations are in the rotated (build) frame, matching `overhang_exceeded`
 

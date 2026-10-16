@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print-orientation optimizer: choose how a union sits on the bed.
 
-For a union mesh in its authored frame, enumerate stable bed-down orientations
+For a union mesh in its build pose, enumerate stable bed-down orientations
 (convex-hull resting facets + the six axis-aligned faces) and score each on:
 
   - strength: how well the part's load direction stays in the layer plane
@@ -37,7 +37,7 @@ overhang area; see `mesh_io.support_cost`.
 
 The recommended orientation is emitted as a rotation in the placement.py
 convention (ordered X/Y/Z steps), so the model export can apply it the same way
-it applies a `placement`. It is distinct from the union's assembled-frame
+it applies a `placement`. It is distinct from the union's assembly-pose
 `placement` and never overwrites it.
 
 Usage:
@@ -274,7 +274,7 @@ def _infer_show_face(mesh: trimesh.Trimesh) -> np.ndarray:
     """Cosmetic surface guess: the outward normal of the largest planar facet.
 
     A part's most prominent flat face is the most likely "display" surface, so its
-    outward normal (in the authored frame) is used as the cosmetic direction when
+    outward normal (in the build pose) is used as the cosmetic direction when
     the plan does not declare one. Falls back to the largest single triangle when
     the mesh has no coplanar facets.
     """
@@ -649,7 +649,7 @@ def _rationale(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Optimize a union's print orientation")
-    parser.add_argument("stl", help="Union STL in its authored frame")
+    parser.add_argument("stl", help="Union STL in its build pose")
     parser.add_argument(
         "--overhang-max-deg",
         type=float,
@@ -665,7 +665,7 @@ def main() -> None:
     parser.add_argument(
         "--load",
         default=None,
-        help="Principal load direction 'x,y,z' in the authored frame; omit for a "
+        help="Principal load direction 'x,y,z' in the build pose; omit for a "
         "strength-neutral part (no load axis is guessed)",
     )
     parser.add_argument(
@@ -687,7 +687,7 @@ def main() -> None:
     parser.add_argument(
         "--show-face",
         default=None,
-        help="Cosmetic surface normal 'x,y,z' in the authored frame; omit to infer",
+        help="Cosmetic surface normal 'x,y,z' in the build pose; omit to infer",
     )
     parser.add_argument(
         "--source-script",

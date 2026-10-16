@@ -101,7 +101,7 @@ reimplementing export logic.
 
 ### Requirement: Every requested deliverable format is in print pose
 
-`build/build.py` SHALL write every requested format (`3mf`, `stl`, `step`, `obj`, `iges`, `scad`) with each union in its print pose: the union's build-pose (authored) geometry rotated by its accepted or recomputed orientation. A union with no orientation SHALL be written in build pose. No requested format SHALL be written in assembly pose. Multi-union plate STLs SHALL remain fused in their assembled relative poses and rotated into print pose.
+`build/build.py` SHALL write every requested format (`3mf`, `stl`, `step`, `obj`, `iges`, `scad`) with each union in its print pose: the union's build pose (authored) geometry rotated by its accepted or recomputed orientation. A union with no orientation SHALL be written in build pose. No requested format SHALL be written in assembly pose. Multi-union plate STLs SHALL remain fused in their assembled relative poses and rotated into print pose.
 
 #### Scenario: Per-union STL is in print pose
 - **WHEN** `build.py --formats stl` runs and a union has an accepted `rotate`
@@ -121,7 +121,7 @@ All directions given by the user or recorded in the plan or CLI flags (`load.dir
 
 #### Scenario: Load direction is build pose
 - **WHEN** a part declares `load.dir` and its print orientation is chosen
-- **THEN** the direction is applied to the part-frame mesh before the print rotation, and the rotation is reported as build -> print
+- **THEN** the direction is applied to the build-pose mesh before the print rotation, and the rotation is reported as build -> print
 
 ### Requirement: build.py reports results and signals failure via exit code
 
