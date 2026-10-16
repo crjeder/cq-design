@@ -34,7 +34,13 @@ directory), `:update` (refresh a bundled project's tooling), `:build [format]` (
 model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only). The Python
 environment lives in the plugin's data directory and survives plugin updates.
 
-### With the installer (no slash commands)
+### With the installer
+
+Claude Code loads the copy as a plugin (`cq-design@skills-dir`), so the skill and the
+`/cq-design:*` commands above both work. The installer provisions its own venv at
+`~/.claude/skills/cq-design/.venv`; `/cq-design:init` uses
+`${CLAUDE_PLUGIN_DATA}/venv` instead, so a copy install can have both. Command loading
+from a `--link` install is not verified.
 
 Run the installer from the repo
 root. It copies the skill into the Claude Code personal skills directory
