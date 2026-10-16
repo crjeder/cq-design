@@ -16,13 +16,7 @@ in a one-off shell). Substitute the literal path into every command; shell varia
 persist between calls. Every invocation is documented at the step that uses it -- never run
 `--help`. Generated output goes to the working directory.
 
-Once per working directory (all idempotent):
-
-```bash
-uv sync --project "$SKILL_DIR"
-python "$SKILL_DIR/src/init_permissions.py" .
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py" profile.json
-```
+Once per working directory (all idempotent): run `/cq-design:init` logic (see `commands/init.md`).
 
 `init_permissions.py` merges the permission patterns and hooks into
 `.claude/settings.local.json`, creates `build/`, `stl/`, `preview/`, and seeds
