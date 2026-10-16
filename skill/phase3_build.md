@@ -36,10 +36,6 @@ A correction that changes nothing leaves `intent` unchanged. Either way, advance
 `intent_ts` in the same turn -- pass `--reconciled` to the `add` above (after rewriting
 `intent`); without it `plan.py validate` and the gate fail with `intent not reconciled`.
 
-**Parameter scope.** A `parameter`-level entry changes literals only in the parts it
-targets. A value that must agree across parts routes through `joints` / `mate_chain.py`,
-never by copying the literal into a sibling part.
-
 **Sketches.** An image attached to a clarification or correction is copied to
 `sketches/<slug>-<ts>.<ext>` (`:` in `ts` replaced by `-`) and referenced from the entry's
 `images` array. Pass sketch paths to the builder in the resume message that acts on them.
