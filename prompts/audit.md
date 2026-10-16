@@ -22,7 +22,7 @@ plan's `engineering_rationale`):
 - `<part>_section_*.png`: interior cuts. Connectedness, walls, internal features.
 - `<part>_detail_*.png`: zooms on small features.
 
-Views are rendered in the part frame (the plan entry's frame: W, D, H along X, Y, Z;
+Views are rendered in the build pose (the plan entry's frame: W, D, H along X, Y, Z;
 +X East, +Y North, +Z Up). How the part sits in the model or on the print bed is decided
 elsewhere and is not judged here.
 

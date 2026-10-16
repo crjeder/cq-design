@@ -3,7 +3,7 @@
 ## Purpose
 
 Define how a build plan models a fabricated product as a set of rigid *unions*
-grouped into *plates*, each union carrying its pose in a shared assembled frame.
+grouped into *plates*, each union carrying its pose in a shared assembly pose.
 This is the structural source of truth consumed by the model-level export and the
 whole-model kinematic check.
 
@@ -12,18 +12,18 @@ whole-model kinematic check.
 ### Requirement: Each union declares its assembled placement
 
 Each union SHALL carry an optional `placement` describing its pose in the shared
-assembled frame: a `translate_mm` (`[x, y, z]`) and an ordered `rotate` list of
+assembly pose: a `translate_mm` (`[x, y, z]`) and an ordered `rotate` list of
 `{axis, angle_deg}` steps (`axis` one of `X`, `Y`, `Z`). Rotations SHALL apply in
 listed order, then the translation. An absent `placement` SHALL mean identity (the
-union is authored directly in the assembled frame). The placement SHALL be the
+union is authored directly in the assembly pose). The placement SHALL be the
 single structured source of truth for assembled position, consumed by both the
 model-level export and the kinematic check.
 
-#### Scenario: Union without placement is in the assembled frame as authored
+#### Scenario: Union without placement is in the assembly pose as authored
 - **WHEN** a union omits `placement`
-- **THEN** its as-authored geometry is treated as already in the assembled frame
+- **THEN** its as-authored geometry is treated as already in the assembly pose
 
-#### Scenario: Placement positions a union in the assembled frame
+#### Scenario: Placement positions a union in the assembly pose
 - **WHEN** a lid union declares `placement` with a rotation and translation
 - **THEN** the model export and the kinematic check both position the lid by
   applying its rotations in order followed by its translation

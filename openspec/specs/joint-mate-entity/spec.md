@@ -38,7 +38,7 @@ array of exactly two objects, each `{member, part, dock}`. `member` SHALL be one
 declared `emits` ids (the two members of one joint referencing the block's two distinct `emits`
 ids, not the same one twice); `part` SHALL be an existing part id; `dock` is optional (identity when
 absent) and reuses the existing `placement` shape (ordered `rotate` steps then `translate_mm`), but
-describes the member's pose **within its host part's own authored frame**, not the assembled frame.
+describes the member's pose **within its host part's own build pose**, not the assembly pose.
 The plan SHALL also support an optional top-level `root_part` (a part id), required when `joints` is
 non-empty: the one part anchored directly into the world (its own `placement`, unchanged from
 today's mechanism, or identity when absent).
@@ -125,7 +125,7 @@ member B (on the part to derive), the world pose of part B is computed as
 `world_pose(part_B) = world_pose(part_A) . dock_A . inverse(dock_B)`, where `dock_A`/`dock_B` are
 each member's declared `dock` transform (identity when absent). This holds because a matched-pair
 block returns both members already expressed in one shared local frame with exactly one physical
-embedding into the assembled frame, so the two paths into that frame via each part must agree; the
+embedding into the assembly pose, so the two paths into that frame via each part must agree; the
 formula is exact, not solved or optimized for. The model-level export SHALL use this derived
 transform in place of a part's own `placement` for every part reached via the mate chain, walking
 outward from `root_part`.

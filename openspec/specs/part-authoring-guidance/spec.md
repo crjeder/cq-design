@@ -46,7 +46,7 @@ risk points; building a print-in-place revolute knuckle hinge via `blocks.joints
 rather than hand-rolling knuckle/riser primitives, unless the part's geometry is
 incompatible with `pin_hinge`'s two-leaf shape, in which case a hand-rolled knuckle join
 SHALL be declared via `verify_seated` (see `runtime-boolean-verification`); and reporting
-the assembled-frame transform that carries the authored geometry into the part's stated
+the assembly-pose transform that carries the authored geometry into the part's stated
 `pose_intent` (see `assembled-pose-handback`).
 
 #### Scenario: Lint-enforced rules are stated as rules
@@ -58,7 +58,7 @@ the assembled-frame transform that carries the authored geometry into the part's
 
 #### Scenario: The pose handback is stated as a contract rule
 
-- **WHEN** `prompts/part.md` states the author's obligation to report its assembled-frame
+- **WHEN** `prompts/part.md` states the author's obligation to report its assembly pose
   transform
 - **THEN** it appears in the enumerated contract-rule list, not as goal prose, because
   the pre-export `plan_validate` run and the model export both consume its result
@@ -81,7 +81,7 @@ SHALL be stated as a recommendation the author may follow or depart from, and ne
 precondition of the part's placement being correct.
 
 This recommendation SHALL name the case it is meant to resolve: a part whose stated pose
-intent places its physical bottom away from Z=0 in the assembled frame (a "floating"
+intent places its physical bottom away from Z=0 in the assembly pose (a "floating"
 part). For that case, `prompts/part.md` SHALL pair the Z=0-bottom authoring
 recommendation with the existing `translate_mm` write-back mechanism (contract rule 6):
 author with the physical bottom at script Z=0, then report the offset as
@@ -99,9 +99,9 @@ different frame and reports the matching transform is still not incorrect.
 - **THEN** it does not instruct the author to adopt a frame the plan assumed, because the
   plan no longer assumes one
 
-#### Scenario: Floating assembled frame names the paired pattern
+#### Scenario: Floating assembly pose names the paired pattern
 - **WHEN** a part's stated pose intent places its physical bottom away from Z=0 in the
-  assembled frame
+  assembly pose
 - **THEN** `prompts/part.md` names this case and recommends authoring with the physical
   bottom at script Z=0, reporting the offset as `placement.translate_mm` (contract rule
   6) to reach the stated pose intent, rather than leaving the pairing implicit

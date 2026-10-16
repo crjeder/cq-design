@@ -115,9 +115,9 @@ means the result is mesh-independent at that size.
 
 ### Requirement: The failure criterion is anisotropic and evaluated per candidate orientation
 
-The system SHALL solve once, isotropically, in the part's authored frame, and SHALL then
+The system SHALL solve once, isotropically, in the part's build pose, and SHALL then
 evaluate the failure index for each candidate print orientation by rotating the solved
-stress tensor into that candidate's build frame. The candidate set SHALL be the one
+stress tensor into that candidate's print pose. The candidate set SHALL be the one
 enumerated by `src/print_orientation.py`, imported rather than re-derived, so both tools
 index the identical list.
 

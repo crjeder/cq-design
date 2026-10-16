@@ -6,7 +6,7 @@ Defines the planner-to-author pose contract: a part's `placement` is authored by
 whichever agent actually built the geometry, not by the planner that positioned the
 part before that geometry existed. The planner declares the assembled pose as intent
 -- a goal a reader can check against a render -- and the part author, free to choose
-whatever frame suits the geometry, reports the assembled-frame transform that carries
+whatever frame suits the geometry, reports the assembly-pose transform that carries
 its authored geometry into that stated pose. The plan is re-validated after every
 part's handback and before export, because checks that consume `placement` (such as
 the joint-contract axis arm) are only authoritative once every part has reported its
@@ -17,7 +17,7 @@ transform.
 ### Requirement: The planner declares the assembled pose as intent, not as a transform
 
 A part MAY carry an optional `pose_intent` (string): the part's goal pose in the shared
-assembled frame, stated in terms a reader can check against a render -- which way the
+assembly pose, stated in terms a reader can check against a render -- which way the
 part faces and where it sits in the model. `pose_intent` SHALL NOT restate a rotation
 sequence or translation vector; the structured form of the pose is `placement`.
 
@@ -44,7 +44,7 @@ treated by the part author as a proposal to confirm or correct, not as an error.
 ### Requirement: The part author chooses its authoring frame and returns the placement
 
 The part author SHALL be free to author the part's geometry in whatever frame suits the
-geometry, and SHALL report the assembled-frame transform for the frame it chose by
+geometry, and SHALL report the assembly-pose transform for the frame it chose by
 writing `parts[].placement` back into `BUILD_PLAN.json` after the part is accepted. The
 returned `placement` SHALL carry the part's authored geometry into the pose stated by
 `pose_intent`.
@@ -60,12 +60,12 @@ session. An absent `placement` after the write-back SHALL continue to mean ident
 - **THEN** the author writes back the `placement` that positions its own upright
   geometry, replacing the proposal
 
-#### Scenario: Author builds directly in the assembled frame
+#### Scenario: Author builds directly in the assembly pose
 - **WHEN** the authored geometry already sits in the pose `pose_intent` describes
 - **THEN** the author leaves `placement` absent, which means identity
 
 #### Scenario: A multi-union part returns one placement
-- **WHEN** one part script produces several unions in one authored frame
+- **WHEN** one part script produces several unions in one build pose
 - **THEN** the author returns the single `placement` that applies to all of that part's
   unions
 
@@ -77,7 +77,7 @@ session. An absent `placement` after the write-back SHALL continue to mean ident
 
 `prompts/part.md` SHALL include a `{{POSE_INTENT}}` substitution carrying the part's
 `pose_intent` (or an explicit "none" marker when absent), and SHALL state the author's
-obligation to report the assembled-frame transform as an enumerated contract rule.
+obligation to report the assembly-pose transform as an enumerated contract rule.
 `skill/phase3_build.md`'s substitution table SHALL define the placeholder's value, in
 both the cold (builder agent) and inline (progressive) render modes.
 

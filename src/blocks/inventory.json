@@ -354,7 +354,7 @@
       "depth": "mm wall thickness to cut through",
       "angle": "degrees roof face angle from horizontal (default 45, the overhang limit; keep >= 45)",
       "peak": "'up' (peak at +Z, default) or 'down' (peak at -Z) -- must face print-up",
-      "print_up": "print-up direction in the authored frame, pass blocks.print_up(); turns the peak toward it and overrides peak (default None)"
+      "print_up": "print-up direction in the build pose, pass blocks.print_up(); turns the peak toward it and overrides peak (default None)"
     },
     "dimensions": null,
     "interfaces": [
@@ -379,7 +379,7 @@
       "length": "mm protrusion length along the axis",
       "angle": "degrees underside face angle from horizontal (default 45, the overhang limit; keep >= 45)",
       "flat": "mm width of the flat bottom (default 1.2; clamped if >= d; 0 = sharp point)",
-      "print_up": "print-up direction in the authored frame, pass blocks.print_up(); the flat bottom faces away from it (default None: -Z)"
+      "print_up": "print-up direction in the build pose, pass blocks.print_up(); the flat bottom faces away from it (default None: -Z)"
     },
     "dimensions": null,
     "interfaces": [
@@ -1172,7 +1172,7 @@
     "name": "keeper_lock_eye",
     "module": "blocks.fasteners",
     "function": "keeper_lock_eye",
-    "use": "Eye half of a printed snap keeper lock: a flat U-arch (no backplate; fuse into the host part) that flexes outward (+Y). Pairs with keeper_lock_hook; locked, the arch bridge sits in the hook's neck groove behind the head overhang, released by flexing the arch outward over the head. Built in the shared assembled frame (X=0 centerline, Y=0 back faces, +Y outward, Z=0 at the arch leg bases), so author both parts with no pose transform. Returns a solid to use as the part body. Defaults are the PLA 0.4 mm-nozzle test-fit (opening 10 mm, arch inner R5).",
+    "use": "Eye half of a printed snap keeper lock: a flat U-arch (no backplate; fuse into the host part) that flexes outward (+Y). Pairs with keeper_lock_hook; locked, the arch bridge sits in the hook's neck groove behind the head overhang, released by flexing the arch outward over the head. Built in the shared assembly pose (X=0 centerline, Y=0 back faces, +Y outward, Z=0 at the arch leg bases), so author both parts with no pose transform. Returns a solid to use as the part body. Defaults are the PLA 0.4 mm-nozzle test-fit (opening 10 mm, arch inner R5).",
     "params": {
       "plate_d": "mm Y of the omitted plate front face; arch front face is flush with it",
       "strap_w": "mm arch strap width",
@@ -1201,7 +1201,7 @@
     "name": "keeper_lock_hook",
     "module": "blocks.fasteners",
     "function": "keeper_lock_hook",
-    "use": "Hook half of a printed snap keeper lock: a pill-shaped neck and head stud (no backplate; fuse into the host part) with a lead-in ramp. Pairs with keeper_lock_eye in the same assembled frame (see keeper_lock_eye). Pass the eye's plate_d (as eye_plate_d), arch_t, leg_h and leg_inner_x: neck start, neck height, stud position and head width are derived from them plus clearance, so the pair stays mated when either half is resized. Set clearance from the printer profile's fit_clearance_mm.snap_fit. Thicker head_t is stiffer to release and raises arch strain (about 2 % PLA limit at the original test-fit, clearance 0.4). Returns a solid to use as the part body.",
+    "use": "Hook half of a printed snap keeper lock: a pill-shaped neck and head stud (no backplate; fuse into the host part) with a lead-in ramp. Pairs with keeper_lock_eye in the same assembly pose (see keeper_lock_eye). Pass the eye's plate_d (as eye_plate_d), arch_t, leg_h and leg_inner_x: neck start, neck height, stud position and head width are derived from them plus clearance, so the pair stays mated when either half is resized. Set clearance from the printer profile's fit_clearance_mm.snap_fit. Thicker head_t is stiffer to release and raises arch strain (about 2 % PLA limit at the original test-fit, clearance 0.4). Returns a solid to use as the part body.",
     "params": {
       "eye_plate_d": "mm the eye's plate_d (arch front face Y)",
       "arch_t": "mm the eye's arch_t",

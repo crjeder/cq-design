@@ -25,10 +25,10 @@ points call for, and do not substitute a different structure for the one specifi
 5. Comment only a constraint, intent, or derivation the code cannot show (a tolerance's
    origin, a non-obvious ordering), describing the current state only -- never restate
    the next line, never a round-by-round changelog. `verify_stage` labels are exempt.
-6. Report `placement`: the transform carrying the part frame into the stated **Pose
-   intent** in the assembled frame -- an ordered `rotate` list (`{axis, angle_deg}`
+6. Report `placement`: the transform carrying the build pose into the stated **Pose
+   intent** in the assembly pose -- an ordered `rotate` list (`{axis, angle_deg}`
    steps, applied in that order) followed by `translate_mm`. Rotation and translation
-   only, never a mirror. Report `null` when the part frame already equals the stated
+   only, never a mirror. Report `null` when the build pose already equals the stated
    pose, or when the pose intent says the part is mate-chained.
 7. Report the engineering rationale (see below), derived from the script; never embed it
    in the script.
@@ -47,14 +47,14 @@ points call for, and do not substitute a different structure for the one specifi
 
 Three right-handed frames, all in mm:
 
-- **Part frame** -- the frame of this specification. W, D, H are the X, Y, Z extents;
+- **Build pose** -- the frame of this specification. W, D, H are the X, Y, Z extents;
   `wall` names and `position_mm` values below are in it. Build `result` in this frame
   (any construction workplanes are fine internally). The planner chose it for ease of
   description and construction; it need not match how the part sits in the model or on
   the bed.
-- **Assembled frame** -- shared by every part. **Pose intent** says where this part goes;
-  your `placement` (rule 6) maps the part frame into it.
-- **Print frame** -- chosen later by the orientation optimizer. Z = 0 is the print bed;
+- **Assembly pose** -- shared by every part. **Pose intent** says where this part goes;
+  your `placement` (rule 6) maps the build pose into it.
+- **Print pose** -- chosen later by the orientation optimizer. Z = 0 is the print bed;
   every deliverable is written in this frame. You do not author it.
 
 Compass words map to axes of whichever frame the field belongs to: North +Y, East +X,
@@ -119,7 +119,7 @@ instead of a beam formula:
 ```json
 {
   "load_path": "load enters at the shelf lip, reacts at the wall screws",
-  "worst_case_stress": "fillet at [12.3, 4.1, 2.0] mm (authored frame) -- from the FEM solve",
+  "worst_case_stress": "fillet at [12.3, 4.1, 2.0] mm (build pose) -- from the FEM solve",
   "check": "FEM: fi_p99=0.71 at 1.5mm mesh (concentration_ratio 2.1, distributed) -- 41% margin to allowable"
 }
 ```

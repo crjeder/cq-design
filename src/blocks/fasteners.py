@@ -237,7 +237,7 @@ def keeper_lock_eye(
 ) -> cq.Workplane:
     """Eye half of a snap keeper lock: a flat U-arch that flexes outward (+Y).
 
-    Mates with keeper_lock_hook; both are built in one shared assembled frame
+    Mates with keeper_lock_hook; both are built in one shared assembly pose
     (X=0 centerline, Y=0 back faces, +Y outward, Z=0 at the arch leg bases),
     so the locked pair lines up without a transform. The arch bridge snaps into
     the hook's neck groove behind the head overhang. No backplate: the arch
@@ -286,7 +286,7 @@ def keeper_lock_hook(
 ) -> cq.Workplane:
     """Hook half of a snap keeper lock: pill-shaped neck + head stud (no backplate).
 
-    Mates with keeper_lock_eye in the shared assembled frame (see keeper_lock_eye).
+    Mates with keeper_lock_eye in the shared assembly pose (see keeper_lock_eye).
     Pass the eye's plate_d (as eye_plate_d), arch_t, leg_h and leg_inner_x: neck
     start, neck height, stud position and head width are derived from them, so
     the pair stays mated when either half is resized. The head has a lead-in ramp

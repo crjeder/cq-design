@@ -16,7 +16,7 @@ src/
   preview.py                # headless multi-view PNG renderer (CadQuery tessellation + matplotlib)
   render_preview.py         # subprocess entry point for preview.py
   mesh_io.py                # STL loader with watertightness validation (trimesh + numpy only)
-  placement.py              # assembled-frame placement helper (cq Workplane + trimesh matrix)
+  placement.py              # assembly-pose placement helper (cq Workplane + trimesh matrix)
   mate_chain.py             # derived pose along a `joints` mate chain from root_part
   units.py                  # part -> unions / keep-out-zone expansion shared by export/validate/checks
   write_assembly.py         # assembled-pose per-union + keep-out STLs and manifest (checks' input)

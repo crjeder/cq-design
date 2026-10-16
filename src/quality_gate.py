@@ -183,11 +183,11 @@ def _run_wrapper_check(
 
 
 def _clearance_opening_zones(plan: dict, part: dict, rotate: list[dict] | None) -> list[dict]:
-    """Build-frame `{center, radius_mm}` for each of `part`'s `clearance_opening`
+    """Print-pose `{center, radius_mm}` for each of `part`'s `clearance_opening`
     interfaces (see [Hitstertower oversupport](TODO.md#hitstertower-oversupport)).
 
-    `position_mm` is the interface's center in the part's authored frame; mapped
-    through the part's `placement` (assembled frame, matching the exported STL) and
+    `position_mm` is the interface's center in the part's build pose; mapped
+    through the part's `placement` (assembly pose, matching the exported STL) and
     then the chosen print orientation's `rotate` (matching `_analyze_stl`'s posed
     mesh), so it lands in the same frame as `overhang_metrics`' `worst_location_xyz_mm`.
     `radius_mm` is the opening's half-diagonal (from `size_mm`) plus a small margin
@@ -745,7 +745,7 @@ def _run_keep_out_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) 
 
 
 def _read_orientations(script_path: str, orientation: dict | None) -> dict:
-    """Per-union print orientations for the edge-treatment rule (classified in the build frame).
+    """Per-union print orientations for the edge-treatment rule (classified in print pose).
 
     Reads `orientations.json` next to the script (the pipeline's `build/orientations.json`,
     keyed by union id) and falls back to the single `--orientation` result for this part's
@@ -772,7 +772,7 @@ def _run_hooked_stages(
 
     Their hooks patch disjoint CadQuery methods (fillet/chamfer vs cut/union), so the
     feature check runs nested inside the edge check's load. Feature-presence asserts in the
-    authored frame, so a part with a non-identity print rotate keeps its own load.
+    build pose, so a part with a non-identity print rotate keeps its own load.
     """
     from edge_treatment_check import run_edge_treatment_check
     from exporters import _load_result
@@ -807,7 +807,7 @@ def _run_hooked_stages(
 def _run_toolpath_speed_stage(
     plan: dict, plan_path: str, script_path: str, stl_dir: str
 ) -> list[dict]:
-    """Corner/crowding print-time advisory findings, in the build frame (once, outside
+    """Corner/crowding print-time advisory findings, in print pose (once, outside
     the fix loop; always advisory).
 
     Reads `motion` from `profile.json` next to the plan; a missing block is a
@@ -956,7 +956,7 @@ def _run_cosmetic_slope_stage(plan: dict, script_path: str, orientation: dict | 
     chosen pose (`cosmetic_slope_area_mm2` in the `--orientation` result). No-op unless the
     part's effective `optimize_for` is `visual_quality`; degrades to `check_skipped` when
     the orientation result (or that field) is unavailable, since the metric is only
-    meaningful in the chosen print frame -- never measured in the authored frame.
+    meaningful in the chosen print pose -- never measured in the build pose.
     """
     from units import make_issue
 
@@ -975,7 +975,7 @@ def _run_cosmetic_slope_stage(plan: dict, script_path: str, orientation: dict | 
                 "warning",
                 "check_skipped",
                 "No print orientation available; cannot measure cosmetic slope area in the "
-                "print frame.",
+                "print pose.",
                 "Pass --orientation (the part's print_orientation result) so the "
                 "cosmetic-slope check can run.",
             )

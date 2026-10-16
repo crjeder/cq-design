@@ -6,8 +6,8 @@ Resolves orientation-dependent features (teardrop peak direction) from the accep
 
 ## Requirements
 
-### Requirement: print_up reports print-up in the authored frame
-The `print_up()` helper SHALL return the print-up direction as a unit vector in the part's authored frame, derived from `CQ_PRINT_ROTATE`, and SHALL return +Z when the variable is unset.
+### Requirement: print_up reports print-up in the build pose
+The `print_up()` helper SHALL return the print-up direction as a unit vector in the part's build pose, derived from `CQ_PRINT_ROTATE`, and SHALL return +Z when the variable is unset.
 
 #### Scenario: Unset
 - **WHEN** `CQ_PRINT_ROTATE` is not set

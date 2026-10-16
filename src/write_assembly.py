@@ -2,7 +2,7 @@
 """Write the assembly: the assembled-pose STLs the whole-model checks consume.
 
 Each part in the build plan is a union (one rigid body). This loads every part's
-`result`, positions it by its `placement` into the shared assembled frame -- or, for a
+`result`, positions it by its `placement` into the shared assembly pose -- or, for a
 part reached via a `joints` mate chain, by its derived pose (`mate_chain.py`) instead --
 and writes, into one directory:
 
@@ -76,7 +76,7 @@ def load_part_unions(
 
 
 def pose_union(wp: cq.Workplane, part: dict, mate_pose: object) -> cq.Workplane:
-    """Assembled-frame pose for one of a part's unions (or keep-out zones): the part's
+    """Assembly-pose pose for one of a part's unions (or keep-out zones): the part's
     derived mate-chain pose when reached via a `joints` mate chain, else its `placement`.
     """
     if mate_pose is not None:
@@ -90,13 +90,13 @@ def assemble(
     print_orientations: dict[str, dict] | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> dict:
-    """Load every part and pose its unions and keep-out zones in the assembled frame.
+    """Load every part and pose its unions and keep-out zones in the assembly pose.
 
     `print_orientations` maps a part id to a placement-style orientation dict
     (`{"rotate": [...]}`); a part's script sees it as its finishing pose (see
     `exporters._load_result`). Returns a dict with:
 
-    - `authored`: union id -> Workplane in the part frame
+    - `authored`: union id -> Workplane in the build pose
     - `placed`: union id -> Workplane in the assembled pose
     - `records`: `[(union_id, part)]` in plan order
     - `plate_by_uid` / `plates`: plate of each union, and plate -> union ids

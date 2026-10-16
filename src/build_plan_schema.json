@@ -125,7 +125,7 @@
                   "items": {"type": "number"},
                   "minItems": 3,
                   "maxItems": 3,
-                  "description": "Feature center in the part's authored frame [x, y, z] in mm; enables the deterministic feature-presence check"
+                  "description": "Feature center in the part's build pose [x, y, z] in mm; enables the deterministic feature-presence check"
                 },
                 "diameter_mm": {
                   "type": "number",
@@ -217,14 +217,14 @@
             "type": "object",
             "additionalProperties": false,
             "required": ["dir"],
-            "description": "Principal load direction (and type) in the part's own authored frame, determined by the planner (rule 10). Drives print-orientation strength scoring: for tension/bending/shear, orientations that keep this direction in the layer plane (perpendicular to build Z) score stronger; for compression, strength is orientation-neutral since a resting load doesn't stress the interlayer bond. Omitting the whole `load` object makes strength orientation-neutral (the optimizer does NOT guess a load axis from geometry) -- only correct when the part truly carries no structural load.",
+            "description": "Principal load direction (and type) in the part's own build pose, determined by the planner (rule 10). Drives print-orientation strength scoring: for tension/bending/shear, orientations that keep this direction in the layer plane (perpendicular to build Z) score stronger; for compression, strength is orientation-neutral since a resting load doesn't stress the interlayer bond. Omitting the whole `load` object makes strength orientation-neutral (the optimizer does NOT guess a load axis from geometry) -- only correct when the part truly carries no structural load.",
             "properties": {
               "dir": {
                 "type": "array",
                 "items": {"type": "number"},
                 "minItems": 3,
                 "maxItems": 3,
-                "description": "Direction vector [x, y, z] in the authored frame; need not be unit length"
+                "description": "Direction vector [x, y, z] in the build pose; need not be unit length"
               },
               "type": {
                 "type": "string",
@@ -301,24 +301,24 @@
             "type": "object",
             "additionalProperties": false,
             "required": ["dir"],
-            "description": "Optional outward normal of the part's primary cosmetic surface in its own authored frame. Used by the 'visual_quality' optimization mode as the surface to orient face-down against the smooth bed. Omit to let the optimizer infer a cosmetic surface from geometry.",
+            "description": "Optional outward normal of the part's primary cosmetic surface in its own build pose. Used by the 'visual_quality' optimization mode as the surface to orient face-down against the smooth bed. Omit to let the optimizer infer a cosmetic surface from geometry.",
             "properties": {
               "dir": {
                 "type": "array",
                 "items": {"type": "number"},
                 "minItems": 3,
                 "maxItems": 3,
-                "description": "Direction vector [x, y, z] in the authored frame; need not be unit length"
+                "description": "Direction vector [x, y, z] in the build pose; need not be unit length"
               }
             }
           },
           "placement": {
             "allOf": [{"$ref": "#/definitions/placement"}],
-            "description": "Pose of this union in the shared assembled frame. Rotations apply in listed order, then the translation. Omit for identity (union authored directly in the assembled frame). Supplied by the part author during the build phase, as a write-back into BUILD_PLAN.json after the part is accepted -- a value present before then (e.g. from a prior plan) is a proposal for the author to confirm or correct, not an error. A part reached via a `joints` mate chain (see `joints`) MUST NOT declare its own placement -- its pose is derived."
+            "description": "Pose of this union in the shared assembly pose. Rotations apply in listed order, then the translation. Omit for identity (union authored directly in the assembly pose). Supplied by the part author during the build phase, as a write-back into BUILD_PLAN.json after the part is accepted -- a value present before then (e.g. from a prior plan) is a proposal for the author to confirm or correct, not an error. A part reached via a `joints` mate chain (see `joints`) MUST NOT declare its own placement -- its pose is derived."
           },
           "pose_intent": {
             "type": "string",
-            "description": "The part's goal pose in the shared assembled frame, stated in human-readable terms the author can check against a render (which way it faces, where it sits). Never a restatement of a rotation sequence or translation vector -- that structured form is `placement`, which the part author supplies during the build phase."
+            "description": "The part's goal pose in the shared assembly pose, stated in human-readable terms the author can check against a render (which way it faces, where it sits). Never a restatement of a rotation sequence or translation vector -- that structured form is `placement`, which the part author supplies during the build phase."
           }
         }
       }
@@ -366,7 +366,7 @@
     },
     "root_part": {
       "type": "string",
-      "description": "The one part anchored directly into the world: its own `placement` (identity when absent) is its edge into the assembled frame. Required when `joints` is non-empty; every other part named in a `joints` entry gets its pose derived along the mate chain (BFS spanning tree) from this part instead of declaring its own `placement`."
+      "description": "The one part anchored directly into the world: its own `placement` (identity when absent) is its edge into the assembly pose. Required when `joints` is non-empty; every other part named in a `joints` entry gets its pose derived along the mate chain (BFS spanning tree) from this part instead of declaring its own `placement`."
     },
     "joints": {
       "type": "array",
@@ -396,7 +396,7 @@
                 "part": {"type": "string", "description": "Id of the part whose script fuses this member in"},
                 "dock": {
                   "allOf": [{"$ref": "#/definitions/placement"}],
-                  "description": "This member's pose WITHIN its host part's own authored frame (not the assembled frame). Omit for identity."
+                  "description": "This member's pose WITHIN its host part's own build pose (not the assembly pose). Omit for identity."
                 }
               }
             }
@@ -475,9 +475,9 @@
           "items": {"type": "number"},
           "minItems": 3,
           "maxItems": 3,
-          "description": "Assembled-frame pivot point [x, y, z] in mm"
+          "description": "Assembly-pose pivot point [x, y, z] in mm"
         },
-        "axis_dir": {"type": "string", "enum": ["X", "Y", "Z"], "description": "Assembled-frame joint axis direction"},
+        "axis_dir": {"type": "string", "enum": ["X", "Y", "Z"], "description": "Assembly-pose joint axis direction"},
         "type": {"type": "string", "enum": ["revolute", "prismatic", "spherical"], "description": "Joint kinematic type"},
         "required_range": {
           "type": "array",

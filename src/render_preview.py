@@ -69,7 +69,7 @@ def _parse_detail_spec(spec: str) -> dict:
 def _parse_callout_spec(spec: str) -> dict:
     """Parse one `--callout` spec into `{name, center}`.
 
-    Format: `name=<feature>;center=x,y,z` (authored-frame center). Raises
+    Format: `name=<feature>;center=x,y,z` (build-pose center). Raises
     ValueError with a message naming the problem on any malformed spec.
     """
     parts = dict(item.split("=", 1) for item in spec.split(";") if item)

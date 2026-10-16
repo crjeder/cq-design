@@ -216,10 +216,10 @@ strength, support, visual, and stability outcome for the chosen candidate, the a
 optimization mode, and a human-readable rationale that names the mode and explains why the
 pose won under it. When the stability gate excluded one or more unstable candidates from
 consideration, the rationale SHALL note that exclusion. This output SHALL be distinct from
-the union's assembled-frame `placement`.
+the union's assembly-pose `placement`.
 
 The orientation tool SHALL accept an optional source-script path identifying the part
-script whose authored-frame geometry produced the mesh being scored. When supplied, the
+script whose build-pose geometry produced the mesh being scored. When supplied, the
 result SHALL carry that script's provenance stamp (`source_script_hash`) so the result is
 self-describing about which script version it was computed from. When omitted, the result
 SHALL carry no such stamp, and a consumer comparing against it SHALL treat the absence as
@@ -337,7 +337,7 @@ face-down). The visual score SHALL be slicer-free (a mesh proxy, not a slice).
 ### Requirement: Cosmetic surface is declared or inferred
 
 The system SHALL accept an optional cosmetic surface direction (a `show_face` outward normal
-in the part's authored frame) used by the visual score as the surface to orient face-down.
+in the part's build pose) used by the visual score as the surface to orient face-down.
 When the cosmetic surface is not declared, the system SHALL infer one from geometry (for
 example the outward normal of the largest planar face) and SHALL report that the cosmetic
 surface was inferred.

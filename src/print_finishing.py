@@ -26,7 +26,7 @@ def orientation_for(
 ) -> dict:
     """Recommended print orientation for one union's authored geometry.
 
-    `optimize_orientation` scores a mesh in its authored frame, so the result is
+    `optimize_orientation` scores a mesh in its build pose, so the result is
     exported to a throwaway STL and reloaded. Uses the part's declared `load.dir` /
     `load.type` / `show_face.dir` when present (the optimizer infers direction
     otherwise and defaults type to `tension`) and the effective `optimize_for` mode
