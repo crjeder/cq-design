@@ -9,8 +9,8 @@ an intrusion into a reserved clearance region blocks a clean pass instead of shi
 
 ### Requirement: The gate checks every union against every declared keep-out zone
 
-The quality gate SHALL, for every declared keep-out zone in the model, test its assembled-frame
-geometry for intersection against every union's assembled-frame geometry, **excluding the zone's own
+The quality gate SHALL, for every declared keep-out zone in the model, test its assembly pose
+geometry for intersection against every union's assembly-pose geometry, **excluding the zone's own
 declaring part's other real unions**. Any intersecting union SHALL cause the gate to reject the
 design rather than pass silently.
 

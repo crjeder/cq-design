@@ -36,8 +36,8 @@ quality-gate issue contract `{source, severity, type, message, hint, ...}` with
 
 #### Scenario: Measured at the chosen orientation
 
-- **WHEN** the part's chosen print orientation rotates an authored gentle up-facing slope to vertical (>= 45 degrees) in the build frame
-- **THEN** that face is not counted as a cosmetic gentle incline (the measurement is taken in the print/build frame, not the authored frame)
+- **WHEN** the part's chosen print orientation rotates an authored gentle up-facing slope to vertical (>= 45 degrees) in print pose
+- **THEN** that face is not counted as a cosmetic gentle incline (the measurement is taken in print pose, not build pose)
 
 ---
 
@@ -65,7 +65,7 @@ emits nothing, so cosmetic slopes on functional parts do not nag.
 The check SHALL degrade to a `check_skipped` warning (never a crash and never an error)
 when it cannot run: when the geometry backend (trimesh/numpy) is unavailable, or when the
 part's chosen print orientation is not available so the measurement cannot be taken in the
-build frame.
+print pose.
 
 #### Scenario: Geometry backend unavailable
 
@@ -75,4 +75,4 @@ build frame.
 #### Scenario: Orientation unavailable
 
 - **WHEN** a `visual_quality` part has no available chosen print orientation
-- **THEN** the check emits a `check_skipped` warning rather than measuring in the authored frame
+- **THEN** the check emits a `check_skipped` warning rather than measuring in the build pose

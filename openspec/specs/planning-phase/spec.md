@@ -93,13 +93,13 @@ Each part object SHALL include:
 - `interfaces` (array, may be empty)
 - `blocks_needed` (array of block names from inventory, may be empty)
 - `print_orientation` (string, required)
-- `pose_intent` (string, optional): the part's goal pose in the shared assembled frame,
+- `pose_intent` (string, optional): the part's goal pose in the shared assembly pose,
   stated as intent rather than as a rotation sequence
 
 Each `interfaces[]` entry SHALL require `type` (string) and MAY carry structured,
 machine-readable placement fields (all optional): `name` (the agreed vocabulary word for
 the feature), `wall` (one of the six face names), `position_mm` (`[x, y, z]`, the
-feature's intended center in the part's authored frame), and a size field
+feature's intended center in the part's build pose), and a size field
 (`diameter_mm` for round features, or `size_mm` as `[w, h]` for rectangular). These
 fields SHALL be defined in the schema (not free-form `additionalProperties`), so a
 declared placement is machine-readable; they remain optional so an interface may declare
@@ -138,12 +138,12 @@ user-noun naming rule is enforced by the schema rather than left to the planner.
 - **THEN** validation passes without an `assembly` field, and the schema rejects an `assembly` property if one is supplied
 
 #### Scenario: Part declares its pose as intent
-- **WHEN** a planner positions a part away from the assembled-frame origin
+- **WHEN** a planner positions a part away from the assembly-pose origin
 - **THEN** the part carries a `pose_intent` string and no planner-written `placement`
 
 #### Scenario: Plan without pose intent still validates
 - **WHEN** a part declares neither `pose_intent` nor `placement`
-- **THEN** validation passes; the part is treated as authored in the assembled frame
+- **THEN** validation passes; the part is treated as authored in the assembly pose
 
 ---
 
@@ -335,14 +335,14 @@ The script structure section of `prompts/part.md` SHALL NOT contain a placeholde
 
 ### Requirement: Build plan carries a per-part load determined by the planner
 The build plan SHALL allow a part to declare a `load`: the principal load direction (and
-optional `type`) in the part's own authored frame, used to drive print-orientation strength
+optional `type`) in the part's own build pose, used to drive print-orientation strength
 scoring. The planning phase SHALL determine and declare the principal load for every part
 whose print orientation depends on strength -- naming the real load path rather than leaving
 it to be guessed downstream -- and SHALL ask the user when the load path is genuinely unclear
 rather than omitting the field. A flat cover, lid, or panel that carries no structural
 tension/bending/shear load SHALL be declared with `load.type: "compression"` (orientation-
 neutral) so it is not tipped onto its edge. Plan validation SHALL accept the field when
-present (a direction in the authored frame) and SHALL still accept parts that omit it. When a
+present (a direction in the build pose) and SHALL still accept parts that omit it. When a
 part declares `load`, the planning summary SHALL surface it. When a part omits `load`, the
 downstream strength scoring SHALL be orientation-neutral (no load axis is inferred from
 geometry); an omitted load is a neutral default, never a fabricated bending direction.
@@ -439,7 +439,7 @@ priority, and the effective mode SHALL be available to the print-orientation opt
 ### Requirement: Build plan carries an optional per-part cosmetic surface
 
 The build plan SHALL allow a part to optionally declare a `show_face` hint: the outward
-normal of the part's primary cosmetic surface in its own authored frame, used by the
+normal of the part's primary cosmetic surface in its own build pose, used by the
 `visual_quality` optimization mode as the surface to orient face-down. Plan validation SHALL
 accept the field when present and SHALL accept parts that omit it. When a part omits
 `show_face`, the orientation optimizer infers a cosmetic surface from geometry.

@@ -146,7 +146,7 @@ def test_worst_region_tracks_steepest_face(multi_overhang_stl):
 
 def test_authored_frame_overhang_cleared_by_print_orientation(multi_overhang_stl):
     # Regression (skill_gap_quality_gate_overhang_authored_frame): the STL is written
-    # in the authored frame. Without the print rotation, the flat -Z face at z=5 reads
+    # in the build pose. Without the print rotation, the flat -Z face at z=5 reads
     # as a 90 deg overhang; rotating X+90 turns it into a vertical wall (0 deg), which
     # is what actually prints.
     without = _issues_of(

@@ -2,7 +2,7 @@
 """Feature-presence validation stage: assert plan-declared features were actually built.
 
 A plan `interfaces[]` entry may declare a structured `position_mm` (the feature's intended
-center, in the part's authored frame) and a size (`diameter_mm` or `size_mm`). This stage
+center, in the part's build pose) and a size (`diameter_mm` or `size_mm`). This stage
 confirms, deterministically, that such a feature really exists at that position -- the hard
 backstop beneath the visual per-feature review, mirroring how the `disconnected_body`
 wrapper error backs the visual connectedness question.
@@ -11,7 +11,7 @@ Interface blocks (`port_cutout`, `screw_boss`, ...) return *unpositioned* solids
 script positions them and applies them via a boolean. So the placement is captured where it
 lands: this wraps `cq.Workplane.cut` / `.union`, re-runs the part script (the
 `edge_treatment_check` pattern, via `exporters._load_result`), and records the
-authored-frame bbox center + extents of every positioned tool. That set of built features
+build-pose bbox center + extents of every positioned tool. That set of built features
 is matched against the part's declared interfaces:
 
 - no built feature within `_POS_TOL_MM` of a declared position -> `feature_absent` (error).
@@ -54,7 +54,7 @@ _SIZE_TOL_MM = 1.0
 
 
 def _tool_bbox(tool: Any) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-    """Authored-frame (center, extents) of a boolean tool argument, or None if unusable.
+    """Build-pose (center, extents) of a boolean tool argument, or None if unusable.
 
     The tool may be a Workplane (several solids) or a bare Shape; the enveloping bbox of all
     its solids is used.

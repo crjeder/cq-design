@@ -178,7 +178,7 @@ result = verify_stage(
 
 
 def screw_tool(angle, z):
-    """Teardrop hole: circle plus a 45 deg peak toward assembly -Z (print-frame +Z), so the horizontal hole prints without a flat ceiling."""
+    """Teardrop hole: circle plus a 45 deg peak toward assembly -Z (print-pose +Z), so the horizontal hole prints without a flat ceiling."""
     r = SCREW_HOLE_DIAMETER / 2
     peak = [(0, z), (r * SIN45, z - r * SIN45), (0, z - r / SIN45), (-r * SIN45, z - r * SIN45)]
     wp = cq.Workplane("YZ")

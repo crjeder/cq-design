@@ -187,7 +187,7 @@ def _info_lines(wp, n_triangles, density_g_cm3=1.24, material="PLA"):
 def _draw_callouts(img, callouts, project):
     """Draw a numbered badge + leader line at each callout's projected 2D position.
 
-    Projects each callout's authored-frame `center` through the panel's own camera
+    Projects each callout's build-pose `center` through the panel's own camera
     (`project`) -- pure 3D-to-2D projection, no vision or heuristic placement
     (design D2). Badge numbers follow `callouts` order (1-based).
     """
@@ -308,7 +308,7 @@ def render_detail_view(
 ):
     """Render a single high-resolution, zoomed-in view of a small feature.
 
-    `focus_center` is `(x, y, z)` in the part's authored frame and `focus_size` is
+    `focus_center` is `(x, y, z)` in the part's build pose and `focus_size` is
     the span (mm) of the cubic window to frame -- use roughly 2-4x the feature's
     own size so it's centered with some surrounding context, not the whole part's
     extent. Standalone file, not part of a tile: pair with a descriptive,
@@ -413,7 +413,7 @@ def render_multi_view(
     --cross-sections).
 
     `callouts`, when given, is a list of `{"name": str, "center": (x, y, z)}`
-    (authored frame) -- each gets a numbered badge + leader line on the three
+    (build pose) -- each gets a numbered badge + leader line on the three
     orthographic panels only (not isometric), and a caption legend line mapping
     badge numbers to names, in supply order. `unlocated_names` are named features
     with no known position: listed in the legend unbadged as "name (not located)"

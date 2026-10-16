@@ -13,7 +13,7 @@ a skip rather than a false failure.
 ### Requirement: The gate asserts every structured-position interface feature is present
 
 The quality gate SHALL, for each part, verify that every `interfaces[]` entry declaring a
-structured `position_mm` is realized by a feature whose authored-frame center lies within a
+structured `position_mm` is realized by a feature whose build-pose center lies within a
 position tolerance of the declared position. When no built feature matches a declared
 position, the gate SHALL emit a blocking finding; the check SHALL determine built features
 at construction time (by hooking the placement-bearing operations and re-running the part
