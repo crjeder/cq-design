@@ -30,6 +30,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place combine standoffs and clip heads.
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] tool to produce cable traces where cables are held press fit
+- [ ] [step.parts](https://www.step.parts) integration like:https://github.com/earthtojake/text-to-cad/blob/main/skills/step-parts/SKILL.md
+- [ ] change rules into advisories: make holes drop shaped --> hole found. consider drop shape like [DfAM Check](https://github.com/earthtojake/text-to-cad/blob/main/skills/dfam-check/SKILL.md)
 
 ### Skill improvement
 
