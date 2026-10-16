@@ -85,7 +85,7 @@ The wrapper (`run_cadquery_model.py`) SHALL write any intermediate STL to a temp
 ---
 
 ### Requirement: Delivery reuses the shim's loaded result when the pose matches
-When `run_cadquery_model.py --deliver` runs without `--print-rotate`, the requested formats SHALL be written from the result the shim subprocess already loaded, without a second import of the script. With `--print-rotate`, delivery SHALL still export the authored-frame result.
+When `run_cadquery_model.py --deliver` runs without `--print-rotate`, the requested formats SHALL be written from the result the shim subprocess already loaded, without a second import of the script. With `--print-rotate`, delivery SHALL still export the build-pose result.
 
 #### Scenario: Deliver without rotate
 - **WHEN** `--deliver --formats stl,3mf` is given and no `--print-rotate`
@@ -93,7 +93,7 @@ When `run_cadquery_model.py --deliver` runs without `--print-rotate`, the reques
 
 #### Scenario: Deliver with rotate
 - **WHEN** `--deliver` is given with `--print-rotate`
-- **THEN** the delivered files are the authored-frame geometry, identical to today's output
+- **THEN** the delivered files are the build-pose geometry, identical to today's output
 
 ---
 
@@ -106,4 +106,4 @@ The quality gate SHALL record fillet/chamfer edges and cut/union tool bounding b
 
 #### Scenario: Rotated part
 - **WHEN** the part has a non-identity rotate
-- **THEN** feature-presence records in the authored frame from its own load, so its findings are unchanged
+- **THEN** feature-presence records in the build pose from its own load, so its findings are unchanged

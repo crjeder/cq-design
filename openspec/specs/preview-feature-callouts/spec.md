@@ -11,7 +11,7 @@ legend that maps badge numbers to plan names.
 ### Requirement: Preview tile supports deterministic feature callouts
 
 `render_preview.py` SHALL accept a repeated `--callout "name=<n>;center=x,y,z"` flag
-(authored-frame center, same spec conventions as `--detail`). For each callout, the
+(build-pose center, same spec conventions as `--detail`). For each callout, the
 multi-view tile's three orthographic panels SHALL draw a numbered badge with a leader
 line to the feature's projected 2D position, computed by projecting the 3D center
 through the panel's own camera (no vision or heuristic placement). Badge numbers SHALL

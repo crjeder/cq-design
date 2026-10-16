@@ -20,7 +20,7 @@ def _plan(*ids):
 
 
 def _identity(*uids):
-    """Orientations map stating each union's print pose equals its authored frame."""
+    """Orientations map stating each union's print pose equals its build pose."""
     return {uid: {"rotate": []} for uid in uids}
 
 
@@ -148,7 +148,7 @@ def test_multi_union_attributes_to_correct_union(tmp_path):
 
 def test_missing_orientation_skips_instead_of_authored_frame(tmp_path):
     """A treated union with no print orientation is skipped (the rule is bed-relative), not
-    judged in the authored frame."""
+    judged in the build pose."""
     script = _script(
         tmp_path,
         "bad",

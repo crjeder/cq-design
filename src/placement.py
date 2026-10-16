@@ -1,4 +1,4 @@
-"""Assembled-frame placement: map a union's local geometry into the shared frame.
+"""Assembly-pose placement: map a union's local geometry into the shared frame.
 
 A `placement` dict (from `BUILD_PLAN.json`) has an optional ordered `rotate` list of
 `{axis, angle_deg}` steps and an optional `translate_mm` `[x, y, z]`. Rotations apply

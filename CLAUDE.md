@@ -135,10 +135,10 @@ or calling any script listed below.
     plate_clearance_check.py # Whole-model co-plated union clearance check (trimesh + fcl)
     keep_out_check.py        # Whole-model keep-out-zone check (trimesh + fcl)
     interference.py          # Shared static interference primitive (trimesh + fcl + manifold3d)
-    edge_treatment_check.py  # Per-part chamfer/fillet rule check (apply-time hook + build-frame classify)
+    edge_treatment_check.py  # Per-part chamfer/fillet rule check (apply-time hook + print-pose classify)
     gridfinity_check.py      # Per-part Gridfinity conformance check (grid/height/foot profile/mating; auto-scoped gate stage)
     feature_presence_check.py # Per-part interfaces[] position assertion
-    placement.py             # Assembled-frame placement helper (cq + trimesh)
+    placement.py             # Assembly-pose placement helper (cq + trimesh)
     mate_chain.py            # Derived pose along a `joints` mate chain from root_part
     units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
@@ -239,5 +239,6 @@ or calling any script listed below.
     test_minimal_cutout_search.py    # Parameter bisection search against a kinematics entry (CadQuery)
     test_sliver_fin.py               # Fin detection on a real part (fixtures/rim_fillet_fins.py.txt) with four zero-thickness fins (CadQuery)
     test_templates.py                # Archetype index validation + per-template lint/geometry
+    test_pose_terminology.py         # Retired frame-term guard -- fast, no CadQuery
     fixtures/
 ```

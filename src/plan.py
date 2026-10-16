@@ -262,7 +262,7 @@ def _check_nonzero_dir(plan: dict[str, Any], field: str) -> list[str]:
 def _check_placements(plan: dict[str, Any]) -> list[str]:
     """Validate each part's optional `placement` (always-run, no jsonschema needed).
 
-    Rotation axes must be X/Y/Z. This guards the assembled-frame placement the model
+    Rotation axes must be X/Y/Z. This guards the assembly-pose placement the model
     export and kinematic check consume.
     """
     errors = []
@@ -319,7 +319,7 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
     names a `block`, it must exist and carry a `dof`, and -- the joint contract -- the
     declared joint `type` and axis must be satisfied by the block's dof: the type must
     match, and the block's block-coordinate dof axis (pushed through the moving union's
-    placement) must match the plan's assembled-frame axis (revolute coaxial, prismatic
+    placement) must match the plan's assembly-pose axis (revolute coaxial, prismatic
     parallel). The range arm of the contract is the separate numeric range check in
     `kinematic_check`. Spherical joints are not contract-checked. A block-less entry (no
     `block`) is out of the contract's scope by construction: its axis and range are
@@ -366,7 +366,7 @@ def _check_kinematics(plan: dict[str, Any], inventory_path: str) -> list[str]:
         if dtype not in ("revolute", "prismatic"):
             continue
 
-        # ---- contract: axis arm (compared in the assembled frame, after placement) ----
+        # ---- contract: axis arm (compared in the assembly pose, after placement) ----
         part = union_part.get(ref)
         if part is None:  # moving_union already flagged above
             continue
@@ -700,7 +700,7 @@ def check_deferred_axis_arms(
     union's part carries no `placement` yet (the part author supplies it during the
     build phase, see `assembled-pose-handback` design D5). This reports which entries
     that affected, as a non-fatal advisory alongside `check_block_thinness` -- it does
-    not distinguish "author has not run yet" from "author chose the assembled frame",
+    not distinguish "author has not run yet" from "author chose the assembly pose",
     since absence means identity either way; the pre-export re-validation is what
     makes the axis arm authoritative again.
     """
@@ -753,7 +753,7 @@ _DIAMETER_REL_TOL = 0.05
 def _positional_round_interfaces(
     plan: dict[str, Any],
 ) -> list[tuple[str, tuple[float, float, float], float]]:
-    """(part_id, assembled-frame position, diameter_mm) for every interface carrying both
+    """(part_id, assembly-pose position, diameter_mm) for every interface carrying both
     `position_mm` and `diameter_mm`, transformed through its part's `placement` (D4)."""
     from placement import transform_point
 
@@ -770,7 +770,7 @@ def _positional_round_interfaces(
 
 
 def _check_positional_shared_interfaces(plan: dict[str, Any]) -> list[str]:
-    """Advisory: two parts' round interfaces coincide in the assembled frame (position
+    """Advisory: two parts' round interfaces coincide in the assembly pose (position
     within `feature_presence_check`'s `_POS_TOL_MM`, diameter within a small relative
     tolerance) with no `joints` entry linking the two parts. Additive to the named-
     interface check above -- independent of whether `name` matches, is null, or differs.
@@ -799,7 +799,7 @@ def _check_positional_shared_interfaces(plan: dict[str, Any]) -> list[str]:
             seen_pairs.add(pair)
             findings.append(
                 f"Parts '{pid_a}' and '{pid_b}' each declare a round interface "
-                f"(~{dia_a:.2f} mm) at coincident assembled-frame positions with no "
+                f"(~{dia_a:.2f} mm) at coincident assembly-pose positions with no "
                 "joints entry linking them; a shared vocabulary word for two genuinely "
                 "independent features is legitimate, but a shared physical mate belongs "
                 "in `joints` so its value has a single source and the mated part's pose "
@@ -811,7 +811,7 @@ def _check_positional_shared_interfaces(plan: dict[str, Any]) -> list[str]:
 
 def check_shared_interfaces(plan: dict[str, Any]) -> list[str]:
     """Advisory: one `interfaces[].name` held by parts no `joints` entry links, or two
-    parts' round interfaces coincide in the assembled frame with no `joints` entry.
+    parts' round interfaces coincide in the assembly pose with no `joints` entry.
 
     Two parts naming one feature with the same agreed vocabulary word are declaring
     one physical mate. Routed through `joints`, the pair's numbers live once in

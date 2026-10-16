@@ -364,7 +364,7 @@ def _aggregate_geometry(per_union: list[tuple[str, dict | None]]) -> dict | None
     """Combine per-union geometry into one `geometry` block for a multi-union part.
 
     Sums volume/weight/face_count and reports a per-axis bounding-box envelope across the
-    unions (a loose summary; the unions are in their own authored frames). A single union
+    unions (a loose summary; the unions are in their own build poses). A single union
     returns its own geometry unchanged.
     """
     geos = [g for _, g in per_union if g is not None]
@@ -933,7 +933,7 @@ def main():
                 _emit(args, result)
                 sys.exit(1)
 
-        # A rotated run holds the posed frame but --deliver exports the authored frame, so
+        # A rotated run holds the posed frame but --deliver exports the build pose, so
         # only an unrotated run can have the shim deliver from its own load.
         deliver_manifest = None
         if args.deliver and not args.print_rotate:

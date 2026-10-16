@@ -154,7 +154,7 @@ def teardrop_bore(
         angle: roof face angle from horizontal in degrees, default 45 (the
             overhang limit). Keep >= 45 for printability.
         peak: ``"up"`` (peak at +Z, default) or ``"down"`` (peak at -Z)
-        print_up: print-up direction in the authored frame (``blocks.print_up()``);
+        print_up: print-up direction in the build pose (``blocks.print_up()``);
             the peak is turned toward its XZ projection and overrides ``peak``.
     """
     if peak not in ("up", "down"):
@@ -195,7 +195,7 @@ def teardrop_post(
         angle: underside face angle from horizontal in degrees, default 45 (the
             overhang limit). Keep >= 45 for printability.
         flat: width of the flat bottom in mm (default 1.2; 0 = sharp point)
-        print_up: print-up direction in the authored frame (``blocks.print_up()``);
+        print_up: print-up direction in the build pose (``blocks.print_up()``);
             the flat bottom is turned to face away from its XZ projection.
     """
     r = d / 2.0

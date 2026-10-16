@@ -14,7 +14,7 @@ a legitimately-round bore share the same triangle signature -- see the classifie
 `cq.Workplane.fillet` / `.chamfer`, re-runs the part script so every call is recorded with
 the *exact* BRep direction of each edge it operates on (bores, pins, and posts never pass
 through a fillet/chamfer call, so they cannot produce a false positive), then classifies
-each edge in the **build frame**: the recorded tangents are in the part's authored frame,
+each edge in **print pose**: the recorded tangents are in the part's build pose,
 so each is rotated through the union's print orientation (`print_orientation.py`'s
 `rotate`, the same convention `placement` uses) before the horizontal/vertical test.
 
@@ -49,7 +49,7 @@ from units import (
     resolve_unions,
 )
 
-# An edge whose (build-frame) tangent is within this of horizontal counts as a horizontal
+# An edge whose (print-pose) tangent is within this of horizontal counts as a horizontal
 # edge; within this of vertical counts as a vertical edge. ~5 deg, matching the tolerance
 # print_orientation uses to call a face flat.
 _ANGLE_EPS_DEG = 5.0
@@ -78,7 +78,7 @@ def _edges_of(obj: Any) -> list[Any]:
 
 
 def _record_edge(records: list[dict], treatment: str, edge: Any) -> None:
-    """Append one edge's treatment, authored-frame tangents, and midpoint to ``records``.
+    """Append one edge's treatment, build-pose tangents, and midpoint to ``records``.
 
     Silently skips an edge whose geometry cannot be sampled (e.g. a degenerate curve),
     so a single odd edge never aborts the whole check.
@@ -131,7 +131,7 @@ def _run_with_hook(
 
 
 def _union_bbox(workplane: Any) -> tuple[float, float, float, float, float, float] | None:
-    """Authored-frame bounding box (xmin..zmax) enveloping every solid in a union, or None."""
+    """Build-pose bounding box (xmin..zmax) enveloping every solid in a union, or None."""
     envelope = bbox_envelope(workplane.vals())
     if envelope is None:
         return None
@@ -140,7 +140,7 @@ def _union_bbox(workplane: Any) -> tuple[float, float, float, float, float, floa
 
 
 def _attribute(midpoint: tuple, bboxes: list[tuple[str, tuple]]) -> str | None:
-    """Union id whose (authored-frame) bbox an edge midpoint belongs to.
+    """Union id whose (build pose) bbox an edge midpoint belongs to.
 
     Prefers bbox containment (with `_BBOX_TOL_MM` slack); on none or a tie, falls back to
     the nearest bbox center. Single-union parts always resolve to that one union.
@@ -166,9 +166,9 @@ def _attribute(midpoint: tuple, bboxes: list[tuple[str, tuple]]) -> str | None:
 
 
 def _classify(tangents: list[tuple], rotate: list[dict]) -> str:
-    """Classify an edge as ``horizontal``, ``vertical``, or ``other`` in the build frame.
+    """Classify an edge as ``horizontal``, ``vertical``, or ``other`` in print pose.
 
-    Each authored-frame tangent is rotated through the union's print orientation (`rotate`
+    Each build-pose tangent is rotated through the union's print orientation (`rotate`
     steps) before its Z-component is tested. An edge is horizontal only if *every* sample
     lies in the bed plane (a flat straight edge or a flat round rim), and vertical only if
     *every* sample is along build Z (a straight column edge); mixed samples are ``other``.
@@ -201,10 +201,10 @@ def run_edge_treatment_check(
     """Check one part script's fillet/chamfer calls against the Chamfer / Fillet rule.
 
     `orientations` maps union id -> an orientation result (uses its `rotate` to reach the
-    print frame; a `rotate` of `[]` states the print pose equals the authored frame).
-    Classification always happens in the print frame, since the rule is bed-relative: a
+    print pose; a `rotate` of `[]` states the print pose equals the build pose).
+    Classification always happens in the print pose, since the rule is bed-relative: a
     treated union absent from the map cannot be classified and is reported as a
-    `check_skipped` warning instead of being judged in the authored frame. Returns a list
+    `check_skipped` warning instead of being judged in the build pose. Returns a list
     of advisory `edge_treatment` warnings (empty when the part applies no misoriented edge
     treatment, or applies none at all).
     """
@@ -248,8 +248,8 @@ def run_edge_treatment_check(
     # tally[(uid, wanted)] -> [count, sample_authored_midpoint]
     tally: dict[tuple[str, str], list] = {}
     # Unions that apply an edge treatment but have no print orientation: the rule is
-    # bed-relative, so an edge cannot be classified without the print frame. Skip them
-    # (reported once each) rather than silently classifying in the authored frame.
+    # bed-relative, so an edge cannot be classified without the print pose. Skip them
+    # (reported once each) rather than silently classifying in the build pose.
     unoriented: set[str] = set()
     for rec in records:
         uid = _attribute(rec["midpoint"], bboxes)
@@ -275,9 +275,9 @@ def run_edge_treatment_check(
             "warning",
             "check_skipped",
             f"Union '{uid}' applies edge treatments but has no print orientation; its edges "
-            "cannot be classified in the bed-relative print frame.",
+            "cannot be classified in the bed-relative print pose.",
             "Provide the union's print orientation (build/orientations.json or --orientation) "
-            "so the chamfer/fillet check runs in the print frame.",
+            "so the chamfer/fillet check runs in the print pose.",
             union=uid,
         )
         for uid in sorted(unoriented)
@@ -293,7 +293,7 @@ def run_edge_treatment_check(
                 "edge_treatment",
                 f"Union '{uid}': {count} {edge_kind} edge(s) got a {applied}; the "
                 f"Chamfer / Fillet rule wants a {wanted} on {edge_kind} edges "
-                f"(e.g. near {loc_mm} in the authored frame).",
+                f"(e.g. near {loc_mm} in the build pose).",
                 f"Use {wanted} instead of {applied} on {edge_kind} edges ({_REASON[wanted]}). "
                 "Advisory: disregard if this edge is internal or intentionally treated.",
                 union=uid,
@@ -315,7 +315,7 @@ def main() -> None:
         "--orientations",
         default=None,
         help="Per-union orientations JSON (build/orientations.json); omit to classify in "
-        "the authored frame",
+        "the build pose",
     )
     args = parser.parse_args()
 

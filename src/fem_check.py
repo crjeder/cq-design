@@ -367,7 +367,7 @@ def _rotation_to_bed(down_normal: np.ndarray) -> np.ndarray:
 
 def failure_index(sigma: np.ndarray, s_z: float, s_shear: float, s_inplane: float) -> float:
     """FI = max(sigma_zz/S_z, tau_z/S_shear, vm_inplane/S_inplane) for a stress tensor
-    already rotated into the candidate's build frame (z = build direction)."""
+    already rotated into the candidate's print pose (z = build direction)."""
     sigma_zz = sigma[2, 2]
     tau_xz, tau_yz = sigma[0, 2], sigma[1, 2]
     tau_z = float(np.hypot(tau_xz, tau_yz))
@@ -380,7 +380,7 @@ def evaluate_orientations(
     sigmas: np.ndarray, boundary_mesh: Any, s_z: float, s_shear: float, s_inplane: float
 ) -> list[dict]:
     """Per candidate orientation (from print_orientation.enumerate_candidate_normals),
-    rotate every element's stress tensor into that candidate's build frame and report
+    rotate every element's stress tensor into that candidate's print pose and report
     fi_max / fi_p99 -- ONE solve serves every candidate; only the rotation changes."""
     from print_orientation import enumerate_candidate_normals
 
@@ -493,7 +493,7 @@ def run_fem_check(
     s_inplane = material["s_inplane_mpa"]
     candidates = evaluate_orientations(sigmas, boundary_mesh, s_z, s_shear, s_inplane)
 
-    # Peak location + concentration ratio reported against the authored-frame solve
+    # Peak location + concentration ratio reported against the build pose solve
     # (orientation-independent), matching the part's own frame that engineering_rationale
     # and the author's edits are expressed in.
     fis_authored = np.array(
@@ -507,7 +507,7 @@ def run_fem_check(
     if concentration > CONCENTRATION_THRESHOLD:
         hint = (
             "stress concentration: the peak is confined to a small neighbourhood near "
-            f"{[round(float(v), 2) for v in centroids[peak_idx]]} (authored frame) -- "
+            f"{[round(float(v), 2) for v in centroids[peak_idx]]} (build pose) -- "
             "characteristic of a sharp re-entrant corner, not an undersized section. "
             "Fillet the concave edge, or chamfer the bearing face at the load/ground "
             "interface, so the load distributes instead of terminating on an edge."
@@ -515,7 +515,7 @@ def run_fem_check(
     else:
         hint = (
             "distributed stress: the elevated failure index is spread over a real volume "
-            "around " + f"{[round(float(v), 2) for v in centroids[peak_idx]]} (authored frame) "
+            "around " + f"{[round(float(v), 2) for v in centroids[peak_idx]]} (build pose) "
             "-- the section is genuinely undersized. Thicken it, or compare the candidate "
             "orientation table for a pose that keeps this load in the layer plane."
         )
@@ -527,7 +527,7 @@ def run_fem_check(
         "part_id": part_id,
         "material": plan.get("material"),
         "assumptions": (
-            "solved isotropically (E, nu) in the part's authored frame; FDM material "
+            "solved isotropically (E, nu) in the part's build pose; FDM material "
             "anisotropy is applied only at the per-orientation failure criterion, not "
             "the stiffness; the solved geometry is the wall-thickness shell only "
             "(infill ignored) -- see the fem-wall-shell-solve design doc"

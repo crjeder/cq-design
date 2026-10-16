@@ -653,7 +653,7 @@ checks are still separate processes, each paying a fresh OCC import.
   evidence
 - same for `edge_treatment_check.py`'s classify pass where it needs the
   same shape
-- keep the standalone CLIs (build-frame reruns, tests); the JSON key is the
+- keep the standalone CLIs (print-pose reruns, tests); the JSON key is the
   fast path
 
 #### One reconciliation pass

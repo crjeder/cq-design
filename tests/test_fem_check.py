@@ -302,7 +302,7 @@ _needs_fem = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def box_step(tmp_path_factory):
-    """20x10x10 mm box centered at origin, authored frame X=long axis. Sized so a 4mm
+    """20x10x10 mm box centered at origin, build-pose X=long axis. Sized so a 4mm
     shell wall (see `_cantilever_plan`'s `wall_min_mm`) leaves a real void in every
     dimension -- the FEM advisor now solves only the wall-thickness shell, not the full
     solid, so the box must be thick enough relative to the wall for that shell to mesh

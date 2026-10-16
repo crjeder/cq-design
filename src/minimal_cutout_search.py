@@ -132,7 +132,7 @@ def set_parameter_value(script_path: str, name: str, value: float) -> None:
 
 
 def _export_part_stls(script_path: str, plan: dict, part_id: str, stl_dir: str) -> list[str]:
-    """Regenerate the assembled-frame STL(s) for one part's union(s), posed the same way
+    """Regenerate the assembly-pose STL(s) for one part's union(s), posed the same way
     `write_assembly.assemble` poses them (`placement`, or a `joints` mate-chain pose when
     present) -- so the result matches what `run_kinematic_check` expects in `stl_dir`. Every
     other union's STL already in `stl_dir` is left untouched."""

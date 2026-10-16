@@ -4,7 +4,7 @@
 
 Define the mesh-free contract check that verifies a build plan's declared joint (the
 wish) is actually realisable by the referenced block's degree of freedom (the reality).
-The check compares joint type, axis (in the assembled frame, after placement), and
+The check compares joint type, axis (in the assembly pose, after placement), and
 required range for `revolute` and `prismatic` joints, emitting structured
 `joint_contract` issues when any arm fails. Spherical joints are out of scope pending a
 future model.
@@ -44,11 +44,11 @@ the entry's axis and range are taken as author-declared and correct.
   that entry and emits no `joint_contract` issue for it, regardless of what
   `axis_dir`/`type`/`required_range` it declares
 
-### Requirement: The joint axis is matched in the assembled frame after placement
+### Requirement: The joint axis is matched in the assembly pose after placement
 
-The validator SHALL compare the plan's assembled-frame axis against the block's `dof` axis
+The validator SHALL compare the plan's assembly-pose axis against the block's `dof` axis
 expressed in block coordinates and pushed through the moving union's `placement` (rotations then
-translation) into the assembled frame. The comparison rule depends on the joint type:
+translation) into the assembly pose. The comparison rule depends on the joint type:
 
 - A `revolute` joint SHALL be **coaxial**: the transformed `dof.direction` SHALL be parallel (up to
   sign) to the plan's `axis_dir`, AND the plan's `axis_origin_mm` SHALL lie on the transformed axis
@@ -64,7 +64,7 @@ Because `placement` is supplied by the part author during the build phase (see
 `assembled-pose-handback`), the axis arm SHALL be authoritative only on a validation run
 made after the placements are in the plan -- the pre-export re-validation. On a run where
 the moving union's part carries no `placement`, the validator SHALL NOT treat the
-untransformed block axis as an assembled-frame result: it SHALL report the axis arm as
+untransformed block axis as an assembly-pose result: it SHALL report the axis arm as
 deferred for that entry, as a non-fatal advisory finding alongside the existing
 thin-block findings, and SHALL NOT emit a `joint_contract` error from it.
 

@@ -1,7 +1,7 @@
-"""Derive a mated part's assembled-frame pose by composing its `joints` mate chain.
+"""Derive a mated part's assembly pose by composing its `joints` mate chain.
 
 A matched-pair block returns both its members already expressed in one shared local
-frame with exactly one physical embedding into the assembled frame. For a `joints`
+frame with exactly one physical embedding into the assembly pose. For a `joints`
 entry linking member A (on a part whose world pose is already known) and member B
 (on the part to derive), the two paths into that shared frame must agree:
 
