@@ -220,6 +220,7 @@ or calling any script listed below.
     test_mesh_io.py                  # Trimesh loader
     test_stl_to_3mf.py               # 3MF export path
     test_cq_warehouse_integration.py # cq_warehouse fastener integration
+    test_prose_layer.py              # Paths + CLI flags in SKILL.md/commands/skill/prompts exist -- fast, no CadQuery
     test_plan.py                     # Schema validation, Phase 2 summary rendering, parameter
                                      # round-trip -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
