@@ -11,7 +11,7 @@ files in `commands/`; each states its own steps. This file is the pipeline contr
 ## Prerequisites
 
 `SKILL_DIR` is the absolute path of this file's directory (`${CLAUDE_PLUGIN_ROOT}` in a
-plugin install or an `install.sh` / `install.ps1` copy, which Claude Code loads as a plugin
+plugin install or an installer copy, which Claude Code loads as a plugin
 too), taken from the "Base directory for this skill" line (`$BASH_SOURCE` / `$PSCommandPath` resolve to the working directory
 in a one-off shell). Both install modes offer the commands; the venv is `${CLAUDE_PLUGIN_DATA}/venv`
 when set up by `/cq-design:init`, `$SKILL_DIR/.venv` from the installer. Substitute the literal path into every command; shell variables do not

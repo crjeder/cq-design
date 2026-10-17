@@ -24,7 +24,7 @@ Two separate catalogues, because they answer two different questions:
 
 | Repo | Stars | Last Push | Usability as blocks | Why |
 |---|---:|---|---|---|
-| [gumyr/cq_warehouse](https://github.com/gumyr/cq_warehouse) | 151 | 2024-01 | **High** | Already the project's `cq-warehouse` git dependency (`CLAUDE.md`, `pyproject.toml`). Threads, fasteners, gears, extended workplane ops — same CadQuery API, zero porting. Slower-moving than `bd_warehouse` (its build123d successor) but directly importable today. |
+| [gumyr/cq_warehouse](https://github.com/gumyr/cq_warehouse) | 151 | 2024-01 | **High** | Already the project's `cq-warehouse` git dependency (`pyproject.toml`). Threads, fasteners, gears, extended workplane ops — same CadQuery API, zero porting. Slower-moving than `bd_warehouse` (its build123d successor) but directly importable today. |
 | [meadiode/cq_gears](https://github.com/meadiode/cq_gears) | 160 | 2024-12 | **High** | Generates parametric spur, helical, and planetary gears directly as CadQuery objects. |
 | [JustinSDK/cqMore](https://github.com/JustinSDK/cqMore) | 63 | 2022-06 | **High** | Adds fundamental API extensions and base geometric primitives. Unmaintained since 2022 — vendor the functions you need rather than depending on it. |
 | [medicationforall/cqterrain](https://github.com/medicationforall/cqterrain) | 38 | 2026-09 | **High** | A specialized part library for terrain and structural components. |

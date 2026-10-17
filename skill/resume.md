@@ -82,7 +82,7 @@ line; the format below is what that command writes.
 To refresh a project directory's bundled tooling to the current skill:
 
 ```bash
-python ~/.claude/skills/cq-design/src/skill_version.py --compare <path-to-this-repo>   # skill stale? reinstall (install.sh / install.ps1)
+python ~/.claude/skills/cq-design/src/skill_version.py --compare <path-to-this-repo>   # skill stale? reinstall from the repo
 python ~/.claude/skills/cq-design/src/bundle_project.py --check .                    # is this project's lib/ stale?
 python ~/.claude/skills/cq-design/src/bundle_project.py .                            # refresh lib/, build.py, permissions
 uv sync

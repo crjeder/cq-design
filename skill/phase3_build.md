@@ -169,7 +169,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
 ## FEM stress advisor
 
 Only for a part whose plan `load` declares `magnitude_n`, `applied_at`, and
-`grounded_at` (see `planning-phase`'s rule 10 solvable-load-case block) -- most parts
+`grounded_at` (see `prompts/planning.md` rule 10) -- most parts
 skip this section entirely. It is an **advisor**, never a gate: it never blocks
 acceptance and adds no quality-gate stage. Run it once the part's script is accepted
 (the geometry it solves on should be final):
@@ -183,10 +183,10 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/fem_check.py" \
 ```
 
 The advisor solves only the part's wall-thickness shell, not its full solid volume (see
-`fem-wall-shell-solve`) -- the shell (`constraints.wall_min_mm`, echoed in the result's
+`reference/scripts.md`, `src/fem_check.py`) -- the shell (`constraints.wall_min_mm`, echoed in the result's
 `mesh.shell_thickness_mm`) is now the thinnest feature in the model by construction. Pick
 `--mesh-size` as a fraction of *that* thickness (a starting point, not a rule -- there is
-no derived default, see `fem-stress-advisor`); a mesh size comparable to or larger than
+no derived default); a mesh size comparable to or larger than
 the shell thickness risks too few elements through the wall to resolve at all (a singular
 or near-singular solve). Read the result:
 
@@ -235,7 +235,7 @@ Read the result:
 
 Neither is required -- the number is advisory, the author decides. This finding is
 revisited with real numbers (the accepted orientation, and the layer-time/stall model)
-at the quality gate; see `quality-gate-fix-policy`.
+at the quality gate and reported in `skill/phase4_deliver.md` step 1.
 
 ## Print-orientation optimization
 

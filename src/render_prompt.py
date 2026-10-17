@@ -423,8 +423,8 @@ def render_research(targets: str, known: str | None) -> str:
 
 
 def sourcing_corpus() -> str:
-    """The 'Phase 0 sourcing corpus' section of documentation/Block_Sources.md."""
-    md = _read(SKILL_DIR / "documentation/Block_Sources.md")
+    """The 'Phase 0 sourcing corpus' section of reference/Block_Sources.md."""
+    md = _read(SKILL_DIR / "reference/Block_Sources.md")
     section = re.search(r"(?m)^## 2\. Phase 0 sourcing corpus\n(.*)", md, re.DOTALL)
     return section.group(1).strip() if section else "(none)"
 
