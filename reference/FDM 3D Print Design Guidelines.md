@@ -50,7 +50,7 @@ Sources: house rules + Rahix, "Design for 3D-Printing" (blog.rahix.de/design-for
 - Combine fillets and chamfers to mitigate overhang issues -> replace a downward face steeper than 45° from horizontal (un-printable) with a chamfer.
 - The vertical-edge fillet's speed benefit saturates: raising the radius from sharp to
   roughly 2 mm recovers most of the achievable cornering speed at typical desktop-FDM
-  acceleration; radius beyond that buys little more (see `toolpath-speed-advisor`). A
+  acceleration; radius beyond that buys little more (see `src/toolpath_speed.py` in `scripts.md`). A
   sharp corner still deserves *some* fillet for smoother head motion even past that
   point — it costs nothing structurally and reduces vibration/wear — just don't expect
   print-time gains from over-sizing it.

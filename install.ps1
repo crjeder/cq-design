@@ -37,12 +37,10 @@ if ($Help) { Get-Help $PSCommandPath -Detailed; exit 0 }
 $SkillName = "cq-design"
 $RepoRoot = Split-Path -Parent (Resolve-Path $PSCommandPath)
 
-$Excludes = @(
-    ".claude", "info", "openspec", "tests", "src/.fossil", "src/_pycache_",
-    ".git", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache",
-    ".ruff_cache", ".cocoindex_code", ".sentrux", ".playwright-mcp",
-    ".vscode", "debug", "build", "BUILD_PLAN.json", ".fossil", ".codegraph",
-    "evals", "install.ps1", "install.sh")
+# Copied into a copy install; everything else in the repo is dev-only.
+$Allowlist = @(
+    "SKILL.md", ".claude-plugin", "commands", "skill", "prompts", "reference", "src",
+    "templates", "pyproject.toml", "uv.lock", ".python-version", "LICENSE")
 
 $SkillsDir = if ($Dest) { $Dest }
     elseif ($env:CLAUDE_SKILLS_DIR) { $env:CLAUDE_SKILLS_DIR }
@@ -79,14 +77,16 @@ if ($Link) {
 } else {
     if (Test-Path $Destination) { Remove-Item -Recurse -Force $Destination }
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-    Get-ChildItem -LiteralPath $RepoRoot -Force | Where-Object {
-        $Excludes -notcontains $_.Name
-    } | ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $Destination -Recurse -Force
+    foreach ($e in $Allowlist) {
+        $src = Join-Path $RepoRoot $e
+        if (Test-Path -LiteralPath $src) {
+            Copy-Item -LiteralPath $src -Destination $Destination -Recurse -Force
+        }
     }
-    # Prune nested __pycache__ directories the top-level filter cannot catch.
-    Get-ChildItem -LiteralPath $Destination -Recurse -Force -Directory -Filter "__pycache__" |
-        ForEach-Object { Remove-Item -Recurse -Force $_.FullName }
+    # Prune dev artifacts nested inside the copied directories.
+    Get-ChildItem -LiteralPath $Destination -Recurse -Force -Directory |
+        Where-Object { $_.Name -eq "__pycache__" -or $_.Name -eq ".fossil" -or $_.Name -like "*.egg-info" } |
+        ForEach-Object { if (Test-Path -LiteralPath $_.FullName) { Remove-Item -LiteralPath $_.FullName -Recurse -Force } }
     Write-Host "Copied skill to $Destination"
 
     # Stamp the commit that was copied, so `skill_version.py` can tell a stale

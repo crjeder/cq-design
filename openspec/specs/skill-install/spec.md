@@ -5,15 +5,18 @@
 A cross-platform installer that places the cq-design skill in the Claude Code
 personal skills directory and provisions its Python environment, with idempotent
 re-install and uninstall support.
-
 ## Requirements
-
 ### Requirement: One-command install into the skills directory
 
 The installer SHALL place the cq-design skill into the Claude Code personal
 skills directory so Claude Code can discover it. The default destination SHALL
 be `~/.claude/skills/cq-design/`, overridable via a destination flag or the
-`CLAUDE_SKILLS_DIR` environment variable.
+`CLAUDE_SKILLS_DIR` environment variable. A copy install SHALL contain only an
+explicit allowlist of repository entries: `SKILL.md`, `.claude-plugin/`,
+`commands/`, `skill/`, `prompts/`, `reference/`, `src/`, `templates/`,
+`pyproject.toml`, `uv.lock`, `.python-version`, and `LICENSE`. Within the copied
+entries, `__pycache__/`, `*.egg-info/`, and `.fossil/` directories SHALL be
+pruned. `install.sh` and `install.ps1` SHALL carry the same allowlist.
 
 #### Scenario: Fresh install to default location
 
@@ -29,9 +32,25 @@ be `~/.claude/skills/cq-design/`, overridable via a destination flag or the
 
 #### Scenario: Throwaway artifacts excluded
 
-- **WHEN** the installer copies the skill
-- **THEN** `.git`, `.venv`, `__pycache__`, cache directories, `build/`, and
-  `BUILD_PLAN.json` are NOT copied to the destination
+- **WHEN** the installer copies the skill from a checkout that also holds
+  `TODO.md`, `documentation/`, `tests/`, `evals/`, `openspec/`, `CLAUDE.md`,
+  `FILES.md`, `README.md`, `.git`, `.venv`, `build/`, `BUILD_PLAN.json`, and the
+  installer scripts
+- **THEN** none of those are present in the destination
+- **AND** every allowlisted entry present in the checkout is present in the
+  destination
+
+#### Scenario: Dev artifacts inside src are pruned
+
+- **WHEN** the checkout's `src/` contains `cq_design_skill.egg-info/`, `.fossil/`,
+  or `__pycache__/` directories
+- **THEN** none of them are present under the destination's `src/`
+
+#### Scenario: Installers agree
+
+- **WHEN** the test suite compares the allowlists in `install.sh` and
+  `install.ps1`
+- **THEN** they name the same entries
 
 ### Requirement: Environment provisioning
 
@@ -101,3 +120,4 @@ the other platform's shell.
 
 - **WHEN** a Windows user runs the PowerShell installer
 - **THEN** the install completes using only PowerShell and `uv`
+
