@@ -90,3 +90,25 @@ def test_cli_flags_match_argparse(prose):
         args = re.sub(r"\"[^\"]*\"|'[^']*'", "", m.group(2))  # drop quoted text
         bad += [f"{m.group(1)}.py {f}" for f in FLAG_RE.findall(args) if f not in known]
     assert not bad, f"{prose.name} uses flags unknown to argparse: {sorted(set(bad))}"
+
+
+SHIPPED = PROSE + sorted((ROOT / "reference").glob("*.md"))
+REPO_ONLY_RE = re.compile(
+    r"(?<![\w.-])(install\.(?:sh|ps1)|(?:openspec|tests|evals|documentation)/|TODO\.md|FILES\.md|CLAUDE\.md)"
+)
+SPEC_NAMES = {d.name for d in (ROOT / "openspec" / "specs").iterdir() if d.is_dir()}
+
+
+@pytest.mark.parametrize("prose", SHIPPED, ids=[p.relative_to(ROOT).as_posix() for p in SHIPPED])
+def test_shipped_prose_has_no_repo_only_refs(prose):
+    text = prose.read_text(encoding="utf-8")
+    bad = set(REPO_ONLY_RE.findall(text))
+    bad |= {t for t in re.findall(r"`([a-z0-9-]+)`", text) if t in SPEC_NAMES}
+    assert not bad, f"{prose.name} references files absent from an install: {sorted(bad)}"
+
+
+def test_installers_share_allowlist():
+    sh = re.search(r"ALLOWLIST=\((.*?)\)", (ROOT / "install.sh").read_text(), re.S)
+    ps = re.search(r"\$Allowlist = @\((.*?)\)", (ROOT / "install.ps1").read_text(), re.S)
+    assert sh and ps, "both installers must define an allowlist"
+    assert set(sh.group(1).split()) == set(re.findall(r"\"([^\"]+)\"", ps.group(1)))

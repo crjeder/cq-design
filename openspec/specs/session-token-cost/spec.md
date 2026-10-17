@@ -6,9 +6,7 @@ Record the billed token cost of a Claude Code session into `build/cost.json` in 
 working directory the skill runs in -- not only eval-harness runs -- so any past run can
 be cost-post-evaluated later. A running session cannot observe its own usage; this is a
 post-hoc read of the session transcript, wired as a `Stop` hook.
-
 ## Requirements
-
 ### Requirement: Session token cost is recorded per working directory
 
 The system SHALL provide `src/session_cost.py`, a stdlib-only tool that reads a
@@ -17,7 +15,7 @@ sum each assistant turn's reported usage -- input tokens, output tokens, cache
 read tokens, and cache creation tokens -- grouped by model, and SHALL separate
 turns produced by the main session from turns produced by spawned subagents
 (transcript sidechain entries). It SHALL price the totals against the
-`evals/model_prices.json` table (input and output rates per model, unknown model
+`src/model_prices.json` table (input and output rates per model, unknown model
 falling back to the `default` entry), with cache read priced as an approximate
 0.1x of the input rate and cache creation as an approximate 1.25x, and SHALL
 record the multipliers it used in the output.
@@ -82,3 +80,4 @@ re-run.
 - **WHEN** the self-contained build environment is assembled for delivery
 - **THEN** `build/cost.json` is not copied into `lib/` and does not appear in the
   delivered project tree
+

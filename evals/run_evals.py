@@ -14,7 +14,7 @@ temp working directory, then scores the result:
 Metrics per case and aggregated: first-shot success rate, mean attempts-to-
 pass, symmetric Chamfer distance (mm) against the golden meshes (bbox-center
 aligned, no rotation solving), and estimated cost per accepted part from
-telemetry prompt sizes and `model_prices.json`.
+telemetry prompt sizes and `src/model_prices.json`.
 
 Produced solids are enumerated from the run's `stl/` directory (per
 `write_assembly`'s naming contract, excluding fused `plate_*.stl` and
@@ -46,7 +46,7 @@ from scipy.optimize import linear_sum_assignment
 EVALS_DIR = Path(__file__).parent
 REPO_ROOT = EVALS_DIR.parent
 CASES_DIR = EVALS_DIR / "cases"
-PRICES_PATH = EVALS_DIR / "model_prices.json"
+PRICES_PATH = REPO_ROOT / "src" / "model_prices.json"
 SKILL_CONFIG_SRC = (
     REPO_ROOT / "skill_config.json"
     if (REPO_ROOT / "skill_config.json").is_file()

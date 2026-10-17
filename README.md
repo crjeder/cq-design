@@ -342,7 +342,7 @@ Projects surveyed for ideas -- see [`info/related_projects.md`](documentation/re
 Adoption status/tracking lives in `TODO.md`.
 
 ## Part Libraries
-Libraries which could be usefull are in [`Block_Sources.md`](documentation/Block_Sources.md)
+Libraries which could be usefull are in [`Block_Sources.md`](reference/Block_Sources.md)
 
 ## Software Bill of Materials
 Third-party dependencies and credit for code/ideas adapted from other

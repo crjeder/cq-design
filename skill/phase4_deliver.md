@@ -25,7 +25,7 @@ Report to the user:
    (print time is driven by height and the profile's floor, not geometry); offer the
    stated remedies (flatter pose, thicker stalling feature, more copies on the plate) and
    **ask before changing plate layout or part count** -- more copies is never applied
-   without the user's explicit approval (see `toolpath-speed-advisor`)
+   without the user's explicit approval (see `reference/scripts.md`, `src/toolpath_speed.py`)
 2. **Preview images** - display any `.png` files from `preview/`
 3. **Print recipe** - show `print_recipe` from `build/quality_gate.json`
 4. **Output files** - list the files `build.py` wrote to `out/`, and note
