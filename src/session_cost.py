@@ -2,7 +2,7 @@
 
 Reads a session transcript JSONL, sums each assistant turn's reported usage
 grouped by model and split main-vs-subagent (transcript sidechain entries),
-prices it against ``evals/model_prices.json``, and merges the result into
+prices it against ``src/model_prices.json``, and merges the result into
 ``build/cost.json`` keyed by session id -- so a ``--resume`` (new transcript,
 new session id) keeps the earlier session's cost instead of overwriting it.
 
@@ -25,7 +25,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-_PRICES_PATH = Path(__file__).resolve().parent.parent / "evals" / "model_prices.json"
+_PRICES_PATH = Path(__file__).resolve().parent / "model_prices.json"
 _CACHE_READ_MULT = 0.1
 _CACHE_CREATION_MULT = 1.25
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens")

@@ -6,9 +6,7 @@ Provide a repeatable benchmark for the pipeline: a canonical request corpus with
 a runner that scores first-shot success, attempts-to-pass, Chamfer distance, and cost per accepted
 part -- so prompt, reference, and model-routing changes are verified empirically instead of shipped
 on vibes.
-
 ## Requirements
-
 ### Requirement: Canonical eval corpus
 The repository SHALL contain an `evals/cases/` corpus of approximately 10-15
 canonical requests. Each case directory SHALL contain the verbatim user
@@ -140,9 +138,9 @@ Cost per case SHALL be a billed token cost when one was recorded, and an
 estimate otherwise. The runner SHALL prefer, in order: `<case>/cost.json` (the
 `claude -p` result envelope captured at generation), then
 `<case>/build/cost.json` (the session-cost record's `combined` total), then an
-estimate computed from telemetry `prompt_chars` and the `evals/model_prices.json`
+estimate computed from telemetry `prompt_chars` and the `src/model_prices.json`
 price table (input rate only, tokens ~ `prompt_chars / 4`). The scorecard SHALL
-record which source each case's cost came from. The `evals/model_prices.json`
+record which source each case's cost came from. The `src/model_prices.json`
 table SHALL provide an input and an output rate per model.
 
 Correspondence between a produced mesh and a golden mesh SHALL be established
@@ -290,3 +288,4 @@ record per attempt via the telemetry helper.
 - **THEN** it directs appending one record to `build/attempts.jsonl` via
   `log.py attempt` as a mandatory loop step once the attempt's outcome (including
   any visual review) is decided
+

@@ -15,20 +15,10 @@ set -euo pipefail
 SKILL_NAME="cq-design"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-EXCLUDES=(
-    ".git"
-    ".venv"
-    "__pycache__"
-    ".pytest_cache"
-    ".mypy_cache"
-    ".ruff_cache"
-    ".cocoindex_code"
-    ".sentrux"
-    ".playwright-mcp"
-    ".vscode"
-    "debug"
-    "build"
-    "BUILD_PLAN.json"
+# Copied into a copy install; everything else in the repo is dev-only.
+ALLOWLIST=(
+    SKILL.md .claude-plugin commands skill prompts reference src templates
+    pyproject.toml uv.lock .python-version LICENSE
 )
 
 usage() {
@@ -79,16 +69,11 @@ if [ "$mode" = "link" ]; then
 else
     rm -rf "$dest"
     mkdir -p "$dest"
-    if command -v rsync >/dev/null 2>&1; then
-        args=()
-        for e in "${EXCLUDES[@]}"; do args+=(--exclude "$e"); done
-        rsync -a "${args[@]}" "$REPO_ROOT/" "$dest/"
-    else
-        # tar fallback with the same exclusions
-        args=()
-        for e in "${EXCLUDES[@]}"; do args+=(--exclude="$e"); done
-        tar -C "$REPO_ROOT" "${args[@]}" -cf - . | tar -C "$dest" -xf -
-    fi
+    for e in "${ALLOWLIST[@]}"; do
+        if [ -e "$REPO_ROOT/$e" ]; then cp -R "$REPO_ROOT/$e" "$dest/"; fi
+    done
+    find "$dest" -type d \( -name __pycache__ -o -name '*.egg-info' -o -name .fossil \) \
+        -prune -exec rm -rf {} +
     echo "Copied skill to $dest"
 
     # Stamp the commit that was copied, so `skill_version.py` can tell a stale
