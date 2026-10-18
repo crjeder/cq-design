@@ -86,6 +86,24 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] 7. Repeated tessellation per union (3MF at 0.01, STL, shim default, preview per view) and a 0.01 mesh feeding all trimesh analysis. Fix: tessellate once for STL + 3MF, coarser tolerance (~0.02-0.05) for analysis STLs. Gain: medium, compounds with 1, 4, 5, 6
 - [ ] 9. `preview.py`: per-triangle Python shading, per-triangle `verts[list(f)]`, re-tessellation per panel/section. Fix: vectorized `np.cross` shading, `verts[faces]`, tessellate once. Gain: medium
 
+### Ideas from text-to-cad ([earthtojake/text-to-cad](https://github.com/earthtojake/text-to-cad))
+
+Survey 2026-10-16, from its README, `skills/cad`, `dfam-check`, `dfm` and `AGENTS.md`
+only (scripts and limit tables not read -- check the source before adopting). In
+suggested implementation order; 1-4 are small changes in `quality_gate.py` /
+`mesh_io.py` / skill text.
+
+- [ ] Gates: tri-state result (pass / fail / unverified). A check that could not run must never read as a pass. Their DfAM tool sets `partial: true`, lists the affected sections, exits 2. Audit how `quality_gate.py` reports a skipped or failed analysis
+- [ ] `thin_regions`: report `min_mm` and `p05_mm`, violation = `p05` below the limit (robust to single-triangle noise; cf. `sliver_fin`)
+- [ ] Gate / `measure_stl.py`: unit-scale sanity flag (`units_suspect` from the bbox diagonal) so overhang/support 0.0 on a mis-scaled mesh is not reported as clean
+- [ ] Phase 3: mandatory visual self-review after any geometry change; builder picks extra views that show the edited feature (`section_select.py` is a start)
+- [ ] Gate findings: facts vs verdicts. Measuring tools report numbers only; each finding cites the limit's source (`profile.json` / plan constraint / default) and the JSON path of the measurement
+- [ ] `script_lint.py`: reproducibility rules for part scripts -- every file read is an input, no reading own outputs, no dependence on time, randomness, env vars or the working directory
+- [ ] DFM numbers in `reference/`: record rule provenance (source, version/access date, units, material). Unverifiable rule is reported as missing, never replaced by a silent default
+- [ ] Preview: face labels / stable references drawn on the preview PNG so a user can point at a feature (cheap version of their viewer selection-to-prompt loop; the full viewer is out of scope)
+- [ ] Process hygiene (from their `AGENTS.md`): every test file reached by CI, flaky tests fixed or deleted never retried, no one-off helper scripts in `src/`
+- [ ] `init` / `status`: detect plugin + standalone skill both installed (duplicates every skill)
+
 ### Top 10 ideas from the related-project survey
 
 Ranked by value/cost out of the open ideas in
