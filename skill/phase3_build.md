@@ -337,10 +337,13 @@ Once per union:
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/quality_gate.py" \
     --script build/<part_id>.py --plan BUILD_PLAN.json \
-    --stl-dir stl --orientation build/<union_id>.orientation.json
+    --stl-dir stl --orientation build/<union_id>.orientation.json \
+    > build/<union_id>.quality_gate.json
 ```
 
-Read `build/quality_gate.json`. The gate is report-only (never pass `--fix`). Route each
+The gate prints its report to stdout only; the redirect is what writes the file. Exit 1
+means `passed: false`, not a crash: the report is still written. Read
+`build/<union_id>.quality_gate.json`. The gate is report-only (never pass `--fix`). Route each
 finding by its own `action` field, not by its `type`:
 
 - **`fix`** -> resume the part's builder with `fix: <type>: <message> (hint: <hint>)`,
