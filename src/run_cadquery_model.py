@@ -124,6 +124,18 @@ _VERIFY_HINTS = {
         "tangent — offset the support's mating face by the boss radius (pivot ± r), or "
         "route the join through blocks.joints.pin_hinge which seats at the tangent"
     ),
+    "fillet_radius": (
+        "the fillet radius does not fit the adjacent edges — reduce it below the stated "
+        "limit, or select fewer edges, before calling .fillet()"
+    ),
+    "chamfer_size": (
+        "the chamfer length does not fit the adjacent edges — reduce it below the stated "
+        "limit, or select fewer edges, before calling .chamfer()"
+    ),
+    "thin_ligament": (
+        "too little material beside the hole — widen the wall, shrink the hole, or move "
+        "it, until the ligament meets the minimum"
+    ),
 }
 
 

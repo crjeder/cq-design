@@ -133,3 +133,54 @@ def test_seated_deliberate_embed_within_overlap_passes():
 def test_seated_rejects_bad_axis():
     with pytest.raises(ValueError):
         cq_verify.verify_seated(_riser_topping_at(10.9), _KNUCKLE, "down")
+
+
+# ---- check_fillet / check_chamfer / check_ligament ----
+
+
+def _box():
+    return cq.Workplane("XY").box(20, 20, 5)
+
+
+def test_fillet_too_large_raises():
+    with pytest.raises(RuntimeError) as exc:
+        cq_verify.check_fillet(_box(), 6, ">Z", "lid_edge")
+    assert "cq-verify:fillet_radius:lid_edge" in str(exc.value)
+    assert "limit 5.00" in str(exc.value)
+
+
+def test_fillet_valid_returns_body():
+    body = _box()
+    assert cq_verify.check_fillet(body, 2, ">Z", "lid_edge") is body
+
+
+def test_fillet_vertical_edges_use_long_neighbours():
+    body = _box()
+    assert cq_verify.check_fillet(body, 3, "|Z", "corners") is body
+    with pytest.raises(RuntimeError):
+        cq_verify.check_fillet(body, 10, "|Z", "corners")
+
+
+def test_fillet_all_edges_halves_short_edge():
+    with pytest.raises(RuntimeError):
+        cq_verify.check_fillet(_box(), 2.5)
+
+
+def test_fillet_accepted_radius_builds():
+    body = cq_verify.check_fillet(_box(), 4.5, ">Z")
+    assert body.edges(">Z").fillet(4.5).val().isValid()
+
+
+def test_chamfer_too_large_and_valid():
+    body = _box()
+    with pytest.raises(RuntimeError) as exc:
+        cq_verify.check_chamfer(body, 5, ">Z", "top_chamfer")
+    assert "cq-verify:chamfer_size:top_chamfer" in str(exc.value)
+    assert cq_verify.check_chamfer(body, 1, ">Z", "top_chamfer") is body
+
+
+def test_ligament():
+    with pytest.raises(RuntimeError) as exc:
+        cq_verify.check_ligament(6, 5, 1.2, "m5_boss")
+    assert "cq-verify:thin_ligament:m5_boss" in str(exc.value)
+    assert cq_verify.check_ligament(10, 5, 1.2, "m5_boss") == 2.5
