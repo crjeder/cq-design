@@ -5,9 +5,7 @@
 Defines Phase 0 sourcing triage: searching for an existing model that answers
 the user's request before any from-scratch design begins, and the decision
 ladder that classifies and reuses what is found.
-
 ## Requirements
-
 ### Requirement: Phase 0 runs before requirements analysis
 The skill SHALL provide a Phase 0 sourcing triage, documented in `skill/phase0_sourcing.md` and entered before Phase 1, that searches for existing models answering the user's request before any from-scratch design begins. The search SHALL be dispatched to the Sourcing agent (rendered `prompts/sourcing.md`, see the `sourcing-prompt-rendering` and `subagent-orchestration` capabilities) rather than run inline or reuse Phase 1's search workflow by reference. The user SHALL be able to skip Phase 0 by requesting a from-scratch design explicitly.
 
@@ -30,7 +28,7 @@ Phase 0 SHALL classify search results against a five-rung decision ladder, evalu
 
 1. Found parametric source (CadQuery, build123d, OpenSCAD, FreeCAD) - reuse or convert.
 2. Found STEP/BREP/IGES - import as a dumb solid.
-3. Found mesh that fits as-is - deliver it through measurement and the quality gate.
+3. Found mesh that fits as-is - deliver it through measurement and the bare-mesh checks.
 4. Found mesh that is close - measure and rebuild only the tractable subset.
 5. Nothing usable - proceed with the current pipeline from Phase 1.
 
@@ -41,7 +39,8 @@ appear to match the request as-is), `4?` (a tractable discrepancy is named), or 
 (the mismatch appears freeform/organic). The main session SHALL trust a `1` or `2` rung
 outright, the same as it trusts the license `Reusable` verdict, without re-deriving it
 from `Kind` itself. A `3?`/`4?` rung is provisional: the main session SHALL confirm it
-via the rung 3/4 vetting steps (measurement, quality gate stages, user confirmation)
+via the rung 3/4 vetting steps (measurement, bare-mesh watertightness and overhang checks,
+user confirmation)
 before treating it as final, and MAY downgrade a `3?` to rung 4 or fall through to
 Phase 1 when vetting does not confirm it.
 
@@ -62,14 +61,13 @@ Candidates SHALL be collected before classification so a better-rung find from a
 
 #### Scenario: Provisional mesh rung is confirmed by vetting
 - **WHEN** the Sourcing agent returns a mesh candidate with `Rung: 3?`
-- **THEN** the main session runs `measure_stl.py` and the quality gate's mesh-level
-  stages, and only finalizes rung 3 (with user confirmation) if they pass
+- **THEN** the main session runs `measure_stl.py` and `print_orientation.py` on the
+  mesh, and only finalizes rung 3 (with user confirmation) if the measurement
+  cross-check and watertightness pass
 
 #### Scenario: Provisional mesh rung is downgraded
-- **WHEN** a `Rung: 3?` candidate fails the measurement cross-check or a gate stage
+- **WHEN** a `Rung: 3?` candidate fails the measurement cross-check or is not watertight
 - **THEN** rung 3 does not fit and classification continues down the ladder as today
-
----
 
 ### Requirement: Parametric source reuse and conversion
 At rung 1, a build123d source SHALL be converted to CadQuery mechanically, assisted by `src/convert_build123d.py`, and the converted script SHALL be validated through `run_cadquery_model.py` like any generated part. An OpenSCAD source SHALL NOT be transpiled; the .scad file SHALL be used as the authoritative topology and parameter source and the part re-authored in CadQuery through the normal part loop. A CadQuery source SHALL be reused directly, adapted to the request's parameters.
@@ -100,17 +98,23 @@ kind-based re-derivation precedes it.
 ---
 
 ### Requirement: Found meshes are vetted before delivery
-At rung 3, the found mesh SHALL be run through `measure_stl.py` and its measured dimensions cross-checked against the request, and SHALL pass the quality gate's mesh-level stages (watertightness, overhang) before delivery. The user SHALL confirm the found model (with its link) before it is delivered as the result.
+At rung 3, the found mesh SHALL be run through `measure_stl.py` and its measured dimensions cross-checked against the request. Watertightness SHALL be read from that same `measure_stl.py` result (`is_watertight`); a mesh that is not watertight, or that fails to load, SHALL fail rung 3. Overhang SHALL be checked with `print_orientation.py <stl> --overhang-max-deg <n> --optimize-for min_support`, with `<n>` taken from `profile.json` `constraints.overhang_max_deg`; a nonzero `support_score` SHALL be reported to the user at confirmation (with the chosen pose's `rotate`) and SHALL NOT by itself fail rung 3. The vetting SHALL NOT invoke `quality_gate.py`, which requires a part script and a build plan that rung 3 does not have. The user SHALL confirm the found model (with its link) before it is delivered as the result.
 
 #### Scenario: Found mesh fits and passes
-- **WHEN** a found STL's measured dimensions match the request and the mesh passes watertightness and overhang checks
-- **THEN** the mesh is delivered as the result, with source link and license, and Phases 1-3 are skipped
+- **WHEN** a found STL's measured dimensions match the request, `is_watertight` is true, and `support_score` is 0
+- **THEN** the mesh is presented for confirmation and, once confirmed, delivered as the result with source link and license, and Phases 1-3 are skipped
 
 #### Scenario: Found mesh fails the gate
-- **WHEN** the found STL is not watertight or fails the overhang check
+- **WHEN** the `measure_stl.py` result for the found STL has `is_watertight: false`
 - **THEN** rung 3 does not fit and classification continues down the ladder
 
----
+#### Scenario: Found mesh needs support
+- **WHEN** a found STL is watertight and matches the request but `print_orientation.py` reports a nonzero `support_score`
+- **THEN** the user is told the mesh needs support in its best pose at the confirmation step, and the user's answer decides whether rung 3 is taken
+
+#### Scenario: No gate invocation on a bare mesh
+- **WHEN** rung 3 vetting runs
+- **THEN** no `quality_gate.py` command is run and no `--help` is run to discover one
 
 ### Requirement: Partial rebuild covers only the tractable subset
 At rung 4, Phase 0 SHALL limit rebuilding to features `measure_stl.py` detects (extrusions, revolutions, axis-aligned features). General mesh-to-parametric reverse engineering SHALL NOT be attempted or promised.
@@ -158,3 +162,4 @@ to the user at the reuse decision.
 - **WHEN** any rung 1-4 reuse is accepted
 - **THEN** the license, source URL, rung, and the agent's verdict are recorded in
   `planning_notes` (or the delivery summary when no plan exists) and stated to the user
+
