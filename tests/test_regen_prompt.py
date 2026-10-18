@@ -35,7 +35,7 @@ _PLAN = {
             "engineering_rationale": {
                 "load_path": "hook arm cantilevers from the wall plate",
                 "worst_case_stress": "arm root",
-                "check": "strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)",
+                "check": "strain = 1.5*t*d/L^2 = 1.0% <= 4.0% allowable (PETG)",
             },
         }
     ],
@@ -78,7 +78,7 @@ def test_render_includes_engineering_rationale_object_form():
     assert "## Engineering rationale" in out
     assert "hook arm cantilevers from the wall plate" in out
     assert "arm root" in out
-    assert "strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)" in out
+    assert "strain = 1.5*t*d/L^2 = 1.0% <= 4.0% allowable (PETG)" in out
 
 
 def test_render_includes_engineering_rationale_string_form():
