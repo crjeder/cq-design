@@ -8,4 +8,4 @@ Only in a directory that already has `lib/` or `.bundle_version.json`; otherwise
 python "${CLAUDE_PLUGIN_ROOT}/src/bundle_project.py" .
 ```
 
-This always copies: `build_template.py` to `build/build.py`, the bundled modules and `blocks`/`exporters` to `lib/`, prunes retired files, merges permissions, and restamps `.bundle_version.json`. Report the new stamp commit and suggest `uv sync` and `uv run python build/build.py`; do not run them or edit part scripts.
+This always copies: `build_template.py` to `build/build.py`, the bundled modules and `blocks`/`exporters` to `lib/`, prunes retired files, merges permissions, and restamps `.bundle_version.json`. Report the new stamp commit and suggest `uv sync` and `uv run python build/build.py`; do not run them or edit part scripts. If `build.py` fails afterwards, a `blocks` signature probably changed: read the error and edit that part script.
