@@ -79,13 +79,18 @@ rung isn't final until it clears the vetting below.
 - **Never deliver a found mesh blind** — found models are frequently wrong or
   unprintable. Run it through the same vetting a generated part gets:
   1. `uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/measure_stl.py" <path>` — cross-check the measured bounding box and
-     any relevant features against the request's stated dimensions.
-  2. Run the quality gate's mesh-level stages (watertightness, overhang) against the
-     downloaded mesh — the same checks any generated STL passes before delivery.
+     any relevant features against the request's stated dimensions. Read `is_watertight`
+     from the same JSON: `false`, or a mesh that fails to load, means rung 3 does not fit.
+  2. `uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" <path> --overhang-max-deg <n> --optimize-for min_support`
+     — `<n>` is `profile.json` `constraints.overhang_max_deg`. Read `support_score`
+     (0 = prints without support in its best pose) and `rotate` (that pose). Do not run
+     `quality_gate.py`: it needs a part script and a plan, and rung 3 has neither.
   3. **Present the candidate to the user** — the model's preview/link, its measured
      dimensions vs. the request, and the license (see below) — and get explicit
-     confirmation before delivering it as the result.
-- If the mesh fails measurement cross-check or either gate stage, rung 3 does not fit;
+     confirmation before delivering it as the result. A nonzero `support_score` is
+     stated here as "needs support in its best pose" (with `rotate`); it is a finding
+     for the user to weigh, not a rejection.
+- If the mesh fails measurement cross-check or is not watertight, rung 3 does not fit;
   continue down the ladder (a different candidate may fit rung 3, or fall to rung 4).
 - On acceptance, no `BUILD_PLAN.json` is produced — the vetted mesh is the deliverable.
   Skip straight to a Phase-4-style delivery report; record source URL, license, and
