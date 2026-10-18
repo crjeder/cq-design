@@ -19,6 +19,9 @@ named -- rather than downstream as a vague watertight/dimension symptom:
 - ``verify_seated`` -- a flat support body seated at a round boss's *center*
   instead of its tangent (e.g. a hinge riser box whose top face lands on the
   knuckle disc's center), leaving the boss half-buried in the support.
+- ``check_fillet`` / ``check_chamfer`` -- a fillet radius or chamfer length that cannot
+  fit the adjacent edges, caught before OCC returns a vague construction error.
+- ``check_ligament`` -- too little material between a centered hole and the wall edge.
 
 All raise a single marked ``RuntimeError`` on failure and return their
 post-operation argument on success, so they sit inline in the build chain. The
@@ -255,3 +258,74 @@ def verify_seated(support, boss, axis: str, label: str = "", overlap: float = 1.
             f"body is seated at the round feature's center, not its tangent",
         )
     return boss
+
+
+def _edge_ends(edge) -> list:
+    """Distinct end vertices of an edge (one for a closed edge such as a circle)."""
+    uniq: list = []
+    for v in edge.Vertices():
+        if not any(v.isSame(u) for u in uniq):
+            uniq.append(v)
+    return uniq
+
+
+def _size_limit(body, selector) -> tuple[float, float]:
+    """Smallest (limit, edge_length) a fillet/chamfer size must stay below.
+
+    For every edge sharing a vertex with a selected edge, the limit is its length,
+    halved when both of its ends touch some other selected edge.
+    """
+    all_edges = _solid(body).Edges()
+    sel = all_edges if selector is None else body.edges(selector).vals()
+    touched = [(e, _edge_ends(e)) for e in sel]
+
+    def touches(vertex, skip) -> bool:
+        return any(
+            not e.isSame(skip) and any(vertex.isSame(u) for u in ends) for e, ends in touched
+        )
+
+    best = (float("inf"), float("inf"))
+    for a in all_edges:
+        ends = _edge_ends(a)
+        hit = [v for v in ends if touches(v, a)]
+        if not hit:
+            continue
+        length = a.Length()
+        limit = length / 2.0 if len(ends) == 2 and len(hit) == 2 else length
+        best = min(best, (limit, length))
+    return best
+
+
+def _check_size(kind: str, noun: str, body, size: float, selector, label: str):
+    limit, length = _size_limit(body, selector)
+    if size >= limit:
+        raise _fail(
+            kind,
+            label,
+            f"{noun} {size:.2f} mm >= limit {limit:.2f} mm set by a {length:.2f} mm adjacent "
+            f"edge (selector {selector!r}); keep it below the limit (e.g. {limit - 0.1:.2f} mm)",
+        )
+    return body
+
+
+def check_fillet(body, radius: float, selector=None, label: str = ""):
+    """Raise if a fillet of `radius` on the selected edges exceeds an adjacent edge's room."""
+    return _check_size("fillet_radius", "radius", body, radius, selector, label)
+
+
+def check_chamfer(body, length: float, selector=None, label: str = ""):
+    """Raise if a symmetric chamfer of `length` on the selected edges exceeds the room."""
+    return _check_size("chamfer_size", "length", body, length, selector, label)
+
+
+def check_ligament(wall_mm: float, hole_d_mm: float, min_mm: float, label: str = "") -> float:
+    """Raise if the material beside a centered hole is below `min_mm`; return the ligament."""
+    ligament = (wall_mm - hole_d_mm) / 2.0
+    if ligament < min_mm:
+        raise _fail(
+            "thin_ligament",
+            label,
+            f"ligament {ligament:.2f} mm < minimum {min_mm:.2f} mm "
+            f"(wall {wall_mm:.2f} mm, hole {hole_d_mm:.2f} mm)",
+        )
+    return ligament

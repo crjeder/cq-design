@@ -301,6 +301,9 @@ def test_translate_stderr_classifies_verify_markers():
         ("stage_mismatch", "base_shell"),
         ("unbacked_mate", "standoff_to_leg"),
         ("boss_swallowed", "hinge_ear"),
+        ("fillet_radius", "lid_rim"),
+        ("chamfer_size", "lid_rim"),
+        ("thin_ligament", "m5_boss"),
     ):
         stderr = (
             "Traceback (most recent call last):\n"
@@ -340,6 +343,23 @@ def test_silent_boolean_end_to_end(tmp_path):
     assert data["success"] is False
     assert len(sb) == 1
     assert sb[0]["label"] == "vent_slot"
+
+
+def test_fillet_radius_end_to_end(tmp_path):
+    """An over-large fillet yields a typed fillet_radius error, not an OCC exception."""
+    rc, data, sb = _run_typed_errors(
+        tmp_path,
+        "fillet.py",
+        "import cadquery as cq\n"
+        "from cq_verify import check_fillet\n"
+        "body = cq.Workplane('XY').box(20, 20, 5)\n"
+        "result = check_fillet(body, 6, '>Z', 'lid_rim').edges('>Z').fillet(6)\n",
+        "fillet_radius",
+    )
+    assert rc == 1
+    assert data["errors"][0]["type"] == "fillet_radius"
+    assert data["errors"][0]["hint"]
+    assert sb[0]["label"] == "lid_rim"
 
 
 def test_stage_mismatch_end_to_end(tmp_path):

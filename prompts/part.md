@@ -114,12 +114,16 @@ surfaces far downstream. Guard the risky ones with `cq_verify` (importable exact
 `blocks`); each call returns its post-operation argument, so it sits inline:
 
 ```python
-from cq_verify import verify_boolean, check_workplane, verify_backed, verify_seated
+from cq_verify import (
+    verify_boolean, check_workplane, verify_backed, verify_seated,
+    check_fillet, check_chamfer, check_ligament,
+)
 
 result = verify_boolean(body, body.cut(slot), "cut", "vent_slot")   # off-center cut
 wp = check_workplane(wp, "lid_top", expected_origin=(0, 0, 12))     # after a .center()
 standoff = verify_backed(leg, standoff, "-z", "standoff_to_leg")    # mating area check
 knuckle = verify_seated(riser, knuckle, "-z", "hinge_ear")          # tangent-seat check
+body = check_fillet(body, R, ">Z", "lid_rim").edges(">Z").fillet(R)  # size check, pre-kernel
 ```
 
 - **Wrap a boolean** in `verify_boolean(before, after, op, label)` when a silent no-op is
@@ -149,9 +153,19 @@ knuckle = verify_seated(riser, knuckle, "-z", "hinge_ear")          # tangent-se
   needed when the join comes from a block that already seats at the tangent (e.g.
   `blocks.joints.pin_hinge`).
 
+- **Check a fillet or chamfer size** with `check_fillet(body, radius, selector, label)` /
+  `check_chamfer(body, length, selector, label)` right before `.fillet()` / `.chamfer()`
+  when the size comes from a parameter or approaches a wall or edge dimension. The rule:
+  the size must stay below the length of every edge adjacent to the selected edges
+  (halved when treatments meet at both ends of that edge). Use the same `selector` as the
+  op; `None` means all edges.
+- **Check a hole's ligament** with `check_ligament(wall_mm, hole_d_mm, min_mm, label)`
+  when a hole is sized from a parameter inside a wall: it must leave
+  `(wall - hole) / 2 >= min_mm` on each side.
+
 A failed assertion crashes the script and is reported as a typed `silent_boolean` /
-`feature_overflow` / `workplane_drift` / `unbacked_mate` / `boss_swallowed` error
-naming the `label`.
+`feature_overflow` / `workplane_drift` / `unbacked_mate` / `boss_swallowed` /
+`fillet_radius` / `chamfer_size` / `thin_ligament` error naming the `label`.
 
 ### Construction plan for scratch geometry
 
