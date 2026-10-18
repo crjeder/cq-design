@@ -541,6 +541,7 @@ def _render_preview(
     preview_dir: str | None = None,
     density_g_cm3: float = 1.24,
     material: str = "PLA",
+    auto_sections: bool = False,
 ) -> tuple[list[str], str | None]:
     """Invoke render_preview.py as a subprocess.
 
@@ -588,6 +589,8 @@ def _render_preview(
     ]
     if cross_sections:
         cmd.append("--cross-sections")
+    if auto_sections:
+        cmd.append("--auto-sections")
     for spec in extra_sections or []:
         cmd.extend(["--extra-section", spec])
     for spec in details or []:
@@ -695,6 +698,7 @@ def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: 
         args.preview_dir,
         args.density,
         args.material,
+        args.auto_sections,
     )
     if render_err:
         _append_stderr(result, render_err)
@@ -747,6 +751,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Render cross-sections as separate files (requires --preview): through the "
             "--extra-section positions when given, else the bounding-box-center cuts"
+        ),
+    )
+    parser.add_argument(
+        "--auto-sections",
+        action="store_true",
+        help=(
+            "Forward --auto-sections to render_preview.py (requires --preview): fill up to "
+            "3 section cuts after --extra-section with cuts through bore/boss axes"
         ),
     )
     parser.add_argument(

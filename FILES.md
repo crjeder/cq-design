@@ -62,7 +62,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     preview.py               # CadQuery tessellation + z-buffered preview renderer
     zbuffer.py               # numpy z-buffer rasterizer + orthographic camera (no OpenGL)
     render_preview.py        # Subprocess entry point for preview.py
-    section_select.py        # Picks axis-aligned section planes through bore/boss axes (--auto-sections; standalone CLI)
+    section_select.py        # Picks axis-aligned section planes through bore/boss axes (render_preview --auto-sections; standalone CLI)
     mesh_io.py               # Trimesh loader + watertightness validation; lateral_area() feeds toolpath_speed.py;
                              # fold_metrics() finds fin/knife-edge folds for quality_gate's sliver_fin
     build_plan_schema.json   # JSON Schema draft-7 for BUILD_PLAN.json
