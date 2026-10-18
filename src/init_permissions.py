@@ -31,10 +31,22 @@ _SESSION_COST_PATH = os.path.join(os.path.dirname(__file__), "session_cost.py")
 _LOG_PATH = os.path.join(os.path.dirname(__file__), "log.py")
 
 
+_SKILL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def _resolve_skill_dir(pattern: str) -> str:
+    """Substitute the `{skill_dir}` placeholder with this skill's absolute root."""
+    return pattern.replace("{skill_dir}", _SKILL_DIR)
+
+
 def load_canonical() -> dict[str, Any]:
-    """Load the canonical permission spec (sentinel + allow list) from disk."""
+    """Load the canonical permission spec, with `{skill_dir}` resolved in sentinel and allow."""
     with open(_PERMISSIONS_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        spec = json.load(f)
+    spec["templates"] = spec["allow"]
+    spec["allow"] = [_resolve_skill_dir(p) for p in spec["allow"]]
+    spec["sentinel"] = _resolve_skill_dir(spec["sentinel"])
+    return spec
 
 
 def settings_path(working_dir: str) -> str:
@@ -196,12 +208,30 @@ def merge_env(working_dir: str, venv: str) -> bool:
     return True
 
 
-def merge_permissions(working_dir: str) -> list[str]:
+def _stale_patterns(allow: list[str], canonical: dict[str, Any]) -> list[str]:
+    """Entries the skill seeded and no longer wants: retired strings, and anchored
+    patterns resolved against a different skill directory."""
+    current = set(canonical["allow"])
+    anchored = [
+        re.compile("^" + re.escape(t).replace(re.escape("{skill_dir}"), ".+?") + "$")
+        for t in canonical["templates"]
+        if "{skill_dir}" in t
+    ]
+    retired = set(canonical.get("retired", []))
+    return [
+        p
+        for p in allow
+        if p not in current and (p in retired or any(rx.match(p) for rx in anchored))
+    ]
+
+
+def merge_permissions(working_dir: str) -> tuple[list[str], list[str]]:
     """Merge the canonical patterns into working_dir's settings.local.json.
 
     Creates .claude/ and the file when absent. Appends only patterns not already
-    present, preserving existing entries, their order, and all other settings keys.
-    Returns the list of patterns actually added.
+    present and removes only the skill's own retired or stale-path patterns,
+    preserving all other entries, their order, and all other settings keys.
+    Returns (added, removed).
     """
     canonical = load_canonical()
     patterns = canonical["allow"]
@@ -211,17 +241,19 @@ def merge_permissions(working_dir: str) -> list[str]:
     permissions = settings.setdefault("permissions", {})
     allow = permissions.setdefault("allow", [])
 
+    removed = _stale_patterns(allow, canonical)
+    allow[:] = [p for p in allow if p not in removed]
     existing = set(allow)
     added = [p for p in patterns if p not in existing]
     allow.extend(added)
 
-    if added or not os.path.exists(path):
+    if added or removed or not os.path.exists(path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
             f.write("\n")
 
-    return added
+    return added, removed
 
 
 def main() -> int:
@@ -247,7 +279,11 @@ def main() -> int:
         print("initialized" if initialized else "uninitialized")
         return 0 if initialized else 1
 
-    added = merge_permissions(args.dir)
+    added, removed = merge_permissions(args.dir)
+    if removed:
+        print(f"Removed {len(removed)} retired/stale permission pattern(s):")
+        for pattern in removed:
+            print(f"  {pattern}")
     if added:
         print(f"Added {len(added)} permission pattern(s) to {settings_path(args.dir)}:")
         for pattern in added:

@@ -20,7 +20,7 @@ def test_canonical_list_parses_and_has_sentinel():
 
 
 def test_fresh_dir_creates_file(tmp_path):
-    added = init_permissions.merge_permissions(str(tmp_path))
+    added, removed = init_permissions.merge_permissions(str(tmp_path))
 
     path = tmp_path / ".claude" / "settings.local.json"
     assert path.exists()
@@ -28,13 +28,14 @@ def test_fresh_dir_creates_file(tmp_path):
     canonical = init_permissions.load_canonical()
     assert settings["permissions"]["allow"] == canonical["allow"]
     assert added == canonical["allow"]
+    assert removed == []
 
 
 def test_merge_preserves_existing_entries_and_keys(tmp_path):
     _write_settings(
         tmp_path,
         {
-            "permissions": {"allow": ["Bash(echo hi)", "WebSearch"]},
+            "permissions": {"allow": ["Bash(echo hi)", "WebFetch(domain:example.com)"]},
             "env": {"FOO": "bar"},
         },
     )
@@ -47,11 +48,10 @@ def test_merge_preserves_existing_entries_and_keys(tmp_path):
     allow = settings["permissions"]["allow"]
     # user's entries kept, in their original leading position
     assert allow[0] == "Bash(echo hi)"
-    assert allow[1] == "WebSearch"
+    assert allow[1] == "WebFetch(domain:example.com)"
     # other keys untouched
     assert settings["env"] == {"FOO": "bar"}
-    # WebSearch (already present) not duplicated
-    assert allow.count("WebSearch") == 1
+    assert allow.count("WebFetch(domain:example.com)") == 1
     # canonical sentinel now present
     assert init_permissions.load_canonical()["sentinel"] in allow
 
@@ -60,9 +60,9 @@ def test_all_present_is_noop(tmp_path):
     canonical = init_permissions.load_canonical()
     _write_settings(tmp_path, {"permissions": {"allow": list(canonical["allow"])}})
 
-    added = init_permissions.merge_permissions(str(tmp_path))
+    added, removed = init_permissions.merge_permissions(str(tmp_path))
 
-    assert added == []
+    assert added == [] and removed == []
     settings = json.loads(
         (tmp_path / ".claude" / "settings.local.json").read_text(encoding="utf-8")
     )
@@ -77,6 +77,67 @@ def test_check_reports_uninitialized_then_initialized(tmp_path):
     init_permissions.merge_permissions(str(tmp_path))
 
     assert init_permissions.is_initialized(str(tmp_path), sentinel) is True
+
+
+def _allow(working_dir):
+    path = working_dir / ".claude" / "settings.local.json"
+    return json.loads(path.read_text(encoding="utf-8"))["permissions"]["allow"]
+
+
+def test_no_broad_or_destructive_patterns():
+    canonical = init_permissions.load_canonical()
+    skill_dir = init_permissions._SKILL_DIR
+    for p in canonical["allow"]:
+        assert p != "WebSearch"
+        assert not any(v in p for v in ("cp ", "mkdir", "Copy-Item", "New-Item"))
+        if ".py" in p and "build/build.py" not in p:
+            assert skill_dir in p, p
+
+
+def test_retired_patterns_pruned_and_user_entries_kept(tmp_path):
+    _write_settings(
+        tmp_path,
+        {
+            "permissions": {
+                "allow": [
+                    "Bash(echo hi)",
+                    "Bash(cp *)",
+                    "WebSearch",
+                    "Bash(python * log.py *)",
+                    "Bash(ls)",
+                ]
+            }
+        },
+    )
+
+    added, removed = init_permissions.merge_permissions(str(tmp_path))
+
+    assert removed == ["Bash(cp *)", "WebSearch", "Bash(python * log.py *)"]
+    assert _allow(tmp_path)[:2] == ["Bash(echo hi)", "Bash(ls)"]
+    assert init_permissions.merge_permissions(str(tmp_path)) == ([], [])
+
+
+def test_stale_skill_path_replaced(tmp_path):
+    stale = 'Bash(python "/old/cache/1.0/src/log.py" *)'
+    _write_settings(tmp_path, {"permissions": {"allow": [stale]}})
+
+    _, removed = init_permissions.merge_permissions(str(tmp_path))
+
+    assert removed == [stale]
+    allow = _allow(tmp_path)
+    assert stale not in allow
+    assert f'Bash(python "{init_permissions._SKILL_DIR}/src/log.py" *)' in allow
+    assert init_permissions.merge_permissions(str(tmp_path)) == ([], [])
+
+
+def test_old_sentinel_reads_uninitialized(tmp_path):
+    _write_settings(
+        tmp_path,
+        {"permissions": {"allow": ["Bash(uv run --project * python * run_cadquery_model.py *)"]}},
+    )
+    sentinel = init_permissions.load_canonical()["sentinel"]
+
+    assert init_permissions.is_initialized(str(tmp_path), sentinel) is False
 
 
 def _stop_commands(working_dir):
