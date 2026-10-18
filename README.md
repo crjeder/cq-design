@@ -18,6 +18,8 @@ The first time the skill runs in a working directory it seeds that directory's
 searches), so you are not prompted for each step. The merge is additive and only happens
 once per directory; ask Claude to "init permissions" to re-seed after updating the skill.
 
+For more usage instructions see [`USE.md`](USE.md)
+
 ## Setup
 
 ### As a plugin (recommended)
