@@ -103,57 +103,9 @@ South -Y, West -X, Up +Z, Down -Z.
 **String form** (every other part), e.g. `no load-bearing features (static cosmetic part)`.
 Never invent a load just to fill out the object form.
 
-**When the plan's `load` declares a solvable case** (`magnitude_n`, `applied_at`,
-`grounded_at`), run the FEM stress advisor instead of hand-deriving a closed-form check:
-
-```bash
-uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/fem_check.py" <part>.step \
-    --plan BUILD_PLAN.json --part {{PART_ID}} --mesh-size <mm>
-```
-
-`status: "skipped"` (no `fem` dependency group installed, or the run couldn't resolve a
-boundary condition) falls back to the closed-form derivation above. `status: "ok"` gives
-you the failure index and its location -- cite those in `check` and `worst_case_stress`
-instead of a beam formula:
-
-```json
-{
-  "load_path": "load enters at the shelf lip, reacts at the wall screws",
-  "worst_case_stress": "fillet at [12.3, 4.1, 2.0] mm (build pose) -- from the FEM solve",
-  "check": "FEM: fi_p99=0.71 at 1.5mm mesh (concentration_ratio 2.1, distributed) -- 41% margin to allowable"
-}
-```
-
-The advisor is never a gate -- a high failure index is a number to weigh, not a blocked
-build. If the result looks implausible (an extreme `concentration_ratio`, a peak location
-the geometry doesn't explain, a failure index far from what the loading suggests), re-run
-at a smaller `--mesh-size` and compare `fi_p99` between the two runs before citing either:
-a `fi_p99` that moves substantially means the coarser mesh wasn't converged.
-
-## Toolpath-speed advisor
-
-Run once the script is accepted, no plan input required:
-
-```bash
-uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/toolpath_speed.py" \
-    --plan BUILD_PLAN.json --script {{PART_ID}}.py
-```
-
-`status: "skipped"` (no `motion` block in `profile.json`, or geometry the model
-can't represent) means nothing to act on. Otherwise, read the attribution:
-
-- An issue with `attribution` ranks sharp/undersized corners by how much print time
-  raising their fillet radius would recover, largest first. This is a knob with a
-  saturating return -- past roughly R2 (at typical desktop-FDM accel), further radius
-  buys little -- not a rule that every edge needs a fillet.
-- An issue with `dominant: "crowding"` means the part's own feature size is the limit,
-  not any edge: the toolhead never reaches cruise speed between corners no matter how
-  they're treated. Prefer fewer, larger features over filleting individually.
-
-This is conditional on the part's eventual build orientation (a corner vertical here may
-print horizontal after `print_orientation.py` runs), so treat it as a hint, not a verdict
--- the quality gate re-checks it in the real, accepted pose. Advisory only: never blocks
-acceptance.
+When the orchestrator supplies a FEM result for this part (a resume brief carrying
+`status: "ok"`), cite its failure index and location in `check` and `worst_case_stress`
+instead of a closed-form derivation. You never run the solver yourself.
 
 ## Construction-time verification
 
