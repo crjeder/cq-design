@@ -25,7 +25,8 @@ Once per working directory (all idempotent): run `/cq-design:init` logic (see `c
 `profile.json` / `skill_config.json` when absent (never overwrites). When it
 reports seeding a file, tell the user where to edit it. If the profile fails validation,
 report the errors and ask for those fields in Phase 1. If the helper cannot run, merge
-`src/skill_permissions.json`'s `allow` array into `.claude/settings.local.json` by hand.
+`src/skill_permissions.json`'s `allow` array into `.claude/settings.local.json` by hand,
+substituting `SKILL_DIR` for `{skill_dir}`.
 Run scripts as `uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/<script>.py"`.
 
 **If `build/journal.md` already exists, read `skill/resume.md` in full before Phase 0.**
