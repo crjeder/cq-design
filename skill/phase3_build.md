@@ -366,5 +366,5 @@ script) arriving after Phase 4 has already reported delivery is still a correcti
 log it (Request log, above), resume the affected part's builder, re-audit -- but it also
 re-opens every deterministic step downstream of that union that Phase 4 already reported
 as done: **re-run Print-orientation optimization for the affected union(s)** (unaffected
-unions keep their accepted `build/orientations.json` entry), **then Model export, then
-Quality gate**, before repeating Phase 4's delivery report.
+unions keep their accepted `build/orientations.json` entry), **then Write assembly and
+`build/build.py`, then Quality gate**, before repeating Phase 4's delivery report.
