@@ -54,7 +54,7 @@ At rung 3, the found mesh SHALL be run through `measure_stl.py` and its measured
 - **WHEN** a found STL's measured dimensions match the request, `is_watertight` is true, and `support_score` is 0
 - **THEN** the mesh is presented for confirmation and, once confirmed, delivered as the result with source link and license, and Phases 1-3 are skipped
 
-#### Scenario: Found mesh is not watertight
+#### Scenario: Found mesh fails the gate
 - **WHEN** the `measure_stl.py` result for the found STL has `is_watertight: false`
 - **THEN** rung 3 does not fit and classification continues down the ladder
 
