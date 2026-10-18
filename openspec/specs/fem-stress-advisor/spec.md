@@ -91,7 +91,7 @@ than deriving a default. The result SHALL echo the mesh size together with the r
 node and element counts, so the author can judge whether the discretisation supports the
 number reported.
 
-`prompts/part.md` and `skill/phase3_build.md` SHALL instruct the author that an implausible
+`skill/phase3_build.md` SHALL instruct the author that an implausible
 result -- an extreme concentration ratio, a failure index far from what the geometry
 suggests, or a peak at an unexpected location -- is grounds to re-run at a smaller mesh
 size and compare: a `fi_p99` that moves substantially between the two runs means the

@@ -240,18 +240,19 @@ at the quality gate and reported in `skill/phase4_deliver.md` step 1.
 ## Print-orientation optimization
 
 Per union, on its build-pose STL (all directions here are build pose; orientation is a property of the part, not its
-assembled pose), using the part's effective `optimize_for` (default `strength`):
+assembled pose), using the part's effective `optimize_for` (default `strength`). A part
+without declared `unions` has one union whose id is its part id:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/run_cadquery_model.py" \
     build/<part_id>.py --deliver --formats stl --output-dir stl
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/print_orientation.py" \
-    stl/<part_id>.stl --overhang-max-deg <overhang_max_deg> \
+    stl/<union_id>.stl --overhang-max-deg <overhang_max_deg> \
     --optimize-for <strength|min_support|visual_quality|min_build_height|min_print_time> \
     --source-script build/<part_id>.py \
     [--load x,y,z] [--load-type tension|compression|bending|shear] [--show-face x,y,z] \
     [--fem-stress build/<part_id>.fem_stress.json] \
-    [--speed-model build/<part_id>.speed_candidates.json]
+    [--speed-model build/<union_id>.speed_candidates.json]
 ```
 
 Pass `--load`/`--load-type` from the plan's `load`, `--show-face` when declared, and
@@ -263,8 +264,8 @@ result:
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/toolpath_speed.py" \
-    --plan BUILD_PLAN.json --script build/<part_id>.py --stl stl/<part_id>.stl \
-    --emit-candidates <union_id> > build/<part_id>.speed_candidates.json
+    --plan BUILD_PLAN.json --script build/<part_id>.py --stl stl/<union_id>.stl \
+    --emit-candidates <union_id> > build/<union_id>.speed_candidates.json
 ```
 
 - **Sanity-check the load first.** A compression part (base, foot, plinth) or a
@@ -278,8 +279,8 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/toolpath_speed.py" \
 - `min_support` / `visual_quality` may accept a weaker pose on purpose; surface a trade-off
   that looks unacceptable instead of overriding the mode.
 
-Write the accepted results to `build/orientations.json` (`{"<part_id>": {...result}}`)
-and one `build/<part_id>.orientation.json` per union, then:
+Write the accepted results to `build/orientations.json` (`{"<union_id>": {...result}}`)
+and one `build/<union_id>.orientation.json` per union, then:
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase3/orientation_chosen "<n> unions, see build/orientations.json"
@@ -293,7 +294,7 @@ command: `write_assembly.py --orientations build/orientations.json` (next sectio
 and later `build/build.py`, re-load each part script with `CQ_PRINT_ROTATE` set to that part's accepted `rotate`,
 so the assembly and the deliverables carry the finished geometry with no builder round. Only a part
 script that mentions `print_up` changes; others are unaffected. To check a single script
-under a pose, add `--print-rotate build/<part_id>.orientation.json` to `run_cadquery_model.py`.
+under a pose, add `--print-rotate build/<union_id>.orientation.json` to `run_cadquery_model.py`.
 
 The assembly step re-scores orientation on each finished `print_up` part and returns advisory
 `pose_findings` (`pose_shift`) if the optimizer would now choose a different pose; the
@@ -311,7 +312,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/write_assembly.py" \
     --orientations build/orientations.json
 ```
 
-A validation failure blocks the step. It writes `stl/<part_id>.stl` per union in
+A validation failure blocks the step. It writes `stl/<union_id>.stl` per union in
 **assembled** pose and one `stl/keep_out__*.stl` per declared zone for the whole-model
 checks, plus `stl/export_manifest.json`. It writes no user-facing file: `model.3mf`, plate
 STLs and the other formats come from `build/build.py` in Phase 4.
@@ -336,7 +337,7 @@ Once per union:
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/quality_gate.py" \
     --script build/<part_id>.py --plan BUILD_PLAN.json \
-    --stl-dir stl --orientation build/<part_id>.orientation.json
+    --stl-dir stl --orientation build/<union_id>.orientation.json
 ```
 
 Read `build/quality_gate.json`. The gate is report-only (never pass `--fix`). Route each
