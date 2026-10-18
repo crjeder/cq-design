@@ -1,7 +1,60 @@
 {
-  "_comment": "Canonical Claude Code permission allow-patterns the cq-design pipeline needs. Seeded into the working directory's .claude/settings.local.json by init_permissions.py. The run_cadquery_model.py Bash entry is the sentinel used to detect prior init. Both Bash and PowerShell variants are included; wildcards absorb the interpolated SKILL_DIR path and per-part arguments. Read/scaffold/build shapes only -- no destructive verbs.",
-  "sentinel": "Bash(uv run --project * python * run_cadquery_model.py *)",
+  "_comment": "Canonical Claude Code permission allow-patterns the cq-design pipeline needs. Seeded into the working directory's .claude/settings.local.json by init_permissions.py, which resolves {skill_dir} to the absolute skill root so script patterns match only this skill's own scripts. Allows: skill script runs (Bash and PowerShell), uv sync, uv run python build/build.py, and WebFetch for the named maker/spec domains. No copy, mkdir, delete or overwrite shapes and no unrestricted WebSearch. 'retired' lists earlier entries the merge removes.",
+  "sentinel": "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/run_cadquery_model.py\" *)",
   "allow": [
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/run_cadquery_model.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/print_orientation.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/fem_check.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/toolpath_speed.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/write_assembly.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/quality_gate.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/regen_prompt.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/render_prompt.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/log.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/plan.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/bundle_project.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/export_standalone.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/printer_profile_validate.py\" *)",
+    "Bash(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/measure_stl.py\" *)",
+    "Bash(python \"{skill_dir}/src/plan.py\" *)",
+    "Bash(python \"{skill_dir}/src/log.py\" *)",
+    "Bash(python \"{skill_dir}/src/measure_stl.py\" *)",
+    "Bash(python \"{skill_dir}/src/blocks/validate.py\" *)",
+    "Bash(python \"{skill_dir}/src/init_permissions.py\" *)",
+    "Bash(python \"{skill_dir}/src/printer_profile_validate.py\" *)",
+    "Bash(python \"{skill_dir}/src/convert_build123d.py\" *)",
+    "Bash(uv sync*)",
+    "Bash(uv run python build/build.py*)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/run_cadquery_model.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/print_orientation.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/fem_check.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/toolpath_speed.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/write_assembly.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/quality_gate.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/regen_prompt.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/render_prompt.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/log.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/plan.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/bundle_project.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/export_standalone.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/printer_profile_validate.py\" *)",
+    "PowerShell(uv run --project \"{skill_dir}\" python \"{skill_dir}/src/measure_stl.py\" *)",
+    "PowerShell(python \"{skill_dir}/src/plan.py\" *)",
+    "PowerShell(python \"{skill_dir}/src/log.py\" *)",
+    "PowerShell(python \"{skill_dir}/src/measure_stl.py\" *)",
+    "PowerShell(python \"{skill_dir}/src/blocks/validate.py\" *)",
+    "PowerShell(python \"{skill_dir}/src/init_permissions.py\" *)",
+    "PowerShell(python \"{skill_dir}/src/printer_profile_validate.py\" *)",
+    "PowerShell(python \"{skill_dir}/src/convert_build123d.py\" *)",
+    "PowerShell(uv sync*)",
+    "PowerShell(uv run python build/build.py*)",
+    "WebFetch(domain:www.thingiverse.com)",
+    "WebFetch(domain:api.thingiverse.com)",
+    "WebFetch(domain:www.printables.com)",
+    "WebFetch(domain:makerworld.com)",
+    "WebFetch(domain:www.gsmarena.com)"
+  ],
+  "retired": [
     "Bash(uv run --project * python * run_cadquery_model.py *)",
     "Bash(uv run --project * python * print_orientation.py *)",
     "Bash(uv run --project * python * fem_check.py *)",
@@ -23,8 +76,6 @@
     "Bash(python * init_permissions.py *)",
     "Bash(python * printer_profile_validate.py *)",
     "Bash(python * convert_build123d.py *)",
-    "Bash(uv sync*)",
-    "Bash(uv run python build/build.py*)",
     "Bash(cp *)",
     "Bash(mkdir *)",
     "PowerShell(uv run --project * python * run_cadquery_model.py *)",
@@ -48,26 +99,31 @@
     "PowerShell(python * init_permissions.py *)",
     "PowerShell(python * printer_profile_validate.py *)",
     "PowerShell(python * convert_build123d.py *)",
-    "PowerShell(uv sync*)",
-    "PowerShell(uv run python build/build.py*)",
     "PowerShell(Copy-Item *)",
     "PowerShell(New-Item -ItemType Directory *)",
-    "WebSearch",
-    "WebFetch(domain:www.thingiverse.com)",
-    "WebFetch(domain:api.thingiverse.com)",
-    "WebFetch(domain:www.printables.com)",
-    "WebFetch(domain:makerworld.com)",
-    "WebFetch(domain:www.gsmarena.com)"
+    "WebSearch"
   ],
   "hooks": {
     "_comment": "Seeded into the working directory's .claude/settings.local.json by init_permissions.py, which substitutes {session_cost_path} with the absolute path to src/session_cost.py and {log_path} with the absolute path to src/log.py at seed time. The Stop hook records billed token cost into build/cost.json after every turn; it is a no-op when build/ is absent and always exits 0. The PostToolUse hook records the base per-attempt telemetry record into build/attempts.jsonl after every run_cadquery_model.py call; it is a no-op on any non-matching command, missing build/, or unparseable result, and always exits 0.",
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "python \"{session_cost_path}\" --hook" } ] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"{session_cost_path}\" --hook"
+          }
+        ]
+      }
     ],
     "PostToolUse": [
       {
         "matcher": "Bash|PowerShell",
-        "hooks": [ { "type": "command", "command": "python \"{log_path}\" --hook" } ]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"{log_path}\" --hook"
+          }
+        ]
       }
     ]
   }

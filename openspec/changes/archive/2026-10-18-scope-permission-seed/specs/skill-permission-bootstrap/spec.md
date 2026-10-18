@@ -1,0 +1,126 @@
+## MODIFIED Requirements
+
+### Requirement: Bootstrap permissions on first use or explicit init
+
+The skill SHALL write the curated set of permission patterns its pipeline commands require
+into the working directory's `.claude/settings.local.json` on the first invocation of the
+skill in that directory, and whenever the user explicitly requests init. First use SHALL be
+detected by the absence of the skill's sentinel permission pattern, resolved against the
+current skill directory, in that file; the presence of the resolved sentinel SHALL cause an
+ordinary (non-explicit) invocation to skip the bootstrap.
+
+#### Scenario: Fresh working directory
+
+- **WHEN** the skill is invoked in a directory whose `.claude/settings.local.json` does not
+  contain the skill's resolved sentinel pattern (and is absent or lacks the skill block)
+- **THEN** the skill writes the canonical permission patterns, resolved against the skill
+  directory, into `.claude/settings.local.json` under `permissions.allow`
+- **AND** reports the patterns it added
+
+#### Scenario: Already initialized
+
+- **WHEN** the skill is invoked normally (not explicit init) in a directory whose
+  `.claude/settings.local.json` already contains the resolved sentinel pattern
+- **THEN** the skill skips the bootstrap and makes no write
+
+#### Scenario: Explicit init re-runs the merge
+
+- **WHEN** the user explicitly asks the skill to init in a directory that was initialized by
+  an older skill version missing some patterns
+- **THEN** the skill re-runs the merge and adds the missing patterns
+
+#### Scenario: Seed from an older skill version or path counts as uninitialized
+
+- **WHEN** `.claude/settings.local.json` holds only the old unanchored sentinel, or the
+  sentinel resolved against a different skill directory
+- **THEN** the init check reports the directory as uninitialized
+
+### Requirement: Idempotent, non-destructive merge
+
+The bootstrap SHALL create `.claude/settings.local.json` (and its parent `.claude/`
+directory) when absent, and otherwise merge the canonical patterns into the existing
+`permissions.allow` array. The merge SHALL add only patterns not already present, SHALL NOT
+reorder or duplicate existing entries, and SHALL leave all other settings keys untouched.
+The merge SHALL remove only entries the skill itself seeded and no longer wants: patterns
+listed as retired in the canonical file, and canonical anchored patterns resolved against a
+different skill directory than the current one. It SHALL report every entry it removes. Any
+other entry SHALL be preserved. The same additive, non-destructive discipline SHALL apply to
+the session-cost hook entry: it is added under `hooks` only when an equivalent entry is
+absent, and existing hook entries (the skill's own or the user's) are never removed or
+reordered except a stale copy of a canonical hook at an old install path.
+
+#### Scenario: File absent
+
+- **WHEN** the working directory has no `.claude/settings.local.json`
+- **THEN** the skill creates `.claude/` and `.claude/settings.local.json` with a
+  `permissions.allow` array containing the resolved canonical patterns
+
+#### Scenario: File present with unrelated entries
+
+- **WHEN** `.claude/settings.local.json` already has a `permissions.allow` array with the
+  user's own entries
+- **THEN** the canonical patterns are appended without removing or reordering the user's
+  existing entries
+- **AND** other top-level keys in the file are preserved unchanged
+
+#### Scenario: All patterns already present
+
+- **WHEN** every resolved canonical pattern is already in `permissions.allow`, no retired or
+  stale skill pattern is present, and the session-cost hook entry is already present
+- **THEN** the merge makes no change to the file (no duplicates added)
+
+#### Scenario: Retired broad patterns are pruned
+
+- **WHEN** `permissions.allow` contains `Bash(cp *)`, `Bash(mkdir *)`, `WebSearch`, or
+  `Bash(python * log.py *)` from an earlier seed
+- **THEN** the merge removes them, reports them as removed, and keeps every other entry in
+  its original order
+
+#### Scenario: Stale skill path is replaced
+
+- **WHEN** `permissions.allow` contains a canonical anchored pattern resolved against an old
+  skill directory (e.g. a previous plugin cache version)
+- **THEN** the merge removes it and adds the pattern resolved against the current skill
+  directory
+
+#### Scenario: User hook entries are preserved
+
+- **WHEN** `.claude/settings.local.json` already defines an unrelated `Stop` hook
+- **THEN** the session-cost hook is appended alongside it and the user's entry is left
+  unchanged
+
+### Requirement: Canonical permission set scoped to skill commands
+
+The canonical pattern set SHALL be a single documented list covering the command shapes the
+pipeline issues -- the `uv run`/`python` invocations of the skill's own scripts, `uv sync`,
+the bundled `uv run python build/build.py`, and `WebFetch` for the maker and spec sources
+the skill names -- including both Bash and PowerShell variants. Every pattern that runs a
+skill script SHALL be anchored to the skill directory by a placeholder resolved to the
+absolute skill root at seed time, so it matches the documented invocation regardless of
+per-part arguments but does not match a same-named script elsewhere. The set SHALL NOT
+include file copy, directory creation, delete, or overwrite command shapes, nor an
+unrestricted `WebSearch` grant, and its documentation comment SHALL describe exactly what it
+allows. The set SHALL be written only to the working directory's project-local settings
+(never global settings or the skill's own directory).
+
+#### Scenario: Patterns absorb argument variation
+
+- **WHEN** the skill later runs `uv run --project "<skill_dir>" python "<skill_dir>/src/run_cadquery_model.py" build/part.py --preview`
+- **THEN** that call matches a seeded allow pattern and does not prompt
+
+#### Scenario: Same-named script outside the skill does not match
+
+- **WHEN** a command runs `python "/some/other/repo/log.py" ...` or
+  `uv run --project /other python /other/src/plan.py ...`
+- **THEN** no seeded allow pattern matches it
+
+#### Scenario: Both shells covered
+
+- **WHEN** the skill issues a command via PowerShell on Windows or via Bash on POSIX
+- **THEN** a seeded pattern for the corresponding shell matches the command shape
+
+#### Scenario: Destructive and unrestricted shapes excluded
+
+- **WHEN** the canonical set is inspected
+- **THEN** it contains no `cp`, `mkdir`, `Copy-Item`, `New-Item`, `rm`, `Remove-Item`, or
+  bare `WebSearch` entry
