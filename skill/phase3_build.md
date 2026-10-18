@@ -118,7 +118,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
        --plan BUILD_PLAN.json --part <part_id> --script build/<part_id>.py \
        --previews <preview_paths from the contract...>
    ```
-   Prompt: `Read build/<part_id>_audit_prompt.txt in full and follow it.`
+   Prompt: `Read build/<part_id>_audit_prompt.txt in full and follow it. Working directory: <absolute cwd>.`
 2. **`verdict: pass`** -> accepted. Do the write-backs, then:
    ```bash
    uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
