@@ -90,7 +90,7 @@ South -Y, West -X, Up +Z, Down -Z.
 {
   "load_path": "clip arm bends at its root when the lid is pressed on",
   "worst_case_stress": "arm root, bending at full deflection",
-  "check": "strain = 1.5*t*d/L^2 = 1.5*1.2*1.8/18^2 = 1.0% <= 2.0% allowable (PETG)"
+  "check": "strain = 1.5*t*d/L^2 = 1.5*1.2*1.8/18^2 = 1.0% <= 4.0% allowable (PETG)"
 }
 ```
 

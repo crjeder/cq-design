@@ -20,7 +20,7 @@ The engineering rationale SHALL be recorded in `BUILD_PLAN.json` as the part ent
 For a load-bearing part the field SHALL be an object stating (a) `load_path`, (b)
 `worst_case_stress`, and (c) `check`: at least one computed check, a formula evaluated
 with the part script's own parameter values, compared against a stated material allowable
-(e.g. "strain = 1.5*t*d/L^2 = 1.0% <= 2.0% allowable (PETG)"). The `check` SHALL reference
+(e.g. "strain = 1.5*t*d/L^2 = 1.0% <= 4.0% allowable (PETG)"). The `check` SHALL reference
 the script's parameter names, not free-standing constants. A part with no load-bearing
 features SHALL instead carry the string form `no load-bearing features (<short reason>)`.
 
