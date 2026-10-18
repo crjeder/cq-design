@@ -13,7 +13,7 @@ This writes the profile's `slicer.preferred_format` into `out/`. If `build.py` f
 Report to the user:
 
 1. **Status** - which parts passed, which had remaining warnings or errors. If
-   `build/quality_gate.json` carries a `telemetry_missing` warning (`source: "telemetry"`),
+   any `build/<union_id>.quality_gate.json` (one per union, written in Phase 3) carries a `telemetry_missing` warning (`source: "telemetry"`),
    name the missing `build/attempts.jsonl` and note that this session produced no
    measurement data. If it carries a `parameters_missing` warning (`source: "parameters"`),
    name the missing `parameters.py` and note that Phase 1's dimension checkpoint recorded
@@ -27,7 +27,7 @@ Report to the user:
    **ask before changing plate layout or part count** -- more copies is never applied
    without the user's explicit approval (see `reference/scripts.md`, `src/toolpath_speed.py`)
 2. **Preview images** - display any `.png` files from `preview/`
-3. **Print recipe** - show `print_recipe` from `build/quality_gate.json`
+3. **Print recipe** - show each union's `print_recipe` from its `build/<union_id>.quality_gate.json`
 4. **Output files** - list the files `build.py` wrote to `out/`, and note
    that the working directory is a self-contained uv project (committed `uv.lock`): the
    user regenerates them, or any other format, with `uv run python build/build.py
