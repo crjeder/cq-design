@@ -135,7 +135,7 @@ Order matters: 1 produces the evidence 4 needs, 2 and 3 cut fix-loop failures,
   - Done when: a scorecard row shows wall time and render count, and a log written
     before this change still scores.
 
-- [ ] **2. Pre-kernel parameter predicates** (source: harnesscad, rated High)
+- [x] **2. Pre-kernel parameter predicates** (source: harnesscad, rated High)
   - Why: `script_lint.py` is AST-only (cannot relate a fillet radius to an edge length)
     and `cq_verify.py` fires after the boolean. A bad fillet/chamfer reaches OCC and
     returns `Standard_ConstructionError`/`StdFail_NotDone`, a vague error.
