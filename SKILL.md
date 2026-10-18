@@ -1,6 +1,6 @@
 ---
 name: cq-design
-description: Design or redesign 3D-printable parts as parametric CadQuery models. Use when the user asks to design, model, fix printability of, or generate an STL/3D-printed part -- mentions like "3D print", "STL", "CadQuery", "enclosure", "bracket", "mount", "case", "holder", "box", "lid", "stand", "gridfinity", "print me a", "design a part", "make a part for", "redesign for printability".
+description: Design or redesign 3D-printable parts as parametric CadQuery models. Use when the user asks to design, model, fix printability of, or generate an STL for a 3D-printed part -- mentions like "3D print", "3D-printable", "STL", "CadQuery", "gridfinity", "print me a", "printable enclosure/bracket/mount/case/holder/box/lid/stand", "design a part to print", "redesign for printability".
 ---
 
 # cq-design
