@@ -24,6 +24,8 @@ import shutil
 import sys
 import tempfile
 
+MAX_SECTIONS = 3
+
 
 def _parse_detail_spec(spec: str) -> dict:
     """Parse one `--detail` spec into `{name, center, size, section}`.
@@ -104,17 +106,39 @@ def _parse_callouts(args) -> list[dict]:
     return callouts
 
 
-def _section_cuts(result, extra_sections, cross_sections):
+def _auto_cuts(result, reserved, slots):
+    """Geometry-driven (axis, pos) cuts from section_select; [] on any selector error."""
+    if slots <= 0:
+        return []
+    try:
+        import cadquery as cq
+
+        from section_select import select_sections
+
+        shape = result
+        if isinstance(result, cq.Workplane):  # .val() would drop unions merged with .add()
+            shape = cq.Compound.makeCompound([v for v in result.vals() if isinstance(v, cq.Shape)])
+        return [(s["axis"], s["position_mm"]) for s in select_sections(shape, slots, reserved)]
+    except Exception as exc:
+        print(f"WARNING: --auto-sections failed: {exc}", file=sys.stderr)
+        return []
+
+
+def _section_cuts(result, extra_sections, cross_sections, auto_sections=False):
     """Resolve which cross-sections to render, as (axis, position_mm, is_center) tuples.
 
     Caller-supplied declared positions (`--extra-section`, threaded from the plan's
-    feature/union positions) take precedence -- when any are given, they ARE the
-    sections. Otherwise `--cross-sections` falls back to the three bounding-box-center
-    cuts so a section still crosses the part. Returns [] when neither is requested.
+    feature/union positions) come first. `--auto-sections` then fills the remaining
+    slots (up to MAX_SECTIONS total) with section_select cuts through bore/boss axes.
+    Only when that leaves no cut does `--cross-sections` fall back to the three
+    bounding-box-center cuts. Returns [] when nothing is requested.
     """
-    if extra_sections:
-        return [(axis, pos, False) for axis, pos in extra_sections]
-    if not cross_sections:
+    cuts = list(extra_sections)
+    if auto_sections:
+        cuts += _auto_cuts(result, extra_sections, MAX_SECTIONS - len(cuts))
+    if cuts:
+        return [(axis, pos, False) for axis, pos in cuts]
+    if not (cross_sections or auto_sections):
         return []
     import preview
 
@@ -262,8 +286,9 @@ def _render_all(
     # caller-supplied declared positions (--extra-section) when provided, else the
     # bounding-box-center X/Y/Z cuts. Each is its own file so the review can open
     # and scrutinize it against a specific verification question, one at a time.
-    if args.views == "multi" and (args.cross_sections or extra_sections):
-        for axis, pos, is_center in _section_cuts(result, extra_sections, args.cross_sections):
+    if args.views == "multi" and (args.cross_sections or args.auto_sections or extra_sections):
+        cuts = _section_cuts(result, extra_sections, args.cross_sections, args.auto_sections)
+        for axis, pos, is_center in cuts:
             name = (
                 f"{stem}_section_{axis}.png"
                 if is_center
@@ -320,6 +345,16 @@ def main():
             "Render cross-sections as separate files (multi view only): through the "
             "--extra-section positions when given, else the bounding-box-center cuts. "
             "Ignored for --views iso."
+        ),
+    )
+    parser.add_argument(
+        "--auto-sections",
+        action="store_true",
+        help=(
+            "Fill the remaining section slots (up to 3 total, after any --extra-section "
+            "cuts) with geometry-driven cuts through bore/boss axes from section_select.py. "
+            "Implies --cross-sections; bounding-box-center cuts remain the fallback when "
+            "nothing is selected. A selector error only warns."
         ),
     )
     parser.add_argument(

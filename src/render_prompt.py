@@ -139,7 +139,7 @@ def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
         ]
     args += [
         f"--wall-min {cons['wall_min_mm']:g}",
-        "--strict --preview --preview-dir preview --cross-sections",
+        "--strict --preview --preview-dir preview --cross-sections --auto-sections",
         f"--attempts-log build/attempts.jsonl --model {part_author_model()}",
     ]
     for itf in part.get("interfaces") or []:
