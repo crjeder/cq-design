@@ -664,7 +664,7 @@ def _check_intent_reconciled(plan: dict[str, Any]) -> list[str]:
         return []
     fix = (
         "rewrite `intent` if the design changed, then set `intent_ts` "
-        "(request_log_search.py add --reconciled)"
+        "(log.py request add ... --reconciled)"
     )
     stamp = plan.get("intent_ts")
     try:

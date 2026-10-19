@@ -195,7 +195,10 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
 
 16. **Copy `intent` verbatim** from the approved Phase 1 reformulation in the request below;
     on a re-plan carry it forward unchanged. Fit the decomposition to `intent`, never the
-    reverse; an irreconcilable contradiction is an `OPEN:` item.
+    reverse; an irreconcilable contradiction is an `OPEN:` item. If `request_log` has any
+    non-`initial` entry, set `intent_ts` to the newest such entry's `ts`, copied exactly;
+    omit it when the log holds only the `initial` entry. On a re-plan carry it forward
+    unchanged.
 
 ## Block inventory (name and use only)
 
@@ -217,7 +220,7 @@ states a different value: then use the stated value and note the deviation in
 
 ## Required output schema
 
-Optional fields: `coordinate_frame`, `archetype`, `plate`, `pose_intent`, `show_face`,
+Optional fields: `intent_ts` (rule 16), `coordinate_frame`, `archetype`, `plate`, `pose_intent`, `show_face`,
 per-part `optimize_for`, `part_notes` (needed when `blocks_needed` is empty or geometry is
 non-standard), `unions`, `joints`, `root_part`, `kinematics` (only for a declared range of
 motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always set `load`
@@ -233,6 +236,7 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
   "nozzle_mm": 0.4,
   "optimize_for": "strength",
   "review_policy": "every_stage",
+  "intent_ts": "2026-07-19T10:05:00Z",
   "request_log": [
     {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "<original request, verbatim>"},
     {"ts": "2026-07-19T10:05:00Z", "kind": "clarification", "text": "<verbatim>", "level": "parameter", "targets": ["body"]}
