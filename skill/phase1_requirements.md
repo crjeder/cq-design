@@ -107,7 +107,8 @@ TV_BASE_WIDTH_MM = 385.0   # user-stated
 IPHONE_15_PRO_WIDTH_MM = 70.6  # apple.com/iphone-15-pro/specs, confirmed vs. gsmarena.com
 ```
 
-Then (skip when nothing was looked up):
+Then always append the milestone, even when nothing was looked up (resume keys on it).
+When `parameters.py` was skipped, use the text `"nothing sourced, no parameters.py"`:
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
     phase1/dimensions_approved "parameters.py written, <n> dimensions recorded"
