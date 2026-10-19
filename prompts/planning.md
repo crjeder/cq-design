@@ -143,12 +143,13 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
     - Structural (bracket arm in bending, hook in tension, shaft in shear): `load.dir`
       `[x, y, z]` in the build pose; `load.type` defaults to `tension`.
     - Resting/compressive (base, plinth, foot, gasket, shim) or a non-load-bearing flat
-      cover/panel: `load.type: "compression"`.
+      cover/panel: `load: {"dir": [0, 0, -1], "type": "compression"}` (`dir` is the
+      direction the resting load presses, in the build pose; the schema requires it).
     - Unclear loading is an `OPEN:` item, never a silent omission.
     - **Solvable load case (optional, for the FEM stress advisor)**: when the load comes
       from an object with a researched mass (e.g. "holds a phone"), also declare
       `magnitude_n = mass_g * 9.81 / 1000 * safety_factor` (safety factor from
-      `reference/Engineering Design Rules.md`'s Material Constants section), `applied_at`
+      the Engineering Design Rules section below), `applied_at`
       (the `interfaces[].name` where the load enters), and `grounded_at` (the
       `interfaces[].name` list that hold the part). Never state `magnitude_n` without a
       researched mass behind it -- add the mass to the research lookup targets instead of
@@ -290,6 +291,10 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
 ## FDM Design Guidelines
 
 {{FDM_GUIDELINES}}
+
+## Engineering Design Rules
+
+{{ENGINEERING_RULES}}
 
 ## User's request
 
