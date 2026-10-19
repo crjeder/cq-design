@@ -17,8 +17,9 @@ plan's `engineering_rationale`):
 **Views** (read every file before answering):
 {{PREVIEW_PATHS}}
 
-- `<part>_preview.png`: 2x2 tile. Front (looking -Y), Left side (top-right), Top (looking
-  -Z), Isometric. Ortho panels are undistorted: use them for placement, proportion, bed face.
+- `<part>_preview.png`: 2x2 tile. Viewed from South (looking North) top-left, Viewed
+  from West (looking East) top-right, Viewed from above (looking down) bottom-left, Isometric
+  bottom-right; North=+Y, East=+X, up=+Z. Ortho panels are undistorted: use them for placement, proportion, bed face.
 - `<part>_section_*.png`: interior cuts. Connectedness, walls, internal features.
 - `<part>_detail_*.png`: zooms on small features.
 
