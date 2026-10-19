@@ -478,7 +478,7 @@ def test_cli_no_match_exits_zero_with_empty_array(tmp_path, capsys):
 def test_cli_missing_file_exits_nonzero(tmp_path, capsys):
     rc = log.main(["request", "search", str(tmp_path / "missing.json")])
     assert rc == 1
-    assert "request_log_search" in capsys.readouterr().err
+    assert "request: " in capsys.readouterr().err
 
 
 def test_cli_invalid_json_exits_nonzero(tmp_path, capsys):
@@ -600,7 +600,7 @@ def test_add_empty_text_fails_schema_validation_and_leaves_file_unchanged(tmp_pa
     plan_path.write_text(original, encoding="utf-8")
     rc = log.main(["request", "add", str(plan_path), "--kind", "correction", "--text", ""])
     assert rc == 1
-    assert "request_log_search" in capsys.readouterr().err
+    assert "request: " in capsys.readouterr().err
     assert plan_path.read_text(encoding="utf-8") == original
 
 

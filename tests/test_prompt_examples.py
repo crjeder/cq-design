@@ -11,6 +11,7 @@ import jsonschema
 import pytest
 
 import render_prompt as rp
+from plan import _check_intent_reconciled
 
 ROOT = Path(__file__).parent.parent
 PROMPTS = ROOT / "prompts"
@@ -36,6 +37,7 @@ def test_planning_example_matches_schema():
     example = json.loads(_fences("planning.md", "json")[0])
     errors = [e.message for e in jsonschema.Draft7Validator(schema).iter_errors(example)]
     assert not errors
+    assert not _check_intent_reconciled(example)
 
 
 def _namespace() -> dict:
