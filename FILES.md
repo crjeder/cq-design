@@ -144,5 +144,6 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_sliver_fin.py               # Fin detection on a real part (fixtures/rim_fillet_fins.py.txt) with four zero-thickness fins (CadQuery)
     test_templates.py                # Archetype index validation + per-template lint/geometry
     test_pose_terminology.py         # Retired frame-term guard -- fast, no CadQuery
+    test_prompt_examples.py          # Prompt fenced examples validate/run; reference/ paths resolve (CadQuery)
     fixtures/
 ```

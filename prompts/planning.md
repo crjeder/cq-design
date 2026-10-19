@@ -227,7 +227,7 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
 {
   "schema_version": 1,
   "planning_notes": "<rules above>",
-  "intent": "<approved reformulation, verbatim>",
+  "intent": "<approved Phase 1 reformulation, copied verbatim: what is built and why, the reading of each ambiguous shape, fit types, assumptions with values>",
   "printer": "<printer model>",
   "material": "PLA",
   "nozzle_mm": 0.4,
@@ -241,7 +241,7 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
     {
       "id": "body",
       "description": "<what this part is>",
-      "dimensions": {"w_mm": 0, "d_mm": 0, "h_mm": 0},
+      "dimensions": {"w_mm": 50, "d_mm": 35, "h_mm": 20},
       "interfaces": [
         {
           "type": "port_cutout",
