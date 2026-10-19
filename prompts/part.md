@@ -180,6 +180,7 @@ error or a failed audit:
 from cq_verify import verify_stage
 
 body = cq.Workplane("XY").box(width, depth, wall, centered=(True, True, False))
+base_volume = body.val().Volume()
 body = verify_stage(body, "base_shell", bbox=(-width/2, width/2, -depth/2, depth/2, 0, wall))
 
 body = body.faces(">Z").workplane().rect(boss_w, boss_d, forConstruction=True) \
