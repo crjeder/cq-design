@@ -9,8 +9,8 @@ Phase 1 sourcing occurred but was never recorded, without blocking delivery.
 
 The quality gate SHALL emit a `warning` finding (`source: "parameters"`, `type:
 "parameters_missing"`) when `build/journal.md` contains a line starting with
-`- phase1/dimensions_approved` (Phase 1's dimension checkpoint recorded that sourcing
-occurred) but `parameters.py` is missing or empty at the project root. The finding
+`- phase1/dimensions_approved: parameters.py written` (Phase 1's dimension checkpoint
+recorded that sourcing occurred) but `parameters.py` is missing or empty at the project root. The finding
 SHALL NOT be an `error`: a missing provenance file never blocks delivery, since the
 geometry it would document is unaffected.
 
@@ -26,7 +26,8 @@ geometry it would document is unaffected.
 
 #### Scenario: No journal, or journal never recorded sourcing
 - **WHEN** `build/journal.md` is absent, or present but contains no
-  `phase1/dimensions_approved` line (the design had no real-world dimension lookups)
+  `phase1/dimensions_approved: parameters.py written` line (the design had no
+  real-world dimension lookups, e.g. `dimensions_approved: nothing sourced, ...`)
 - **THEN** no `parameters_missing` finding is emitted, regardless of whether
   `parameters.py` exists
 

@@ -625,9 +625,9 @@ def _run_telemetry_stage(attempts_log: str) -> list[dict]:
 
 def _run_parameters_presence_stage(project_root: str) -> list[dict]:
     """Warn when Phase 1's dimension checkpoint recorded that real-world sourcing
-    happened (a `phase1/dimensions_approved` line in build/journal.md) but
-    parameters.py is missing or empty at the project root (advisory only -- geometry
-    is unaffected either way)."""
+    happened (a `phase1/dimensions_approved: parameters.py written` line in
+    build/journal.md) but parameters.py is missing or empty at the project root
+    (advisory only -- geometry is unaffected either way)."""
     from units import make_issue
 
     journal_path = os.path.join(project_root, "build", "journal.md")
@@ -635,7 +635,9 @@ def _run_parameters_presence_stage(project_root: str) -> list[dict]:
         return []
 
     with open(journal_path, encoding="utf-8") as f:
-        sourced = any(line.startswith("- phase1/dimensions_approved") for line in f)
+        sourced = any(
+            line.startswith("- phase1/dimensions_approved: parameters.py written") for line in f
+        )
     if not sourced:
         return []
 

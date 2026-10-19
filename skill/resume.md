@@ -38,9 +38,10 @@ line; the format below is what that command writes.
 
 | Phase | Milestone key | Written when |
 |-------|---------------|--------------|
+| 0 | `restart` | The user declines to resume and starts over (marks where the new attempt begins) |
 | 0 | `rung_decision` | The sourcing ladder resolves — records the chosen rung, source, and license verdict |
 | 1 | `topology_confirmed` | The user confirms a topology reading at the clarification step |
-| 1 | `dimensions_approved` | The user approves/corrects the Phase 1 exit checkpoint (`parameters.py` is written in the same turn — see `skill/phase1_requirements.md`) |
+| 1 | `dimensions_approved` | The user approves/corrects the Phase 1 exit checkpoint — always written, even when nothing was looked up (`parameters.py` is written in the same turn when there are measurements — see `skill/phase1_requirements.md`) |
 | 2 | `plan_written` | `BUILD_PLAN.json` passes `plan.py validate` |
 | 2 | `plan_approved` | The user approves the Phase 2 plan summary |
 | 3 | `stub_approved:<part_id>` | The user approves a part's `profile_stub` stage |
@@ -54,7 +55,9 @@ line; the format below is what that command writes.
 
 ## Resume procedure
 
-1. Read `build/journal.md` in full.
+1. Read `build/journal.md` in full. Only the lines after the last `- phase0/restart:`
+   line (or all lines, if there is none) belong to the current attempt; steps 2-4 use
+   only those.
 2. Cross-check the on-disk artifacts the journal's milestones point to
    (`BUILD_PLAN.json`, `parameters.py`, `build/*.py`, `build/attempts.jsonl`, `stl/`,
    `out/`, `preview/`) — these are authoritative for **content**; the journal is authoritative
@@ -66,14 +69,19 @@ line; the format below is what that command writes.
    parts (if any) are accepted, and where the run will resume. Ask the user to confirm
    resuming or start over — never resume silently.
 4. **Confirmed:** continue the pipeline at the first phase/step whose milestone is not
-   yet in the journal. Do not re-run a phase whose milestone is already recorded — e.g.
+   yet in the current attempt's lines. Do not re-run a phase whose milestone is already recorded — e.g.
    `dimensions_approved` present means skip straight past the checkpoint into Phase 2;
    `part_accepted:<id>` present for a part means skip its part loop and move to the
    next part. A part that was mid-build has no live builder agent after an interruption:
    spawn a new one; it starts from the script already in `build/<id>.py`.
-5. **Declined (start over):** restart the pipeline from Phase 0. Keep appending to the
-   existing journal rather than truncating it — the old lines remain a true record of
-   the prior attempt.
+5. **Declined (start over):** append the restart marker, then restart the pipeline from
+   Phase 0. Keep appending to the existing journal rather than truncating it — the old
+   lines remain a true record of the prior attempt, and the marker keeps a later resume
+   from trusting them.
+   ```bash
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+       phase0/restart "user started over; earlier milestones void"
+   ```
 
 ## Updating an existing project
 

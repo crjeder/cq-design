@@ -38,6 +38,13 @@ def test_journal_without_milestone_is_silent(tmp_path):
     assert _run_parameters_presence_stage(str(tmp_path)) == []
 
 
+def test_nothing_sourced_milestone_is_silent(tmp_path):
+    _write_journal(
+        tmp_path, line="- phase1/dimensions_approved: nothing sourced, no parameters.py\n"
+    )
+    assert _run_parameters_presence_stage(str(tmp_path)) == []
+
+
 def test_sourced_and_file_present_is_silent(tmp_path):
     _write_journal(tmp_path)
     (tmp_path / "parameters.py").write_text("WIDTH_MM = 385.0\n", encoding="utf-8")
