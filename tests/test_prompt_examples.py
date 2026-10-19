@@ -1,17 +1,15 @@
 """Doc-example checks: the claims prompts make about code must hold."""
 
 import inspect
-import json
 import re
 from collections.abc import Callable
 from pathlib import Path
 
 import cadquery as cq
-import jsonschema
 import pytest
 
 import render_prompt as rp
-from plan import _check_intent_reconciled
+from plan import validate_plan
 
 ROOT = Path(__file__).parent.parent
 PROMPTS = ROOT / "prompts"
@@ -32,12 +30,10 @@ def _fences(name: str, lang: str) -> list[str]:
     return re.findall(rf"^```{lang}\n(.*?)^```", text, re.M | re.S)
 
 
-def test_planning_example_matches_schema():
-    schema = json.loads((ROOT / "src" / "build_plan_schema.json").read_text(encoding="utf-8"))
-    example = json.loads(_fences("planning.md", "json")[0])
-    errors = [e.message for e in jsonschema.Draft7Validator(schema).iter_errors(example)]
-    assert not errors
-    assert not _check_intent_reconciled(example)
+def test_planning_example_matches_schema(tmp_path):
+    plan = tmp_path / "BUILD_PLAN.json"
+    plan.write_text(_fences("planning.md", "json")[0], encoding="utf-8")
+    assert validate_plan(str(plan)) == []
 
 
 def _namespace() -> dict:

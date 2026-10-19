@@ -265,6 +265,14 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
       "optimize_for": "strength",
       "show_face": {"dir": [0, 0, 1]},
       "part_notes": "<scratch geometry intent>"
+    },
+    {
+      "id": "lid",
+      "description": "<what this part is>",
+      "dimensions": {"w_mm": 50, "d_mm": 35, "h_mm": 3},
+      "interfaces": [],
+      "blocks_needed": ["pin_hinge"],
+      "load": {"dir": [0, 0, -1]}
     }
   ],
   "bom": [
@@ -273,7 +281,7 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
   "kinematics": [
     {
       "joint_id": "lid_hinge",
-      "moving_union": "leaf_a",
+      "moving_union": "lid",
       "block": "pin_hinge",
       "axis_origin_mm": [0, 35, 20],
       "axis_dir": "Y",
