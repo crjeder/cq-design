@@ -354,10 +354,10 @@ def _cmd_search(args: argparse.Namespace) -> int:
         with open(args.plan, encoding="utf-8") as f:
             plan = json.load(f)
     except OSError as exc:
-        print(f"request_log_search: {exc}", file=sys.stderr)
+        print(f"request: {exc}", file=sys.stderr)
         return 1
     except json.JSONDecodeError as exc:
-        print(f"request_log_search: invalid JSON: {exc}", file=sys.stderr)
+        print(f"request: invalid JSON: {exc}", file=sys.stderr)
         return 1
 
     results = search_request_log(
@@ -372,10 +372,10 @@ def _cmd_add(args: argparse.Namespace) -> int:
         with open(args.plan, encoding="utf-8") as f:
             plan = json.load(f)
     except OSError as exc:
-        print(f"request_log_search: {exc}", file=sys.stderr)
+        print(f"request: {exc}", file=sys.stderr)
         return 1
     except json.JSONDecodeError as exc:
-        print(f"request_log_search: invalid JSON: {exc}", file=sys.stderr)
+        print(f"request: invalid JSON: {exc}", file=sys.stderr)
         return 1
 
     try:
@@ -389,7 +389,7 @@ def _cmd_add(args: argparse.Namespace) -> int:
             snapshot_dir=args.snapshot_scripts,
         )
     except ValueError as exc:
-        print(f"request_log_search: {exc}", file=sys.stderr)
+        print(f"request: {exc}", file=sys.stderr)
         return 1
 
     with open(args.plan, "w", encoding="utf-8") as f:
