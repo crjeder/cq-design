@@ -111,8 +111,9 @@ a phase whose milestone the journal already records.
 #### Scenario: User chooses to start over
 
 - **WHEN** the user declines to resume
-- **THEN** the skill starts the pipeline from the top and continues appending to the
-  existing journal rather than truncating it
+- **THEN** the skill appends a `- phase0/restart:` line, starts the pipeline from the
+  top and continues appending to the existing journal rather than truncating it, and a
+  later resume considers only milestones after the last `phase0/restart` line
 
 #### Scenario: Journal absent
 

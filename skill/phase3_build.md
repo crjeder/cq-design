@@ -110,6 +110,12 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
     phase3/escalation:<part_id> "<hint verbatim | accepted as-is | skipped>"
 ```
 
+On **accept as-is**, also append (resume keys on it):
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+    phase3/part_accepted:<part_id> "accepted as-is at escalation"
+```
+
 ## Implementation audit
 
 1. Render and spawn a fresh auditor for every `passed` contract:
