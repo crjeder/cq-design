@@ -404,6 +404,7 @@ def render_planning(
             "BLOCK_INVENTORY": _index_lines(inventory, with_file=False),
             "ARCHETYPE_INDEX": _index_lines(archetypes, with_file=True),
             "FDM_GUIDELINES": fdm,
+            "ENGINEERING_RULES": tagged_sections(_read(REF / "Engineering Design Rules.md"), set()),
             "PRINTER_PROFILE": profile_text,
             "SKILL_DIR": SKILL_DIR.as_posix(),
         },

@@ -18,8 +18,8 @@ message is the return contract below, nothing after it.
 
 **Collect, then stop.** Gather every plausible candidate from steps 1-4 before writing
 the return table -- a worse candidate found first must not crowd out a better one found
-later. Do not classify candidates onto the five-rung ladder yourself; that judgment
-(including the rung-3 user confirmation) happens after you return.
+later. Your `Rung` column is a first pass (see "Rung assignment"); the final rung
+choice and the rung-3 user confirmation happen after you return.
 
 ## Seed corpus
 
@@ -39,8 +39,8 @@ later. Do not classify candidates onto the five-rung ladder yourself; that judgm
 ## License reusability verdict
 
 For each candidate, apply these rules to the license text you read and report the result
-in the `Reusable` column. You are not choosing the candidate's rung (see above) -- only
-whether its license permits reuse at all, and under what constraint.
+in the `Reusable` column. This verdict is about the license only -- whether it permits
+reuse at all, and under what constraint; the rung is a separate column.
 
 - **No license stated**: verdict `no (none stated)`. Never assume permissive.
 - **Permissive or explicit license with no no-derivatives (ND) restriction**: verdict
