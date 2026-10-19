@@ -41,9 +41,9 @@ FreeCAD source).
   through the normal wrapper/gate like any generated script — no special handling.
 - **build123d**: both build123d and CadQuery wrap OpenCASCADE, so conversion is
   mostly renaming. Use `src/convert_build123d.py`'s `API_MAPPING` table as a reference
-  while re-authoring the script (`python "$SKILL_DIR/src/convert_build123d.py" --mapping`
+  while re-authoring the script (`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/convert_build123d.py" --mapping`
   prints it as JSON), then validate the converted script with its smoke-check mode:
-  `python "$SKILL_DIR/src/convert_build123d.py" --smoke-check converted_part.py` — this runs the
+  `uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/convert_build123d.py" --smoke-check converted_part.py` — this runs the
   script through `run_cadquery_model.py --strict` and reports the same JSON verdict
   any generated part gets. Fix findings the same way the part loop would.
 - **OpenSCAD**: **never transpile the .scad text.** OpenSCAD's CSG tree (`hull()`,
