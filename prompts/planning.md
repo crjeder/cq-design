@@ -148,8 +148,8 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
     - **Solvable load case (optional, for the FEM stress advisor)**: when the load comes
       from an object with a researched mass (e.g. "holds a phone"), also declare
       `magnitude_n = mass_g * 9.81 / 1000 * safety_factor` (safety factor from
-      `reference/Engineering Design Rules.md`'s Material Constants section), `applied_at`
-      (the `interfaces[].name` where the load enters), and `grounded_at` (the
+      `{{SKILL_DIR}}/reference/Engineering Design Rules.md`'s Material Constants section),
+      `applied_at` (the `interfaces[].name` where the load enters), and `grounded_at` (the
       `interfaces[].name` list that hold the part). Never state `magnitude_n` without a
       researched mass behind it -- add the mass to the research lookup targets instead of
       estimating it. Record the source mass in `planning_notes` as
@@ -226,7 +226,7 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
 {
   "schema_version": 1,
   "planning_notes": "<rules above>",
-  "intent": "<approved reformulation, verbatim>",
+  "intent": "<approved Phase 1 reformulation, copied verbatim: what is built and why, the reading of each ambiguous shape, fit types, assumptions with values>",
   "printer": "<printer model>",
   "material": "PLA",
   "nozzle_mm": 0.4,
@@ -240,7 +240,7 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
     {
       "id": "body",
       "description": "<what this part is>",
-      "dimensions": {"w_mm": 0, "d_mm": 0, "h_mm": 0},
+      "dimensions": {"w_mm": 50, "d_mm": 35, "h_mm": 20},
       "interfaces": [
         {
           "type": "port_cutout",
