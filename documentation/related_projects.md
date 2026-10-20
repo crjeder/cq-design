@@ -162,6 +162,9 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [CADDesigner](https://arxiv.org/abs/2508.01031) | Requirement-analysis stage before CAD generation | Low-Medium | Prior art for Phase 1 requirements capture (`REQUIREMENTS.md` already shipped) |
 | [SEG / ODPO](https://arxiv.org/abs/2511.16434) | Self-supporting shape generation; defines the Normalized Support Volume score | Medium | NSV = support volume / model volume as a scale-invariant orientation and gate score; model itself has no public code -- see Details: NSV score **Open:** NSV score as gate / orientation objective ([details](#nsv-score)). |
 | [rishigundakaram/cadquery-mcp-server](https://github.com/rishigundakaram/cadquery-mcp-server) | CadQuery MCP server with `verify_cad_query` (geometry vs natural-language criteria) | Low-Medium | LLM intent-match verifier; overlaps the cadgate-style item -- see Details: verify-against-criteria tool |
+| [aguera](https://github.com/pzfreo/augura) | | |
+| [Quiddity](https://github.com/pzfreo/quiddity) | | | 
+| https://wormgear.studio/ | | | 
 
 ## Details
 
