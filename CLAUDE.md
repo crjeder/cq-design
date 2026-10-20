@@ -63,6 +63,8 @@ run real CadQuery scripts (a few seconds each).
 
 ## Key Constraints
 
+- **Program first**: use programmed tools for every deterministic task. LLM prompts only where 
+  they are strong
 - **Three poses**: *build pose* is the frame a part script is authored in; every
   direction from the user, the plan or a CLI flag (`load.dir`, `--load`, `--show-face`,
   "top"/"front") is in build pose. *Assembly pose* is build pose plus `placement`
