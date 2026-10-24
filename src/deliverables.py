@@ -9,6 +9,7 @@ import os
 import re
 from collections import Counter
 from collections.abc import Callable
+from typing import Any
 
 import cadquery as cq
 
@@ -16,7 +17,7 @@ from estampo_export import write_estampo_toml
 from exporters import _REGISTRY
 from exporters.threemf_multi import write_named_3mf
 from placement import apply_cq
-from units import is_copy, plate_of
+from units import is_copy, object_groups, plate_of, union_entries
 from write_assembly import assemble
 
 _NAME_MAX_LEN = 64
@@ -123,7 +124,7 @@ def write_deliverables(
     files: dict[str, dict[str, str]] = {}
 
     if "3mf" in formats:
-        files["3mf"] = {"model.3mf": _write_3mf(asm, print_orientations, out_dir, report)}
+        files["3mf"] = {"model.3mf": _write_3mf(plan, asm, print_orientations, out_dir, report)}
 
     if "stl" in formats:
         stls: dict[str, str] = {}
@@ -171,19 +172,39 @@ def write_deliverables(
 
 
 def _write_3mf(
-    asm: dict, print_orientations: dict[str, dict], out_dir: str, report: Callable[[str], None]
+    plan: dict,
+    asm: dict,
+    print_orientations: dict[str, dict],
+    out_dir: str,
+    report: Callable[[str], None],
 ) -> str:
-    """Write `model.3mf` (one named object per union) and guard its index topology."""
+    """Write `model.3mf` and guard its index topology.
 
-    names = _dedupe_object_names(asm["records"])
-    objects = [
-        (
-            name,
-            asm["plate_by_uid"][uid],
-            cq.Compound.makeCompound(_print_pose(asm, print_orientations, uid).vals()),  # type: ignore[arg-type]
-        )
-        for name, (uid, _part) in zip(names, asm["records"], strict=True)
+    One named object per union, except that the members of an `object` group become the
+    bodies of one object. Members come from one part (one placement), so posing each in
+    the first member's print orientation keeps their relative pose.
+    """
+    entries = union_entries(plan)
+    groups = object_groups(plan)
+    # One record per 3MF object: every ungrouped union, and each group's first member.
+    leaders = [
+        (uid, part)
+        for uid, part in asm["records"]
+        if not entries[uid].get("object") or groups[entries[uid]["object"]][0] == uid
     ]
+
+    def body(uid: str, pose_uid: str) -> tuple[str, Any, int | None]:
+        rotate = (print_orientations.get(pose_uid) or {}).get("rotate")
+        wp = asm["authored"][uid]
+        wp = apply_cq(wp, {"rotate": rotate}) if rotate else wp
+        return uid, cq.Compound.makeCompound(wp.vals()), entries[uid].get("filament")  # type: ignore[arg-type]
+
+    objects = []
+    for name, (uid, _part) in zip(_dedupe_object_names(leaders), leaders, strict=True):
+        obj = entries[uid].get("object")
+        members = groups[obj] if obj else [uid]
+        bodies = [body(m, uid) for m in members]
+        objects.append((name, asm["plate_by_uid"][uid], bodies))
     path = os.path.join(out_dir, "model.3mf")
     report("writing model.3mf")
     nonmanifold = write_named_3mf(objects, path)

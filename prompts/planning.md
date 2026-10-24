@@ -109,6 +109,13 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
    source must be a single-union part and not itself a copy. Do not use it for a part with
    embossed text or other chirality-dependent detail.
 
+6b. **A multi-color part is one part with one union per color region.** Give each region's
+   `unions` entry the same `object` id (the slicer prints them as one object) and its
+   1-based `filament` slot. All members of an `object` belong to this one part; they
+   default to the `object` id as their plate. Regions touch but must not overlap (the
+   gate rejects overlap). Same material only: every region prints in the plan's
+   `material`. A union may also carry `filament` without `object` to print alone in that slot.
+
 7. **Put a matched-pair block's members in two different parts via `joints`.** `unions`
    (rule 6) keeps both members in one part; a `joints` entry fuses them into two otherwise
    unrelated parts (a door leaf and a wall leaf): `block`, `params`, and `members`
