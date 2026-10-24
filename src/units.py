@@ -156,10 +156,10 @@ def bbox_envelope(
 
 
 def plate_of(part: dict, union_id: str, union: dict | None = None) -> str:
-    """Plate for a union: its own `plate`, else the part's `plate`, else the union id."""
+    """Plate for a union: its own `plate`, else the part's, else its `object`, else its id."""
     if union is not None and union.get("plate"):
         return union["plate"]
-    return part.get("plate") or union_id
+    return part.get("plate") or (union or {}).get("object") or union_id
 
 
 def is_copy(part: dict) -> bool:
@@ -184,6 +184,24 @@ def iter_unions(plan: dict) -> list[tuple[dict, str, str]]:
             pid = part["id"]
             out.append((part, pid, plate_of(part, pid)))
     return out
+
+
+def union_entries(plan: dict) -> dict[str, dict]:
+    """Union id -> its declared `unions[]` entry (`{}` for a part's implicit single union)."""
+    out: dict[str, dict] = {}
+    for part in plan.get("parts", []):
+        for u in part.get("unions") or [{"id": part["id"]}]:
+            out[u["id"]] = u
+    return out
+
+
+def object_groups(plan: dict) -> dict[str, list[str]]:
+    """Slicer-object id -> member union ids in plan order, for unions declaring `object`."""
+    groups: dict[str, list[str]] = {}
+    for uid, entry in union_entries(plan).items():
+        if entry.get("object"):
+            groups.setdefault(entry["object"], []).append(uid)
+    return groups
 
 
 def resolve_unions(part: dict, result: Any) -> list[tuple[str, Any]]:

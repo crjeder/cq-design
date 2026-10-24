@@ -32,7 +32,10 @@ Report to the user:
    that the working directory is a self-contained uv project (committed `uv.lock`): the
    user regenerates them, or any other format, with `uv run python build/build.py
    [--formats 3mf,stl,step,...]` or `/cq-design:build [format]`, no skill re-invoke. Also list `standalone/` (see step 8): the part scripts alone, with only
-   the helper modules they import and a cadquery-only `pyproject.toml`
+   the helper modules they import and a cadquery-only `pyproject.toml`.
+   When any union declares `filament`, list each union's slot (`body` -> 1, `ring` -> 2)
+   and tell the user `model.3mf` preassigns those slots: they load the matching colors
+   into those slots in the slicer, which flags a slot the printer does not have
 5. **Hardware to buy** - when `BUILD_PLAN.json`'s `bom` is non-empty, list every row
    (item, spec, qty, parts, note) so the user knows what to source before assembly
 6. **Write `README.md`** at the project root (create it fresh each delivery; it's a
