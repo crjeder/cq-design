@@ -40,6 +40,174 @@
     ]
   },
   {
+    "name": "box",
+    "kind": "primitive",
+    "module": "blocks.primitives",
+    "function": "box",
+    "probes": "box_probes",
+    "edge_sets": {},
+    "use": "Rectangular solid w x d x h, centered in XY, bottom at Z=0. Step primitive for any block-shaped body (plates, slabs, ribs, pockets as a cut).",
+    "params": {
+      "w": "mm",
+      "d": "mm",
+      "h": "mm"
+    },
+    "defaults": {
+      "w": 20,
+      "d": 10,
+      "h": 5
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "cylinder",
+    "kind": "primitive",
+    "module": "blocks.primitives",
+    "function": "cylinder",
+    "probes": "cylinder_probes",
+    "edge_sets": {},
+    "use": "Cylinder of diameter d along +Z from Z=0, axis at the origin. Step primitive for posts, bores (as a cut) and round bosses.",
+    "params": {
+      "d": "mm",
+      "h": "mm"
+    },
+    "defaults": {
+      "d": 10,
+      "h": 8
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "cone",
+    "kind": "primitive",
+    "module": "blocks.primitives",
+    "function": "cone",
+    "probes": "cone_probes",
+    "edge_sets": {},
+    "use": "Truncated cone along +Z: diameter d1 at Z=0, d2 at Z=h. Step primitive for tapers, countersinks (as a cut) and drafted posts.",
+    "params": {
+      "d1": "mm",
+      "d2": "mm",
+      "h": "mm"
+    },
+    "defaults": {
+      "d1": 10,
+      "d2": 4,
+      "h": 6
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "sphere",
+    "kind": "primitive",
+    "module": "blocks.primitives",
+    "function": "sphere",
+    "probes": "sphere_probes",
+    "edge_sets": {},
+    "use": "Sphere of diameter d centered at the origin. Step primitive for domes and ball features.",
+    "params": {
+      "d": "mm"
+    },
+    "defaults": {
+      "d": 10
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "prism",
+    "kind": "primitive",
+    "module": "blocks.primitives",
+    "function": "prism",
+    "probes": "prism_probes",
+    "edge_sets": {},
+    "use": "Closed XY polyline extruded along +Z (points in place, not centered). Step primitive for any constant-section profile: L/T brackets, ribs, gussets.",
+    "params": {
+      "points": "[[x, y], ...] mm",
+      "h": "mm"
+    },
+    "defaults": {
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          20,
+          0
+        ],
+        [
+          20,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          15
+        ],
+        [
+          0,
+          15
+        ]
+      ],
+      "h": 4
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
+    "name": "revolve",
+    "kind": "primitive",
+    "module": "blocks.primitives",
+    "function": "revolve",
+    "probes": "revolve_probes",
+    "edge_sets": {},
+    "use": "Closed XZ polyline ([[r, z], ...], r >= 0) revolved about the Z axis. Step primitive for turned profiles: stepped bores, flanges, knobs.",
+    "params": {
+      "points": "[[r, z], ...] mm",
+      "angle": "deg"
+    },
+    "defaults": {
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          10,
+          3
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          4,
+          8
+        ],
+        [
+          0,
+          8
+        ]
+      ]
+    },
+    "dimensions": null,
+    "interfaces": [],
+    "optional": [
+      "angle"
+    ]
+  },
+  {
     "name": "screw_boss",
     "module": "blocks.fasteners",
     "function": "screw_boss",
@@ -74,7 +242,13 @@
           0
         ]
       }
-    ]
+    ],
+    "probes": "screw_boss_probes",
+    "defaults": {
+      "d_screw": 3.2,
+      "d_outer": 8,
+      "h": 6
+    }
   },
   {
     "name": "pcb_standoff",

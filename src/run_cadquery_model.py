@@ -132,6 +132,15 @@ _VERIFY_HINTS = {
         "the chamfer length does not fit the adjacent edges — reduce it below the stated "
         "limit, or select fewer edges, before calling .chamfer()"
     ),
+    "probe_failed": (
+        "a step broke a probe (solid count, volume sign, or a plan/block probe at a point) "
+        "-- fix the step named in this error, not a later one; a plan probe is the plan's "
+        "intent and cannot be worked around in the script"
+    ),
+    "step_plan": (
+        "the step does not match BUILD_PLAN.json (missing instance, wrong entry, unknown or "
+        "missing param) -- dimensions are plan-owned: fix the plan instance, not the script"
+    ),
     "thin_ligament": (
         "too little material beside the hole — widen the wall, shrink the hole, or move "
         "it, until the ligament meets the minimum"

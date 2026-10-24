@@ -1,6 +1,81 @@
-"""Primitive building blocks: basic shapes used as foundations for other blocks."""
+"""Primitive building blocks: basic shapes used as foundations for other blocks.
+
+The step primitives (`box`, `cylinder`, `cone`, `sphere`, `prism`, `revolve`) are the
+only way a step script builds geometry no block covers. Each sits centered in XY with its
+bottom at Z=0 (`sphere`: centered at the origin) and has a `*_probes` function.
+"""
 
 import cadquery as cq
+
+from probes import bbox, solid_at
+
+
+def box(w: float, d: float, h: float) -> cq.Workplane:
+    """Rectangular solid w x d x h, centered in XY, bottom at Z=0."""
+    return cq.Workplane("XY").box(w, d, h, centered=(True, True, False))
+
+
+def box_probes(w: float, d: float, h: float) -> list:
+    return [solid_at((0, 0, h / 2)), bbox((-w / 2, -d / 2, 0), (w / 2, d / 2, h))]
+
+
+def cylinder(d: float, h: float) -> cq.Workplane:
+    """Cylinder of diameter d along +Z, axis at the origin, bottom at Z=0."""
+    return cq.Workplane("XY").circle(d / 2).extrude(h)
+
+
+def cylinder_probes(d: float, h: float) -> list:
+    return [solid_at((0, 0, h / 2)), bbox((-d / 2, -d / 2, 0), (d / 2, d / 2, h))]
+
+
+def cone(d1: float, d2: float, h: float) -> cq.Workplane:
+    """Truncated cone along +Z: diameter d1 at Z=0, d2 at Z=h (either may be 0)."""
+    return cq.Workplane("XY").add(
+        cq.Solid.makeCone(d1 / 2, d2 / 2, h, cq.Vector(0, 0, 0), cq.Vector(0, 0, 1))
+    )
+
+
+def cone_probes(d1: float, d2: float, h: float) -> list:
+    r = max(d1, d2) / 2
+    return [solid_at((0, 0, h / 2)), bbox((-r, -r, 0), (r, r, h))]
+
+
+def sphere(d: float) -> cq.Workplane:
+    """Sphere of diameter d centered at the origin."""
+    return cq.Workplane("XY").sphere(d / 2)
+
+
+def sphere_probes(d: float) -> list:
+    r = d / 2
+    return [solid_at((0, 0, 0)), bbox((-r, -r, -r), (r, r, r))]
+
+
+def prism(points: list, h: float) -> cq.Workplane:
+    """Closed XY polyline `points` ([[x, y], ...], in place, not centered) extruded h along +Z."""
+    return cq.Workplane("XY").polyline([tuple(p) for p in points]).close().extrude(h)
+
+
+def prism_probes(points: list, h: float) -> list:
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    return [bbox((min(xs), min(ys), 0), (max(xs), max(ys), h))]
+
+
+def revolve(points: list, angle: float = 360.0) -> cq.Workplane:
+    """Closed XZ polyline `points` ([[r, z], ...], r >= 0) revolved about the Z axis."""
+    return (
+        cq.Workplane("XZ")
+        .polyline([tuple(p) for p in points])
+        .close()
+        .revolve(angle, (0, 0, 0), (0, 1, 0))
+    )
+
+
+def revolve_probes(points: list, angle: float = 360.0) -> list:
+    r = max(p[0] for p in points)
+    zs = [p[1] for p in points]
+    if angle < 360:
+        return []
+    return [bbox((-r, -r, min(zs)), (r, r, max(zs)))]
 
 
 def fillet_box(

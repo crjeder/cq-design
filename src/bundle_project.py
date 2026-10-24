@@ -38,6 +38,7 @@ BUNDLE_MODULES = (
     "freshness.py",
     "cq_verify.py",
     "cq_compat.py",
+    "probes.py",
 )
 BUNDLE_PACKAGES = ("exporters", "blocks")
 
