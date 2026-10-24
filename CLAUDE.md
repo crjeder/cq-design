@@ -63,6 +63,12 @@ run real CadQuery scripts (a few seconds each).
 
 ## Key Constraints
 
+- **Program vs. prompt**: before adding or changing a pipeline step, decide which fits.
+  Deterministic, checkable work (geometry math, validation, measurements, file I/O) goes
+  in a `src/` script with a JSON contract and a test. Prompts in `SKILL.md` / `skill/`
+  cover only judgment (interpreting intent, choosing a design, reading previews). A
+  prompt rule that a script could enforce belongs in the script.
+
 - **Three poses**: *build pose* is the frame a part script is authored in; every
   direction from the user, the plan or a CLI flag (`load.dir`, `--load`, `--show-face`,
   "top"/"front") is in build pose. *Assembly pose* is build pose plus `placement`

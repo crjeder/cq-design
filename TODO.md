@@ -33,6 +33,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] [step.parts](https://www.step.parts) integration like:https://github.com/earthtojake/text-to-cad/blob/main/skills/step-parts/SKILL.md
 - [ ] change rules into advisories: make holes drop shaped --> hole found. consider drop shape like [DfAM Check](https://github.com/earthtojake/text-to-cad/blob/main/skills/dfam-check/SKILL.md)
 - [ ] review [burr](https://crates.io/crates/burr)
+- [ ] edit mode (import step) and apply changes
 
 ### Skill improvement
 
@@ -106,6 +107,15 @@ suggested implementation order; 1-4 are small changes in `quality_gate.py` /
 - [ ] Preview: face labels / stable references drawn on the preview PNG so a user can point at a feature (cheap version of their viewer selection-to-prompt loop; the full viewer is out of scope)
 - [ ] Process hygiene (from their `AGENTS.md`): every test file reached by CI, flaky tests fixed or deleted never retried, no one-off helper scripts in `src/`
 - [ ] `init` / `status`: detect plugin + standalone skill both installed (duplicates every skill)
+
+### Architecture (from the [pzfreo/build123d-mcp](https://github.com/pzfreo/build123d-mcp) comparison)
+
+Comparison 2026-10-19. Ranked by impact. Non-goal: exposing cq-design as an MCP
+server -- the pipeline depends on Claude Code sub-agents, hooks and checkpoints.
+
+- [ ] 1. Pipeline state machine: move phase transitions from skill prose into a program that owns the build state and refuses invalid steps -- [details](#pipeline-state-machine)
+- [ ] 2. Plan conformance gate: check each part against its `BUILD_PLAN.json` entry by measurement, plus a parameter-perturbation robustness audit -- [details](#plan-conformance-gate)
+- [ ] 3. Warm kernel worker: keep CadQuery/OCC loaded across part-loop attempts, crash-contained -- measure the cold-start share first -- [details](#warm-kernel-worker)
 
 ### Top 10 ideas from the related-project survey
 
@@ -1106,4 +1116,36 @@ Print analysis script (time, weight, slow segments)
 - [ ] Set the material per tool (T0-T3) from the U1 spool/RFID data instead of the `--material` flag
 - [ ] Test with a real multi-tool U1 G-code (tool changes, prime tower)
 - [ ] Optional: expose `mcp_server.py` as an MCP server (`pip install "mcp[cli]"`) and register it in Claude Code
+
+### Pipeline state machine
+
+The pipeline order is enforced only by `SKILL.md` and `skill/phase*.md`; Claude
+drives it inline and there is no orchestrator program. Recurring defects are
+process drift, not geometry: sub-agents re-planning into downstream steps,
+hooks not seeing sub-agent tool calls, resume trusting stale milestones (PR #250).
+
+A small program (e.g. `src/pipeline.py`) reads the build state (plan, milestones,
+attempt logs), reports the allowed next step(s), and rejects a transition whose
+preconditions are not met. Claude still authors parts and runs user checkpoints;
+sequencing, resume and sub-agent scope become checkable instead of instructed.
+Resume, the telemetry hook and the builder's scope limit then read one source of truth.
+
+### Plan conformance gate
+
+`BUILD_PLAN.json` already is a declared design-intent spec, which build123d-mcp's
+`verify_spec` has to ask for separately. Turn each part's planned dimensions and
+features into measured pass / fail / unverified checks in `quality_gate.py`
+(extending `feature_presence_check.py`), so the visual auditor is a backstop
+rather than the main evidence. Second half, from their `design_audit`: rebuild
+each part with every plan parameter nudged +-10% and report which ones break
+the build or the gate (brittle vs coupled vs robust). Tri-state reporting per the
+text-to-cad gate item above.
+
+### Warm kernel worker
+
+`run_cadquery_model.py` starts a fresh subprocess and re-imports CadQuery on every
+attempt. build123d-mcp keeps one spawned worker with OCC loaded, SIGKILLs and
+respawns it on crash or timeout (their ADR 0002). Keep cq-design's whole-script
+runs (reproducible deliverable) but execute them in a persistent worker. Measure
+first: if the import is a small share of a typical attempt, drop this item.
 
