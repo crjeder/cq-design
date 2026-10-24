@@ -1,5 +1,7 @@
 """Tests for src/export_standalone.py (minimal per-part deliverable)."""
 
+import json
+import os
 import subprocess
 import sys
 
@@ -56,3 +58,31 @@ def test_shipped_script_runs_in_place(tmp_path):
     out, _ = _run(tmp_path, {"a": "from cq_verify import verify_boolean\n" + CQ_ONLY})
     r = subprocess.run([sys.executable, "a.py"], cwd=out, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+
+
+def test_step_script_ships_plan_and_builds(tmp_path):
+    plan = {
+        "parts": [
+            {
+                "id": "a",
+                "dimensions": {"w_mm": 10, "d_mm": 10, "h_mm": 2},
+                "interfaces": [],
+                "blocks_needed": [{"name": "box", "id": "b", "params": {"w": 10, "d": 10, "h": 2}}],
+            }
+        ]
+    }
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+    body = (
+        "from blocks import Part\npart = Part('a')\nb = part.select('box', id='b')\n"
+        "part.resize(b)\npart.place(b, op='base')\nresult = part.result()\n"
+    )
+    out, _ = _run(tmp_path, {"a": body})
+    assert (out / "BUILD_PLAN.json").exists() and (out / "probes.py").exists()
+    run = subprocess.run(
+        [sys.executable, "-c", "import runpy; runpy.run_path('a.py')"],
+        cwd=out,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(out)},
+    )
+    assert run.returncode == 0, run.stderr

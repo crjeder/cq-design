@@ -14,6 +14,11 @@
         "pattern": "^[a-z][a-z0-9_]*$",
         "description": "Unique kebab/snake-case identifier referenced in BUILD_PLAN.json blocks_needed"
       },
+      "kind": {
+        "type": "string",
+        "enum": ["block", "template", "primitive"],
+        "description": "Entry family: a library block, an archetype template (one whole-part entry), or a step primitive"
+      },
       "module": {
         "type": "string",
         "description": "Python dotted module path, e.g. blocks.fasteners"
@@ -21,6 +26,24 @@
       "function": {
         "type": "string",
         "description": "Python function name to call"
+      },
+      "probes": {
+        "type": "string",
+        "description": "Probe function in the same module: probes(**params) -> list[probes.Probe] in the entry's local frame"
+      },
+      "edge_sets": {
+        "type": "object",
+        "additionalProperties": { "type": "string" },
+        "description": "Edge-set name -> description; the module's <function>_edge_sets(**params) returns each set's local-frame curves for the finishing pass"
+      },
+      "optional": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Params a plan instance may omit (the function has a default)"
+      },
+      "defaults": {
+        "type": "object",
+        "description": "Complete parameter values for the entry's default build (inventory probe test)"
       },
       "use": {
         "type": "string",

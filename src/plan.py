@@ -135,6 +135,7 @@ def validate_plan(
                     f"(not in inventory). Available: {sorted(valid_blocks)}"
                 )
 
+    errors.extend(_check_instances(plan, inventory_path))
     errors.extend(_check_archetypes(plan, archetypes_path))
     errors.extend(_check_unions(plan))
     errors.extend(_check_copy_of(plan))
@@ -148,6 +149,49 @@ def validate_plan(
     errors.extend(_check_intent_reconciled(plan))
     errors.extend(_check_bom_parts(plan))
 
+    return errors
+
+
+def _check_instances(plan: dict[str, Any], inventory_path: str) -> list[str]:
+    """Check each `blocks_needed` instance's `id`, `params` and `edges` against its
+    inventory entry, and that every interface `instance` names a planned id."""
+    from blocks.validate import load_inventory
+
+    entries = {e["name"]: e for e in load_inventory(inventory_path)}
+    errors = []
+    for part in plan.get("parts", []):
+        pid = part.get("id", "(unknown)")
+        ids: set[str] = set()
+        for block in part.get("blocks_needed", []):
+            if isinstance(block, str) or block.get("name") not in entries:
+                continue
+            entry, iid = entries[block["name"]], block.get("id")
+            tag = f"Part '{pid}' instance '{iid or block['name']}'"
+            if iid and iid in ids:
+                errors.append(f"Part '{pid}': duplicate instance id '{iid}'")
+            ids.add(iid)
+            if "params" in block:
+                declared = set(entry.get("params", {}))
+                unknown = sorted(set(block["params"]) - declared)
+                missing = sorted(declared - set(entry.get("optional", [])) - set(block["params"]))
+                if unknown:
+                    errors.append(
+                        f"{tag}: unknown params {unknown}; "
+                        f"{block['name']} declares {sorted(declared)}"
+                    )
+                if missing:
+                    errors.append(f"{tag}: missing required params {missing}")
+            sets = entry.get("edge_sets", {})
+            for name in sorted(set(block.get("edges", {})) - set(sets)):
+                errors.append(
+                    f"{tag}: unknown edge set '{name}'; {block['name']} edge sets: {sorted(sets)}"
+                )
+        for itf in part.get("interfaces", []):
+            if "instance" in itf and itf["instance"] not in ids:
+                errors.append(
+                    f"Part '{pid}': interface '{itf.get('name', itf['type'])}' instance "
+                    f"'{itf['instance']}' is not a blocks_needed id ({sorted(i for i in ids if i)})"
+                )
     return errors
 
 
@@ -1336,6 +1380,12 @@ def _apply_changes(
     return updated
 
 
+def is_step_script(source: str) -> bool:
+    """A step script builds through `Part` and has no PARAMETERS block; its values are
+    plan-owned, so there is nothing to import."""
+    return re.search(r"\bPart\(", source) is not None and "# PARAMETERS" not in source
+
+
 def run(script_path: str, part_id: str, plan_path: str, write: bool) -> dict[str, Any]:
     """Run the full import-params flow. Returns the report dict (never raises)."""
     report: dict[str, Any] = {
@@ -1346,6 +1396,16 @@ def run(script_path: str, part_id: str, plan_path: str, write: bool) -> dict[str
         "written": False,
         "errors": [],
     }
+
+    try:
+        with open(script_path, encoding="utf-8") as f:
+            source = f.read()
+    except OSError as e:
+        report["errors"].append(f"Cannot read script '{script_path}': {e}")
+        return report
+    if is_step_script(source):
+        report["status"] = "not_applicable"
+        return report
 
     try:
         parsed = parse_parameters(script_path)

@@ -4,6 +4,8 @@ import math
 
 import cadquery as cq
 
+from probes import bbox, empty_at, ray, solid_at
+
 # Subtractive solids overcut by this amount so the exit face is never coincident
 # with the far face of the material (OCC boolean cuts are not fuzzy by default).
 _EPS = 1e-4
@@ -20,6 +22,16 @@ def screw_boss(d_screw: float, d_outer: float, h: float) -> cq.Workplane:
         h: boss height in mm
     """
     return cq.Workplane("XY").circle(d_outer / 2).extrude(h).faces(">Z").hole(d_screw)
+
+
+def screw_boss_probes(d_screw: float, d_outer: float, h: float) -> list:
+    wall_r = (d_screw + d_outer) / 4
+    return [
+        empty_at((0, 0, h / 2), "bore"),
+        ray((0, 0, h / 2), (0, 0, 1), 0, length=h - 0.2, label="bore open"),
+        solid_at((wall_r, 0, h / 2), "wall"),
+        bbox((-d_outer / 2, -d_outer / 2, 0), (d_outer / 2, d_outer / 2, h)),
+    ]
 
 
 def pcb_standoff(d_screw: float, d_outer: float, h: float) -> cq.Workplane:
