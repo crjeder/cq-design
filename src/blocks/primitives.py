@@ -2,12 +2,14 @@
 
 The step primitives (`box`, `cylinder`, `cone`, `sphere`, `prism`, `revolve`) are the
 only way a step script builds geometry no block covers. Each sits centered in XY with its
-bottom at Z=0 (`sphere`: centered at the origin) and has a `*_probes` function.
+bottom at Z=0 (`sphere`: centered at the origin) and has a `*_probes` function. Entries
+with cosmetic edge sets also have `*_edge_sets`: set name -> local-frame edges, which the
+print-pose finishing pass chamfers or fillets from the plan instance's `edges`.
 """
 
 import cadquery as cq
 
-from probes import bbox, solid_at
+from probes import bbox, empty_at, solid_at
 
 
 def box(w: float, d: float, h: float) -> cq.Workplane:
@@ -19,6 +21,15 @@ def box_probes(w: float, d: float, h: float) -> list:
     return [solid_at((0, 0, h / 2)), bbox((-w / 2, -d / 2, 0), (w / 2, d / 2, h))]
 
 
+def box_edge_sets(w: float, d: float, h: float) -> dict:
+    b = box(w, d, h)
+    return {
+        "top_outer": b.edges(">Z").vals(),
+        "bottom_outer": b.edges("<Z").vals(),
+        "vertical": b.edges("|Z").vals(),
+    }
+
+
 def cylinder(d: float, h: float) -> cq.Workplane:
     """Cylinder of diameter d along +Z, axis at the origin, bottom at Z=0."""
     return cq.Workplane("XY").circle(d / 2).extrude(h)
@@ -26,6 +37,11 @@ def cylinder(d: float, h: float) -> cq.Workplane:
 
 def cylinder_probes(d: float, h: float) -> list:
     return [solid_at((0, 0, h / 2)), bbox((-d / 2, -d / 2, 0), (d / 2, d / 2, h))]
+
+
+def cylinder_edge_sets(d: float, h: float) -> dict:
+    c = cylinder(d, h)
+    return {"top": c.edges(">Z").vals(), "bottom": c.edges("<Z").vals()}
 
 
 def cone(d1: float, d2: float, h: float) -> cq.Workplane:
@@ -122,3 +138,23 @@ def hollow_box(
         inner = inner.edges("|Z").fillet(inner_r)
 
     return outer.cut(inner)
+
+
+def hollow_box_probes(
+    w: float, d: float, h: float, wall: float, floor_t: float, corner_r: float = 0.0
+) -> list:
+    return [
+        solid_at((0, 0, floor_t / 2), "floor"),
+        empty_at((0, 0, (floor_t + h) / 2), "cavity"),
+        solid_at((w / 2 - wall / 2, 0, (floor_t + h) / 2), "wall"),
+        bbox((-w / 2, -d / 2, 0), (w / 2, d / 2, h)),
+    ]
+
+
+def hollow_box_edge_sets(w: float, d: float, h: float, wall: float, floor_t: float) -> dict:
+    outer = box(w, d, h)
+    return {
+        "top_outer": outer.edges(">Z").vals(),
+        "bottom_outer": outer.edges("<Z").vals(),
+        "vertical_outer": outer.edges("|Z").vals(),
+    }

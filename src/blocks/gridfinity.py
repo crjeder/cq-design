@@ -23,6 +23,8 @@ from typing import cast
 
 import cadquery as cq
 
+from probes import bbox, empty_at, solid_at
+
 # --- Published Gridfinity standard -------------------------------------------------
 
 #: Grid pitch: one Gridfinity unit (U) in X and Y.
@@ -271,6 +273,18 @@ def gridfinity_feet(
     return feet.cut(holes) if holes is not None else feet
 
 
+def gridfinity_feet_probes(
+    cols: int = 1, rows: int = 1, magnet_holes: bool = False, screw_holes: bool = False
+) -> list:
+    half_x = (cols * GRID_PITCH_MM - GRID_CLEARANCE_MM) / 2
+    half_y = (rows * GRID_PITCH_MM - GRID_CLEARANCE_MM) / 2
+    z = BASE_PROFILE_HEIGHT_MM / 2
+    return [
+        *(solid_at((x, y, z), "foot") for x, y in _cell_centers(cols, rows)),
+        bbox((-half_x, -half_y, 0), (half_x, half_y, BASE_PROFILE_HEIGHT_MM)),
+    ]
+
+
 def gridfinity_socket_cutter(
     cols: int = 1,
     rows: int = 1,
@@ -310,6 +324,12 @@ def gridfinity_socket_cutter(
     # Neighboring mouths overlap by twice the clearance, so they are fused rather than
     # left as separate solids in one compound (which OCC booleans handle poorly).
     return cq.Workplane("XY").newObject(placed).combine()
+
+
+def gridfinity_socket_cutter_probes(
+    cols: int = 1, rows: int = 1, plate_h: float = 4.75, clearance: float = 0.1
+) -> list:
+    return [solid_at((x, y, plate_h / 2), "socket") for x, y in _cell_centers(cols, rows)]
 
 
 def gridfinity_baseplate(
@@ -367,6 +387,23 @@ def gridfinity_baseplate(
         )
         holes = through if holes is None else holes.union(through)
     return plate.cut(holes) if holes is not None else plate
+
+
+def gridfinity_baseplate_probes(
+    cols: int = 1,
+    rows: int = 1,
+    plate_h: float = 4.75,
+    clearance: float = 0.1,
+    magnet_holes: bool = False,
+    screw_holes: bool = False,
+) -> list:
+    half_x, half_y = cols * GRID_PITCH_MM / 2, rows * GRID_PITCH_MM / 2
+    socket_z = plate_h - BASE_PROFILE_HEIGHT_MM / 2
+    probes = []
+    for x, y in _cell_centers(cols, rows):
+        probes.append(empty_at((x, y, socket_z), "socket"))
+        probes.append(solid_at((x + GRID_PITCH_MM / 2 - 2, y, 0.3), "frame"))
+    return [*probes, bbox((-half_x, -half_y, 0), (half_x, half_y, plate_h))]
 
 
 def _cavity_sections(
@@ -580,6 +617,43 @@ def gridfinity_bin(
 
     holes = _bottom_holes(cols, rows, magnet_holes, screw_holes)
     return result.cut(holes) if holes is not None else result
+
+
+def gridfinity_bin_probes(
+    cols: int = 1,
+    rows: int = 1,
+    height_u: int = 3,
+    wall: float = WALL_MM,
+    floor_z: float = BASE_HEIGHT_MM,
+    stacking_lip: bool = True,
+    magnet_holes: bool = False,
+    screw_holes: bool = False,
+    divisions_x: int = 1,
+    divisions_y: int = 1,
+    label_tab: bool = False,
+    label_depth: float = 12.0,
+    scoop: bool = False,
+    scoop_radius: float = 8.0,
+    floor_fillet: float = FLOOR_FILLET_MM,
+    lip_fillet: float = LIP_FILLET_MM,
+    solid: bool = False,
+) -> list:
+    dims = gridfinity_dimensions(cols, rows, height_u, stacking_lip, lip_fillet)
+    half_x, half_y = dims["width"] / 2, dims["depth"] / 2
+    body_top = height_u * HEIGHT_UNIT_MM
+    probes = [
+        solid_at((x, y, BASE_PROFILE_HEIGHT_MM / 2), "foot") for x, y in _cell_centers(cols, rows)
+    ]
+    probes.append(solid_at((half_x - wall / 2, 0, (floor_z + body_top) / 2), "wall"))
+    if solid:
+        probes.append(solid_at((0, 0, (floor_z + body_top) / 2), "solid body"))
+    else:
+        probes.append(solid_at((0, 0, (BASE_PROFILE_HEIGHT_MM + floor_z) / 2), "floor"))
+        if not (scoop or label_tab):
+            # 2 mm off the -X wall: clear of any divider, which sits >= one division in.
+            cavity = (-half_x + wall + 2, 0, (floor_z + body_top) / 2)
+            probes.append(empty_at(cavity, "cavity"))
+    return [*probes, bbox((-half_x, -half_y, 0), (half_x, half_y, dims["height"]))]
 
 
 def gridfinity_units_for(

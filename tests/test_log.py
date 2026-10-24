@@ -505,7 +505,7 @@ def _minimal_plan(request_log=None):
                 "description": "Main bracket",
                 "dimensions": {"w_mm": 40, "d_mm": 30, "h_mm": 10},
                 "interfaces": [],
-                "blocks_needed": ["fillet_box"],
+                "blocks_needed": ["box"],
             }
         ],
         "constraints": {

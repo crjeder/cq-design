@@ -6,6 +6,8 @@ import warnings
 
 import cadquery as cq
 
+from probes import bbox, empty_at, solid_at
+
 # Subtractive solids overcut by this amount so the exit face is never coincident
 # with the far face of the material (OCC boolean cuts are not fuzzy by default).
 _EPS = 1e-4
@@ -80,6 +82,10 @@ def port_cutout(w: float, h: float, depth: float, chamfer: float = 0.5) -> cq.Wo
     return cutter
 
 
+def port_cutout_probes(w: float, h: float, depth: float, chamfer: float = 0.5) -> list:
+    return [solid_at((0, depth / 2, h / 2)), bbox((-w / 2, 0, 0), (w / 2, depth, h))]
+
+
 def cable_slot(w: float, h: float, depth: float, chamfer: float = 0.5) -> cq.Workplane:
     """Elongated slot for cable routing through a wall or floor.
 
@@ -96,6 +102,9 @@ def cable_slot(w: float, h: float, depth: float, chamfer: float = 0.5) -> cq.Wor
         with contextlib.suppress(Exception):
             cutter = cutter.edges("|Y").chamfer(chamfer)
     return cutter
+
+
+cable_slot_probes = port_cutout_probes
 
 
 def vent_grid(
@@ -126,6 +135,29 @@ def vent_grid(
     ]
 
     return cq.Workplane("XY").pushPoints(positions).rect(slot_w, slot_l).extrude(depth + _EPS)
+
+
+def vent_grid_probes(
+    cols: int, rows: int, slot_w: float, slot_l: float, spacing: float, depth: float
+) -> list:
+    total_w = cols * (slot_w + spacing) - spacing
+    total_l = rows * (slot_l + spacing) - spacing
+    z = depth / 2
+    probes = [
+        solid_at(
+            (
+                -total_w / 2 + c * (slot_w + spacing) + slot_w / 2,
+                -total_l / 2 + r * (slot_l + spacing) + slot_l / 2,
+                z,
+            ),
+            f"slot {r},{c}",
+        )
+        for r in range(rows)
+        for c in range(cols)
+    ]
+    if cols > 1 and spacing > 0.2:
+        probes.append(empty_at((-total_w / 2 + slot_w + spacing / 2, 0, z), "rib"))
+    return [*probes, bbox((-total_w / 2, -total_l / 2, 0), (total_w / 2, total_l / 2, depth))]
 
 
 def teardrop_bore(
@@ -164,6 +196,16 @@ def teardrop_bore(
     bore = _drop_profile(r, angle, apex="down" if print_up is None and peak == "down" else "up")
     bore = bore.extrude(-(depth + _EPS))
     return _face_xz(bore, print_up, (0.0, 1.0))
+
+
+def teardrop_bore_probes(
+    d: float,
+    depth: float,
+    angle: float = 45.0,
+    peak: str = "up",
+    print_up: tuple[float, float, float] | None = None,
+) -> list:
+    return [solid_at((0, y, 0), "axis") for y in (min(0.2, depth / 4), depth / 2, depth - 0.2)]
 
 
 def teardrop_post(
@@ -216,3 +258,13 @@ def teardrop_post(
         )
     profile = _drop_profile(r, angle, apex="down", flat=eff_flat)
     return _face_xz(profile.extrude(length), print_up, (0.0, -1.0))
+
+
+def teardrop_post_probes(
+    d: float,
+    length: float,
+    angle: float = 45.0,
+    flat: float = 1.2,
+    print_up: tuple[float, float, float] | None = None,
+) -> list:
+    return [solid_at((0, -y, 0), "axis") for y in (min(0.2, length / 4), length / 2, length - 0.2)]
