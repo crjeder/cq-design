@@ -50,7 +50,18 @@ def load_inventory(path: str = _INVENTORY_PATH) -> list[Any]:
     return data
 
 
-_REQUIRED_FIELDS = ("name", "module", "function", "use", "params", "dimensions", "interfaces")
+_REQUIRED_FIELDS = (
+    "name",
+    "kind",
+    "module",
+    "function",
+    "probes",
+    "edge_sets",
+    "use",
+    "params",
+    "dimensions",
+    "interfaces",
+)
 
 
 def _check_required_fields(tag: str, entry: dict) -> list[str]:

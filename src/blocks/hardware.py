@@ -13,6 +13,13 @@ native (serialization-free) `Shape.copy`/`_apply_transform` after loading the ex
 import cadquery as cq
 from cadquery import Solid
 
+from probes import bbox, empty_at, solid_at
+
+
+def _nominal_d(size: str) -> float:
+    """Thread diameter of an ISO size string: 'M3-0.5' / 'M3-0.5-6' -> 3.0."""
+    return float(size.split("-")[0].lstrip("Mm"))
+
 
 def heat_set_boss(
     size: str,
@@ -52,6 +59,17 @@ def heat_set_boss(
     )
 
 
+def heat_set_boss_probes(
+    size: str, d_outer: float, h: float, manufacturing_compensation: float = 0.1
+) -> list:
+    r = d_outer / 2
+    return [
+        empty_at((0, 0, h - 0.5), "insert pocket"),
+        solid_at((r - 0.5, 0, h / 2), "wall"),
+        bbox((-r, -r, 0), (r, r, h)),
+    ]
+
+
 def socket_head_cap_screw(size: str, length: float) -> cq.Workplane:
     """ISO 4762 socket head cap screw solid for assembly visualization.
 
@@ -66,6 +84,11 @@ def socket_head_cap_screw(size: str, length: float) -> cq.Workplane:
 
     screw = SocketHeadCapScrew(size=size, length=length, fastener_type="iso4762", simple=True)
     return cq.Workplane("XY").add(Solid(screw.wrapped))
+
+
+def socket_head_cap_screw_probes(size: str, length: float) -> list:
+    d = _nominal_d(size)
+    return [solid_at((0, 0, -length / 2), "shank"), solid_at((d * 0.6, 0, d / 2), "head")]
 
 
 def hex_head_screw(size: str, length: float) -> cq.Workplane:
@@ -84,6 +107,9 @@ def hex_head_screw(size: str, length: float) -> cq.Workplane:
     return cq.Workplane("XY").add(Solid(screw.wrapped))
 
 
+hex_head_screw_probes = socket_head_cap_screw_probes
+
+
 def hex_nut(size: str) -> cq.Workplane:
     """ISO 4032 hex nut solid for assembly visualization.
 
@@ -96,3 +122,8 @@ def hex_nut(size: str) -> cq.Workplane:
 
     nut = HexNut(size=size, fastener_type="iso4032", simple=True)
     return cq.Workplane("XY").add(Solid(nut.wrapped))
+
+
+def hex_nut_probes(size: str) -> list:
+    d = _nominal_d(size)
+    return [empty_at((0, 0, 0.4 * d), "thread bore"), solid_at((0.65 * d, 0, 0.4 * d), "body")]

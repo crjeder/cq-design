@@ -6,7 +6,7 @@
   "minItems": 1,
   "items": {
     "type": "object",
-    "required": ["name", "module", "function", "use", "params", "dimensions", "interfaces"],
+    "required": ["name", "kind", "module", "function", "probes", "edge_sets", "use", "params", "dimensions", "interfaces"],
     "additionalProperties": false,
     "properties": {
       "name": {

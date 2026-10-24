@@ -187,7 +187,7 @@ def evaluate(probe: Probe, shape) -> tuple[bool, Any]:
     raise ValueError(f"probe kind {k!r} is checked by its step, not evaluated on a body")
 
 
-def _rotate(v, rot) -> tuple[float, float, float]:
+def rotate_point(v, rot) -> tuple[float, float, float]:
     """Rotate v by successive X, Y, Z angles in degrees (CadQuery Location convention)."""
     x, y, z = v
     ax, ay, az = (math.radians(a) for a in rot)
@@ -201,13 +201,13 @@ def transform(probe: Probe, at=(0, 0, 0), rotate=(0, 0, 0)) -> Probe:
     """Return probe moved from an entry's local frame by rotate (deg XYZ) then at."""
 
     def move(p):
-        r = _rotate(p, rotate)
+        r = rotate_point(p, rotate)
         return tuple(a + b for a, b in zip(r, at, strict=True))
 
     return replace(
         probe,
         p=move(probe.p) if probe.p else None,
-        dir=_rotate(probe.dir, rotate) if probe.dir else None,
+        dir=rotate_point(probe.dir, rotate) if probe.dir else None,
     )
 
 

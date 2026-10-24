@@ -19,6 +19,8 @@ import math
 
 import cadquery as cq
 
+from probes import bbox, empty_at, rotate_point, solid_at
+
 # Subtractive solids overcut by this amount so the exit face is never coincident
 # with the far face of the material (OCC boolean cuts are not fuzzy by default).
 _EPS = 1e-4
@@ -92,6 +94,16 @@ def dovetail_groove(
     return _extrude_profile(_trapezoid_profile(half_top, half_base, depth), length)
 
 
+def dovetail_groove_probes(
+    width: float, wall: float, depth: float, length: float, angle: float = 55.0
+) -> list:
+    half_base = (width - 2 * wall) / 2 + math.tan(math.radians(90 - angle)) * depth
+    return [
+        solid_at((0, length / 2, depth / 2)),
+        bbox((-half_base, 0, 0), (half_base, length, depth)),
+    ]
+
+
 def dovetail_tongue(
     width: float,
     wall: float,
@@ -125,6 +137,21 @@ def dovetail_tongue(
 
 
 # ---- dovetail corner / box joint (extrude core) -----------------------------
+
+
+def dovetail_tongue_probes(
+    width: float,
+    wall: float,
+    depth: float,
+    length: float,
+    angle: float = 55.0,
+    clearance: float = 0.1,
+) -> list:
+    half_base = (width - 2 * wall) / 2 - clearance + math.tan(math.radians(90 - angle)) * depth
+    return [
+        solid_at((0, length / 2, depth / 2)),
+        bbox((-half_base, 0, 0), (half_base, length, depth)),
+    ]
 
 
 def _dovetail_comb(
@@ -248,6 +275,29 @@ def dovetail_corner_joint(
 # ---- finger / box joint (extrude core) --------------------------------------
 
 
+def dovetail_corner_joint_probes(
+    pin_count: int,
+    pin_width: float,
+    tail_width: float,
+    board_thickness: float,
+    tooth_length: float,
+    flare_deg: float = 15.0,
+    corner_angle_deg: float = 90.0,
+    clearance: float = 0.1,
+) -> list:
+    """Probes over both member unions (pins, and tails rotated by the corner angle)."""
+    pitch = pin_width + tail_width
+    x0 = -(pin_count * pin_width + (pin_count - 1) * tail_width) / 2 + pin_width / 2
+    probes = []
+    for i in range(pin_count):
+        p = (x0 + i * pitch, tooth_length / 2, board_thickness / 2)
+        probes.append(solid_at(p, f"pin {i}"))
+        probes.append(solid_at(rotate_point(p, (-corner_angle_deg, 0, 0)), f"tail {i}"))
+        if i:
+            probes.append(empty_at((p[0] - pitch / 2, p[1], p[2]), f"pin gap {i}"))
+    return probes
+
+
 def finger_joint(
     width: float,
     thickness: float,
@@ -294,6 +344,23 @@ def finger_joint(
 # ---- mortise & tenon (extrude core) -----------------------------------------
 
 
+def finger_joint_probes(
+    width: float,
+    thickness: float,
+    fingers: int,
+    length: float,
+    clearance: float = 0.1,
+    start_high: bool = True,
+) -> list:
+    pitch = width / fingers
+    probes = []
+    for i in range(fingers):
+        p = (-width / 2 + (i + 0.5) * pitch, length / 2, thickness / 2)
+        is_solid = (i % 2 == 0) if start_high else (i % 2 == 1)
+        probes.append(solid_at(p, f"finger {i}") if is_solid else empty_at(p, f"gap {i}"))
+    return probes
+
+
 def tenon(w: float, h: float, length: float, clearance: float = 0.0) -> cq.Workplane:
     """Rectangular keyed peg. Union onto a part face; mate with mortise().
 
@@ -310,6 +377,11 @@ def tenon(w: float, h: float, length: float, clearance: float = 0.0) -> cq.Workp
     return cq.Workplane("XY").box(
         w - 2 * clearance, h - 2 * clearance, length, centered=(True, True, False)
     )
+
+
+def tenon_probes(w: float, h: float, length: float, clearance: float = 0.0) -> list:
+    hw, hh = w / 2 - clearance, h / 2 - clearance
+    return [solid_at((0, 0, length / 2)), bbox((-hw, -hh, 0), (hw, hh, length))]
 
 
 def mortise(w: float, h: float, depth: float, clearance: float = 0.2) -> cq.Workplane:
@@ -332,6 +404,11 @@ def mortise(w: float, h: float, depth: float, clearance: float = 0.2) -> cq.Work
 # ---- dowel pin & bore (revolve core) ----------------------------------------
 
 
+def mortise_probes(w: float, h: float, depth: float, clearance: float = 0.2) -> list:
+    hw, hh = w / 2 + clearance, h / 2 + clearance
+    return [solid_at((0, 0, depth / 2)), bbox((-hw, -hh, 0), (hw, hh, depth))]
+
+
 def dowel_pin(d: float, length: float, chamfer: float = 0.4) -> cq.Workplane:
     """Cylindrical dowel with a lead-in chamfer at the inserting (top) end.
 
@@ -347,6 +424,11 @@ def dowel_pin(d: float, length: float, chamfer: float = 0.4) -> cq.Workplane:
     if chamfer > 0:
         pin = pin.faces(">Z").chamfer(chamfer)
     return pin
+
+
+def dowel_pin_probes(d: float, length: float, chamfer: float = 0.4) -> list:
+    r = d / 2
+    return [solid_at((0, 0, length / 2)), bbox((-r, -r, 0), (r, r, length))]
 
 
 def dowel_bore(d: float, depth: float, clearance: float = 0.1) -> cq.Workplane:
@@ -365,6 +447,11 @@ def dowel_bore(d: float, depth: float, clearance: float = 0.1) -> cq.Workplane:
 
 
 # ---- ball joint (revolve core) ----------------------------------------------
+
+
+def dowel_bore_probes(d: float, depth: float, clearance: float = 0.1) -> list:
+    r = d / 2 + clearance
+    return [solid_at((0, 0, depth / 2)), bbox((-r, -r, 0), (r, r, depth))]
 
 
 def ball_stud(d_ball: float, d_stem: float, stem_l: float, fillet: float = 2.0) -> cq.Workplane:
@@ -390,6 +477,15 @@ def ball_stud(d_ball: float, d_stem: float, stem_l: float, fillet: float = 2.0) 
         cone = cq.Solid.makeCone(d_stem / 2, r_top, fillet, pnt=cq.Vector(0, 0, stem_l))
         result = result.union(cq.Workplane("XY").add(cone))
     return result
+
+
+def ball_stud_probes(d_ball: float, d_stem: float, stem_l: float, fillet: float = 2.0) -> list:
+    r = d_ball / 2
+    return [
+        solid_at((0, 0, stem_l / 2), "stem"),
+        solid_at((0, 0, stem_l + r), "ball"),
+        bbox((-r, -r, 0), (r, r, stem_l + d_ball)),
+    ]
 
 
 def ball_socket(
@@ -438,6 +534,21 @@ def ball_socket(
 
 
 # ---- hinge (tiled-cylinder core) --------------------------------------------
+
+
+def ball_socket_probes(
+    d_ball: float, retention_angle: float, slot_w: float, wall: float, clearance: float = 0.2
+) -> list:
+    r_cav = (d_ball + 2 * clearance) / 2
+    center_z = wall + r_cav
+    outer_r = r_cav + wall
+    rim_z = center_z + r_cav * math.sin(math.radians(retention_angle))
+    return [
+        empty_at((0, 0, center_z), "cavity"),
+        solid_at((0, 0, wall / 2), "floor"),
+        solid_at((r_cav + wall / 2, 0, center_z - 0.5), "cup wall"),
+        bbox((-outer_r, -outer_r, 0), (outer_r, outer_r, rim_z)),
+    ]
 
 
 def pin_hinge(
@@ -519,6 +630,25 @@ def pin_hinge(
 # ---- living hinge (flat panel + thin web core) ------------------------------
 
 
+def pin_hinge_probes(
+    length: float,
+    knuckles: int,
+    leaf_w: float,
+    leaf_t: float,
+    d_filament: float = 2.05,
+    clearance: float = 0.25,
+) -> list:
+    """Probes over both leaves (leaf_a at -X, leaf_b at +X) and the shared pin bore."""
+    d_outer = d_filament + 2.0
+    z = d_outer / 2
+    x = d_outer / 2 + leaf_w / 2
+    return [
+        solid_at((-x, length / 2, z), "leaf_a"),
+        solid_at((x, length / 2, z), "leaf_b"),
+        empty_at((0, length / 2, z), "pin bore"),
+    ]
+
+
 def living_hinge(
     length: float,
     panel_w: float,
@@ -566,6 +696,21 @@ def living_hinge(
 # ---- shadow gap (extruded lip core) -----------------------------------------
 
 
+def living_hinge_probes(
+    length: float, panel_w: float, panel_t: float, web_t: float = 0.6, web_w: float = 2.0
+) -> list:
+    x = web_w / 2 + panel_w / 2
+    probes = [
+        solid_at((-x, length / 2, panel_t / 2), "left panel"),
+        solid_at((x, length / 2, panel_t / 2), "right panel"),
+        solid_at((0, length / 2, panel_t - web_t / 2), "web"),
+        bbox((-(web_w / 2 + panel_w), 0, 0), (web_w / 2 + panel_w, length, panel_t)),
+    ]
+    if panel_t - web_t > 0.4:
+        probes.append(empty_at((0, length / 2, (panel_t - web_t) / 2), "under web"))
+    return probes
+
+
 def shadow_gap(length: float, wall: float, overlap: float = 3.0) -> cq.Workplane:
     """Return-lip for an end-to-end seam that hides the real joint behind a reveal.
 
@@ -584,3 +729,10 @@ def shadow_gap(length: float, wall: float, overlap: float = 3.0) -> cq.Workplane
             (default 3.0)
     """
     return cq.Workplane("XY").box(length, overlap, wall, centered=(True, False, True))
+
+
+def shadow_gap_probes(length: float, wall: float, overlap: float = 3.0) -> list:
+    return [
+        solid_at((0, overlap / 2, 0)),
+        bbox((-length / 2, 0, -wall / 2), (length / 2, overlap, wall / 2)),
+    ]

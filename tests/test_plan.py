@@ -65,7 +65,7 @@ VALID_PLAN_TWO_PARTS: dict[str, Any] = {
             "description": "Snap-fit lid",
             "dimensions": {"w_mm": 50, "d_mm": 35, "h_mm": 3},
             "interfaces": [],
-            "blocks_needed": ["fillet_box", "snap_hook_clip"],
+            "blocks_needed": ["box", "snap_hook_clip"],
         },
     ],
 }
@@ -1895,7 +1895,7 @@ def test_inventory_hardware_blocks_carry_supplied_hardware():
         "pin_hinge",
     ):
         assert by_name[name].get("supplied_hardware"), f"{name} missing supplied_hardware"
-    assert "supplied_hardware" not in by_name["fillet_box"]
+    assert "supplied_hardware" not in by_name["box"]
 
 
 def _copy_plan(**copy_of):

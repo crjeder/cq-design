@@ -165,7 +165,7 @@ def test_render_planning_fresh_plan_lists_inventory_and_archetypes(tmp_path):
     assert status == "loaded"
     assert errors == []
     assert "a small enclosure" in text
-    assert "fillet_box" in text
+    assert "hollow_box" in text
     assert "enclosure-body" in text
     assert "Prusa MK4" in text
     assert "{{" not in text
