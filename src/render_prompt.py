@@ -265,7 +265,10 @@ def part_spec(plan: dict, part: dict) -> str:
             "D_MM": f"{dims['d_mm']:g}",
             "H_MM": f"{dims['h_mm']:g}",
             "INTERFACES": json.dumps(part["interfaces"]) if part.get("interfaces") else "(none)",
-            "UNIONS": ", ".join(sorted(union_ids(part)))
+            "UNIONS": ", ".join(
+                u["id"] + (f" (object {u['object']})" if u.get("object") else "")
+                for u in sorted(part["unions"], key=lambda u: u["id"])
+            )
             if part.get("unions")
             else "(single union)",
             "POSE_INTENT": pose_intent(plan, part),

@@ -85,7 +85,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     exporters/
       __init__.py            # run_exporters(script, formats, output_dir)
       stl.py step.py threemf.py obj.py iges.py scad.py
-      threemf_multi.py       # Multi-object 3MF writer (named unions + plate metadata)
+      threemf_multi.py       # Multi-object 3MF writer (named unions, multi-body objects, plate + extruder metadata)
 
   evals/
     cases/<case>/        # request.md, golden BUILD_PLAN.json, golden/*.stl, case.json

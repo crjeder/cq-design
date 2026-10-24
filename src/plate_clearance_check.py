@@ -29,7 +29,11 @@ from itertools import combinations
 from typing import Any, cast
 
 from freshness import read_manifest, script_stem, stale_ids
-from units import iter_unions, make_issue, run_stl_dir_check_cli, stl_path
+from interference import _intersection_volume
+from units import iter_unions, make_issue, object_groups, run_stl_dir_check_cli, stl_path
+
+# Same default as kinematic_check's penetration_tol_mm3: tessellation noise on a shared face.
+_OVERLAP_TOL_MM3 = 0.1
 
 
 def _plates_with_multiple_unions(plan: dict) -> dict[str, list[str]]:
@@ -106,8 +110,13 @@ def _check_plate(
     threshold: float,
     trimesh: Any,
     collision_manager_cls: Any,
+    object_of: dict[str, str],
 ) -> list[dict]:
-    """Check every pair of co-plated unions on one plate. Returns the issues produced."""
+    """Check every pair of co-plated unions on one plate. Returns the issues produced.
+
+    A pair in the same slicer `object` (`object_of`: union id -> object id) is checked
+    for overlap volume instead of the clearance gap.
+    """
     issues: list[dict] = []
 
     for uid in ids:
@@ -145,6 +154,27 @@ def _check_plate(
 
     meshes = {uid: trimesh.load(stl_path(stl_dir, uid), force="mesh") for uid in ids}
     for a, b in combinations(ids, 2):
+        obj = object_of.get(a)
+        if obj and obj == object_of.get(b):
+            # Bodies of one slicer object touch by design; they only must not overlap.
+            overlap = round(_intersection_volume(meshes[a], meshes[b]), 3)
+            if overlap > _OVERLAP_TOL_MM3:
+                issues.append(
+                    make_issue(
+                        "geometry",
+                        "error",
+                        "object_member_overlap",
+                        f"Unions '{a}' and '{b}' of object '{obj}' overlap by "
+                        f"{overlap} mm^3; bodies of one object must be disjoint.",
+                        "Cut one body from the other in the part script so they share "
+                        "only a boundary surface.",
+                        object=obj,
+                        union_a=a,
+                        union_b=b,
+                        overlap_mm3=overlap,
+                    )
+                )
+            continue
         manager = collision_manager_cls()
         manager.add_object(a, meshes[a])
         # No return flags -> min_distance_single returns the scalar distance.
@@ -200,9 +230,12 @@ def run_plate_clearance_check(
     if staleness_issue:
         issues.append(staleness_issue)
 
+    object_of = {uid: obj for obj, members in object_groups(plan).items() for uid in members}
     for plate, ids in plates.items():
         issues.extend(
-            _check_plate(plate, ids, stale, stl_dir, threshold, trimesh, collision_manager_cls)
+            _check_plate(
+                plate, ids, stale, stl_dir, threshold, trimesh, collision_manager_cls, object_of
+            )
         )
 
     return issues
