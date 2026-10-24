@@ -49,7 +49,38 @@ def test_profile_names_written_when_supplied():
 
 
 def test_write_uses_basenames(tmp_path):
+    import trimesh
+
+    (tmp_path / "x").mkdir()
+    trimesh.creation.box(extents=(10, 10, 10)).export(str(tmp_path / "x" / "a.stl"))
     path = write_estampo_toml([str(tmp_path / "x" / "a.stl")], PROFILE, str(tmp_path))
     assert os.path.basename(path) == "estampo.toml"
     with open(path, encoding="utf-8") as f:
         assert 'file = "a.stl"' in f.read()
+
+
+def test_parts_carry_support_and_brim_from_print_pose_mesh(tmp_path):
+    import trimesh
+
+    trimesh.creation.box(extents=(20, 20, 5)).export(str(tmp_path / "slab.stl"))
+    trimesh.creation.box(extents=(3, 3, 40)).export(str(tmp_path / "pin.stl"))
+    path = write_estampo_toml(
+        [str(tmp_path / "slab.stl"), str(tmp_path / "pin.stl")], PROFILE, str(tmp_path)
+    )
+    with open(path, encoding="utf-8") as f:
+        parts = f.read().split("[[parts]]")[1:]
+    assert "enable_support = false" in parts[0] and 'brim_type = "no_brim"' in parts[0]
+    assert 'brim_type = "brim"' in parts[1]
+
+
+def test_enable_support_true_for_non_bridge_overhang(tmp_path):
+    import trimesh
+
+    # T shape: a 30 mm cantilevered arm off a post -- a free overhang, not a bridge.
+    post = trimesh.creation.box(extents=(10, 10, 20))
+    arm = trimesh.creation.box(extents=(40, 10, 4))
+    arm.apply_translation((15, 0, 12))
+    trimesh.util.concatenate([post, arm]).export(str(tmp_path / "t.stl"))
+    from estampo_export import part_flags
+
+    assert part_flags(str(tmp_path / "t.stl"), 45.0, 10.0)["enable_support"] is True

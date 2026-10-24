@@ -159,6 +159,40 @@ def bed_contact_mask(mesh, centroids_z=None):
     return (mesh.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
 
 
+# Lift-risk heuristic (after augura): a brim is advised when the bed contact is small or
+# the part is tall relative to it (height / sqrt(contact area)).
+BRIM_MIN_CONTACT_MM2 = 50.0
+BRIM_MAX_HEIGHT_RATIO = 6.0
+# Horizontal face planes closer than this (mm) are one plane.
+PLANE_MERGE_MM = 1e-3
+
+
+def brim_metrics(mesh):
+    """Bed-contact area, height, height/sqrt(contact) and whether a brim is advised."""
+    contact = float(mesh.area_faces[bed_contact_mask(mesh)].sum())
+    height = float(np.ptp(mesh.vertices[:, 2]))
+    ratio = height / contact**0.5 if contact > 0 else float("inf")
+    return {
+        "contact_area_mm2": round(contact, 3),
+        "height_mm": round(height, 3),
+        "height_ratio": round(ratio, 3),
+        "recommended": contact < BRIM_MIN_CONTACT_MM2 or ratio > BRIM_MAX_HEIGHT_RATIO,
+    }
+
+
+def min_horizontal_gap(mesh):
+    """Smallest Z gap (mm) between distinct horizontal face planes, with the two plane
+    heights; None when the mesh has fewer than two such planes."""
+    flat = np.abs(mesh.face_normals[:, 2]) > 1 - 1e-9
+    zs = np.sort(mesh.triangles_center[flat, 2])
+    gaps = np.diff(zs)
+    real = np.flatnonzero(gaps > PLANE_MERGE_MM)
+    if not len(real):
+        return None
+    i = int(real[gaps[real].argmin()])
+    return float(gaps[i]), float(zs[i]), float(zs[i + 1])
+
+
 def _overhang_angles(mesh):
     return np.degrees(np.arcsin(np.clip(-mesh.face_normals[:, 2], 0.0, 1.0)))
 
