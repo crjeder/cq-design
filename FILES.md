@@ -95,6 +95,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
                           # text->CadQuery corpus snapshot into evals/cases/
     cadprompt_bench.py   # External benchmark: delivers cadprompt/parts/*.py, scores vs local CADPrompt
     cadprompt/           # parts/p<id>.py (one script per selected prompt), sample_run.md
+    cadgenbench_run.py   # CADGenBench: fetch fixtures, generate output.step, sanity-check, zip
     README.md            # Eval-runner contract (scoring, cost sources, --generate)
 
   prompts/
@@ -137,6 +138,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
     test_cadprompt_bench.py          # CADPrompt scoring (normalize/ICP/Chamfer/IoU) -- no CadQuery
+    test_cadgenbench_run.py          # CADGenBench canonical pose + zip packaging (CadQuery)
     test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # profile.json schema + write-back -- fast, no CadQuery

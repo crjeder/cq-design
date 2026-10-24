@@ -149,7 +149,15 @@ def write_deliverables(
         if "estampo" in formats:
             members = {uid for ids in multi_plates.values() for uid in ids}
             listed = [p for name, p in stls.items() if name not in members]
-            files["estampo"] = {"estampo.toml": write_estampo_toml(listed, profile or {}, out_dir)}
+            constraints = plan.get("constraints", {})
+            toml = write_estampo_toml(
+                listed,
+                profile or {},
+                out_dir,
+                constraints.get("overhang_max_deg", 45.0),
+                constraints.get("bridge_max_mm", 10.0),
+            )
+            files["estampo"] = {"estampo.toml": toml}
 
     for fmt in formats:
         if fmt in EXTRA_FORMATS:

@@ -25,6 +25,7 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [r3c0nshade/CADForge](https://github.com/r3c0nshade/CADForge) | Prompt-to-CAD web app: multi-provider LLM (Claude / GPT / GLM / NVIDIA / Ollama) writes CadQuery, sandboxed execution, Three.js preview, STEP/STL/OBJ/DXF export | Low-Medium | Still open: per-part version history across iterative edits (`build/attempts.jsonl` records attempts but keeps no script snapshots). Provider-agnostic backend is out of scope for a Claude Code skill |
 | [w1ne/kernelCAD-web](https://github.com/w1ne/kernelCAD-web) | Agent-native CAD: design brief -> editable `.kcad.ts` -> evaluated model -> deterministic validation (OpenCASCADE via Replicad) | Low-Medium | "Editable source is truth" and deterministic-validation-before-visual are already the pipeline (`script_lint` -> wrapper -> gate, then review). Still open: importing vendor STEP geometry for real hardware instead of parametric primitives -- see the B-Rep Part Libraries table below, which `blocks/hardware.py` does not yet draw on |
 | [pzfreo/build123d-mcp](https://github.com/pzfreo/build123d-mcp) | MCP server letting an assistant build a build123d part incrementally with render/measure/validate after every step ("eyes for the AI") | Low-Medium | The reported CADGenBench jump (36%->46%) from per-step visual+measured feedback validates this skill's existing render+validate loop but adds nothing to adopt; the `install_skill` workflow-order scaffold is the prescriptive pattern de-emphasized post-C2 |
+| [pzfreo/augura](https://github.com/pzfreo/augura) | Pre-alpha (0.1.x) build123d BREP printability analyser: overhangs/bridges, axis-pose orientation ranking, tip-over, bed-fit, brim risk, min vertical feature, wall thickness; emits an estampo.toml fragment; Apache-2.0 | Medium | Mostly already covered, often better (bridges, orientation, tip-over, thin walls). Ported: brim/lift-risk advisory, sub-layer vertical step vs `layer_height_mm`, per-part `enable_support`/`brim_type` in the estampo export ([crjeder/cq-design#255](https://github.com/crjeder/cq-design/pull/255)). **Open:** bed-fit vs build volume (needs bed dims in `profile.json`) -- [details](#augura-printability-checks) |
 | [CadQuery/cadquery-contrib mcp-server](https://github.com/CadQuery/cadquery-contrib/tree/master/mcp-server) | Official CadQuery MCP server (render / inspect / get_parameters / export) | Medium | `get_parameters` style extraction of customizable script params for a parametric re-run UX (this skill avoids MCP by design) **Open:** `get_parameters` - extract customizable params from a script for parametric re-runs ([details](#get_parameters)). |
 | [mikekuniavsky/mcp-cadquery-server-public](https://github.com/mikekuniavsky/mcp-cadquery-server-public) | MCP server executing CadQuery in sandboxed subprocesses, exporting 3MF/PNG/GLB via cloud storage | Medium | AST-based allowlist validation before executing generated code (safer than bare `exec`); export-format selection by result type (`cq.Assembly` -> GLB for per-part color, `cq.Workplane` -> 3MF), parallel to this skill's `dict[str, Workplane]` union-splitting |
 | [Kevoyuan/AgentSCAD](https://github.com/Kevoyuan/AgentSCAD) | NL -> validated OpenSCAD artifacts, cost-conscious progressive pipeline (generate once, validate deterministically, repair only on failure) | Medium | Repair-only-on-failure -> `quality_gate.py` defaults `allow_fix=False` (IMPROVEMENT_PLAN item 10); parsing assignments into editable parameters -> `import_params.py`'s `PARAMETERS` reconciliation |
@@ -162,6 +163,9 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [CADDesigner](https://arxiv.org/abs/2508.01031) | Requirement-analysis stage before CAD generation | Low-Medium | Prior art for Phase 1 requirements capture (`REQUIREMENTS.md` already shipped) |
 | [SEG / ODPO](https://arxiv.org/abs/2511.16434) | Self-supporting shape generation; defines the Normalized Support Volume score | Medium | NSV = support volume / model volume as a scale-invariant orientation and gate score; model itself has no public code -- see Details: NSV score **Open:** NSV score as gate / orientation objective ([details](#nsv-score)). |
 | [rishigundakaram/cadquery-mcp-server](https://github.com/rishigundakaram/cadquery-mcp-server) | CadQuery MCP server with `verify_cad_query` (geometry vs natural-language criteria) | Low-Medium | LLM intent-match verifier; overlaps the cadgate-style item -- see Details: verify-against-criteria tool |
+| [aguera](https://github.com/pzfreo/augura) | | |
+| [Quiddity](https://github.com/pzfreo/quiddity) | | | 
+| https://wormgear.studio/ | | | 
 
 ## Details
 
@@ -831,3 +835,33 @@ the current error list:
   each `claude -p` fix call sees only the current error, not the attempt
   history already sitting in `build/attempts.jsonl`), so repeated fixes
   don't re-try the same wrong correction
+
+### augura printability checks
+pzfreo/augura, rated **Medium**. Reads the exact BREP (build123d over OCC) instead
+of a mesh; `cadquery_adapter.py` shows a CadQuery solid can be shared with build123d
+via its `TopoDS_Shape` with no copy. About 1.8k lines, pre-alpha.
+
+Already covered by this skill, usually more thoroughly:
+- bridges: augura takes the span as the smaller in-plane bounding-box extent (a
+  diagonal slot reads too wide) and requires a descending wall on every edge;
+  `mesh_io._is_bridge` measures per-side anchored coverage
+- orientation: augura ranks only the 6 axis poses by overhang area;
+  `print_orientation.py` enumerates hull facets and has strength/speed modes
+- tip-over: same COM-in-support-polygon test as `print_orientation._stability_metrics`
+- thin walls: augura ray-samples face centres (+3x3 UV grid on faces > 100 mm2) and
+  can miss thin spots; `run_cadquery_model.py`'s local-thickness check is exhaustive
+  and separates XY-thin from Z-thin regions
+
+Ported in crjeder/cq-design#255 (advisory only, never blocking):
+- brim/lift risk: bed-contact area < 50 mm2 or height / sqrt(contact) > 6
+- minimum vertical feature: smallest gap between horizontal face planes below the
+  profile's layer height
+- estampo export: per-part `enable_support` and `brim_type`
+
+Open:
+- bed-fit vs build volume -- `profile.json` has no bed dimensions; add them and
+  flag (or rank down, as augura does) poses that overflow
+
+Not adopted: an exact-BREP analysis path. Exact overhang angles would mean a
+build123d dependency and a second analysis pipeline for little practical gain over
+the mesh path; depending on augura itself is premature while it is pre-alpha.

@@ -217,6 +217,7 @@ def _analyze_stl(
     rotate: list[dict] | None = None,
     clearance_zones: list[dict] | None = None,
     bridge_max_mm: float = 10.0,
+    layer_height_mm: float | None = None,
 ) -> list[dict]:
     """Analyze STL geometry and overhangs using trimesh. Returns issues.
 
@@ -382,12 +383,71 @@ def _analyze_stl(
             }
         )
 
+    # Advisory print-pose checks after augura: bed adhesion and sub-layer vertical steps.
+    from mesh_io import (
+        BRIM_MAX_HEIGHT_RATIO,
+        BRIM_MIN_CONTACT_MM2,
+        brim_metrics,
+        min_horizontal_gap,
+    )
+
+    brim = brim_metrics(tm)
+    if brim["recommended"]:
+        issues.append(
+            {
+                "source": "geometry",
+                "severity": "warning",
+                "type": "brim_recommended",
+                "message": (
+                    f"Bed contact {brim['contact_area_mm2']:.1f} mm2 for a "
+                    f"{brim['height_mm']:.1f} mm tall part (height/sqrt(contact) "
+                    f"{brim['height_ratio']:.1f}); risk of lifting or tipping"
+                ),
+                "hint": (
+                    f"Print with a brim, or widen the base (contact >= {BRIM_MIN_CONTACT_MM2:g} "
+                    f"mm2 and height/sqrt(contact) <= {BRIM_MAX_HEIGHT_RATIO:g} clear this)."
+                ),
+                "contact_area_mm2": brim["contact_area_mm2"],
+                "height_ratio": brim["height_ratio"],
+            }
+        )
+    gap = min_horizontal_gap(tm) if layer_height_mm else None
+    if gap and gap[0] < layer_height_mm:
+        issues.append(
+            {
+                "source": "geometry",
+                "severity": "warning",
+                "type": "vertical_feature_below_layer",
+                "message": (
+                    f"Horizontal faces at Z {gap[1]:.3f} and {gap[2]:.3f} mm are {gap[0]:.3f} mm "
+                    f"apart, under one {layer_height_mm:g} mm layer; the step will be lost or "
+                    "rounded to a layer"
+                ),
+                "hint": "Make the step at least one layer height, or a multiple of it.",
+                "min_gap_mm": round(gap[0], 4),
+                "layer_height_mm": layer_height_mm,
+            }
+        )
+
     return issues
 
 
 # ---------------------------------------------------------------------------
 # Print recipe
 # ---------------------------------------------------------------------------
+
+
+def _layer_height_mm(plan: dict, plan_path: str | None) -> float:
+    """profile.json `motion.layer_height_mm` next to `plan_path`, else `nozzle_mm * 0.5`."""
+    if plan_path is not None:
+        profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
+        if os.path.isfile(profile_path):
+            from units import read_json
+
+            motion = read_json(profile_path, "profile.json").get("motion")
+            if motion:
+                return motion["layer_height_mm"]
+    return round(plan.get("nozzle_mm", 0.4) * 0.5, 2)
 
 
 def _emit_print_recipe(
@@ -421,15 +481,7 @@ def _emit_print_recipe(
     nozzle = plan.get("nozzle_mm", 0.4)
     top_bottom_layers = constraints.get("top_bottom_layers", 4)
 
-    layer_height_mm = round(nozzle * 0.5, 2)
-    if plan_path is not None:
-        profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
-        if os.path.isfile(profile_path):
-            from units import read_json
-
-            motion = read_json(profile_path, "profile.json").get("motion")
-            if motion:
-                layer_height_mm = motion["layer_height_mm"]
+    layer_height_mm = _layer_height_mm(plan, plan_path)
 
     # Walls = ceil(wall_min / nozzle), at least 2
     walls = max(2, int((wall_min / nozzle) + 0.999))
@@ -1113,6 +1165,7 @@ def run_gate(
     plan = read_json(plan_path, "BUILD_PLAN.json")
     overhang_deg = plan.get("constraints", {}).get("overhang_max_deg", 45)
     bridge_max_mm = plan.get("constraints", {}).get("bridge_max_mm", 10.0)
+    layer_height = _layer_height_mm(plan, plan_path)
     if stl_dir is None:
         stl_dir = os.path.dirname(os.path.abspath(script_path))
 
@@ -1146,7 +1199,9 @@ def run_gate(
             geo_issues = []
             for stl in effective_stls:
                 uid = os.path.splitext(os.path.basename(stl))[0]
-                stl_issues = _analyze_stl(stl, overhang_deg, rotate, clearance_zones, bridge_max_mm)
+                stl_issues = _analyze_stl(
+                    stl, overhang_deg, rotate, clearance_zones, bridge_max_mm, layer_height
+                )
                 if multi:
                     stl_issues = [
                         {**i, "union": uid, "message": f"[{uid}] {i['message']}"}
