@@ -151,7 +151,8 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
       `[x, y, z]` in the build pose; `load.type` defaults to `tension`.
     - Resting/compressive (base, plinth, foot, gasket, shim) or a non-load-bearing flat
       cover/panel: `load: {"dir": [0, 0, -1], "type": "compression"}` (`dir` is the
-      direction the resting load presses, in the build pose; the schema requires it).
+      direction the resting load presses, in the build pose; the schema requires it, but
+      strength scoring ignores it for `compression`).
     - Unclear loading is an `OPEN:` item, never a silent omission.
     - **Solvable load case (optional, for the FEM stress advisor)**: when the load comes
       from an object with a researched mass (e.g. "holds a phone"), also declare
