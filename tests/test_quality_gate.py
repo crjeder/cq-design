@@ -840,3 +840,32 @@ def test_hooked_load_feeds_later_stages_from_cache(tmp_path):
     quality_gate._run_hooked_stages(plan, str(script), {"rotate": []})
     _load_result(str(script))
     assert counter.read_text() == "x"
+
+
+def test_brim_recommended_for_tall_thin_part_only(tmp_path, flat_bottom_cube_stl):
+    pin = tmp_path / "pin.stl"
+    trimesh.creation.box(extents=(3, 3, 40)).export(str(pin))
+    b = _issues_of(quality_gate._analyze_stl(str(pin), OVERHANG_DEG), "brim_recommended")
+    assert len(b) == 1 and b[0]["severity"] == "warning"
+    assert b[0]["contact_area_mm2"] == pytest.approx(9.0)
+    assert (
+        _issues_of(
+            quality_gate._analyze_stl(flat_bottom_cube_stl, OVERHANG_DEG), "brim_recommended"
+        )
+        == []
+    )
+
+
+def test_vertical_feature_below_layer_height(tmp_path):
+    # A 0.1 mm step on top of a 20x20x10 block: two horizontal planes 0.1 mm apart.
+    base = trimesh.creation.box(extents=(20, 20, 10))
+    step = trimesh.creation.box(extents=(10, 10, 0.1))
+    step.apply_translation((0, 0, 5.05))
+    stl = tmp_path / "step.stl"
+    trimesh.util.concatenate([base, step]).export(str(stl))
+    issues = quality_gate._analyze_stl(str(stl), OVERHANG_DEG, layer_height_mm=0.2)
+    v = _issues_of(issues, "vertical_feature_below_layer")
+    assert len(v) == 1 and v[0]["severity"] == "warning"
+    assert v[0]["min_gap_mm"] == pytest.approx(0.1, abs=1e-3)
+    clean = quality_gate._analyze_stl(str(stl), OVERHANG_DEG, layer_height_mm=0.08)
+    assert _issues_of(clean, "vertical_feature_below_layer") == []
