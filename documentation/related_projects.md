@@ -168,8 +168,21 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [wormgear.studio](https://wormgear.studio/) ([pzfreo/worm-gear-3d](https://github.com/pzfreo/worm-gear-3d)) | Browser (Pyodide) + `pip install wormgear` CLI generating cylindrical / globoid worm gear pairs (DIN 3975 profiles, virtual hobbing, keyways, DD-cuts) to STEP/3MF/STL from a `design.json` | Low-Medium | Read the site: worm gears are a gap next to `cq_gears` (spur/helical only); the JSON -> STEP CLI fits the same "downloadable external resource in `planning_notes`" route. License not stated on the site, check the repo before more than that |
 | [forgent3d/forgent3d-desktop](https://github.com/forgent3d/forgent3d-desktop) | MIT desktop viewer that a coding agent (Claude Code / Codex) runs alongside: build123d `part.py` + `params.json` packages under an `asm.xml`, Three.js preview via MJCF, optional MuJoCo joint simulation | Low-Medium | Read the README: viewer-only materials/colors kept in `params.json` apart from geometry; MuJoCo simulation of joints as a stronger cousin of `kinematic_check.py`'s sweep. The rest (desktop GUI, screenshot + bbox checks) is already this skill's loop |
 | [ForgeCAD/forgecad-public-kit](https://github.com/ForgeCAD/forgecad-public-kit) | Public kit for the hosted ForgeCAD product (forgecad.io): JS/TS code-CAD by agents, exporting simulation assets (OpenUSD / MJCF / URDF / STEP); MIT, 3 commits | Low | Read the README: almost no detail (no kernel, validation or agent mechanism described); robotics-sim export targets are outside a print-focused skill |
-
-
+| https://github.com/fangzhengfelix9461/Text2CAD-GC | | |
+| https://github.com/shivamrajput-py/Archgen-Text2CAD | | |
+| https://github.com/WaterXiao-git/text2cad-parametric | | |
+| https://github.com/CY-HYUN/text2cad-verifier | | |
+| https://github.com/nohope88/text2cad | | |
+| https://github.com/jeet18101999/text2cad | | |
+| https://github.com/jeet18101999/text2cad/tree/main/text2cad | | templates may be worth a look |
+| https://github.com/Red-Owl/text2cad | | |
+| https://github.com/sameerreddy789/Text2Cad | | |
+| https://github.com/Bur3d-crack/Text2CAD | | Point clouds? Probbably not the best iedea |
+| https://github.com/yinchangguwang/Text2CAD | | look at both branches! |
+| https://github.com/6532123a/Efficient-Text2CAD- | | |
+| https://github.com/annguyenphanhuu/text2cad | | |
+| https://github.com/tengfeizhang666/text2cad-rag | | |
+| https://github.com/Principle-of-Procrastination/text2cad | | |
 
 ## Details
 
