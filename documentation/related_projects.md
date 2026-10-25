@@ -169,6 +169,8 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [forgent3d/forgent3d-desktop](https://github.com/forgent3d/forgent3d-desktop) | MIT desktop viewer that a coding agent (Claude Code / Codex) runs alongside: build123d `part.py` + `params.json` packages under an `asm.xml`, Three.js preview via MJCF, optional MuJoCo joint simulation | Low-Medium | Read the README: viewer-only materials/colors kept in `params.json` apart from geometry; MuJoCo simulation of joints as a stronger cousin of `kinematic_check.py`'s sweep. The rest (desktop GUI, screenshot + bbox checks) is already this skill's loop |
 | [ForgeCAD/forgecad-public-kit](https://github.com/ForgeCAD/forgecad-public-kit) | Public kit for the hosted ForgeCAD product (forgecad.io): JS/TS code-CAD by agents, exporting simulation assets (OpenUSD / MJCF / URDF / STEP); MIT, 3 commits | Low | Read the README: almost no detail (no kernel, validation or agent mechanism described); robotics-sim export targets are outside a print-focused skill |
 
+
+
 ## Details
 
 ### Integration strategies

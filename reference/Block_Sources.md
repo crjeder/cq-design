@@ -108,7 +108,8 @@ Two separate catalogues, because they answer two different questions:
 | https://github.com/infradom/parametric_din_rail_enclosure | | | | |
 | https://github.com/szymswiat/cq-enclosure | | | | |
 | https://github.com/paulirotta/PELA-blocks | | | | | 
-
+| https://www.step.parts/ | | | | |
+| https://cad-markt.de/cad-downloads/3d-modelle-2/3d-modelle-stp-files | | | | | 
 | [OpenVSP/OpenVSP](https://github.com/OpenVSP/OpenVSP) | 839 | 2026-08 | **Very Low** | Standalone aircraft OML/analysis application, not a Python part library. Out of domain for FDM blocks. |
 
 ### Personal model collections
