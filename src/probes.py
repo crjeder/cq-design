@@ -23,6 +23,7 @@ import argparse
 import json
 import math
 import sys
+from collections.abc import Set as AbstractSet
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
@@ -235,7 +236,9 @@ class Registry:
         self.retired.extend(gone)
         return gone
 
-    def check(self, shape, final: bool = False, armed=frozenset()) -> tuple[int, list[dict]]:
+    def check(
+        self, shape, final: bool = False, armed: AbstractSet[str] = frozenset()
+    ) -> tuple[int, list[dict]]:
         """Check every live probe. A plan feature probe is armed once its instance is placed
         (in `armed`), or only at the final check when it names no instance. bbox probes in
         'within' mode become exact when final."""
