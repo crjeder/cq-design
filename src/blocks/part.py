@@ -216,6 +216,11 @@ class Part:
                 f"instance {handle.id!r}: unknown params {unknown}, missing params {missing}; "
                 f"{handle.name} declares {sorted(declared)}",
             )
+        if params.get("print_up") == "auto":
+            # Pose-dependent geometry (teardrops): the accepted print pose at finishing time.
+            from blocks.print_frame import print_up
+
+            params["print_up"] = print_up()
         key = self._chain("resize", {"id": handle.id, "params": params}, handle.entry["module"])
         hit = self._cached(key, step)
         if hit is not None:
@@ -223,16 +228,20 @@ class Part:
             return handle
         module = importlib.import_module(handle.entry["module"])
         shape = getattr(module, handle.entry["function"])(**params)
-        if isinstance(shape, dict):
-            raise self._error(step, "step_plan", f"{handle.name} returns unions; not placeable")
         probe_fn = getattr(module, handle.entry["probes"]) if "probes" in handle.entry else None
         local = probe_fn(**params) if probe_fn else []
-        handle.params, handle.shape, handle.probes = params, shape.val(), local
+        if isinstance(shape, dict):
+            # A matched pair: each member is placed on its own with place(member=...).
+            built: Any = {k: v.val() for k, v in shape.items()}
+            whole = cq.Compound.makeCompound(list(built.values()))
+        else:
+            built = whole = shape.val()
+        handle.params, handle.shape, handle.probes = params, built, local
         failed = []
         for p in local:
             if p.kind == "delta":
                 continue
-            ok, got = pr.evaluate(p, handle.shape)
+            ok, got = pr.evaluate(p, whole)
             if not ok:
                 failed.append({**pr.as_dict(p), "got": got})
         step["probes"] = {"checked": len(local), "failed": failed, "retired": []}
@@ -260,21 +269,39 @@ class Part:
             if i.get("instance") == id and "position_mm" in i
         ]
 
-    def place(self, handle: Handle, at=None, rotate=(0, 0, 0), op: str = "union", into=None):
+    def place(
+        self, handle: Handle, at=None, rotate=(0, 0, 0), op: str = "union", into=None, member=None
+    ):
         if handle.shape is None:
             raise _fail("step_plan", handle.id, f"place before resize of {handle.id!r}")
+        pair = isinstance(handle.shape, dict)
+        if pair != (member is not None) or (pair and member not in handle.shape):
+            members = sorted(handle.shape) if pair else []
+            raise _fail(
+                "step_plan",
+                handle.id,
+                f"{handle.name}: member must name one of {members} (and only for a pair block)",
+            )
+        shape = handle.shape[member] if pair else handle.shape
         if at is not None and len(at) == 0:
             raise _fail("step_plan", handle.id, f"place of {handle.id!r} at an empty point list")
         points = [(0, 0, 0)] if at is None else [at] if not isinstance(at[0], (list, tuple)) else at
         step = self._record("place", handle.name, id=handle.id, op=op, at=[list(p) for p in points])
-        args = {"id": handle.id, "at": points, "rotate": rotate, "op": op, "into": into}
+        args = {
+            "id": handle.id,
+            "at": points,
+            "rotate": rotate,
+            "op": op,
+            "into": into,
+            "member": member,
+        }
         key = self._chain("place", args, handle.entry["module"])
         hit = self._cached(key, step)
         if hit is not None:
             self._restore(hit["state"])
             self.last_good = hit["state"]
             return handle
-        tools = [_moved(handle.shape, p, rotate) for p in points]
+        tools = [_moved(shape, p, rotate) for p in points]
         self.placements.append((handle, points, rotate, into))
         tool = tools[0] if len(tools) == 1 else cq.Compound.makeCompound(tools)
 
@@ -301,6 +328,13 @@ class Part:
 
         retired = self.registry.retire_inside(tool, step["index"]) if op != "base" else []
         local = [q for q in handle.probes if q.kind in ("solid_at", "empty_at", "ray")]
+        if pair:
+            # Only the probes of this member: points inside it, or holes outside it.
+            local = [
+                q
+                for q in local
+                if q.kind != "ray" and (pr.classify(shape, q.p) == "IN") == (q.kind == "solid_at")
+            ]
         if op == "cut":
             # A cut tool's material is removed; its holes and rays say nothing about the host.
             local = [replace(q, kind="empty_at") for q in local if q.kind == "solid_at"]

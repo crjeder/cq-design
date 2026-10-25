@@ -57,12 +57,12 @@
 
 ## 8. Prompts and orchestration
 
-- [ ] 8.0 `prompts/planning.md`: planner emits every instance with `id`, `params` and cosmetic `edges`; parameter-level corrections edit the plan, not scripts
-- [ ] 8.1 `prompts/part.md`: step-form authoring, primitives, no raw CadQuery; drop the scratch `verify_stage` construction-plan guidance
-- [ ] 8.2 `prompts/builder.md`: loop on `step_worker.py run`, fix the failing step or restore a snapshot, return `blocked` on `probe_stuck` or `missing_block`; remove the 3-runs-per-stage budget; return contract carries the last step report
-- [ ] 8.3 `render_prompt.py audit` + `prompts/audit.md`: drop connectedness and probed-interface questions when a passing step report is present; keep `unprobed_interfaces`
-- [ ] 8.4 `skill/phase3_build.md`: escalation on `probe_stuck`/`missing_block` with plan change as an option; plan change logs to `request_log` and starts a new attempt
-- [ ] 8.5 `reference/scripts.md` and `FILES.md` entries for `probes.py`, `step_worker.py`, the `Part` API and the changed lint/telemetry contracts
+- [x] 8.0 `prompts/planning.md`: planner emits every instance with `id`, `params` and cosmetic `edges`; parameter-level corrections edit the plan, not scripts
+- [x] 8.1 `prompts/part.md`: step-form authoring, primitives, no raw CadQuery; drop the scratch `verify_stage` construction-plan guidance
+- [x] 8.2 `prompts/builder.md`: loop on `step_worker.py run`, fix the failing step or restore a snapshot, return `blocked` on `probe_stuck` or `missing_block`; remove the 3-runs-per-stage budget; return contract carries the last step report
+- [x] 8.3 `render_prompt.py audit` + `prompts/audit.md`: drop connectedness and probed-interface questions when a passing step report is present; keep `unprobed_interfaces`
+- [x] 8.4 `skill/phase3_build.md`: escalation on `probe_stuck`/`missing_block` with plan change as an option; plan change logs to `request_log` and starts a new attempt
+- [x] 8.5 `reference/scripts.md` and `FILES.md` entries for `probes.py`, `step_worker.py`, the `Part` API and the changed lint/telemetry contracts
 
 ## 9. Verification
 

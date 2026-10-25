@@ -354,3 +354,40 @@ def test_lost_edge_set_fails(plan, monkeypatch):
     part.place(cut, at=(0, 0, 4.6), op="cut")
     with pytest.raises(RuntimeError, match=r"finishing_probe_failed.*plate\.top_outer"):
         part.result()
+
+
+def test_pair_block_members_place_into_their_unions(plan):
+    hinge = {
+        "name": "pin_hinge",
+        "id": "hinge",
+        "params": {"length": 40, "knuckles": 5, "leaf_w": 15, "leaf_t": 3},
+    }
+    plan(blocks=[hinge], dims=(34.05, 40, 4.05))
+    part = Part("plate")
+    h = part.select("pin_hinge", id="hinge")
+    part.resize(h)
+    with pytest.raises(RuntimeError, match="member must name one of"):
+        part.place(h, op="base")
+    part.place(h, op="base", member="leaf_a", into="leaf_a")
+    part.place(h, op="base", member="leaf_b", into="leaf_b")
+    result = part.result()
+    assert sorted(result) == ["leaf_a", "leaf_b"]
+    assert {p.label for p in part.registry.probes if p.owner != "plan"} == {
+        "leaf_a",
+        "leaf_b",
+        "pin bore",
+    }
+
+
+def test_auto_print_up_resolves_to_the_pose(plan, monkeypatch):
+    bore = {
+        "name": "teardrop_bore",
+        "id": "bore",
+        "params": {"d": 5, "depth": 10, "print_up": "auto"},
+    }
+    plan(blocks=[bore])
+    monkeypatch.setenv("CQ_PRINT_ROTATE", json.dumps([{"axis": "X", "angle_deg": 180}]))
+    part = Part("plate")
+    handle = part.resize(part.select("teardrop_bore", id="bore"))
+    assert handle.params is not None
+    assert handle.params["print_up"] == pytest.approx((0, 0, -1), abs=1e-9)
