@@ -2,15 +2,20 @@
 and the warm worker with its cold fallback."""
 
 import json
+from typing import Any
 
 import pytest
 from conftest import minimal_plan
 
 import step_worker as sw
 
-PLATE = {"name": "box", "id": "plate", "params": {"w": 40, "d": 30, "h": 4}}
-BOSS = {"name": "screw_boss", "id": "boss", "params": {"d_screw": 3.2, "d_outer": 8, "h": 6}}
-HOLE = {"name": "cylinder", "id": "hole", "params": {"d": 4, "h": 10}}
+PLATE: dict[str, Any] = {"name": "box", "id": "plate", "params": {"w": 40, "d": 30, "h": 4}}
+BOSS: dict[str, Any] = {
+    "name": "screw_boss",
+    "id": "boss",
+    "params": {"d_screw": 3.2, "d_outer": 8, "h": 6},
+}
+HOLE: dict[str, Any] = {"name": "cylinder", "id": "hole", "params": {"d": 4, "h": 10}}
 PLUG = {"name": "cylinder", "id": "plug", "params": {"d": 3, "h": 6}}
 BORE = {
     "type": "screw_mount",
@@ -68,14 +73,14 @@ def _cached(report):
 
 
 def test_unchanged_rerun_is_served_from_cache(project):
-    script, cache = project(), {}
+    script, cache = project(), dict[str, dict]()
     first = sw.run_steps(script, cache)
     assert first["success"] and not any(_cached(first))
     assert all(_cached(sw.run_steps(script, cache)))
 
 
 def test_editing_a_step_reuses_the_steps_before_it(project):
-    script, cache = project(), {}
+    script, cache = project(), dict[str, dict]()
     sw.run_steps(script, cache)
     project(hole_at=(10, -5, -1))
     report = sw.run_steps(script, cache)
@@ -83,7 +88,7 @@ def test_editing_a_step_reuses_the_steps_before_it(project):
 
 
 def test_plan_edit_invalidates_from_the_first_step_reading_it(project):
-    script, cache = project(), {}
+    script, cache = project(), dict[str, dict]()
     sw.run_steps(script, cache)
     project(hole_d=3)
     report = sw.run_steps(script, cache)
@@ -93,7 +98,7 @@ def test_plan_edit_invalidates_from_the_first_step_reading_it(project):
 
 
 def test_envelope_edit_invalidates_every_step(project):
-    script, cache = project(), {}
+    script, cache = project(), dict[str, dict]()
     sw.run_steps(script, cache)
     project(boss_h=8)
     report = sw.run_steps(script, cache)
@@ -122,7 +127,7 @@ def test_later_step_breaking_a_plan_probe_names_the_plan_probe(project):
 
 
 def test_snapshot_restore_rewrites_the_script_and_compare_reports(project):
-    script, cache = project(), {}
+    script, cache = project(), dict[str, dict]()
     assert sw.snapshot("save", ["v1"], script, cache)["success"]
     original = script.read_text(encoding="utf-8")
     project(hole_at=(10, -5, -1))
