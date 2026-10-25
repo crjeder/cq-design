@@ -22,9 +22,11 @@ capability, `operation` changes how a feature is made, `parameter` changes a
 dimension/literal only. `add` only appends; it never edits, reorders, or back-fills
 existing entries. Skip if the plan has no `request_log`.
 
-**Parameter-level scope.** A `parameter` entry edits only the scripts of its `--target`
-parts; route a value that must agree across parts through `joints`/`mate_chain.py`, never
-by hand-editing the sibling's literal. Append it with `--snapshot-scripts build/` before
+**Parameter-level scope.** A `parameter` entry edits the plan values (instance `params`,
+`edges`, interface `position_mm`) of its `--target` parts only; a step script holds no
+dimensions, so its builder is resumed with no script edit needed. Each such entry starts
+the target part's next attempt (attempt = plan revision). Route a value that must agree
+across parts through `joints`/`mate_chain.py`, never by hand-editing the sibling's value. Append it with `--snapshot-scripts build/` before
 touching any script: the gate diffs the stored hashes and warns `routing_violation` for
 a script changed outside the targets that no `joints` entry links to one. The warning
 does not block delivery or consume a fix round; surface it to the user.
@@ -99,11 +101,19 @@ Preview images stay out of this session unless the user asks you to look at one.
 
 ## Escalation
 
-On `blocked`:
-1. Summarize `error_summary` and ask: give a hint, accept as-is, or skip the part.
-2. **Hint** -> resume the same builder with `fix: <hint verbatim>`.
-3. **Accept as-is** -> accept the last render; skip the audit; do the write-backs.
-4. **Skip** -> move on without this part; say so at design approval.
+On `blocked` (`blocked_reason` `probe_stuck`: the same probe failed again after a
+different approach or a restore; `missing_block`: the geometry needs a block or primitive
+the inventory lacks):
+1. Summarize `error_summary` -- the stuck probe (plan-owned probes trace to a plan
+   interface or the envelope) or the missing geometry -- and ask: change the plan, give a
+   hint, accept as-is, or skip the part.
+2. **Plan change** -> log the user's wording with `log.py request add ... --target
+   <part_id>` (this starts the part's next attempt), edit the plan entry the probe came
+   from (or add the missing instance), re-validate the plan, then resume the same builder
+   with `fix: plan changed: <what changed>`.
+3. **Hint** -> resume the same builder with `fix: <hint verbatim>`.
+4. **Accept as-is** -> accept the last render; skip the audit; do the write-backs.
+5. **Skip** -> move on without this part; say so at design approval.
 
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
@@ -122,8 +132,12 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
    ```bash
    uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" audit \
        --plan BUILD_PLAN.json --part <part_id> --script build/<part_id>.py \
-       --previews <preview_paths from the contract...>
+       --previews <preview_paths from the contract...> \
+       --step-report build/<part_id>.step_report.json
    ```
+   With a passing step report the audit drops the connectedness question and the
+   presence/position questions of probed interfaces (the probes settled them);
+   `unprobed_interfaces` are still asked. Omit `--step-report` for a legacy script.
    Prompt: `Read build/<part_id>_audit_prompt.txt in full and follow it. Working directory: <absolute cwd>.`
 2. **`verdict: pass`** -> accepted. Do the write-backs, then:
    ```bash
@@ -149,9 +163,10 @@ From the accepted contract, into that part's `BUILD_PLAN.json` entry:
   differing value.
 - `engineering_rationale`, exactly as returned.
 
-If a part script's `PARAMETERS` block was hand-edited, reconcile with
+If a legacy part script's `PARAMETERS` block was hand-edited, reconcile with
 `uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan.py" import-params build/<part_id>.py --part <part_id> --write`
-instead of hand-editing the plan.
+instead of hand-editing the plan (a step script reports `not_applicable`: its values are
+already the plan's).
 
 ## Design approval checkpoint
 
