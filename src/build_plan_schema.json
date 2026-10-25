@@ -218,7 +218,7 @@
                 "plate": {
                   "type": "string",
                   "pattern": "^[a-z][a-z0-9_]*$",
-                  "description": "Print-group id for this union; defaults to the part's `plate`, else the union id"
+                  "description": "Print-group id for this union; defaults to the part's `plate`, else the union's `object`, else the union id"
                 },
                 "material": {
                   "type": "string",
@@ -229,6 +229,16 @@
                   "type": "string",
                   "pattern": "^#[0-9A-Fa-f]{6}$",
                   "description": "Display and filament color (#RRGGBB) for this union; defaults to the part's `color`, else a color derived from the resolved material"
+                },
+                "object": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "Slicer-object group id. Unions sharing it (at least two, all from this part and on one plate) are exported as the bodies of one slicer object, e.g. the color regions of a multi-color part. Members touch but must not overlap."
+                },
+                "filament": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "1-based filament slot (slicer extruder number) this union prints with. Not checked against the printer; the slicer flags a slot it does not have."
                 }
               }
             }

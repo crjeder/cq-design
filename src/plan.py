@@ -137,6 +137,7 @@ def validate_plan(
 
     errors.extend(_check_archetypes(plan, archetypes_path))
     errors.extend(_check_unions(plan))
+    errors.extend(_check_objects(plan))
     errors.extend(_check_copy_of(plan))
     errors.extend(_check_interface_names(plan))
     errors.extend(_check_placements(plan))
@@ -196,6 +197,25 @@ def _check_unions(plan: dict[str, Any]) -> list[str]:
                 f"Union id '{uid}' is declared more than once (parts '{seen[uid]}' and '{pid}')"
             )
         seen[uid] = pid
+    return errors
+
+
+def _check_objects(plan: dict[str, Any]) -> list[str]:
+    """Each `object` group has two or more members, all from one part and on one plate."""
+    from units import iter_unions, object_groups
+
+    owner = {uid: (part.get("id", "(unknown)"), plate) for part, uid, plate in iter_unions(plan)}
+    errors = []
+    for obj, members in object_groups(plan).items():
+        if len(members) < 2:
+            errors.append(f"Object '{obj}': needs at least two member unions, has {members}")
+            continue
+        parts = sorted({owner[uid][0] for uid in members})
+        plates = sorted({owner[uid][1] for uid in members})
+        if len(parts) > 1:
+            errors.append(f"Object '{obj}': members come from different parts {parts}")
+        if len(plates) > 1:
+            errors.append(f"Object '{obj}': members are on different plates {plates}")
     return errors
 
 

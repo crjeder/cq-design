@@ -41,10 +41,11 @@ PLA/PETG/ABS/TPU (95A) while the schema enum also has ASA/TPU/PA/PC.
      `extruder` key.
    - A multi-volume object is a parent `<object>` with `<components>` of sub-objects, matched
      to `<part id>` entries.
-   Shipped: one object per union, each with `extruder` + `m:color`. Deferred: grouping
-   unions into one object with volumes. `deliverables` writes each union in its own print
-   pose, so volumes of one object would carry unrelated poses; revisit with a shared pose.
-   Not run: an OrcaSlicer round-trip (task 1.2); OrcaSlicer's own importer was not read.
+   Shipped (after merging main's `multi-color-3mf-export`): main's writer already emits the
+   component layout with per-part `extruder`; this change only supplies the filament, an
+   explicit union `filament` else the slot assigned from (material, color). Color is not
+   written to the 3MF (the `m:colorgroup` form was dropped in the merge). Not run: an
+   OrcaSlicer round-trip (task 1.2).
 5. **FEM**: `fem_check` solves one isotropic material. For plans with more than one
    material it skips with a stated reason, as it already does for unknown materials.
 6. **Weight**: `quality_gate` runs per part script, so the density is the part's resolved material (part, else plan). Mixed densities between unions of one part are not split. PVA/HIPS have no `material_properties.json` entry and fall back to PLA density.

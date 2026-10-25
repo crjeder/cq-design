@@ -99,8 +99,69 @@ def test_writer_returns_nonmanifold_count(tmp_path):
 
     shape = cq.Workplane("XY").box(20, 20, 6).faces(">Z").workplane().hole(8).val()
     path = str(tmp_path / "m.3mf")
-    assert write_named_3mf([("a", "1", shape)], path) == 0
+    assert write_named_3mf([("a", "1", [("a", shape, None)])], path) == 0
     assert count_nonmanifold_edges(path) == 0
+
+
+def test_writer_multi_body_object_uses_bambu_layout(tmp_path):
+    import xml.etree.ElementTree as ET
+    import zipfile
+
+    import cadquery as cq
+
+    from exporters.threemf_multi import write_named_3mf
+
+    core = "{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}"
+    body = cq.Workplane("XY").box(20, 20, 4).val()
+    ring = cq.Workplane("XY").box(20, 20, 2).translate((0, 0, 3)).val()
+    path = str(tmp_path / "m.3mf")
+    bodies = [("body", body, 1), ("ring", ring, 2)]
+    assert write_named_3mf([("Knob", "knob", bodies)], path) == 0
+
+    with zipfile.ZipFile(path) as zf:
+        names = set(zf.namelist())
+        root_text = zf.read("3D/3dmodel.model").decode()
+        root = ET.fromstring(root_text)
+        rels = zf.read("3D/_rels/3dmodel.model.rels").decode()
+        config = ET.fromstring(zf.read("Metadata/model_settings.config"))
+
+    assert {"3D/Objects/object_1.model", "3D/Objects/object_2.model"} <= names
+    assert 'requiredextensions="p"' in root_text
+    app = next(m.text for m in root.iter(core + "metadata") if m.get("name") == "Application")
+    assert app is not None and app.startswith("BambuStudio-")
+    (obj,) = root.iter(core + "object")
+    assert obj.find(core + "mesh") is None
+    prod = "{http://schemas.microsoft.com/3dmanufacturing/production/2015/06}"
+    paths = [c.get(prod + "path", "") for c in obj.iter(core + "component")]
+    assert paths == ["/3D/Objects/object_1.model", "/3D/Objects/object_2.model"]
+    assert all(p in rels for p in paths)
+
+    (cfg_obj,) = config.findall("object")
+    assert cfg_obj.get("id") == obj.get("id")
+    extruders = {
+        p.get("id"): {m.get("key"): m.get("value") for m in p.findall("metadata")}["extruder"]
+        for p in cfg_obj.findall("part")
+    }
+    assert extruders == {"1": "1", "2": "2"}
+
+
+def test_writer_single_body_with_filament_is_component_object(tmp_path):
+    import xml.etree.ElementTree as ET
+    import zipfile
+
+    import cadquery as cq
+
+    from exporters.threemf_multi import write_named_3mf
+
+    shape = cq.Workplane("XY").box(10, 10, 10).val()
+    path = str(tmp_path / "m.3mf")
+    write_named_3mf([("Cube", "1", [("cube", shape, 3)])], path)
+    with zipfile.ZipFile(path) as zf:
+        config = ET.fromstring(zf.read("Metadata/model_settings.config"))
+    (cfg_obj,) = config.findall("object")
+    meta = {m.get("key"): m.get("value") for m in cfg_obj.findall("metadata")}
+    assert meta["extruder"] == "3"
+    assert len(cfg_obj.findall("part")) == 1
 
 
 def test_scad_export(simple_box_script, tmp_path):

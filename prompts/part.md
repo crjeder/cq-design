@@ -21,6 +21,9 @@ points call for, and do not substitute a different structure for the one specifi
    numbers in geometry.
 3. Assign a top-level `result`: one `Workplane`, or, when this part declares unions, a dict
    keyed by exactly those union ids (`result = {"leaf_a": <wp>, "leaf_b": <wp>}`).
+   Unions sharing an `object` are color regions of one body: build the whole body, then
+   make each region disjoint by cutting the others from it (`body = whole.cut(ring)`), so
+   they share only boundary surfaces.
 4. Guard silent-failure points with `cq_verify` (see below).
 5. Comment only a constraint, intent, or derivation the code cannot show (a tolerance's
    origin, a non-obvious ordering), describing the current state only -- never restate
