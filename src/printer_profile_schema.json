@@ -111,6 +111,11 @@
       "enum": [0.2, 0.4, 0.6, 0.8],
       "description": "Default nozzle diameter in mm"
     },
+    "max_materials": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Configured filament slots (distinct material+color pairs one print can use). Absent means 1."
+    },
     "constraints": {
       "type": "object",
       "required": ["wall_min_mm", "overhang_max_deg", "dimension_tolerance_mm"],

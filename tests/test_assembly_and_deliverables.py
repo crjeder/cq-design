@@ -172,6 +172,46 @@ def test_named_3mf_with_plate_and_placement(tmp_path):
     assert scene.bounds[1][2] < 10
 
 
+def test_object_group_is_one_3mf_object_with_extruders(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    (parts_dir / "knob.py").write_text(
+        "import cadquery as cq\n"
+        "result = {\n"
+        "    'body': cq.Workplane('XY').box(20, 20, 4),\n"
+        "    'ring': cq.Workplane('XY').box(20, 20, 2).translate((0, 0, 3)),\n"
+        "}\n"
+    )
+    plan = _plan(
+        [
+            {
+                "id": "knob",
+                "description": "Two-color knob",
+                "unions": [
+                    {"id": "body", "object": "knob_obj", "filament": 1},
+                    {"id": "ring", "object": "knob_obj", "filament": 2},
+                ],
+            }
+        ]
+    )
+
+    result = _export(plan, str(parts_dir), str(tmp_path / "dist"))
+
+    assert _read_3mf_objects(result["model_3mf"]) == {"Two-color knob": "knob_obj"}
+    with zipfile.ZipFile(result["model_3mf"]) as zf:
+        config = ET.fromstring(zf.read("Metadata/model_settings.config"))
+    (obj,) = config.findall("object")
+    parts = {
+        meta["name"]: meta["extruder"]
+        for meta in (
+            {m.get("key"): m.get("value") for m in p.findall("metadata")}
+            for p in obj.findall("part")
+        )
+    }
+    assert parts == {"body": "1", "ring": "2"}
+    assert set(result["files"]["stl"]) == {"body", "ring", "plate_knob_obj"}
+
+
 def test_write_assembly_writes_only_assembly_files(tmp_path):
     import os
 
@@ -847,3 +887,38 @@ def test_write_assembly_without_progress_prints_nothing(tmp_path, capsys):
     assert sorted(Path(p).name for p in plain["union_stls"].values()) == sorted(
         Path(p).name for p in with_cb["union_stls"].values()
     )
+
+
+def test_multi_material_3mf_carries_extruders(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "body")
+    _write_part(parts_dir, "grip")
+    plan = _plan(
+        [
+            {"id": "body", "description": "Rigid body"},
+            {"id": "grip", "description": "Soft grip", "material": "TPU"},
+        ]
+    )
+
+    result = _export(plan, str(parts_dir), str(tmp_path / "dist"), formats=("3mf",))
+
+    with zipfile.ZipFile(result["model_3mf"]) as zf:
+        settings = ET.fromstring(zf.read("Metadata/model_settings.config"))
+    extruders = [
+        next(m.get("value") for m in o.findall("metadata") if m.get("key") == "extruder")
+        for o in settings.findall("object")
+    ]
+    assert extruders == ["1", "2"]
+
+
+def test_single_material_3mf_has_no_extruder_or_color_metadata(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "body")
+    plan = _plan([{"id": "body", "description": "Rigid body"}])
+
+    result = _export(plan, str(parts_dir), str(tmp_path / "dist"), formats=("3mf",))
+
+    with zipfile.ZipFile(result["model_3mf"]) as zf:
+        assert b'key="extruder"' not in zf.read("Metadata/model_settings.config")

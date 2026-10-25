@@ -158,6 +158,7 @@ output's `previews` array after the default tile.
 - **WHEN** `run_cadquery_model.py model.py --cross-sections` is invoked without `--preview`
 - **THEN** no preview is rendered and the flag is ignored
 
+
 ### Requirement: Geometry-driven auto sections fill remaining cut slots
 
 `render_preview.py` SHALL accept `--auto-sections`. When set, it SHALL behave as if `--cross-sections` were also set. It SHALL call `section_select.select_sections` on the whole model, passing the `--extra-section` cuts as `reserved`, and SHALL append the selected cuts after the `--extra-section` cuts until there are at most 3 cuts in total. When there are no extra-section cuts and the selector returns none, the renderer SHALL fall back to the three bounding-box-center cuts. If the selector raises, the renderer SHALL print a warning to stderr and continue as if nothing had been selected. `run_cadquery_model.py --preview --auto-sections` SHALL forward the flag, and the builder's rendered validate command SHALL include it.

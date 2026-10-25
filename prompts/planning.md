@@ -116,11 +116,29 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
    union is its own body for export and the kinematic/clearance checks, may have its own
    `plate`, and is what `kinematics.moving_union` names. Union ids are unique model-wide.
 
+6b. **One material unless there is a reason.** Keep the plan-level `material`. Give a part or
+   union its own `material` (and optionally `color`) only when the user asks, or when you can
+   name the trigger in `planning_notes`: a compliant part against a rigid one (TPU grip,
+   gasket, bumper), a soluble support (PVA/HIPS), or a heat zone. Different materials are
+   non-sticky: never rely on adhesion between them to carry load, and use a mechanical
+   joint (dovetail, groove, pin) where the boundary must hold. Touching or overlapping
+   bodies of different materials are fine and need no comment. Slots: the printer profile's
+   `max_materials` (default 1) is how many distinct material+color pairs one print can
+   use; if the plan needs more, the `summary` shows a WARNING -- stop and ask the user
+   (merge, drop one, or confirm a manual filament swap) before approval.
+
 6a. **Identical or pairwise-mirrored parts are one script.** Give the second part
    `copy_of: {"part": "<first id>", "mirror": "X"|"Y"|"Z"}` (omit `mirror` for an identical
    copy) instead of authoring it again. It keeps its own `id`, `placement`, and `plate`. The
    source must be a single-union part and not itself a copy. Do not use it for a part with
    embossed text or other chirality-dependent detail.
+
+6b. **A multi-color part is one part with one union per color region.** Give each region's
+   `unions` entry the same `object` id (the slicer prints them as one object) and its
+   1-based `filament` slot. All members of an `object` belong to this one part; they
+   default to the `object` id as their plate. Regions touch but must not overlap (the
+   gate rejects overlap). Same material only: every region prints in the plan's
+   `material`. A union may also carry `filament` without `object` to print alone in that slot.
 
 7. **Put a matched-pair block's members in two different parts via `joints`.** `unions`
    (rule 6) keeps both members in one part; a `joints` entry fuses them into two otherwise
@@ -157,7 +175,8 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
       `[x, y, z]` in the build pose; `load.type` defaults to `tension`.
     - Resting/compressive (base, plinth, foot, gasket, shim) or a non-load-bearing flat
       cover/panel: `load: {"dir": [0, 0, -1], "type": "compression"}` (`dir` is the
-      direction the resting load presses, in the build pose; the schema requires it).
+      direction the resting load presses, in the build pose; the schema requires it, but
+      strength scoring ignores it for `compression`).
     - Unclear loading is an `OPEN:` item, never a silent omission.
     - **Solvable load case (optional, for the FEM stress advisor)**: when the load comes
       from an object with a researched mass (e.g. "holds a phone"), also declare
@@ -233,7 +252,7 @@ states a different value: then use the stated value and note the deviation in
 
 ## Required output schema
 
-Optional fields: `intent_ts` (rule 16), `coordinate_frame`, `archetype`, `plate`, `pose_intent`, `show_face`,
+Optional fields: `intent_ts` (rule 16), `coordinate_frame`, `archetype`, `plate`, `material`/`color` (per part or union, rule 6b), `pose_intent`, `show_face`,
 per-part `optimize_for`, `part_notes` (needed when `blocks_needed` is empty or geometry is
 non-standard), `unions`, `joints`, `root_part`, `kinematics` (only for a declared range of
 motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always set `load`

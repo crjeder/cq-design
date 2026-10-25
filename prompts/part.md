@@ -31,6 +31,9 @@ different structure for the one specified.
    A size that is wrong or missing is a plan change, never a script edit.
 3. End with `result = part.result()`. When this part declares unions, place each into
    its union (`into="<union id>"`); `result()` returns them keyed by union id.
+   Unions sharing an `object` are color regions of one body: they must be disjoint and
+   share only boundary surfaces, so place a region's entry into its own union and also
+   cut it from the union it sits in (`part.place(h, ..., op="cut", into="<other union>")`).
 4. Geometry no block covers is built from the primitives `box`, `cylinder`, `cone`,
    `sphere`, `prism` (closed XY polyline extruded), `revolve` (closed XZ polyline about Z)
    and `torus` (bent round rod). A shape that none of them can express is a missing

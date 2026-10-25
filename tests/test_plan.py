@@ -508,6 +508,64 @@ def test_keep_out_reserved_as_sub_union_id_rejected(plan_file):
     assert any("reserved" in e and "keep_out" in e for e in errors)
 
 
+# ---- multi-color objects ----
+
+
+def _plan_with_object(unions, plate=None):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["unions"] = unions
+    if plate:
+        plan["parts"][0]["plate"] = plate
+    return plan
+
+
+def test_object_group_validates(plan_file):
+    plan = _plan_with_object(
+        [
+            {"id": "body", "object": "knob", "filament": 1},
+            {"id": "ring", "object": "knob", "filament": 9},
+        ]
+    )
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_object_members_from_different_parts_rejected(plan_file):
+    plan = _plan_with_object([{"id": "body", "object": "knob"}], plate="p1")
+    plan["parts"].append(
+        {
+            "id": "other",
+            "description": "Second part claiming the same slicer object",
+            "plate": "p1",
+            "dimensions": {"w_mm": 10, "d_mm": 10, "h_mm": 10},
+            "interfaces": [],
+            "blocks_needed": [],
+            "unions": [{"id": "ring", "object": "knob"}],
+        }
+    )
+    errors = validate_plan(plan_file(plan))
+    assert any("Object 'knob'" in e and "different parts" in e for e in errors)
+
+
+def test_object_members_on_different_plates_rejected(plan_file):
+    plan = _plan_with_object(
+        [{"id": "body", "object": "knob", "plate": "p1"}, {"id": "ring", "object": "knob"}]
+    )
+    errors = validate_plan(plan_file(plan))
+    assert any("Object 'knob'" in e and "different plates" in e for e in errors)
+
+
+def test_single_member_object_rejected(plan_file):
+    plan = _plan_with_object([{"id": "body", "object": "knob"}, {"id": "ring"}])
+    errors = validate_plan(plan_file(plan))
+    assert any("Object 'knob'" in e and "at least two" in e for e in errors)
+
+
+def test_zero_filament_rejected(plan_file):
+    plan = _plan_with_object([{"id": "body", "filament": 0}])
+    errors = validate_plan(plan_file(plan))
+    assert any("filament" in e for e in errors)
+
+
 def test_named_interface_validates(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["interfaces"][0]["name"] = "inner_lip"
