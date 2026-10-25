@@ -214,6 +214,30 @@
     ]
   },
   {
+    "name": "torus",
+    "kind": "primitive",
+    "module": "blocks.primitives",
+    "function": "torus",
+    "probes": "torus_probes",
+    "edge_sets": {},
+    "use": "Round rod of diameter d bent around the Z axis at centerline radius r, from +X sweeping angle degrees toward +Y. Step primitive for hook arms, rings and handles.",
+    "params": {
+      "r": "mm centerline radius",
+      "d": "mm rod diameter",
+      "angle": "deg sweep"
+    },
+    "optional": [
+      "angle"
+    ],
+    "defaults": {
+      "r": 14,
+      "d": 8,
+      "angle": 200
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
     "name": "screw_boss",
     "kind": "block",
     "module": "blocks.fasteners",

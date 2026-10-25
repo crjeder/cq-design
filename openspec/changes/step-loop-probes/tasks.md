@@ -18,14 +18,14 @@
 - [x] 3.1 Primitive entries `box`, `cylinder`, `cone`, `sphere`, `prism`, `revolve` with probe functions
 - [x] 3.2 Probe function for every block in `src/blocks/` (fasteners, connectors, joints, hardware, gridfinity, primitives)
 - [x] 3.3 Edge sets: every entry declares `edge_sets` with local-frame curves; remove cosmetic edge options from blocks (`fillet_box` `corner_r` becomes `box` + plan `edges`), keeping functional radii as block params
-- [ ] 3.4 Inventory schema: `kind`, required `probes` and `edge_sets`; update `inventory.json` for blocks, primitives and templates
+- [x] 3.4 Inventory schema: `kind`, required `probes` and `edge_sets`; update `inventory.json` for blocks, primitives and templates
 - [x] 3.5 Test: every inventory entry has a probe function and its probes pass on its default build; every declared edge set yields at least one curve on the default build
 
 ## 4. Templates in step form
 
-- [ ] 4.1 Convert every `templates/*.py` to a select/resize/place step list with no dimension literals; each template entry's probes cover every feature it builds
-- [ ] 4.2 Update `templates/archetypes.json` and its schema for the step form, including the plan instance `params`/`edges` each archetype needs
-- [ ] 4.3 Test: each converted template builds the same volume and bbox as before conversion (within tolerance)
+- [x] 4.1 Convert every `templates/*.py` to a select/resize/place step list with no dimension literals; each template entry's probes cover every feature it builds
+- [x] 4.2 Update `templates/archetypes.json` and its schema for the step form, including the plan instance `params`/`edges` each archetype needs
+- [x] 4.3 Test: each converted template builds the same volume and bbox as before conversion (within tolerance)
 
 ## 5. Lint allowlist
 

@@ -1,25 +1,22 @@
 """Archetype: U-clip. A U-shaped spring clip: a solid closed base at one end (Y=0) with
 two parallel arms extending in +Y, separated by a gap sized to grip a panel or rail edge
 by friction/spring-back. Use for cable clips, panel edge trim, badge clips, and
-rail-mount clips."""
+rail-mount clips.
 
-import cadquery as cq
+Step form: every size and position comes from this archetype's plan `part` in
+templates/archetypes.json (copied into BUILD_PLAN.json), never from the script."""
 
-from cq_verify import verify_boolean
+from blocks import Part
 
-# PARAMETERS
-clip_width = 15.0  # mm clip width (X, constant along the whole clip)
-gap_mm = 4.0  # mm inner gap the clip grips (panel/rail thickness + a small squeeze)
-wall_t = 2.0  # mm wall thickness (also the closed base thickness at the bend)
-arm_len = 12.0  # mm straight arm length beyond the closed base, on each side
+part = Part("clip")
+outer = part.select("box", id="outer")
+part.resize(outer)
+part.place(outer, at=(0, part.param("outer", "d") / 2, 0), op="base")
 
-outer_h = gap_mm + 2 * wall_t
-total_len = arm_len + wall_t
+# The gap starts one wall thickness in from the closed base and runs out the open end.
+gap = part.select("box", id="gap")
+part.resize(gap)
+wall = (part.param("outer", "h") - part.param("gap", "h")) / 2
+part.place(gap, at=(0, wall + part.param("gap", "d") / 2, wall), op="cut")
 
-outer = cq.Workplane("XY").box(clip_width, total_len, outer_h, centered=(True, False, False))
-inner = (
-    cq.Workplane("XY")
-    .box(clip_width + 1, total_len, gap_mm, centered=(True, False, False))
-    .translate((0, wall_t, wall_t))
-)
-result = verify_boolean(outer, outer.cut(inner), "cut", "u_channel")
+result = part.result()

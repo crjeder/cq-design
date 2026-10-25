@@ -64,7 +64,17 @@ from blocks.joints import (
     tenon,
 )
 from blocks.part import Part
-from blocks.primitives import box, cone, cylinder, fillet_box, hollow_box, prism, revolve, sphere
+from blocks.primitives import (
+    box,
+    cone,
+    cylinder,
+    fillet_box,
+    hollow_box,
+    prism,
+    revolve,
+    sphere,
+    torus,
+)
 from blocks.print_frame import print_up
 
 __all__ = [
@@ -75,6 +85,7 @@ __all__ = [
     "sphere",
     "prism",
     "revolve",
+    "torus",
     "fillet_box",
     "hollow_box",
     "screw_boss",
