@@ -6,7 +6,7 @@
   "minItems": 1,
   "items": {
     "type": "object",
-    "required": ["name", "file", "use", "params"],
+    "required": ["name", "file", "use", "part"],
     "additionalProperties": false,
     "properties": {
       "name": {
@@ -23,10 +23,10 @@
         "minLength": 10,
         "description": "Plain-English description of what the archetype is for and when to match it"
       },
-      "params": {
+      "part": {
         "type": "object",
-        "description": "Map of top-level parameter name to unit/description",
-        "additionalProperties": { "type": "string" }
+        "required": ["id", "dimensions", "interfaces", "blocks_needed"],
+        "description": "The BUILD_PLAN.json part entry the step-form template builds from: its blocks_needed instances (id, params, edges) and the interfaces whose position_mm the script places features at. The planner copies it into the plan and edits values there; the template's Part(...) id matches its id."
       },
       "aliases": {
         "type": "array",

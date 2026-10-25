@@ -7,8 +7,13 @@ CadQuery subprocess run. Findings share the wrapper's ``{type, message, hint}``
 error shape (plus a ``line`` number) so the part loop's correction-prompt
 machinery works unchanged.
 
+A step script (one that builds through ``blocks.Part``, or any script under
+``--step``) is held to the step form: no CadQuery calls (``raw_cadquery``) and no
+dimensions in the script (``script_dimension``: a ``# PARAMETERS`` block or an argument
+to ``resize``), since sizes are plan-owned.
+
 Usage:
-    python3 script_lint.py <script.py>
+    python3 script_lint.py <script.py> [--step]
 
 Exit codes: 0 no findings, 1 findings present.
 """
@@ -36,6 +41,77 @@ _PLACEMENT_ATTRS = {
     "cskHole",
     "slot2D",
 }
+
+
+# Workplane/Shape construction and modelling methods a step script must not call.
+_CQ_METHODS = {
+    "box",
+    "rect",
+    "extrude",
+    "circle",
+    "hole",
+    "cboreHole",
+    "cskHole",
+    "polygon",
+    "polyline",
+    "close",
+    "revolve",
+    "sweep",
+    "loft",
+    "sphere",
+    "cylinder",
+    "workplane",
+    "transformed",
+    "moveTo",
+    "lineTo",
+    "threePointArc",
+    "slot2D",
+    "pushPoints",
+    "eachpoint",
+    "faces",
+    "edges",
+    "vertices",
+    "fillet",
+    "chamfer",
+    "shell",
+    "union",
+    "cut",
+    "intersect",
+    "fuse",
+    "translate",
+    "rotate",
+    "mirror",
+    "twistExtrude",
+    "makeBox",
+    "makeCylinder",
+    "makeCone",
+    "makeSphere",
+    "makeTorus",
+    "split",
+    "clean",
+}
+# Closest step primitive for a raw call, for the fix hint.
+_PRIMITIVE_HINT = {
+    "box": "box",
+    "rect": "box",
+    "makeBox": "box",
+    "circle": "cylinder",
+    "hole": "cylinder",
+    "cylinder": "cylinder",
+    "makeCylinder": "cylinder",
+    "makeCone": "cone",
+    "cskHole": "cone",
+    "sphere": "sphere",
+    "makeSphere": "sphere",
+    "polyline": "prism",
+    "polygon": "prism",
+    "lineTo": "prism",
+    "extrude": "box or prism",
+    "revolve": "revolve",
+    "makeTorus": "torus",
+    "cboreHole": "counterbore_hole",
+}
+_PART_METHODS = {"select", "resize", "place", "param", "positions", "has", "result"}
 
 
 @dataclass
@@ -400,8 +476,68 @@ def _find_magic_numbers(tree: ast.Module) -> list[Finding]:
     return findings
 
 
-def lint_script(path: str) -> list[Finding]:
-    """Lint a part script, returning findings (empty if clean). No CadQuery import."""
+def _raw_finding(name: str, line: int, method: str = "") -> Finding:
+    prim = _PRIMITIVE_HINT.get(method or name)
+    target = f"the `{prim}` primitive" if prim else "a primitive or block"
+    return Finding(
+        "raw_cadquery",
+        f"`{name}` is raw CadQuery; a step script builds only through `Part` steps",
+        f"select {target} with part.select/resize/place instead (add a plan instance for it)",
+        line,
+    )
+
+
+def _find_step_violations(tree: ast.Module, source: str) -> list[Finding]:
+    """Step-form rules: no CadQuery, no PARAMETERS block, no resize arguments."""
+    findings = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(
+            a.name.split(".")[0] == "cadquery" for a in node.names
+        ):
+            findings.append(_raw_finding("import cadquery", node.lineno))
+        elif isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "cadquery":
+            findings.append(_raw_finding(f"from {node.module} import", node.lineno))
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            attr = node.func.attr
+            root = _chain_leftmost(node.func)
+            if isinstance(root, ast.Name) and root.id in ("cq", "cadquery"):
+                findings.append(_raw_finding(f"{root.id}.{attr}", node.lineno, attr))
+            elif attr in _CQ_METHODS and attr not in _PART_METHODS:
+                findings.append(_raw_finding(attr, node.lineno))
+            elif attr == "resize" and (len(node.args) > 1 or node.keywords):
+                findings.append(
+                    Finding(
+                        "script_dimension",
+                        "`resize` takes only the handle; its values come from the plan",
+                        "put the values in the instance's `params` in BUILD_PLAN.json",
+                        node.lineno,
+                    )
+                )
+    for i, text in enumerate(source.splitlines(), start=1):
+        if text.strip().startswith("# PARAMETERS"):
+            findings.append(
+                Finding(
+                    "script_dimension",
+                    "a step script has no PARAMETERS block; dimensions are plan-owned",
+                    "move each value into a blocks_needed instance's `params` in BUILD_PLAN.json",
+                    i,
+                )
+            )
+    # A raw call's chain repeats the same line; report each (type, line, message) once.
+    unique = {(f.type, f.line, f.message): f for f in findings}
+    return list(unique.values())
+
+
+def _uses_part(tree: ast.Module) -> bool:
+    return any(
+        isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "Part"
+        for n in ast.walk(tree)
+    )
+
+
+def lint_script(path: str, step: bool = False) -> list[Finding]:
+    """Lint a part script, returning findings (empty if clean). No CadQuery import.
+    Step-form rules apply when `step` is set or the script builds through `Part`."""
     with open(path, encoding="utf-8") as f:
         source = f.read()
 
@@ -426,10 +562,14 @@ def lint_script(path: str) -> list[Finding]:
     findings += _find_direct_export(tree)
     findings += _find_shell_after_fillet(tree, parents)
     findings += _find_fillet_after_chamfer(tree, parents)
-    findings += _find_magic_numbers(tree)
     findings += _find_unanchored_features(tree, parents)
     findings += _find_unguarded_booleans(tree, parents)
     findings += _find_horizontal_round_holes(tree)
+    # A step script's sizes live in the plan, so magic_number's PARAMETERS advice is wrong.
+    if step or _uses_part(tree):
+        findings += _find_step_violations(tree, source)
+    else:
+        findings += _find_magic_numbers(tree)
 
     findings.sort(key=lambda f: f.line)
     return findings
@@ -438,9 +578,12 @@ def lint_script(path: str) -> list[Finding]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("script", help="Path to the part script to lint")
+    parser.add_argument(
+        "--step", action="store_true", help="enforce the step form even without `Part`"
+    )
     args = parser.parse_args()
 
-    findings = lint_script(args.script)
+    findings = lint_script(args.script, step=args.step)
     result = {"success": len(findings) == 0, "findings": [f.to_dict() for f in findings]}
     print(json.dumps(result, indent=2))
     return 0 if result["success"] else 1

@@ -3,194 +3,848 @@
     "name": "enclosure-body",
     "file": "enclosure_body.py",
     "use": "An open-top hollow box enclosure body, optionally with a 2x2 corner screw-boss pattern for a lid. Use for electronics cases, project boxes, and any body that needs walls and a floor but no lid.",
-    "params": {
-      "width": "mm outer width (X)",
-      "depth": "mm outer depth (Y)",
-      "height": "mm outer height (Z)",
-      "wall": "mm wall thickness",
-      "floor_t": "mm floor thickness",
-      "corner_r": "mm outer corner fillet radius (0 = sharp)",
-      "add_bosses": "bool, union a 2x2 corner screw-boss pattern onto the floor",
-      "boss_margin": "mm inset of each boss center from the outer corner",
-      "boss_d_screw": "mm self-tapping screw diameter",
-      "boss_d_outer": "mm boss outer diameter",
-      "boss_h": "mm boss height measured from Z=0"
-    },
-    "aliases": ["box", "case", "housing", "project box"]
+    "aliases": [
+      "box",
+      "case",
+      "housing",
+      "project box"
+    ],
+    "part": {
+      "id": "enclosure_body",
+      "description": "Open-top enclosure body with corner screw bosses",
+      "dimensions": {
+        "w_mm": 60,
+        "d_mm": 40,
+        "h_mm": 25
+      },
+      "interfaces": [
+        {
+          "type": "screw_mount",
+          "name": "boss_1",
+          "instance": "boss",
+          "position_mm": [
+            22.0,
+            12.0,
+            5
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "boss_2",
+          "instance": "boss",
+          "position_mm": [
+            -22.0,
+            12.0,
+            5
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "boss_3",
+          "instance": "boss",
+          "position_mm": [
+            -22.0,
+            -12.0,
+            5
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "boss_4",
+          "instance": "boss",
+          "position_mm": [
+            22.0,
+            -12.0,
+            5
+          ],
+          "diameter_mm": 2.5
+        }
+      ],
+      "blocks_needed": [
+        {
+          "name": "hollow_box",
+          "id": "body",
+          "params": {
+            "w": 60,
+            "d": 40,
+            "h": 25,
+            "wall": 2,
+            "floor_t": 2
+          },
+          "edges": {
+            "vertical_outer": 3
+          }
+        },
+        {
+          "name": "screw_boss",
+          "id": "boss",
+          "params": {
+            "d_screw": 2.5,
+            "d_outer": 6,
+            "h": 8
+          }
+        }
+      ]
+    }
   },
   {
     "name": "lid-sliding",
     "file": "lid_sliding.py",
     "use": "A sliding dovetail lid: the tongue IS the lid, flush with the box top, sliding along +Y into a dovetail_groove cut into the mating enclosure body's top edge. Use when the lid should not be liftable straight off (retains itself once slid closed).",
-    "params": {
-      "box_width": "mm outer box width (must match the mating body's width)",
-      "wall": "mm box wall thickness (must match the mating body's wall)",
-      "lid_t": "mm lid thickness (equals dovetail depth)",
-      "lid_length": "mm lid length along the slide direction (+Y)",
-      "dovetail_angle": "degrees from vertical (default 55; keep >= 45 for printability)",
-      "clearance": "mm per-side clearance for smooth sliding (0.05 for a snug fit)"
-    },
-    "aliases": ["dovetail lid", "sliding cover"]
+    "aliases": [
+      "dovetail lid",
+      "sliding cover"
+    ],
+    "part": {
+      "id": "lid_sliding",
+      "description": "Sliding dovetail lid panel",
+      "dimensions": {
+        "w_mm": 60,
+        "d_mm": 36,
+        "h_mm": 3
+      },
+      "interfaces": [],
+      "blocks_needed": [
+        {
+          "name": "dovetail_tongue",
+          "id": "lid",
+          "params": {
+            "width": 60,
+            "wall": 2,
+            "depth": 3,
+            "length": 36,
+            "angle": 55,
+            "clearance": 0.1
+          }
+        }
+      ]
+    }
   },
   {
     "name": "lid-snap",
     "file": "lid_snap.py",
     "use": "A flat snap-fit lid with cantilever snap_hook_clip features on the underside near two opposing edges. Mates with snap_socket_receiver slots cut into the enclosure body's walls. Use when the lid should snap on and off by hand without tools.",
-    "params": {
-      "lid_width": "mm outer lid width (X), matches the enclosure body's outer width",
-      "lid_depth": "mm outer lid depth (Y), matches the enclosure body's outer depth",
-      "lid_t": "mm lid panel thickness",
-      "corner_r": "mm outer corner fillet radius (0 = sharp)",
-      "clip_w": "mm snap hook clip width",
-      "clip_length": "mm cantilever beam length",
-      "clip_h": "mm beam thickness",
-      "clip_hook_h": "mm hook tooth protrusion",
-      "clip_inset": "mm inset of each clip's beam origin from the panel edge",
-      "clip_embed_mm": "mm the clip base embeds into the panel for a real volumetric overlap"
-    },
-    "aliases": ["snap-fit lid", "snap cover"]
+    "aliases": [
+      "snap-fit lid",
+      "snap cover"
+    ],
+    "part": {
+      "id": "lid_snap",
+      "description": "Snap-fit lid panel with two underside hook clips",
+      "dimensions": {
+        "w_mm": 60,
+        "d_mm": 48,
+        "h_mm": 4.9
+      },
+      "interfaces": [
+        {
+          "type": "snap_fit",
+          "name": "north_clip",
+          "instance": "clip",
+          "position_mm": [
+            0,
+            14.0,
+            0.6
+          ]
+        },
+        {
+          "type": "snap_fit",
+          "name": "south_clip",
+          "instance": "clip",
+          "position_mm": [
+            0,
+            -14.0,
+            0.6
+          ]
+        }
+      ],
+      "blocks_needed": [
+        {
+          "name": "box",
+          "id": "panel",
+          "params": {
+            "w": 60,
+            "d": 40,
+            "h": 3
+          },
+          "edges": {
+            "vertical": 3
+          }
+        },
+        {
+          "name": "snap_hook_clip",
+          "id": "clip",
+          "params": {
+            "w": 8,
+            "length": 10,
+            "h": 1.5,
+            "hook_h": 1
+          }
+        }
+      ]
+    }
   },
   {
     "name": "lid-screwed",
     "file": "lid_screwed.py",
     "use": "A flat lid with a 2x2 corner counterbore pattern so a screw head sits flush with the top face and the shaft passes into the mating enclosure body's screw_boss (or heat_set_boss) pattern below. Use when the lid must be removable with a screwdriver and sealed under load.",
-    "params": {
-      "lid_width": "mm outer lid width (X), matches the enclosure body's outer width",
-      "lid_depth": "mm outer lid depth (Y), matches the enclosure body's outer depth",
-      "lid_t": "mm lid panel thickness",
-      "corner_r": "mm outer corner fillet radius (0 = sharp)",
-      "hole_margin": "mm inset of each hole center from the outer corner (match boss_margin)",
-      "d_screw": "mm screw shaft clearance diameter",
-      "d_head": "mm counterbore pocket diameter",
-      "h_head": "mm counterbore pocket depth (< lid_t)"
-    },
-    "aliases": ["screwed cover", "bolted lid"]
+    "aliases": [
+      "screwed cover",
+      "bolted lid"
+    ],
+    "part": {
+      "id": "lid_screwed",
+      "description": "Flat screwed lid with corner counterbores",
+      "dimensions": {
+        "w_mm": 60,
+        "d_mm": 40,
+        "h_mm": 3
+      },
+      "interfaces": [
+        {
+          "type": "screw_mount",
+          "name": "hole_1",
+          "instance": "cbore",
+          "position_mm": [
+            22.0,
+            12.0,
+            1.5
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "hole_2",
+          "instance": "cbore",
+          "position_mm": [
+            -22.0,
+            12.0,
+            1.5
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "hole_3",
+          "instance": "cbore",
+          "position_mm": [
+            -22.0,
+            -12.0,
+            1.5
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "hole_4",
+          "instance": "cbore",
+          "position_mm": [
+            22.0,
+            -12.0,
+            1.5
+          ],
+          "diameter_mm": 2.5
+        }
+      ],
+      "blocks_needed": [
+        {
+          "name": "box",
+          "id": "panel",
+          "params": {
+            "w": 60,
+            "d": 40,
+            "h": 3
+          },
+          "edges": {
+            "vertical": 3
+          }
+        },
+        {
+          "name": "counterbore_hole",
+          "id": "cbore",
+          "params": {
+            "d_screw": 2.5,
+            "d_head": 5,
+            "h_head": 1.5,
+            "depth": 3
+          }
+        }
+      ]
+    }
   },
   {
     "name": "adapter-ring-flanged",
     "file": "adapter_ring_flanged.py",
     "use": "A stepped cylindrical bore adapter with a flat mounting flange drilled with a bolt-circle pattern. Use to adapt between two circular fittings of different diameter: pipe couplers, lens/filter adapters, motor-to-shaft collars, vacuum-port reducers.",
-    "params": {
-      "bore_d": "mm through-bore diameter (the smaller mating fitting)",
-      "body_d": "mm cylindrical body outer diameter (the larger mating fitting)",
-      "body_h": "mm cylindrical body height",
-      "flange_d": "mm flange outer diameter",
-      "flange_t": "mm flange thickness",
-      "bolt_circle_d": "mm bolt-circle diameter for the flange mounting holes",
-      "bolt_hole_d": "mm mounting hole clearance diameter",
-      "bolt_count": "count of mounting holes evenly spaced on the bolt circle"
-    },
-    "aliases": ["pipe adapter", "flange adapter", "coupler"]
+    "aliases": [
+      "pipe adapter",
+      "flange adapter",
+      "coupler"
+    ],
+    "part": {
+      "id": "adapter_ring_flanged",
+      "description": "Flanged adapter ring with a through-bore and bolt circle",
+      "dimensions": {
+        "w_mm": 45,
+        "d_mm": 45,
+        "h_mm": 15
+      },
+      "interfaces": [
+        {
+          "type": "clearance_opening",
+          "name": "bore",
+          "instance": "bore",
+          "position_mm": [
+            0,
+            0,
+            7.5
+          ],
+          "wall": "top",
+          "diameter_mm": 20
+        },
+        {
+          "type": "clearance_opening",
+          "name": "bolt_1",
+          "instance": "bolt",
+          "position_mm": [
+            19.0,
+            0.0,
+            1.5
+          ],
+          "wall": "top",
+          "diameter_mm": 3.4
+        },
+        {
+          "type": "clearance_opening",
+          "name": "bolt_2",
+          "instance": "bolt",
+          "position_mm": [
+            0.0,
+            19.0,
+            1.5
+          ],
+          "wall": "top",
+          "diameter_mm": 3.4
+        },
+        {
+          "type": "clearance_opening",
+          "name": "bolt_3",
+          "instance": "bolt",
+          "position_mm": [
+            -19.0,
+            0.0,
+            1.5
+          ],
+          "wall": "top",
+          "diameter_mm": 3.4
+        },
+        {
+          "type": "clearance_opening",
+          "name": "bolt_4",
+          "instance": "bolt",
+          "position_mm": [
+            -0.0,
+            -19.0,
+            1.5
+          ],
+          "wall": "top",
+          "diameter_mm": 3.4
+        }
+      ],
+      "blocks_needed": [
+        {
+          "name": "cylinder",
+          "id": "flange",
+          "params": {
+            "d": 45,
+            "h": 3
+          }
+        },
+        {
+          "name": "cylinder",
+          "id": "body",
+          "params": {
+            "d": 32,
+            "h": 15
+          }
+        },
+        {
+          "name": "cylinder",
+          "id": "bore",
+          "params": {
+            "d": 20,
+            "h": 18
+          }
+        },
+        {
+          "name": "cylinder",
+          "id": "bolt",
+          "params": {
+            "d": 3.4,
+            "h": 3
+          }
+        }
+      ]
+    }
   },
   {
     "name": "l-bracket-gusset",
     "file": "l_bracket_gusset.py",
     "use": "An L-shaped bracket: two rectangular arms meeting at a right angle, each drilled with a mounting-screw clearance hole, reinforced by a diagonal gusset rib across the inner corner. Use for wall/shelf mounts and right-angle structural brackets.",
-    "params": {
-      "arm_a_len": "mm length of the vertical arm (Z)",
-      "arm_b_len": "mm length of the horizontal arm (X)",
-      "arm_w": "mm arm width (Y)",
-      "arm_t": "mm arm thickness",
-      "gusset_t": "mm gusset thickness (Y, centered in the arm width)",
-      "gusset_reach": "mm how far the gusset extends along each arm from the inner corner",
-      "hole_d": "mm mounting screw clearance diameter",
-      "hole_inset": "mm inset of each hole center from its arm's free end"
-    },
-    "aliases": ["bracket", "corner bracket", "wall bracket"]
+    "aliases": [
+      "bracket",
+      "corner bracket",
+      "wall bracket"
+    ],
+    "part": {
+      "id": "l_bracket_gusset",
+      "description": "L-bracket with a diagonal gusset and two mounting holes",
+      "dimensions": {
+        "w_mm": 42,
+        "d_mm": 20,
+        "h_mm": 40
+      },
+      "interfaces": [
+        {
+          "type": "clearance_opening",
+          "name": "vertical_hole",
+          "instance": "hole_v",
+          "position_mm": [
+            0,
+            0,
+            30
+          ],
+          "wall": "west",
+          "diameter_mm": 4.3
+        },
+        {
+          "type": "clearance_opening",
+          "name": "horizontal_hole",
+          "instance": "hole_h",
+          "position_mm": [
+            30,
+            0,
+            2
+          ],
+          "wall": "top",
+          "diameter_mm": 4.3
+        }
+      ],
+      "blocks_needed": [
+        {
+          "name": "box",
+          "id": "arm_v",
+          "params": {
+            "w": 4,
+            "d": 20,
+            "h": 40
+          }
+        },
+        {
+          "name": "box",
+          "id": "arm_h",
+          "params": {
+            "w": 40,
+            "d": 20,
+            "h": 4
+          }
+        },
+        {
+          "name": "prism",
+          "id": "gusset",
+          "params": {
+            "points": [
+              [
+                2,
+                4
+              ],
+              [
+                22,
+                4
+              ],
+              [
+                2,
+                24
+              ]
+            ],
+            "h": 4
+          }
+        },
+        {
+          "name": "cylinder",
+          "id": "hole_v",
+          "params": {
+            "d": 4.3,
+            "h": 5
+          }
+        },
+        {
+          "name": "cylinder",
+          "id": "hole_h",
+          "params": {
+            "d": 4.3,
+            "h": 5
+          }
+        }
+      ]
+    }
   },
   {
     "name": "plate-boss-pattern",
     "file": "plate_boss_pattern.py",
     "use": "A flat rectangular plate with a regular grid of screw bosses (standoffs) unioned onto the top face. Use for mounting a PCB or a panel of components; combine with vent_grid or port_cutout for enclosure-adjacent plates.",
-    "params": {
-      "plate_w": "mm plate width (X)",
-      "plate_d": "mm plate depth (Y)",
-      "plate_t": "mm plate thickness",
-      "corner_r": "mm outer corner fillet radius (0 = sharp)",
-      "boss_cols": "count of boss columns (X)",
-      "boss_rows": "count of boss rows (Y)",
-      "boss_spacing_x": "mm spacing between boss columns",
-      "boss_spacing_y": "mm spacing between boss rows",
-      "boss_d_screw": "mm screw clearance diameter",
-      "boss_d_outer": "mm boss outer diameter",
-      "boss_h": "mm standoff height above the plate top face"
-    },
-    "aliases": ["pcb mount plate", "standoff plate", "mounting plate"]
+    "aliases": [
+      "pcb mount plate",
+      "standoff plate",
+      "mounting plate"
+    ],
+    "part": {
+      "id": "plate_boss_pattern",
+      "description": "Flat plate with a 2x2 grid of PCB standoffs",
+      "dimensions": {
+        "w_mm": 60,
+        "d_mm": 50,
+        "h_mm": 9
+      },
+      "interfaces": [
+        {
+          "type": "screw_mount",
+          "name": "standoff_1",
+          "instance": "standoff",
+          "position_mm": [
+            -20,
+            -15,
+            6
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "standoff_2",
+          "instance": "standoff",
+          "position_mm": [
+            20,
+            -15,
+            6
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "standoff_3",
+          "instance": "standoff",
+          "position_mm": [
+            -20,
+            15,
+            6
+          ],
+          "diameter_mm": 2.5
+        },
+        {
+          "type": "screw_mount",
+          "name": "standoff_4",
+          "instance": "standoff",
+          "position_mm": [
+            20,
+            15,
+            6
+          ],
+          "diameter_mm": 2.5
+        }
+      ],
+      "blocks_needed": [
+        {
+          "name": "box",
+          "id": "plate",
+          "params": {
+            "w": 60,
+            "d": 50,
+            "h": 3
+          },
+          "edges": {
+            "vertical": 3
+          }
+        },
+        {
+          "name": "pcb_standoff",
+          "id": "standoff",
+          "params": {
+            "d_screw": 2.5,
+            "d_outer": 6,
+            "h": 6
+          }
+        }
+      ]
+    }
   },
   {
     "name": "hook",
     "file": "hook.py",
     "use": "A flat wall-mount backplate with two screw clearance holes and a curved round-rod arm curling out and back from the front face to retain a hung item. Use for coat hooks, cable hooks, and tool hangers.",
-    "params": {
-      "plate_w": "mm backplate width (X)",
-      "plate_h": "mm backplate height (Z)",
-      "plate_t": "mm backplate thickness (Y)",
-      "hook_arm_r": "mm centerline radius of the hook arm's curve",
-      "hook_tube_d": "mm hook arm cross-section (round rod) diameter",
-      "hook_sweep_deg": "degrees the arm curls away from its pivot",
-      "hook_pivot_z": "mm pivot height on the backplate (Z)",
-      "mount_hole_d": "mm mounting screw clearance diameter",
-      "mount_hole_inset": "mm inset of each mounting hole from the backplate's top/bottom edge"
-    },
-    "aliases": ["wall hook", "coat hook", "cable hook"]
+    "aliases": [
+      "wall hook",
+      "coat hook",
+      "cable hook"
+    ],
+    "part": {
+      "id": "hook",
+      "description": "Wall hook: backplate with two screw holes and a curled round-rod arm",
+      "dimensions": {
+        "w_mm": 25,
+        "d_mm": 25.5,
+        "h_mm": 40
+      },
+      "interfaces": [
+        {
+          "type": "hook",
+          "name": "arm_pivot",
+          "instance": "arm",
+          "position_mm": [
+            0,
+            -2.5,
+            20
+          ]
+        },
+        {
+          "type": "screw_mount",
+          "name": "top_hole",
+          "instance": "mount_hole",
+          "position_mm": [
+            0,
+            2.5,
+            32
+          ],
+          "diameter_mm": 4.3
+        },
+        {
+          "type": "screw_mount",
+          "name": "bottom_hole",
+          "instance": "mount_hole",
+          "position_mm": [
+            0,
+            2.5,
+            8
+          ],
+          "diameter_mm": 4.3
+        }
+      ],
+      "blocks_needed": [
+        {
+          "name": "box",
+          "id": "plate",
+          "params": {
+            "w": 25,
+            "d": 5,
+            "h": 40
+          }
+        },
+        {
+          "name": "torus",
+          "id": "arm",
+          "params": {
+            "r": 14,
+            "d": 8,
+            "angle": 200
+          }
+        },
+        {
+          "name": "cylinder",
+          "id": "mount_hole",
+          "params": {
+            "d": 4.3,
+            "h": 6
+          }
+        }
+      ]
+    }
   },
   {
     "name": "clip",
     "file": "clip.py",
     "use": "A U-shaped spring clip: a solid closed base at one end with two parallel arms extending from it, separated by a gap sized to grip a panel or rail edge by friction/spring-back. Use for cable clips, panel edge trim, badge clips, and rail-mount clips.",
-    "params": {
-      "clip_width": "mm clip width (X, constant along the whole clip)",
-      "gap_mm": "mm inner gap the clip grips (panel/rail thickness + a small squeeze)",
-      "wall_t": "mm wall thickness (also the closed base thickness at the bend)",
-      "arm_len": "mm straight arm length beyond the closed base, on each side"
-    },
-    "aliases": ["u-clip", "spring clip", "edge clip"]
+    "aliases": [
+      "u-clip",
+      "spring clip",
+      "edge clip"
+    ],
+    "part": {
+      "id": "clip",
+      "description": "U-clip with a closed base and two arms gripping a 4 mm panel",
+      "dimensions": {
+        "w_mm": 15,
+        "d_mm": 14,
+        "h_mm": 8
+      },
+      "interfaces": [],
+      "blocks_needed": [
+        {
+          "name": "box",
+          "id": "outer",
+          "params": {
+            "w": 15,
+            "d": 14,
+            "h": 8
+          }
+        },
+        {
+          "name": "box",
+          "id": "gap",
+          "params": {
+            "w": 16,
+            "d": 14,
+            "h": 4
+          }
+        }
+      ]
+    }
   },
   {
     "name": "stand",
     "file": "stand.py",
     "use": "A wedge-shaped base with a flat vertical back section and a sloped front ramp, with a slot cut into the flat back section that holds a flat device at a fixed viewing angle. Use for phone stands, tablet stands, and card/photo holders.",
-    "params": {
-      "base_w": "mm base width (X)",
-      "base_d": "mm base footprint depth (Y), back edge to front edge",
-      "base_h": "mm base height at the back (Z)",
-      "back_flat_w": "mm depth of the flat vertical back section that holds the slot",
-      "slot_w": "mm slot width (X), slightly less than base_w",
-      "slot_gap": "mm slot opening width (device thickness + clearance)",
-      "slot_depth": "mm how far the slot cuts down into the back section from the top"
-    },
-    "aliases": ["phone stand", "tablet stand", "device stand"]
+    "aliases": [
+      "phone stand",
+      "tablet stand",
+      "device stand"
+    ],
+    "part": {
+      "id": "stand",
+      "description": "Phone/tablet stand: wedge base with a device slot in the flat back",
+      "dimensions": {
+        "w_mm": 80,
+        "d_mm": 70,
+        "h_mm": 45
+      },
+      "interfaces": [
+        {
+          "type": "slot",
+          "name": "device_slot",
+          "instance": "slot",
+          "position_mm": [
+            0,
+            10,
+            37.5
+          ],
+          "size_mm": [
+            74,
+            6
+          ]
+        }
+      ],
+      "blocks_needed": [
+        {
+          "name": "prism",
+          "id": "wedge",
+          "params": {
+            "points": [
+              [
+                0,
+                0
+              ],
+              [
+                70,
+                0
+              ],
+              [
+                20,
+                45
+              ],
+              [
+                0,
+                45
+              ]
+            ],
+            "h": 80
+          }
+        },
+        {
+          "name": "box",
+          "id": "slot",
+          "params": {
+            "w": 74,
+            "d": 6,
+            "h": 16
+          }
+        }
+      ]
+    }
   },
   {
     "name": "gridfinity-bin",
     "file": "gridfinity_bin.py",
     "use": "A Gridfinity storage bin: feet on the 42 mm grid, walls, cavity, and stacking lip, with optional dividers, label shelf, finger scoop, and magnet/screw pockets. Use for any request naming Gridfinity, or for a drawer/toolbox insert that must interoperate with an existing Gridfinity grid. For custom tool-shaped pockets, call gridfinity_bin(solid=True) and cut the pockets into the blank instead.",
-    "params": {
-      "cols": "count grid units (U) in X, 42 mm each",
-      "rows": "count grid units (U) in Y, 42 mm each",
-      "height_u": "count height units (HU), 7 mm each",
-      "wall": "mm side wall thickness",
-      "divisions_x": "count compartments along X (1 = undivided)",
-      "divisions_y": "count compartments along Y (1 = undivided)",
-      "label_tab": "bool, sloped label shelf on the +Y wall",
-      "scoop": "bool, swept quarter-round at the -Y wall",
-      "magnet_holes": "bool, four 6.5x2.4 mm magnet pockets per cell",
-      "screw_holes": "bool, four M3 screw holes per cell"
-    },
-    "aliases": ["gridfinity", "gridfinity bin", "gridfinity box", "gridfinity tray", "gridfinity insert"]
+    "aliases": [
+      "gridfinity",
+      "gridfinity bin",
+      "gridfinity box",
+      "gridfinity tray",
+      "gridfinity insert"
+    ],
+    "part": {
+      "id": "gridfinity_bin",
+      "description": "Gridfinity 2x1 bin, 3 height units",
+      "dimensions": {
+        "w_mm": 83.5,
+        "d_mm": 41.5,
+        "h_mm": 24.55
+      },
+      "interfaces": [],
+      "blocks_needed": [
+        {
+          "name": "gridfinity_bin",
+          "id": "bin",
+          "params": {
+            "cols": 2,
+            "rows": 1,
+            "height_u": 3,
+            "wall": 1.2,
+            "divisions_x": 1,
+            "divisions_y": 1,
+            "label_tab": false,
+            "scoop": false,
+            "magnet_holes": false,
+            "screw_holes": false
+          }
+        }
+      ]
+    }
   },
   {
     "name": "gridfinity-baseplate",
     "file": "gridfinity_baseplate.py",
     "use": "A Gridfinity baseplate: a grid of sockets that Gridfinity bins drop into, 42 mm per cell so plates tile edge to edge. Use when the request asks for the grid/base/tray the bins sit in, rather than the bins themselves.",
-    "params": {
-      "cols": "count grid units (U) in X, 42 mm each",
-      "rows": "count grid units (U) in Y, 42 mm each",
-      "plate_h": "mm total plate thickness (>= 7.15 to fit magnet pockets)",
-      "clearance": "mm socket clearance around a bin foot, per side",
-      "magnet_holes": "bool, four 6.5x2.4 mm magnet pockets per cell",
-      "screw_holes": "bool, four M3 through-holes per cell"
-    },
-    "aliases": ["gridfinity base", "gridfinity grid", "gridfinity plate", "baseplate"]
+    "aliases": [
+      "gridfinity base",
+      "gridfinity grid",
+      "gridfinity plate",
+      "baseplate"
+    ],
+    "part": {
+      "id": "gridfinity_baseplate",
+      "description": "Gridfinity 3x2 baseplate",
+      "dimensions": {
+        "w_mm": 126,
+        "d_mm": 84,
+        "h_mm": 4.75
+      },
+      "interfaces": [],
+      "blocks_needed": [
+        {
+          "name": "gridfinity_baseplate",
+          "id": "plate",
+          "params": {
+            "cols": 3,
+            "rows": 2,
+            "plate_h": 4.75,
+            "clearance": 0.1,
+            "magnet_holes": false,
+            "screw_holes": false
+          }
+        }
+      ]
+    }
   }
 ]

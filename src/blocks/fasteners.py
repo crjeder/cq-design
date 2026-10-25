@@ -4,6 +4,8 @@ import math
 
 import cadquery as cq
 
+from probes import bbox, empty_at, ray, solid_at
+
 # Subtractive solids overcut by this amount so the exit face is never coincident
 # with the far face of the material (OCC boolean cuts are not fuzzy by default).
 _EPS = 1e-4
@@ -22,6 +24,17 @@ def screw_boss(d_screw: float, d_outer: float, h: float) -> cq.Workplane:
     return cq.Workplane("XY").circle(d_outer / 2).extrude(h).faces(">Z").hole(d_screw)
 
 
+def screw_boss_probes(d_screw: float, d_outer: float, h: float) -> list:
+    # Upper half only: a boss is often sunk into the floor it stands on.
+    wall_r = (d_screw + d_outer) / 4
+    return [
+        empty_at((0, 0, 0.75 * h), "bore"),
+        ray((0, 0, 0.75 * h), (0, 0, 1), 0, length=h / 2 - 0.2, label="bore open"),
+        solid_at((wall_r, 0, h / 2), "wall"),
+        bbox((-d_outer / 2, -d_outer / 2, 0), (d_outer / 2, d_outer / 2, h)),
+    ]
+
+
 def pcb_standoff(d_screw: float, d_outer: float, h: float) -> cq.Workplane:
     """Hollow cylindrical standoff for M2/M2.5/M3 PCB mounting screws.
 
@@ -35,6 +48,9 @@ def pcb_standoff(d_screw: float, d_outer: float, h: float) -> cq.Workplane:
         h: standoff height in mm
     """
     return screw_boss(d_screw, d_outer, h)
+
+
+pcb_standoff_probes = screw_boss_probes
 
 
 def snap_hook_clip(w: float, length: float, h: float, hook_h: float) -> cq.Workplane:
@@ -61,6 +77,15 @@ def snap_hook_clip(w: float, length: float, h: float, hook_h: float) -> cq.Workp
     return beam.union(hook)
 
 
+def snap_hook_clip_probes(w: float, length: float, h: float, hook_h: float) -> list:
+    return [
+        solid_at((0, length / 2, h / 2), "beam"),
+        solid_at((0, length - hook_h / 2, h + hook_h / 2), "hook"),
+        empty_at((0, (length - hook_h) / 2, h + hook_h / 2), "above beam"),
+        bbox((-w / 2, 0, 0), (w / 2, length, h + hook_h)),
+    ]
+
+
 def snap_socket_receiver(w: float, h: float, depth: float) -> cq.Workplane:
     """Rectangular slot to subtract from a wall to receive a snap_hook_clip.
 
@@ -75,6 +100,10 @@ def snap_socket_receiver(w: float, h: float, depth: float) -> cq.Workplane:
     return cq.Workplane("XY").box(w, depth + _EPS, h, centered=(True, False, False))
 
 
+def snap_socket_receiver_probes(w: float, h: float, depth: float) -> list:
+    return [solid_at((0, depth / 2, h / 2)), bbox((-w / 2, 0, 0), (w / 2, depth, h))]
+
+
 def alignment_pin(d: float, h: float) -> cq.Workplane:
     """Tapered cylindrical pin for press-fit part registration.
 
@@ -87,6 +116,10 @@ def alignment_pin(d: float, h: float) -> cq.Workplane:
     return cq.Workplane("XY").circle(d / 2).extrude(h, taper=1)
 
 
+def alignment_pin_probes(d: float, h: float) -> list:
+    return [solid_at((0, 0, h / 2)), bbox((-d / 2, -d / 2, 0), (d / 2, d / 2, h))]
+
+
 def alignment_socket(d: float, h: float, clearance: float = 0.2) -> cq.Workplane:
     """Receiving hole for alignment_pin. Subtract from the mating face.
 
@@ -96,6 +129,11 @@ def alignment_socket(d: float, h: float, clearance: float = 0.2) -> cq.Workplane
         clearance: added to radius for fit (default 0.2 mm for FDM)
     """
     return cq.Workplane("XY").circle((d + clearance) / 2).extrude(h + _EPS)
+
+
+def alignment_socket_probes(d: float, h: float, clearance: float = 0.2) -> list:
+    r = (d + clearance) / 2
+    return [solid_at((0, 0, h / 2)), bbox((-r, -r, 0), (r, r, h))]
 
 
 def servo_spline(
@@ -157,6 +195,24 @@ def servo_spline(
     return result
 
 
+def servo_spline_probes(
+    spline_external_diameter: float,
+    shoe_height: float,
+    tooth_count: int,
+    tooth_depth: float,
+    tooth_base_width: float,
+    tooth_tip_width: float,
+    clearance: float = 0.1,
+) -> list:
+    tip_r = spline_external_diameter / 2 + clearance
+    z = shoe_height / 2
+    return [
+        solid_at((0, 0, z), "core"),
+        solid_at((0, tip_r - tooth_depth / 2, z), "tooth"),
+        bbox(size=(2 * tip_r, 2 * tip_r, shoe_height), mode="within"),
+    ]
+
+
 def counterbore_hole(d_screw: float, d_head: float, h_head: float, depth: float) -> cq.Workplane:
     """Counterbore pocket + shaft clearance hole for socket head cap screws (ISO 4762).
 
@@ -173,6 +229,18 @@ def counterbore_hole(d_screw: float, d_head: float, h_head: float, depth: float)
     shaft = cq.Workplane("XY").circle(d_screw / 2).extrude(depth + _EPS)
     cbore = cq.Workplane("XY").workplane(offset=depth - h_head).circle(d_head / 2).extrude(h_head)
     return shaft.union(cbore)
+
+
+def counterbore_hole_probes(d_screw: float, d_head: float, h_head: float, depth: float) -> list:
+    ring = (d_screw + d_head) / 4
+    probes = [
+        solid_at((0, 0, depth / 2), "shaft"),
+        solid_at((ring, 0, depth - h_head / 2), "counterbore"),
+        bbox((-d_head / 2, -d_head / 2, 0), (d_head / 2, d_head / 2, depth)),
+    ]
+    if depth - h_head > 0.4:
+        probes.append(empty_at((ring, 0, (depth - h_head) / 2), "shoulder"))
+    return probes
 
 
 def countersink_hole(
@@ -201,6 +269,11 @@ def countersink_hole(
     return shaft.union(sink)
 
 
+def countersink_hole_probes(d_screw: float, d_sink: float, depth: float, angle: float = 90) -> list:
+    r = d_sink / 2
+    return [solid_at((0, 0, depth / 2), "shaft"), bbox((-r, -r, 0), (r, r, depth))]
+
+
 def hex_nut_trap(nut_flat: float, nut_h: float, depth: float, d_screw: float = 0) -> cq.Workplane:
     """Hexagonal pocket for a top-drop captured nut. Subtract from your body.
 
@@ -226,6 +299,17 @@ def hex_nut_trap(nut_flat: float, nut_h: float, depth: float, d_screw: float = 0
     )
     screw_cyl = cq.Workplane("XY").circle(d_screw / 2).extrude(depth + _EPS)
     return hex_pocket.union(screw_cyl)
+
+
+def hex_nut_trap_probes(nut_flat: float, nut_h: float, depth: float, d_screw: float = 0) -> list:
+    r = nut_flat / 2 / math.cos(math.pi / 6)
+    probes = [solid_at((0, 0, depth / 2)), bbox((-r, -nut_flat / 2, 0), (r, nut_flat / 2, depth))]
+    if d_screw > 0:
+        ring = (d_screw / 2 + nut_flat / 2) / 2
+        probes.append(solid_at((ring, 0, depth - nut_h / 2), "nut pocket"))
+        if depth - nut_h > 0.4:
+            probes.append(empty_at((ring, 0, (depth - nut_h) / 2), "under pocket"))
+    return probes
 
 
 def keeper_lock_eye(
@@ -267,6 +351,23 @@ def keeper_lock_eye(
         .extrude(-arch_t)
         .translate((0, plate_d - arch_t, 0))
     )
+
+
+def keeper_lock_eye_probes(
+    plate_d: float = 5.0,
+    strap_w: float = 4.0,
+    arch_t: float = 1.6,
+    leg_inner_x: float = 5.0,
+    leg_h: float = 12.5,
+) -> list:
+    r_out = leg_inner_x + strap_w
+    y = plate_d - arch_t / 2
+    return [
+        solid_at((-(leg_inner_x + strap_w / 2), y, leg_h / 2), "leg"),
+        solid_at((0, y, leg_h + leg_inner_x + strap_w / 2), "bridge"),
+        empty_at((0, y, leg_h / 2), "opening"),
+        bbox((-r_out, plate_d - arch_t, 0), (r_out, plate_d, leg_h + r_out)),
+    ]
 
 
 def keeper_lock_hook(
@@ -346,3 +447,27 @@ def keeper_lock_hook(
         .extrude(head_w, both=True)
     )
     return body.cut(ramp)
+
+
+def keeper_lock_hook_probes(
+    eye_plate_d: float = 5.0,
+    arch_t: float = 1.6,
+    leg_h: float = 12.5,
+    leg_inner_x: float = 5.0,
+    clearance: float = 0.15,
+    catch_overlap: float = 0.8,
+    z_play: float = 0.7,
+    side_gap: float = 0.5,
+    neck_w: float = 7.0,
+    head_l: float = 16.0,
+    head_t: float = 1.8,
+    ramp_len: float = 3.0,
+    wall_min: float = 1.2,
+) -> list:
+    plate_t = eye_plate_d - arch_t - clearance
+    neck_t = eye_plate_d + clearance - plate_t
+    stud_zc = leg_h + leg_inner_x + catch_overlap - head_l / 2
+    return [
+        solid_at((0, plate_t + neck_t / 2, stud_zc), "neck"),
+        solid_at((0, plate_t + neck_t + head_t / 2, stud_zc), "head"),
+    ]

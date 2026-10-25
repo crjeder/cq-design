@@ -418,7 +418,7 @@ def test_inventory_valid():
 def test_inventory_has_all_required_blocks():
     names = get_block_names()
     required = {
-        "fillet_box",
+        "box",
         "hollow_box",
         "screw_boss",
         "pcb_standoff",
@@ -788,8 +788,11 @@ def test_flex_blocks_top_level_import():
 def _block_with_interface(itype):
     return {
         "name": "iface_fixture",
+        "kind": "block",
         "module": "blocks.primitives",
-        "function": "fillet_box",
+        "function": "box",
+        "probes": "box_probes",
+        "edge_sets": {},
         "use": "interface vocabulary fixture",
         "params": {},
         "dimensions": [1, 1, 1],
@@ -844,8 +847,11 @@ def test_shipped_inventory_declares_no_hinge_axis():
 def _block_with_emits(emits):
     return {
         "name": "emits_fixture",
+        "kind": "block",
         "module": "blocks.primitives",
-        "function": "fillet_box",
+        "function": "box",
+        "probes": "box_probes",
+        "edge_sets": {},
         "use": "matched-pair emits fixture",
         "params": {},
         "dimensions": [1, 1, 1],

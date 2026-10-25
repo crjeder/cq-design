@@ -5,7 +5,8 @@ helpers it imports.
 For every <parts-dir>/*.py (except build.py) copies the script into <out>, then copies
 the helper modules (cq_verify, cq_compat, blocks/) that the scripts import, directly or
 through another copied helper. Also writes <out>/pyproject.toml and <out>/README.md and
-copies parameters.py when present. Overwrites on every run.
+copies parameters.py and the project's BUILD_PLAN.json (step scripts read their sizes from
+it) when present. Overwrites on every run.
 
 Usage:
     python export_standalone.py [--parts-dir build] [--out standalone] [--parameters parameters.py]
@@ -18,7 +19,7 @@ import sys
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parent
-HELPERS = ("cq_verify", "cq_compat", "blocks")
+HELPERS = ("cq_verify", "cq_compat", "probes", "placement", "blocks")
 WAREHOUSE_MARKERS = ("cq_warehouse", "heat_set_boss")
 STDLIB = sys.stdlib_module_names
 
@@ -68,6 +69,9 @@ def export(parts_dir: Path, out: Path, parameters: Path | None = None) -> list[s
         shipped.append(out / script.name)
     if parameters and parameters.exists():
         shutil.copy(parameters, out / parameters.name)
+    plan = parts_dir.resolve().parent / "BUILD_PLAN.json"
+    if plan.exists():
+        shutil.copy(plan, out / plan.name)
 
     copied: set[str] = set()
     queue = list(shipped)
@@ -101,7 +105,8 @@ def _write_readme(out: Path, part_ids: list[str], external: list[str]) -> None:
         "# Standalone parts",
         "",
         "Run from this directory (`uv sync`, then `uv run python <part>.py`).",
-        "Each script builds a CadQuery `result`; edit its `# PARAMETERS` block to resize.",
+        "Each script builds a CadQuery `result`; edit its `# PARAMETERS` block to resize,",
+        "or, for a script built with `Part`, the instance `params` in `BUILD_PLAN.json`.",
         "",
     ]
     lines += [f"- `{pid}.py`" for pid in part_ids]

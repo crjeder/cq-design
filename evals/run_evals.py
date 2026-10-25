@@ -12,7 +12,8 @@ temp working directory, then scores the result:
     uv run python evals/run_evals.py --run-dir <dir> --generate [--cases a,b]
 
 Metrics per case and aggregated: first-shot success rate, mean attempts-to-
-pass, symmetric Chamfer distance (mm) against the golden meshes (bbox-center
+pass (an attempt is a plan revision; step-worker runs inside one are reported as
+mean step runs per part), symmetric Chamfer distance (mm) against the golden meshes (bbox-center
 aligned, no rotation solving), and estimated cost per accepted part from
 telemetry prompt sizes and `src/model_prices.json`.
 
@@ -182,6 +183,7 @@ def attempt_metrics(
         return {
             "first_shot_rate": None,
             "mean_attempts_to_pass": None,
+            "mean_step_runs": None,
             "cost_per_accepted_part_usd": None,
             "cost_source": "unavailable",
             "telemetry": "unavailable",
@@ -220,6 +222,7 @@ def attempt_metrics(
     return {
         "first_shot_rate": first_shot / n if n else None,
         "mean_attempts_to_pass": sum(attempts_to_pass) / n if n else None,
+        "mean_step_runs": sum(r.get("step_runs", 0) for r in attempts) / n if n else None,
         "unpassed_parts": unpassed,
         "cost_per_accepted_part_usd": total_cost / accepted if accepted else None,
         "total_cost_usd": total_cost,
@@ -302,6 +305,7 @@ def aggregate(case_results: list[dict]) -> dict:
         "cases_scored": len(case_results),
         "first_shot_rate": mean_of("first_shot_rate"),
         "mean_attempts_to_pass": mean_of("mean_attempts_to_pass"),
+        "mean_step_runs": mean_of("mean_step_runs"),
         "mean_chamfer_mm": sum(chamfer_vals) / len(chamfer_vals) if chamfer_vals else None,
         "chamfer_cases": len(chamfer_vals),
         "cost_per_accepted_part_usd": mean_of("cost_per_accepted_part_usd"),
@@ -319,14 +323,18 @@ def render_markdown(scorecard: dict) -> str:
         "Cost is billed when `cost src` is `recorded`, otherwise estimated "
         "(tokens ~ prompt_chars / 4, input rate only).",
         "",
-        "| case | first-shot | attempts-to-pass | chamfer (mm) | cost/part (USD) | cost src |",
-        "|---|---|---|---|---|---|",
+        "Attempts count plan revisions; step runs are step-worker runs within them.",
+        "",
+        "| case | first-shot | attempts-to-pass | step runs | chamfer (mm) | cost/part (USD) "
+        "| cost src |",
+        "|---|---|---|---|---|---|---|",
     ]
     for r in scorecard["cases"]:
         chamfer_cell = "no artifacts" if r["no_artifacts"] else _fmt(r["mean_chamfer_mm"])
         lines.append(
             f"| {r['case']} | {_fmt(r['first_shot_rate'], 2)} "
             f"| {_fmt(r['mean_attempts_to_pass'], 2)} "
+            f"| {_fmt(r.get('mean_step_runs'), 1)} "
             f"| {chamfer_cell} "
             f"| {_fmt(r['cost_per_accepted_part_usd'], 4)} "
             f"| {r.get('cost_source', 'n/a')} |"
@@ -337,6 +345,7 @@ def render_markdown(scorecard: dict) -> str:
         f"**Aggregate** ({agg['cases_scored']} cases): "
         f"first-shot {_fmt(agg['first_shot_rate'], 2)}, "
         f"attempts-to-pass {_fmt(agg['mean_attempts_to_pass'], 2)}, "
+        f"step runs {_fmt(agg.get('mean_step_runs'), 1)}, "
         f"chamfer {_fmt(agg['mean_chamfer_mm'])} mm ({agg['chamfer_cases']} cases), "
         f"cost/part {_fmt(agg['cost_per_accepted_part_usd'], 4)} USD",
         "",

@@ -92,8 +92,10 @@ next to the block. Probe kinds:
 | `delta(sign)` | volume change of the `place` step (`union` > 0, `cut` < 0) |
 
 `place` transforms the probes with the same `Location` as the solid and adds them to the
-part's registry. A template is one select/resize/place and its probes cover every
-feature it builds (the full set, no sampling). Probes are tested with OCC point classification
+part's registry. A template is a step script over probed entries (amended during
+implementation: not a single inventory entry), so every feature it builds is covered by
+its entries' probes plus the plan probes of its archetype `part` in
+`templates/archetypes.json`. Probes are tested with OCC point classification
 (`BRepClass3d_SolidClassifier`) and line intersection, in-process, no mesh.
 
 ### D5. Plan-derived probes at step 0, and the retirement rule
@@ -102,6 +104,12 @@ every step from the first `place`; an envelope `bbox` when dimensions are declar
 for each `interfaces[]` entry with `position_mm` and `diameter_mm`/`size_mm`, an
 `empty_at`/`ray` (cut-type interfaces) or `solid_at` (boss-type) set. The interface type
 -> probe mapping is a table in `probes.py`, not builder judgment.
+
+Arming (amended during implementation): a cut or boss feature probe cannot hold before
+its feature is built. A plan feature probe whose interface names an `instance` (the
+`blocks_needed` id whose `place` builds it) is checked from that instance's `place`
+step onward; one with no `instance` is checked only at `result()`. The envelope bbox
+(size-bounded until `result()`, exact there) and `solids == 1` apply after every step.
 
 Retirement: a later step legitimately changes an earlier block's region (a counterbore
 cut into a boss removes the boss's wall probe). A **block** probe whose point lies inside
