@@ -339,7 +339,26 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 ## Files
 see FILES.md
 
-## Related projects
+## Acknowledgements and Related projects
+This skill stands on the work of others. Thank you to:
+
+- **[CadQuery](https://github.com/CadQuery/cadquery)** (Jeremy Wright, Adam Urbanczyk and
+  contributors) -- the parametric CAD kernel every part script is built on. A clean,
+  scriptable Python API over OpenCASCADE that made an LLM-driven CAD pipeline possible
+  at all.
+- **[cq_warehouse](https://github.com/gumyr/cq_warehouse)** by Roger Maitland (gumyr)
+  -- pinned dependency. Its carefully modelled fasteners and threads back
+  `blocks/hardware.py`; getting ISO hardware geometry right is tedious, exacting work,
+  and this library does it beautifully.
+- **[cadquery-llm-skill](https://github.com/jmwright/cadquery-llm-skill)** by Jeremy
+  Wright -- vendored snapshot. Its CadQuery anti-pattern catalogue and fluent recipes
+  live on in `reference/CadQuery Anti-Patterns.md` and the pattern reference; hard-won
+  knowledge from a CadQuery maintainer, written down so models stop making the same
+  mistakes.
+
+Projects whose ideas were reimplemented (no code copied) are credited in
+[`SBOM.md`](documentation/SBOM.md).
+
 Projects surveyed for ideas -- see [`info/related_projects.md`](documentation/related_projects.md).
 Adoption status/tracking lives in `TODO.md`.
 
