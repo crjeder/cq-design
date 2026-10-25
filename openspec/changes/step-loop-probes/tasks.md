@@ -41,13 +41,13 @@
 
 ## 6. Step worker
 
-- [ ] 6.1 `src/step_worker.py` server: stdlib `multiprocessing.connection` on 127.0.0.1 with authkey, address in `build/.step_worker.json`, idle timeout
-- [ ] 6.2 Prefix-hash cache (kind, resolved args, entry source hash), executing from the first miss
-- [ ] 6.3 Client `run <script>`: report contract (`steps`, `failed_step`, `diff_vs_last_good`, `probe_stuck`, `worker`), stop at first failing step, full tier via `run_cadquery_model.py` only when all steps pass
-- [ ] 6.4 Crash/timeout handling: kill the worker, cold subprocess fallback with the same report, `worker: "fallback"`
-- [ ] 6.5 Snapshots: `last_good`, `snapshot save|restore|compare`, BRep + source + registry under `build/snapshots/<part>/`
-- [ ] 6.6 Probe failure history in `build/<part>.steps.jsonl` and the `probe_stuck` rule
-- [ ] 6.7 Tests: cache reuse after editing step 5, parameter edit invalidation, stop at first failure, later step breaking a plan probe, restore rewrites the script, stuck vs not-stuck, fallback after a forced worker exit
+- [x] 6.1 `src/step_worker.py` server: stdlib `multiprocessing.connection` on 127.0.0.1 with authkey, address in `build/.step_worker.json`, idle timeout
+- [x] 6.2 Prefix-hash cache (kind, resolved args, entry source hash), executing from the first miss
+- [x] 6.3 Client `run <script>`: report contract (`steps`, `failed_step`, `diff_vs_last_good`, `probe_stuck`, `worker`), stop at first failing step, full tier via `run_cadquery_model.py` only when all steps pass
+- [x] 6.4 Crash/timeout handling: kill the worker, cold subprocess fallback with the same report, `worker: "fallback"`
+- [x] 6.5 Snapshots: `last_good`, `snapshot save|restore|compare`, BRep + source + registry under `build/snapshots/<part>/`
+- [x] 6.6 Probe failure history in `build/<part>.steps.jsonl` and the `probe_stuck` rule
+- [x] 6.7 Tests: cache reuse after editing step 5, parameter edit invalidation, stop at first failure, later step breaking a plan probe, restore rewrites the script, stuck vs not-stuck, fallback after a forced worker exit
 
 ## 7. Telemetry
 
