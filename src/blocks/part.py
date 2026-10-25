@@ -19,7 +19,11 @@ probe after each ``place``. A failing step raises a marked ``RuntimeError`` that
 ``run_cadquery_model.py`` maps to a typed error.
 """
 
+import copy
+import functools
+import hashlib
 import importlib
+import inspect
 import json
 import os
 import sys
@@ -63,6 +67,14 @@ def _is_horizontal(edge, steps: list) -> bool:
     return True
 
 
+@functools.cache
+def _source_hash(module_name: str) -> str:
+    """Hash of an entry module's source, so an edited block invalidates cached steps."""
+    return hashlib.sha256(
+        inspect.getsource(importlib.import_module(module_name)).encode()
+    ).hexdigest()
+
+
 def find_plan(script_file: str | None) -> str:
     """Path of BUILD_PLAN.json: CQ_PLAN, else the nearest one above the script."""
     env = os.environ.get("CQ_PLAN")
@@ -91,6 +103,11 @@ class Handle:
 
 
 class Part:
+    # Set by the step worker: step key -> cached result, shared across runs of a script.
+    cache: dict | None = None
+    # The most recently constructed Part, so the worker can read its step report.
+    last: "Part | None" = None
+
     def __init__(self, part_id: str, plan_path: str | None = None):
         script = sys._getframe(1).f_globals.get("__file__")
         path = plan_path or find_plan(script)
@@ -114,6 +131,43 @@ class Part:
         self.placed = False
         self.armed: set[str] = set()
         self.placements: list[tuple] = []
+        # Plan probes are part of every cached state, so they seed the key chain.
+        plan_probes = json.dumps([pr.as_dict(p) for p in seeded], sort_keys=True, default=str)
+        self.key = hashlib.sha256(f"part:{part_id}|{plan_probes}".encode()).hexdigest()
+        self.last_good: dict | None = None
+        Part.last = self
+
+    def _chain(self, kind: str, args: dict, module: str = "") -> str:
+        """Advance the step key: hash of the previous key, this step's resolved args and its
+        entry's source. Equal keys mean equal state after the step."""
+        text = json.dumps(args, sort_keys=True, default=str) + (
+            _source_hash(module) if module else ""
+        )
+        self.key = hashlib.sha256(f"{self.key}|{kind}|{text}".encode()).hexdigest()
+        return self.key
+
+    def _state(self) -> dict:
+        return {
+            "body": self.body,
+            "unions": dict(self.unions),
+            "probes": list(self.registry.probes),
+            "retired": list(self.registry.retired),
+            "armed": set(self.armed),
+            "placements": list(self.placements),
+            "placed": self.placed,
+        }
+
+    def _restore(self, state: dict) -> None:
+        self.body, self.unions, self.placed = state["body"], dict(state["unions"]), state["placed"]
+        self.registry.probes, self.registry.retired = list(state["probes"]), list(state["retired"])
+        self.armed, self.placements = set(state["armed"]), list(state["placements"])
+
+    def _cached(self, key: str, step: dict):
+        """Cached result for key (marking the step cached), or None."""
+        hit = Part.cache.get(key) if Part.cache is not None else None
+        if hit is not None:
+            step.update({k: v for k, v in hit["step"].items() if k != "index"}, cached=True)
+        return hit
 
     def _record(self, kind: str, label: str, **info) -> dict:
         step = {"index": len(self.steps), "kind": kind, "block": label, "ok": True, **info}
@@ -143,6 +197,10 @@ class Part:
                 "step_plan",
                 f"instance {id!r} is planned as {inst.get('name')!r}, not {name!r}",
             )
+        key = self._chain("select", {"name": name, "id": id})
+        if Part.cache is not None:
+            step["cached"] = key in Part.cache
+            Part.cache.setdefault(key, {"step": copy.deepcopy(step)})
         return Handle(name, id, self.inventory[name], inst)
 
     def resize(self, handle: Handle) -> Handle:
@@ -158,6 +216,11 @@ class Part:
                 f"instance {handle.id!r}: unknown params {unknown}, missing params {missing}; "
                 f"{handle.name} declares {sorted(declared)}",
             )
+        key = self._chain("resize", {"id": handle.id, "params": params}, handle.entry["module"])
+        hit = self._cached(key, step)
+        if hit is not None:
+            handle.params, handle.shape, handle.probes = hit["handle"]
+            return handle
         module = importlib.import_module(handle.entry["module"])
         shape = getattr(module, handle.entry["function"])(**params)
         if isinstance(shape, dict):
@@ -175,6 +238,8 @@ class Part:
         step["probes"] = {"checked": len(local), "failed": failed, "retired": []}
         if failed:
             raise self._error(step, "probe_failed", f"{handle.name} own probes failed: {failed}")
+        if Part.cache is not None:
+            Part.cache[key] = {"step": copy.deepcopy(step), "handle": (params, handle.shape, local)}
         return handle
 
     def has(self, id: str) -> bool:
@@ -202,6 +267,13 @@ class Part:
             raise _fail("step_plan", handle.id, f"place of {handle.id!r} at an empty point list")
         points = [(0, 0, 0)] if at is None else [at] if not isinstance(at[0], (list, tuple)) else at
         step = self._record("place", handle.name, id=handle.id, op=op, at=[list(p) for p in points])
+        args = {"id": handle.id, "at": points, "rotate": rotate, "op": op, "into": into}
+        key = self._chain("place", args, handle.entry["module"])
+        hit = self._cached(key, step)
+        if hit is not None:
+            self._restore(hit["state"])
+            self.last_good = hit["state"]
+            return handle
         tools = [_moved(handle.shape, p, rotate) for p in points]
         self.placements.append((handle, points, rotate, into))
         tool = tools[0] if len(tools) == 1 else cq.Compound.makeCompound(tools)
@@ -250,6 +322,9 @@ class Part:
             raise self._error(step, "probe_failed", f"body is {step['solids']} solids, expected 1")
         if failed:
             raise self._error(step, "probe_failed", f"{len(failed)} probe(s) failed: {failed}")
+        self.last_good = self._state()
+        if Part.cache is not None:
+            Part.cache[key] = {"step": copy.deepcopy(step), "state": self.last_good}
         return handle
 
     def _bodies(self) -> list:
