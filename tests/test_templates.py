@@ -34,9 +34,9 @@ def _load_schema():
 
 INDEX = _load_index()
 
-# Volume and bbox of each template before the step-form conversion. Templates whose
-# cosmetic corner fillets moved to plan `edges` (applied in the print-pose finishing
-# pass) build slightly more volume; two carry deliberate fixes.
+# Volume and bbox of each template before the step-form conversion. Compared under an
+# upright print pose, so the finishing pass applies the plan `edges` that replaced the
+# old cosmetic corner_r fillets. Two templates carry deliberate fixes.
 BEFORE = {
     "adapter-ring-flanged": (9600.93, (-22.5, -22.5, 0, 22.5, 22.5, 15)),
     "clip": (960.0, (-7.5, 0, 0, 7.5, 14, 8)),
@@ -54,10 +54,8 @@ BEFORE = {
     "stand": (155340.0, (-40, 0, 0, 40, 70, 45)),
 }
 VOLUME_REL_TOL = {
-    "enclosure-body": 0.015,
-    "lid-screwed": 0.005,
-    "lid-snap": 0.005,
-    "plate-boss-pattern": 0.005,
+    # the old corner_r also rounded the cavity's inner corners; those are now sharp
+    "enclosure-body": 0.002,
     "l-bracket-gusset": 0.005,
 }
 
@@ -109,10 +107,11 @@ def test_archetype_part_validates(entry, archetype_plan):
 
 
 @pytest.mark.parametrize("entry", INDEX, ids=[e["name"] for e in INDEX])
-def test_template_matches_pre_conversion_build(entry, archetype_plan):
+def test_template_matches_pre_conversion_build(entry, archetype_plan, monkeypatch):
     import runpy
 
     archetype_plan(entry)
+    monkeypatch.setenv("CQ_PRINT_ROTATE", "[]")
     shape = runpy.run_path(os.path.join(TEMPLATES_DIR, entry["file"]))["result"].findSolid()
     volume, box = BEFORE[entry["name"]]
     bb = shape.BoundingBox()

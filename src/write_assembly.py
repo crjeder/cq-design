@@ -23,6 +23,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 from collections.abc import Callable
 
@@ -220,7 +221,22 @@ def main() -> None:
     print_orientations = None
     if args.orientations:
         print_orientations = read_json(args.orientations, "orientations file")
-    result = write_assembly(plan, args.parts_dir, args.out, print_orientations)
+    try:
+        result = write_assembly(plan, args.parts_dir, args.out, print_orientations)
+    except RuntimeError as exc:
+        # A step script's finishing pass failed: edge sizes are plan values, so the user decides.
+        m = re.search(r"\[cq-verify:finishing_probe_failed:([^\]]*)\]\s*(.*)", str(exc))
+        if not m:
+            raise
+        error = {
+            "type": "finishing_probe_failed",
+            "label": m.group(1),
+            "message": m.group(2),
+            "action": "ask_user",
+            "hint": "change or drop the instance's `edges` entry in BUILD_PLAN.json",
+        }
+        print(json.dumps({"success": False, "errors": [error]}, indent=2))
+        sys.exit(1)
     print(json.dumps(result, indent=2))
     sys.exit(0)
 

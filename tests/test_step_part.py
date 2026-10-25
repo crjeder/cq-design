@@ -1,6 +1,7 @@
 """Probes, the probe registry, plan-derived probes, and the eager `Part` step recorder."""
 
 import json
+import math
 import runpy
 
 import cadquery as cq
@@ -16,11 +17,11 @@ PLATE = {"name": "box", "id": "plate", "params": {"w": 40, "d": 30, "h": 4}}
 BOSS = {"name": "screw_boss", "id": "boss", "params": {"d_screw": 3.2, "d_outer": 8, "h": 6}}
 
 
-def _part(blocks, interfaces=()):
+def _part(blocks, interfaces=(), dims=(40, 30, 10)):
     return {
         "id": "plate",
         "description": "Plate with a screw boss",
-        "dimensions": {"w_mm": 40, "d_mm": 30, "h_mm": 10},
+        "dimensions": dict(zip(("w_mm", "d_mm", "h_mm"), dims, strict=True)),
         "interfaces": list(interfaces),
         "blocks_needed": list(blocks),
     }
@@ -28,9 +29,9 @@ def _part(blocks, interfaces=()):
 
 @pytest.fixture
 def plan(tmp_path, monkeypatch):
-    def _write(blocks=(PLATE, BOSS), interfaces=()):
+    def _write(blocks=(PLATE, BOSS), interfaces=(), dims=(40, 30, 10)):
         path = tmp_path / "BUILD_PLAN.json"
-        path.write_text(json.dumps(minimal_plan([_part(blocks, interfaces)])))
+        path.write_text(json.dumps(minimal_plan([_part(blocks, interfaces, dims)])))
         monkeypatch.setenv("CQ_PLAN", str(path))
         return path
 
@@ -295,3 +296,61 @@ def test_import_params_not_applicable_for_step_script(tmp_path):
     report = import_params(str(script), "plate", str(plan_path), write=True)
     assert report["status"] == "not_applicable" and report["errors"] == []
     assert plan_path.read_text() == before
+
+
+# --- print-pose finishing ------------------------------------------------------------
+
+SLAB = {"name": "box", "id": "plate", "params": {"w": 20, "d": 10, "h": 5}}
+
+
+def _slab(plan, monkeypatch, rotate, edges, interfaces=(), extra=(), dims=(20, 10, 5)):
+    plan(blocks=[{**SLAB, "edges": edges}, *extra], interfaces=interfaces, dims=dims)
+    if rotate is None:
+        monkeypatch.delenv("CQ_PRINT_ROTATE", raising=False)
+    else:
+        monkeypatch.setenv("CQ_PRINT_ROTATE", json.dumps(rotate))
+    part = Part("plate")
+    plate = part.select("box", id="plate")
+    part.resize(plate)
+    part.place(plate, op="base")
+    return part
+
+
+def test_step_loop_leaves_edges_untreated(plan, monkeypatch):
+    part = _slab(plan, monkeypatch, None, {"vertical": 1.0})
+    assert part.result().findSolid().Volume() == pytest.approx(1000)
+
+
+def test_upright_vertical_edges_are_filleted(plan, monkeypatch):
+    part = _slab(plan, monkeypatch, [], {"vertical": 1.0})
+    removed = 1000 - part.result().findSolid().Volume()
+    assert removed == pytest.approx(4 * (1 - math.pi / 4) * 5, rel=1e-3)
+
+
+def test_rotated_pose_chamfers_build_vertical_edges(plan, monkeypatch):
+    part = _slab(plan, monkeypatch, [{"axis": "X", "angle_deg": 90}], {"vertical": 1.0})
+    removed = 1000 - part.result().findSolid().Volume()
+    assert removed == pytest.approx(4 * 0.5 * 5, rel=1e-3)
+
+
+def test_chamfer_breaking_a_plan_probe_fails(plan, monkeypatch):
+    rim = {
+        "type": "union",
+        "name": "rim",
+        "instance": "plate",
+        "position_mm": [9.6, 0, 4.6],
+        "diameter_mm": 1,
+    }
+    part = _slab(plan, monkeypatch, [], {"top_outer": 2.0}, interfaces=[rim])
+    with pytest.raises(RuntimeError, match="finishing_probe_failed.*rim"):
+        part.result()
+
+
+def test_lost_edge_set_fails(plan, monkeypatch):
+    skim = {"name": "box", "id": "skim", "params": {"w": 30, "d": 20, "h": 2}}
+    part = _slab(plan, monkeypatch, [], {"top_outer": 0.5}, extra=[skim], dims=(20, 10, 4.6))
+    cut = part.select("box", id="skim")
+    part.resize(cut)
+    part.place(cut, at=(0, 0, 4.6), op="cut")
+    with pytest.raises(RuntimeError, match=r"finishing_probe_failed.*plate\.top_outer"):
+        part.result()
