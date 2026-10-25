@@ -68,4 +68,4 @@
 
 - [ ] 9.1 Regenerate eval part scripts and run the eval suite
 - [ ] 9.2 Compare `visual_mismatch` rate, blocked rate and attempts per part against the 2026-09 baseline; record in `spike.md`
-- [ ] 9.3 `uv run pytest tests/`, `ruff check`, `ruff format`
+- [x] 9.3 `uv run pytest tests/`, `ruff check`, `ruff format`
