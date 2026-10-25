@@ -141,6 +141,11 @@ _VERIFY_HINTS = {
         "the step does not match BUILD_PLAN.json (missing instance, wrong entry, unknown or "
         "missing param) -- dimensions are plan-owned: fix the plan instance, not the script"
     ),
+    "finishing_probe_failed": (
+        "a plan edge treatment (chamfer/fillet size from BUILD_PLAN.json `edges`) broke a "
+        "plan probe or matched no edge -- edge sizes are plan values: ask the user to change "
+        "or drop the edge treatment"
+    ),
     "thin_ligament": (
         "too little material beside the hole — widen the wall, shrink the hole, or move "
         "it, until the ligament meets the minimum"
@@ -155,12 +160,15 @@ def _translate_verify_marker(stderr: str) -> dict | None:
         return None
     kind = m.group("kind")
     label = m.group("label").strip()
-    return {
+    err = {
         "type": kind,
         "label": label,
         "message": m.group("detail").strip(),
         "hint": _VERIFY_HINTS[kind],
     }
+    if kind == "finishing_probe_failed":
+        err["action"] = "ask_user"
+    return err
 
 
 def _translate_stderr(stderr: str) -> list[dict]:

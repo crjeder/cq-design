@@ -34,10 +34,10 @@
 
 ## 5b. Edge treatments in the finishing pass
 
-- [ ] 5b.1 `Part.result()` under `CQ_PRINT_ROTATE`: map each instance's declared edge sets to final-body edges lying on the placed curves, chamfer horizontal / fillet vertical and diagonal edges in print pose, untreated when the variable is unset
-- [ ] 5b.2 Re-check plan probes after treatment, retire block probes inside treated zones, raise typed `finishing_probe_failed` (action `ask_user`) on a failing plan probe or an unmapped edge set; surface it from `write_assembly.py`
+- [x] 5b.1 `Part.result()` under `CQ_PRINT_ROTATE`: map each instance's declared edge sets to final-body edges lying on the placed curves, chamfer horizontal / fillet vertical and diagonal edges in print pose, untreated when the variable is unset
+- [x] 5b.2 Re-check plan probes after treatment, retire block probes inside treated zones, raise typed `finishing_probe_failed` (action `ask_user`) on a failing plan probe or an unmapped edge set; surface it from `write_assembly.py`
 - [x] 5b.3 `export_standalone.py` and `bundle_project.py` ship `BUILD_PLAN.json` next to the scripts so plan-bound `resize` resolves in the deliverable
-- [ ] 5b.4 Tests: rotated-pose box chamfers its build-pose vertical edges, step loop untreated, chamfer breaking a plan bore probe, lost edge set, standalone export builds
+- [x] 5b.4 Tests: rotated-pose box chamfers its build-pose vertical edges, step loop untreated, chamfer breaking a plan bore probe, lost edge set, standalone export builds
 
 ## 6. Step worker
 

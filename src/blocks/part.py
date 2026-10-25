@@ -38,6 +38,31 @@ def _fail(kind: str, label: str, detail: str) -> RuntimeError:
     return RuntimeError(f"[cq-verify:{kind}:{label}] {detail}")
 
 
+def _moved(shape, at, rotate):
+    """shape rotated about X, then Y, then Z (degrees, about the origin), then moved to at."""
+    for axis, angle in zip(((1, 0, 0), (0, 1, 0), (0, 0, 1)), rotate, strict=True):
+        if angle:
+            shape = shape.rotate((0, 0, 0), axis, angle)
+    return shape.translate(cq.Vector(*at))
+
+
+def _on_curves(edge, curves, tol: float = 1e-3) -> bool:
+    """True when the edge lies on one of the curves (sampled at three points)."""
+    pts = [cq.Vertex.makeVertex(*edge.positionAt(t).toTuple()) for t in (0.1, 0.5, 0.9)]
+    return any(all(v.distance(c) <= tol for v in pts) for c in curves)
+
+
+def _is_horizontal(edge, steps: list) -> bool:
+    """True when the edge runs horizontally in print pose (build pose rotated by steps)."""
+    from placement import transform_direction
+
+    for t in (0.0, 0.5, 1.0):
+        d = transform_direction(edge.tangentAt(t).toTuple(), {"rotate": steps})
+        if abs(d[2]) > 0.1:
+            return False
+    return True
+
+
 def find_plan(script_file: str | None) -> str:
     """Path of BUILD_PLAN.json: CQ_PLAN, else the nearest one above the script."""
     env = os.environ.get("CQ_PLAN")
@@ -88,6 +113,7 @@ class Part:
         self.registry.add(seeded, "plan")
         self.placed = False
         self.armed: set[str] = set()
+        self.placements: list[tuple] = []
 
     def _record(self, kind: str, label: str, **info) -> dict:
         step = {"index": len(self.steps), "kind": kind, "block": label, "ok": True, **info}
@@ -176,13 +202,8 @@ class Part:
             raise _fail("step_plan", handle.id, f"place of {handle.id!r} at an empty point list")
         points = [(0, 0, 0)] if at is None else [at] if not isinstance(at[0], (list, tuple)) else at
         step = self._record("place", handle.name, id=handle.id, op=op, at=[list(p) for p in points])
-        tools = []
-        for p in points:
-            s = handle.shape
-            for axis, angle in zip(((1, 0, 0), (0, 1, 0), (0, 0, 1)), rotate, strict=True):
-                if angle:
-                    s = s.rotate((0, 0, 0), axis, angle)
-            tools.append(s.translate(cq.Vector(*p)))
+        tools = [_moved(handle.shape, p, rotate) for p in points]
+        self.placements.append((handle, points, rotate, into))
         tool = tools[0] if len(tools) == 1 else cq.Compound.makeCompound(tools)
 
         target = into if into is not None else "__body__"
@@ -247,9 +268,87 @@ class Part:
         step["probes"] = {"checked": checked, "failed": failed, "retired": []}
         if failed:
             raise self._error(step, "probe_failed", f"{len(failed)} probe(s) failed: {failed}")
+        rotate = os.environ.get("CQ_PRINT_ROTATE")
+        if rotate:
+            self._finish(json.loads(rotate), step)
         if self.unions:
             out = {k: cq.Workplane("XY").newObject([v]) for k, v in self.unions.items()}
             if self.body is not None:
                 out[self.id] = cq.Workplane("XY").newObject([self.body])
             return out
         return cq.Workplane("XY").newObject([self.body])
+
+    def _edge_jobs(self) -> list[tuple]:
+        """(target, label, size, placed curves) for every plan-declared edge set."""
+        jobs = []
+        for handle, points, rotate, into in self.placements:
+            edges = self.instances[handle.id].get("edges") or {}
+            if not edges:
+                continue
+            module = importlib.import_module(handle.entry["module"])
+            sets = getattr(module, f"{handle.entry['function']}_edge_sets")(**handle.params)
+            for name, size in edges.items():
+                curves = [_moved(c, p, rotate) for c in sets[name] for p in points]
+                jobs.append((into or "__body__", f"{handle.id}.{name}", size, curves))
+        return jobs
+
+    def _finish(self, steps: list, step: dict) -> None:
+        """Print-pose finishing: chamfer horizontal / fillet other edges of each plan edge
+        set, then re-check plan probes. Failures are finishing_probe_failed (ask_user)."""
+        jobs = self._edge_jobs()
+        bodies: dict[str, Any] = dict(self.unions)
+        if self.body is not None:
+            bodies["__body__"] = self.body
+        lost = [
+            label
+            for into, label, _s, curves in jobs
+            if not any(_on_curves(e, curves) for e in bodies[into].Edges())
+        ]
+        if lost:
+            raise self._error(
+                step, "finishing_probe_failed", f"edge set(s) {lost} map to no edge of the body"
+            )
+        treated = []
+        for fillet in (True, False):
+            for into, label, size, curves in jobs:
+                body = bodies[into]
+                edges = [
+                    e
+                    for e in body.Edges()
+                    if _on_curves(e, curves) and _is_horizontal(e, steps) != fillet
+                ]
+                if not edges:
+                    continue
+                try:
+                    body = body.fillet(size, edges) if fillet else body.chamfer(size, None, edges)
+                except Exception as exc:
+                    raise self._error(
+                        step,
+                        "finishing_probe_failed",
+                        f"{label}: {size} mm treatment failed: {exc}",
+                    ) from exc
+                bodies[into] = body.clean()
+                treated += [(e, size) for e in edges]
+        if not treated:
+            return
+        zone = [
+            p
+            for p in self.registry.probes
+            if p.owner != "plan"
+            and p.p is not None
+            and any(cq.Vertex.makeVertex(*p.p).distance(e) <= 1.5 * s for e, s in treated)
+        ]
+        self.registry.probes = [p for p in self.registry.probes if p not in zone]
+        self.registry.retired.extend(zone)
+        self.body = bodies.pop("__body__", None)
+        self.unions.update(bodies)
+        checked, failed = self.registry.check(self._whole(), final=True)
+        step["finishing"] = {
+            "treated_edges": len(treated),
+            "checked": checked,
+            "retired": [pr.as_dict(p) for p in zone],
+        }
+        if failed:
+            raise self._error(
+                step, "finishing_probe_failed", f"edge treatment broke probe(s): {failed}"
+            )
