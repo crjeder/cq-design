@@ -29,8 +29,8 @@
 
 ## 5. Lint allowlist
 
-- [ ] 5.1 `script_lint.py`: `raw_cadquery` error for any CadQuery call or `Workplane` method in a part script, with a hint naming the closest primitive; `script_dimension` error for a `PARAMETERS` block or any argument to `resize`
-- [ ] 5.2 Tests: raw extrude rejected, `PARAMETERS` and `resize` args rejected, position arithmetic and loops accepted, converted templates lint clean
+- [x] 5.1 `script_lint.py`: `raw_cadquery` error for any CadQuery call or `Workplane` method in a part script, with a hint naming the closest primitive; `script_dimension` error for a `PARAMETERS` block or any argument to `resize`
+- [x] 5.2 Tests: raw extrude rejected, `PARAMETERS` and `resize` args rejected, position arithmetic and loops accepted, converted templates lint clean
 
 ## 5b. Edge treatments in the finishing pass
 

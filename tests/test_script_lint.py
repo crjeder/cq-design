@@ -346,3 +346,46 @@ def test_horizontal_round_hole_suppressed_by_teardrop(tmp_path):
 def test_vertical_hole_not_flagged(tmp_path):
     src = _HOLE_SRC.replace(">Y", ">Z")
     assert "horizontal_round_hole" not in _types(lint_script(_write(tmp_path, src)))
+
+
+# --- step form --------------------------------------------------------------------
+
+STEP_HEAD = "from blocks import Part\n\npart = Part('plate')\n"
+
+
+def test_step_raw_extrude_rejected_with_primitive_hint(tmp_path):
+    src = STEP_HEAD + "import cadquery as cq\nslab = cq.Workplane('XY').box(10, 10, 2)\n"
+    findings = [f for f in lint_script(_write(tmp_path, src)) if f.type == "raw_cadquery"]
+    lines = {f.line for f in findings}
+    assert {4, 5} <= lines
+    assert any("`box` primitive" in f.hint for f in findings if f.line == 5)
+
+
+def test_step_parameters_block_and_resize_args_rejected(tmp_path):
+    src = (
+        STEP_HEAD
+        + "# PARAMETERS\nw = 10\n"
+        + "plate = part.select('box', id='plate')\npart.resize(plate, w=10)\n"
+    )
+    findings = [f for f in lint_script(_write(tmp_path, src)) if f.type == "script_dimension"]
+    assert sorted(f.line for f in findings) == [4, 7]
+
+
+def test_step_position_arithmetic_and_loops_accepted(tmp_path):
+    src = STEP_HEAD + (
+        "boss = part.select('screw_boss', id='boss')\n"
+        "part.resize(boss)\n"
+        "top = part.param('plate', 'h')\n"
+        "pts = [(x, y, top) for x, y, _ in part.positions('boss')]\n"
+        "for i, p in enumerate(pts):\n"
+        "    part.place(boss, at=p, rotate=(0, 0, 90 * i), op='union')\n"
+        "result = part.result()\n"
+    )
+    assert lint_script(_write(tmp_path, src)) == []
+
+
+def test_step_flag_applies_rules_without_part(tmp_path):
+    src = "import cadquery as cq\nresult = cq.Workplane('XY').box(1, 2, 3)\n"
+    path = _write(tmp_path, src)
+    assert "raw_cadquery" not in _types(lint_script(path))
+    assert "raw_cadquery" in _types(lint_script(path, step=True))
