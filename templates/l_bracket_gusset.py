@@ -1,48 +1,37 @@
 """Archetype: L-bracket with a triangular gusset. Two rectangular arms meeting at a
 right angle, each drilled with a mounting-screw clearance hole, reinforced by a
 diagonal gusset rib across the inner corner. Use for wall/shelf mounts and right-angle
-structural brackets."""
+structural brackets.
 
-import cadquery as cq
+Step form: every size and position comes from this archetype's plan `part` in
+templates/archetypes.json (copied into BUILD_PLAN.json), never from the script."""
 
-from cq_verify import verify_boolean
+from blocks import Part
 
-# PARAMETERS
-arm_a_len = 40.0  # mm length of the vertical arm (Z)
-arm_b_len = 40.0  # mm length of the horizontal arm (X)
-arm_w = 20.0  # mm arm width (Y)
-arm_t = 4.0  # mm arm thickness
-gusset_t = 4.0  # mm gusset thickness (Y, centered in the arm width)
-gusset_reach = 20.0  # mm how far the gusset extends along each arm from the inner corner
-hole_d = 4.3  # mm mounting screw clearance diameter (M4)
-hole_inset = 10.0  # mm inset of each hole center from its arm's free end
+part = Part("l_bracket_gusset")
+arm_v = part.select("box", id="arm_v")
+part.resize(arm_v)
+part.place(arm_v, op="base")
 
-vertical_arm = cq.Workplane("XY").box(arm_t, arm_w, arm_a_len, centered=(True, True, False))
-horizontal_arm = cq.Workplane("XY").box(arm_b_len, arm_w, arm_t, centered=(False, True, False))
-bracket = verify_boolean(
-    vertical_arm, vertical_arm.union(horizontal_arm), "union", "horizontal_arm"
-)
+# The horizontal arm starts at X=0 and runs along +X.
+arm_h = part.select("box", id="arm_h")
+part.resize(arm_h)
+part.place(arm_h, at=(part.param("arm_h", "w") / 2, 0, 0), op="union")
 
-gusset_profile = [
-    (arm_t / 2, arm_t),
-    (arm_t / 2 + gusset_reach, arm_t),
-    (arm_t / 2, arm_t + gusset_reach),
-]
-gusset = cq.Workplane("XZ").polyline(gusset_profile).close().extrude(gusset_t / 2, both=True)
-bracket = verify_boolean(bracket, bracket.union(gusset), "union", "gusset")
+# XY profile stood up into the XZ plane, centered on Y.
+gusset = part.select("prism", id="gusset")
+part.resize(gusset)
+part.place(gusset, at=(0, part.param("gusset", "h") / 2, 0), rotate=(90, 0, 0), op="union")
 
-vertical_hole_z = arm_a_len - hole_inset
-horizontal_hole_x = arm_b_len - hole_inset
-vertical_hole = (
-    cq.Workplane("XY").workplane(offset=vertical_hole_z).circle(hole_d / 2).extrude(arm_t + 1)
-)
-horizontal_hole = (
-    cq.Workplane("XY")
-    .transformed(offset=(horizontal_hole_x, 0, 0))
-    .circle(hole_d / 2)
-    .extrude(arm_t + 1)
-)
-bracket = verify_boolean(bracket, bracket.cut(vertical_hole), "cut", "vertical_hole")
-bracket = verify_boolean(bracket, bracket.cut(horizontal_hole), "cut", "horizontal_hole")
+# Hole cylinders are centered on their planned positions along their axis.
+hole_v = part.select("cylinder", id="hole_v")
+part.resize(hole_v)
+x, y, z = part.positions("hole_v")[0]
+part.place(hole_v, at=(x - part.param("hole_v", "h") / 2, y, z), rotate=(0, 90, 0), op="cut")
 
-result = bracket
+hole_h = part.select("cylinder", id="hole_h")
+part.resize(hole_h)
+x, y, z = part.positions("hole_h")[0]
+part.place(hole_h, at=(x, y, z - part.param("hole_h", "h") / 2), op="cut")
+
+result = part.result()

@@ -16,6 +16,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
                              # `summary` (Phase 2 checkpoint Markdown tables), `import-params`
                              # (reconcile a part script's PARAMETERS block back into the plan)
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
+    probes.py                # Probe kinds on BRep (solid_at/empty_at/ray/bbox), registry, plan-derived probes
+    step_worker.py           # Warm step worker: prefix-cached step runs, per-step probe checks, snapshots, stuck rule
     render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
                               # planner/research agent prompts (Phase 1/2)
     skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
@@ -72,7 +74,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
 
     blocks/
       __init__.py            # Re-exports all blocks
-      primitives.py          # fillet_box, hollow_box
+      part.py                # Part step recorder: select/resize/place over plan instances, probes, finishing edges
+      primitives.py          # Step primitives (box, cylinder, cone, sphere, prism, revolve, torus); fillet_box, hollow_box
       fasteners.py           # screw_boss, pcb_standoff, snap hooks, alignment pins
       connectors.py          # port_cutout, cable_slot, vent_grid
       hardware.py            # cq_warehouse-backed fastener geometry
@@ -147,7 +150,10 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_gridfinity.py               # Gridfinity blocks + conformance check (CadQuery)
     test_minimal_cutout_search.py    # Parameter bisection search against a kinematics entry (CadQuery)
     test_sliver_fin.py               # Fin detection on a real part (fixtures/rim_fillet_fins.py.txt) with four zero-thickness fins (CadQuery)
-    test_templates.py                # Archetype index validation + per-template lint/geometry
+    test_templates.py                # Archetype index validation + per-template lint/geometry/pre-conversion volume
+    test_step_part.py                # Probes, registry, plan probes, Part steps, finishing edges (CadQuery)
+    test_inventory_probes.py         # Every inventory entry's probes pass on its default build (CadQuery)
+    test_step_worker.py              # Step worker cache, reports, snapshots, stuck rule, warm/fallback (CadQuery)
     test_pose_terminology.py         # Retired frame-term guard -- fast, no CadQuery
     test_prompt_examples.py          # Prompt fenced examples validate/run; reference/ paths resolve (CadQuery)
     fixtures/

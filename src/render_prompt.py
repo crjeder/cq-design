@@ -28,7 +28,7 @@ from collections import Counter
 from pathlib import Path
 
 from log import _read_records, fold_attempts, part_author_model, search_request_log
-from plan import _is_load_bearing
+from plan import _is_load_bearing, is_step_script
 from printer_profile_validate import validate_profile
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -295,10 +295,17 @@ def render_builder(
 ) -> tuple[str, list[str]]:
     part_stages = stages(plan, part, override)
     skill_dir = SKILL_DIR.as_posix()
+    run_tool = f'uv run --project "{skill_dir}" python "{skill_dir}/src'
     validate_commands = "\n\n".join(
         f"# {stage}\n"
-        f'uv run --project "{skill_dir}" python "{skill_dir}/src/run_cadquery_model.py" \\\n'
-        f"    build/{part['id']}.py {validate_args(plan, part, stage == part_stages[-1])}"
+        + (
+            f'{run_tool}/run_cadquery_model.py" \\\n'
+            f"    build/{part['id']}_stub.py --preview --preview-dir preview"
+            if stage == "profile_stub"
+            else f'{run_tool}/step_worker.py" run \\\n'
+            f"    build/{part['id']}.py -- "
+            f"{validate_args(plan, part, stage == part_stages[-1])}"
+        )
         for stage in part_stages
     )
     text = fill(
@@ -330,11 +337,51 @@ def parameters_block(script: Path) -> str:
     return "\n".join(lines) or "(no parameters found)"
 
 
-def render_audit(plan: dict, part: dict, script: Path, previews: list[str]) -> str:
+CONNECTEDNESS_ASKED = (
+    "- U1 single connected body, no detached solids. Cite a **section** crossing the\n"
+    "     junctions, never an exterior panel."
+)
+CONNECTEDNESS_SETTLED = (
+    "- U1 single connected body: **settled** by the passing step report (one solid after\n"
+    "     every step). Do not ask it; record it as settled."
+)
+
+
+def _probed_note(part: dict, report: dict | None) -> str:
+    """Interfaces whose presence/position a passing step report's plan probes settled."""
+    if not report or not report.get("success"):
+        return ""
+    unprobed = set(report.get("unprobed_interfaces", []))
+    probed = [
+        i["name"]
+        for i in part.get("interfaces") or []
+        if i.get("name") and i.get("position_mm") and i["name"] not in unprobed
+    ]
+    if not probed:
+        return ""
+    return (
+        "\n   - **Settled by plan probes** (do not ask presence, position or through-"
+        f"continuity): {', '.join(probed)}. Still judge whether they look right for the intent."
+    )
+
+
+def render_audit(
+    plan: dict, part: dict, script: Path, previews: list[str], report: dict | None = None
+) -> str:
+    settled = bool(report and report.get("success"))
     if _is_load_bearing(part):
+        if is_step_script(_read(script)):
+            values = {
+                b["id"]: b.get("params")
+                for b in part.get("blocks_needed") or []
+                if isinstance(b, dict) and "id" in b
+            }
+            source = "# plan instance params\n" + json.dumps(values, indent=2)
+        else:
+            source = parameters_block(script)
         numeric = (
             "```python\n"
-            + parameters_block(script)
+            + source
             + "\n```\n\nengineering_rationale: "
             + json.dumps(part.get("engineering_rationale"))
         )
@@ -347,8 +394,35 @@ def render_audit(plan: dict, part: dict, script: Path, previews: list[str]) -> s
             "REQUEST_TEXT": scoped_request(plan, part) or "(none)",
             "PARAMETERS_BLOCK": numeric,
             "PREVIEW_PATHS": "\n".join(f"- {p}" for p in previews),
+            "CONNECTEDNESS": CONNECTEDNESS_SETTLED if settled else CONNECTEDNESS_ASKED,
+            "PROBED_INTERFACES": _probed_note(part, report),
         },
     )
+
+
+def _inventory_lines(entries: list[dict]) -> str:
+    """Planning listing: each entry's use, plan params (optional ones marked ?) and edge sets."""
+    lines = []
+    for e in entries:
+        optional = set(e.get("optional", []))
+        params = ", ".join(f"{k}{'?' if k in optional else ''}" for k in e.get("params", {}))
+        edges = f"; edges: {', '.join(e['edge_sets'])}" if e.get("edge_sets") else ""
+        lines.append(
+            f"- **{e['name']}** ({e.get('kind', 'block')}) -- {e['use']} "
+            f"Params: {params or 'none'}{edges}"
+        )
+    return "\n".join(lines)
+
+
+def _archetype_lines(entries: list[dict]) -> str:
+    """Planning listing: use plus the instances the archetype's plan part needs."""
+    lines = []
+    for e in entries:
+        instances = ", ".join(f"{b['id']}={b['name']}" for b in e["part"]["blocks_needed"])
+        lines.append(
+            f"- **{e['name']}** (`templates/{e['file']}`) -- {e['use']} Instances: {instances}"
+        )
+    return "\n".join(lines)
 
 
 def _index_lines(entries: list[dict], with_file: bool) -> str:
@@ -404,8 +478,8 @@ def render_planning(
         _read(SKILL_DIR / "prompts/planning.md"),
         {
             "USER_REQUEST": request,
-            "BLOCK_INVENTORY": _index_lines(inventory, with_file=False),
-            "ARCHETYPE_INDEX": _index_lines(archetypes, with_file=True),
+            "BLOCK_INVENTORY": _inventory_lines(inventory),
+            "ARCHETYPE_INDEX": _archetype_lines(archetypes),
             "FDM_GUIDELINES": fdm,
             "ENGINEERING_RULES": tagged_sections(_read(REF / "Engineering Design Rules.md"), set()),
             "PRINTER_PROFILE": profile_text,
@@ -457,6 +531,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.choices["builder"].add_argument("--attempts", type=Path)
     sub.choices["audit"].add_argument("--script", required=True, type=Path)
     sub.choices["audit"].add_argument("--previews", required=True, nargs="+")
+    sub.choices["audit"].add_argument(
+        "--step-report", type=Path, help="the builder's last step_worker.py run report"
+    )
 
     p = sub.add_parser("planning")
     p.add_argument("--request-file", required=True, type=Path)
@@ -489,7 +566,8 @@ def main(argv: list[str] | None = None) -> int:
                 extra["stages"] = part_stages
                 extra["model"] = part_author_model()
             else:
-                text = render_audit(plan, part, args.script, args.previews)
+                report = json.loads(_read(args.step_report)) if args.step_report else None
+                text = render_audit(plan, part, args.script, args.previews, report)
                 out = Path(args.out or f"build/{part['id']}_audit_prompt.txt")
         except ValueError as exc:
             print(f"render_prompt: {exc}", file=sys.stderr)

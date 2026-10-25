@@ -55,13 +55,26 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
     things. On a collision, suffix (`hole`, `hole_2`) and state the mapping in
     `planning_notes`.
 
-3. **Blocks come only from the inventory below.** With none fitting, leave `blocks_needed`
-   empty and describe the scratch geometry in `part_notes`. When an instance's size is
-   known, write `{"name": "...", "extents_mm": [x, y, z]}` so the thin-block check can
-   flag an extent below `wall_min_mm`.
+3. **Every piece of geometry is a `blocks_needed` instance from the inventory below**
+   (blocks and primitives; geometry no block covers is built from primitives -- `box`,
+   `cylinder`, `cone`, `sphere`, `prism`, `revolve`, `torus`). Write each instance as
+   `{"name": "<entry>", "id": "<unique snake_case id>", "params": {...}}` with every
+   param the entry lists (those marked `?` are optional), in mm. The plan owns every
+   dimension: the part script reads these values and holds none, so a later size
+   correction is a plan edit, never a script edit. A position the script must place a
+   feature at goes in an `interfaces[]` entry with `position_mm` (feature center) and
+   `"instance": "<id>"`; one interface per placed copy, in placement order. Add
+   `extents_mm` when it helps the thin-block check.
 
-3a. **Set `archetype`** to an index entry's `name` when the part fits its `use`; omit
-    otherwise, never force a match.
+3c. **Cosmetic edges are plan values.** A chamfer or fillet that is there for looks or
+    handling goes on the instance as `"edges": {"<edge set>": <mm>}`, using the edge sets
+    the inventory lists for that entry; it is applied at export, chamfer or fillet by its
+    direction in the print pose. Functional radii (a hook root, a bore) are block params.
+    Set a teardrop entry's `print_up` param to `"auto"`.
+
+3a. **Set `archetype`** to an index entry's `name` when the part fits its `use`, and copy
+    its instances (listed with it) into the part's `blocks_needed` with this request's
+    values; omit otherwise, never force a match.
 
 3b. **List every non-printed item in `bom`.** Screws, nuts, washers, heat-set inserts,
     magnets, bearings, springs, filament/rod pins, and adhesives each get a `bom` row
@@ -219,11 +232,11 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
     omit it when the log holds only the `initial` entry. On a re-plan carry it forward
     unchanged.
 
-## Block inventory (name and use only)
+## Block inventory (name, use, params, edge sets)
 
 {{BLOCK_INVENTORY}}
 
-## Part archetype index (name and use only)
+## Part archetype index (name, use, instances)
 
 Known-good template scripts a part can start from (rule 3a). Match by `use`, not by name.
 
@@ -273,10 +286,15 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
           "wall": "south",
           "position_mm": [10.0, 0.0, 15.0],
           "size_mm": [9.0, 3.5],
-          "clearance_mm": 0.25
+          "clearance_mm": 0.25,
+          "instance": "usb"
         }
       ],
-      "blocks_needed": [{"name": "hollow_box", "extents_mm": [50, 35, 20]}, "port_cutout"],
+      "blocks_needed": [
+        {"name": "hollow_box", "id": "shell", "params": {"w": 50, "d": 35, "h": 20, "wall": 1.2, "floor_t": 1.2},
+         "edges": {"vertical_outer": 2}},
+        {"name": "port_cutout", "id": "usb", "params": {"w": 9.5, "h": 4.0, "depth": 1.2}}
+      ],
       "archetype": "enclosure-body",
       "plate": "body",
       "pose_intent": "sits at the model origin, front face toward world -Y",
@@ -290,7 +308,9 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
       "description": "<what this part is>",
       "dimensions": {"w_mm": 50, "d_mm": 35, "h_mm": 3},
       "interfaces": [],
-      "blocks_needed": ["pin_hinge"],
+      "blocks_needed": [
+        {"name": "pin_hinge", "id": "hinge", "params": {"length": 50, "knuckles": 5, "leaf_w": 15, "leaf_t": 3}}
+      ],
       "load": {"dir": [0, 0, -1]}
     }
   ],

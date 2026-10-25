@@ -165,7 +165,7 @@ def test_render_planning_fresh_plan_lists_inventory_and_archetypes(tmp_path):
     assert status == "loaded"
     assert errors == []
     assert "a small enclosure" in text
-    assert "fillet_box" in text
+    assert "hollow_box" in text
     assert "enclosure-body" in text
     assert "Prusa MK4" in text
     assert "{{" not in text
@@ -246,4 +246,42 @@ def test_builder_prompt_has_horizontal_hole_rule(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     assert rp.main(["builder", "--plan", "BUILD_PLAN.json", "--part", "lid"]) == 0
     prompt = Path(json.loads(capsys.readouterr().out)["out"]).read_text(encoding="utf-8")
-    assert "teardrop_bore" in prompt and 'peak="down"' in prompt
+    assert "teardrop_bore" in prompt and '`"auto"`' in prompt
+    assert 'script_lint.py" --step' in prompt and 'step_worker.py" run' in prompt
+
+
+def test_audit_with_passing_step_report_drops_settled_questions(tmp_path):
+    script = tmp_path / "lid.py"
+    script.write_text("from blocks import Part\npart = Part('lid')\nresult = part.result()\n")
+    plan, part = _plan()
+    report = {"success": True, "unprobed_interfaces": ["a", "e"]}
+    settled = rp.render_audit(plan, part, script, ["preview/lid_preview.png"], report)
+    asked = rp.render_audit(plan, part, script, ["preview/lid_preview.png"])
+    assert "U1 single connected body: **settled**" in settled
+    assert "Cite a **section** crossing" in asked and "settled" not in asked
+    assert (
+        "plan probes** (do not ask presence, position or through-continuity): b, c, d." in settled
+    )
+
+
+def test_planning_inventory_lists_params_and_edge_sets():
+    lines = rp._inventory_lines(
+        [
+            {
+                "name": "box",
+                "kind": "primitive",
+                "use": "A box.",
+                "params": {"w": "mm", "h": "mm"},
+                "edge_sets": {"vertical": "x"},
+            },
+            {
+                "name": "torus",
+                "kind": "primitive",
+                "use": "A rod.",
+                "params": {"r": "mm", "angle": "deg"},
+                "optional": ["angle"],
+                "edge_sets": {},
+            },
+        ]
+    )
+    assert "Params: w, h; edges: vertical" in lines and "Params: r, angle?" in lines

@@ -1,6 +1,9 @@
 """Parametric building blocks for CadQuery models.
 
-Usage in model scripts:
+Usage in model scripts (step form; see blocks.part):
+    from blocks import Part
+
+Legacy direct calls:
     from blocks import fillet_box, hollow_box
     from blocks import pcb_standoff, screw_boss, snap_hook_clip
     from blocks import port_cutout, vent_grid, teardrop_bore
@@ -60,10 +63,29 @@ from blocks.joints import (
     shadow_gap,
     tenon,
 )
-from blocks.primitives import fillet_box, hollow_box
+from blocks.part import Part
+from blocks.primitives import (
+    box,
+    cone,
+    cylinder,
+    fillet_box,
+    hollow_box,
+    prism,
+    revolve,
+    sphere,
+    torus,
+)
 from blocks.print_frame import print_up
 
 __all__ = [
+    "Part",
+    "box",
+    "cylinder",
+    "cone",
+    "sphere",
+    "prism",
+    "revolve",
+    "torus",
     "fillet_box",
     "hollow_box",
     "screw_boss",

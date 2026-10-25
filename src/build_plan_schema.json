@@ -138,6 +138,11 @@
                   "minItems": 2,
                   "maxItems": 2,
                   "description": "Rectangular-feature [w, h] in mm (feature-presence size target)"
+                },
+                "instance": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "blocks_needed instance id this interface positions; a step script's part.positions(id) returns these position_mm values in order"
                 }
               },
               "additionalProperties": false
@@ -161,6 +166,20 @@
                       "items": {"type": "number", "exclusiveMinimum": 0},
                       "minItems": 3,
                       "maxItems": 3
+                    },
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]*$",
+                      "description": "Instance handle, unique within the part; a step script's select(name, id=...) binds to it"
+                    },
+                    "params": {
+                      "type": "object",
+                      "description": "Parameter name -> value for this instance, matching the inventory entry's params; a step script's resize() binds exactly these"
+                    },
+                    "edges": {
+                      "type": "object",
+                      "additionalProperties": {"type": "number", "exclusiveMinimum": 0},
+                      "description": "Cosmetic edge treatment: inventory edge-set name -> size in mm, applied in the print-pose finishing pass (chamfer or fillet per edge direction)"
                     }
                   }
                 }

@@ -9,8 +9,10 @@ Stages for this part: **{{STAGES}}**
   interfaces) extruded to a nominal thickness, written to `build/{{PART_ID}}_stub.py`
   and rendered with `--preview --preview-dir preview` only. Disposable: never reused as a
   later stage.
-- `base_shape`: outer body, no features. `features`: cutouts, bosses, ports, every
-  interface. `finishing`: fillets, chamfers, cleanup.
+- `base_shape`: the steps that build the outer body, no features. `features`: the steps
+  for cutouts, bosses, ports, every interface. `finishing`: no new geometry -- cosmetic
+  chamfers/fillets are plan `edges`, applied at export in the print pose; confirm the
+  run is clean and return.
 - `full`: the whole part in one run.
 
 Build the first stage and return `stage_ready` (or `passed`/`blocked` if it was the last
@@ -25,11 +27,14 @@ stage). The orchestrator resumes you with one of:
 ## Commands
 
 ```bash
-# lint (stdlib AST, milliseconds): fix every finding before validating
-uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/script_lint.py" build/{{PART_ID}}.py
+# lint (stdlib AST, milliseconds): fix every finding before running
+uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/script_lint.py" --step build/{{PART_ID}}.py
 ```
 
-Validate + render, one command per stage (only the final stage checks dimensions):
+Run, one command per stage (only the final stage checks dimensions). `step_worker.py`
+runs your step list in a warm worker, re-running only from the first changed step, and
+checks every step against the probes; when every step passes it runs the full
+validate + render command after `--` and puts that result under `full`:
 
 ```bash
 {{VALIDATE_ARGS}}
@@ -45,27 +50,36 @@ render. To pick a `--detail` `section=` position for a bore, run
 `uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/section_select.py" build/{{PART_ID}}.py`
 and use its `extra_section_args`.
 
+Snapshots (yours only, never shown to the user): `step_worker.py snapshot save <name>
+build/{{PART_ID}}.py` keeps the last passing step; `snapshot restore <name> ...` rewrites
+the script from it; `snapshot compare <a> <b> ...` diffs two of them.
+
 ## Procedure (each stage)
 
 1. **Start point** (first stage only). {{START_POINT}}
    - From a template: copy `{{SKILL_DIR}}/templates/<file>` verbatim to
-     `build/{{PART_ID}}.py`, edit its `PARAMETERS` block, apply deltas, keep its
-     `cq_verify` guards.
-   - From scratch with no blocks: open with a construction plan, one `verify_stage` per
-     stage (see the part specification).
-2. **Lint**, then **validate**.
-3. **Blocking:** `success: false`. Read each error's `hint`; do not guess from the type
-   name.
-   - `disconnected_body`: read the per-body axis ranges first. Bodies that do not overlap
-     on some axis mean one is misplaced (often an `"XZ"`/`"YZ"` workplane sign): move it
-     back and re-check every coordinate authored in that frame. Add overlap only when the
-     pieces already meet.
-4. **Retry** up to 3 validate runs per stage. Each retry is a targeted edit of what the
-   error implicates: no restructuring, no new features or guards, no restart from blank.
-5. **Rationale.** If a fix changes a parameter used in your `engineering_rationale.check`,
-   recompute the check with the new value before returning.
+     `build/{{PART_ID}}.py`, set its `Part("...")` id to `{{PART_ID}}`, apply deltas as
+     extra steps. Its sizes come from the plan, never from the script.
+   - Otherwise: write the step list from the plan's `blocks_needed` instances.
+2. **Lint**, then **run**.
+3. **A failing step** (`success: false`, `failed_step` set): fix THAT step, or restore a
+   snapshot and take a different approach -- never stack fixes on later steps. Read
+   `failing_probes` (owner `plan` = the plan's intent; a step index = that block's own
+   check) and `diff_vs_last_good`; read each error's `hint`.
+   - A plan probe failing, or a value that must change, means the plan is wrong for this
+     geometry: dimensions live in `BUILD_PLAN.json`, so you cannot fix it in the script.
+     Return `blocked` (`probe_stuck` if the report says so, else describe the plan change
+     in `error_summary`).
+   - `full` failing (`disconnected_body`, wall, dimensions): edit the steps it implicates.
+4. **Iterate** as many runs as needed: step failures do not count against you. Stop and
+   return `blocked` only when the report sets `probe_stuck: true` (reason `probe_stuck`)
+   or the geometry needs a block or primitive the inventory lacks (reason
+   `missing_block`).
+5. **Rationale.** If a plan value used in your `engineering_rationale.check` changed,
+   recompute the check before returning.
 6. **Return.** You do not judge the render; a separate auditor does. Report only states
-   seen in a tool result this run.
+   seen in a tool result this run, and save your last `step_worker.py run` output to
+   `build/{{PART_ID}}.step_report.json` for the audit.
 
 ## Return contract
 
@@ -76,6 +90,8 @@ and use its `extra_section_args`.
   "stage": "profile_stub | base_shape | features | finishing | full",
   "summary": "<one line: what this stage added or changed>",
   "attempts": 1,
+  "blocked_reason": null,
+  "step_report": "build/{{PART_ID}}.step_report.json",
   "bbox": {"...": "geometry.bbox from the last successful validate"},
   "preview_paths": ["preview/{{PART_ID}}_preview.png", "preview/{{PART_ID}}_section_x_50mm.png"],
   "placement": {"rotate": [{"axis": "X", "angle_deg": 90}], "translate_mm": [0, 0, 0]},
@@ -85,12 +101,13 @@ and use its `extra_section_args`.
 }
 ```
 
-- `attempts`: validate runs of `build/{{PART_ID}}.py` so far, all stages and fixes.
+- `attempts`: the plan revision you built against (1 unless the orchestrator resumed you
+  after a plan change); step runs are not attempts.
 - `placement` and `engineering_rationale`: required with `passed`; `null` otherwise.
   `placement` is also `null` when the authored geometry already sits in the pose intent,
   or the part is mate-chained.
-- `blocked`: 3 runs exhausted in one stage or fix; `error_summary` gives each remaining
-  error type and hint on one line each.
+- `blocked`: `blocked_reason` is `probe_stuck` or `missing_block`; `error_summary` names
+  the stuck probe (owner, kind, location, both occurrences) or the missing geometry.
 
 ---
 

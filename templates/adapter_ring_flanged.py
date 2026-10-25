@@ -1,40 +1,28 @@
 """Archetype: flanged adapter ring. A stepped cylindrical bore adapter with a flat
 mounting flange at one end, drilled with a bolt-circle pattern. Use to adapt between
 two circular fittings of different diameter (pipe couplers, lens/filter adapters,
-motor-to-shaft collars, vacuum-port reducers)."""
+motor-to-shaft collars, vacuum-port reducers).
 
-import math
+Step form: every size and position comes from this archetype's plan `part` in
+templates/archetypes.json (copied into BUILD_PLAN.json), never from the script."""
 
-import cadquery as cq
+from blocks import Part
 
-from cq_verify import verify_boolean
+part = Part("adapter_ring_flanged")
+flange = part.select("cylinder", id="flange")
+part.resize(flange)
+part.place(flange, op="base")
 
-# PARAMETERS
-bore_d = 20.0  # mm through-bore diameter (the smaller mating fitting)
-body_d = 32.0  # mm cylindrical body outer diameter (the larger mating fitting)
-body_h = 15.0  # mm cylindrical body height
-flange_d = 45.0  # mm flange outer diameter
-flange_t = 3.0  # mm flange thickness
-bolt_circle_d = 38.0  # mm bolt-circle diameter for the flange mounting holes
-bolt_hole_d = 3.4  # mm mounting hole clearance diameter (M3)
-bolt_count = 4  # count of mounting holes evenly spaced on the bolt circle
+body = part.select("cylinder", id="body")
+part.resize(body)
+part.place(body, op="union")
 
-body = cq.Workplane("XY").circle(body_d / 2).extrude(body_h)
-flange = cq.Workplane("XY").circle(flange_d / 2).extrude(flange_t)
-ring = verify_boolean(flange, flange.union(body), "union", "body_on_flange")
+bore = part.select("cylinder", id="bore")
+part.resize(bore)
+part.place(bore, op="cut")
 
-bore = cq.Workplane("XY").circle(bore_d / 2).extrude(body_h + flange_t)
-ring = verify_boolean(ring, ring.cut(bore), "cut", "through_bore")
+bolt = part.select("cylinder", id="bolt")
+part.resize(bolt)
+part.place(bolt, at=[(x, y, 0) for x, y, _ in part.positions("bolt")], op="cut")
 
-bolt_r = bolt_circle_d / 2
-bolt_positions = [
-    (
-        bolt_r * math.cos(2 * math.pi * i / bolt_count),
-        bolt_r * math.sin(2 * math.pi * i / bolt_count),
-    )
-    for i in range(bolt_count)
-]
-bolt_holes = cq.Workplane("XY").pushPoints(bolt_positions).circle(bolt_hole_d / 2).extrude(flange_t)
-ring = verify_boolean(ring, ring.cut(bolt_holes), "cut", "bolt_circle")
-
-result = ring
+result = part.result()

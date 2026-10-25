@@ -286,19 +286,55 @@ def test_hook_noop_on_malformed_payload(monkeypatch):
 
 
 def test_record_attempt_numbers_attempts_and_skips_stubs(tmp_path):
+    """Runs within one plan revision share an attempt; a correction targeting the part
+    starts the next one."""
     attempts_log = tmp_path / "build" / "attempts.jsonl"
     attempts_log.parent.mkdir()
     (attempts_log.parent / "lid_prompt.txt").write_text("x" * 42, encoding="utf-8")
+    plan_path = tmp_path / "BUILD_PLAN.json"
+    plan: dict = {"request_log": [{"ts": "t0", "kind": "initial", "text": "a lid"}]}
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
     fail = {"success": False, "errors": [{"type": "occ_exception"}]}
     log.record_attempt(attempts_log, "lid", fail, "claude-sonnet-5")
+    log.record_attempt(attempts_log, "lid", {"success": True, "errors": []}, "claude-sonnet-5")
+    plan["request_log"] += [
+        {"ts": "t1", "kind": "correction", "text": "thicker", "targets": ["lid.wall"]},
+        {"ts": "t2", "kind": "correction", "text": "base", "targets": ["base"]},
+    ]
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
     log.record_attempt(attempts_log, "lid", {"success": True, "errors": []}, "claude-sonnet-5")
     log.record_attempt(attempts_log, "lid_stub", {"success": True, "errors": []}, "claude-sonnet-5")
     records = [json.loads(line) for line in attempts_log.read_text(encoding="utf-8").splitlines()]
     assert [(r["attempt"], r["outcome"], r["prompt_chars"]) for r in records] == [
         (1, "fail", 42),
+        (1, "pass", 42),
         (2, "pass", 42),
     ]
     assert records[0]["error_types"] == ["occ_exception"]
+    assert [r["attempt"] for r in log.fold_attempts(records)] == [1, 2]
+
+
+def test_record_attempt_counts_step_runs_of_the_attempt(tmp_path):
+    build = tmp_path / "build"
+    build.mkdir()
+    (build / "lid_prompt.txt").write_text("x", encoding="utf-8")
+    runs = [{"event": "run", "ok": False, "attempt": 1}] * 5 + [
+        {"event": "fail", "probes": [], "content": "x"},
+        {"event": "run", "ok": True, "attempt": 1},
+        {"event": "run", "ok": True, "attempt": 2},
+    ]
+    (build / "lid.steps.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in runs), encoding="utf-8"
+    )
+    log.record_attempt(build / "attempts.jsonl", "lid", {"success": True, "errors": []}, "m")
+    record = json.loads((build / "attempts.jsonl").read_text(encoding="utf-8"))
+    assert (record["attempt"], record["outcome"], record["step_runs"]) == (1, "pass", 6)
+
+
+def test_untargeted_correction_revises_every_part():
+    plan = {"request_log": [{"kind": "initial"}, {"kind": "clarification", "text": "x"}]}
+    assert log.plan_revision(plan, "lid") == 2
+    assert log.plan_revision(None, "lid") == 1
 
 
 def test_audit_fail_appends_derived_record(tmp_path, monkeypatch):
@@ -505,7 +541,7 @@ def _minimal_plan(request_log=None):
                 "description": "Main bracket",
                 "dimensions": {"w_mm": 40, "d_mm": 30, "h_mm": 10},
                 "interfaces": [],
-                "blocks_needed": ["fillet_box"],
+                "blocks_needed": ["box"],
             }
         ],
         "constraints": {

@@ -21,7 +21,7 @@
         }
       ],
       "blocks_needed": [
-        "fillet_box"
+        "box"
       ],
       "engineering_rationale": "no load-bearing features (locating lip is a sliding fit, no sustained load)"
     }
