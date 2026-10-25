@@ -11,6 +11,10 @@ per-attempt telemetry log, and a plan's request_log.
     python log.py request add BUILD_PLAN.json --kind correction \
         --text "widen the hinge pin hole" --level parameter --target cradle
 
+An attempt is a plan revision of a part (attempt 1 = the initial plan, +1 per
+`request_log` entry targeting it); step-worker runs inside it are counted as
+`step_runs` from ``build/<part>.steps.jsonl``, not as attempts.
+
 `--hook` (no subcommand) is the ``PostToolUse`` hook entry point wired by
 ``init_permissions.py``: it observes each ``run_cadquery_model.py`` call and appends
 the base attempt record itself.
@@ -71,6 +75,10 @@ def validate_attempt(record: dict) -> list[str]:
         isinstance(e, str) for e in record["error_types"]
     ):
         problems.append("field 'error_types' must contain only strings")
+    if "step_runs" in record and (
+        not isinstance(record["step_runs"], int) or isinstance(record["step_runs"], bool)
+    ):
+        problems.append("field 'step_runs' must be int")
     if "visual_review" not in record:
         problems.append("missing required field 'visual_review' (object or null)")
     elif record["visual_review"] is not None:
@@ -198,13 +206,41 @@ def _prompt_chars(build_dir: Path, part_id: str, attempt: int) -> int | None:
     return None
 
 
+def plan_revision(plan: dict | None, part_id: str) -> int:
+    """Attempt number for part_id: 1 + the non-initial request_log entries that target it
+    (by part id or `part.feature`); an entry with no `targets` revises every part."""
+    revisions = 0
+    for entry in (plan or {}).get("request_log", []):
+        if entry.get("kind") == "initial":
+            continue
+        targets = entry.get("targets")
+        if not targets or any(t == part_id or t.startswith(f"{part_id}.") for t in targets):
+            revisions += 1
+    return 1 + revisions
+
+
+def load_project_plan(build_dir: Path) -> dict | None:
+    """The project's BUILD_PLAN.json next to build/, or None."""
+    path = build_dir.parent / "BUILD_PLAN.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def step_runs(build_dir: Path, part_id: str, attempt: int) -> int:
+    """Step-worker runs of part_id logged in its steps.jsonl during this attempt."""
+    events = _read_records(build_dir / f"{part_id}.steps.jsonl")
+    return sum(1 for e in events if e.get("event") == "run" and e.get("attempt") == attempt)
+
+
 def record_attempt(attempts_log: Path, part_id: str, result: dict, model: str | None) -> None:
     """Append the base record for one run_cadquery_model.py result; skips stubs and
     records missing a required field (fail-open, like the hook)."""
     if part_id.endswith("_stub"):
         return
-    existing = [r for r in _read_records(attempts_log) if r.get("part_id") == part_id]
-    attempt = len(fold_attempts(existing)) + 1
+    build_dir = attempts_log.parent
+    attempt = plan_revision(load_project_plan(build_dir), part_id)
     record: dict = {
         "part_id": part_id,
         "attempt": attempt,
@@ -213,6 +249,7 @@ def record_attempt(attempts_log: Path, part_id: str, result: dict, model: str | 
             e.get("type") for e in result.get("errors", []) if isinstance(e, dict) and e.get("type")
         ],
         "visual_review": None,
+        "step_runs": step_runs(build_dir, part_id, attempt),
     }
     if model:
         record["model"] = model

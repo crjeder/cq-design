@@ -51,9 +51,9 @@
 
 ## 7. Telemetry
 
-- [ ] 7.1 `log.py` / `run_cadquery_model.py --attempts-log`: attempt number = plan revision count for the part, `step_runs` field
-- [ ] 7.2 Update eval scorecard attempt counting in `evals/` to the new meaning
-- [ ] 7.3 Tests for attempt numbering across a plan change and for `step_runs`
+- [x] 7.1 `log.py` / `run_cadquery_model.py --attempts-log`: attempt number = plan revision count for the part, `step_runs` field
+- [x] 7.2 Update eval scorecard attempt counting in `evals/` to the new meaning
+- [x] 7.3 Tests for attempt numbering across a plan change and for `step_runs`
 
 ## 8. Prompts and orchestration
 
