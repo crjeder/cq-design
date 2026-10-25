@@ -3,9 +3,7 @@
 ## Purpose
 
 Defines requirements for the planning phase: the prompt that produces `BUILD_PLAN.json` and the schema that file must conform to.
-
 ## Requirements
-
 ### Requirement: Planning prompt produces structured BUILD_PLAN
 The system SHALL provide a `prompts/planning.md` prompt that, when invoked with a user's model description and rendered with `{{USER_REQUEST}}`, `{{BLOCK_INVENTORY}}`, `{{ARCHETYPE_INDEX}}`, `{{FDM_GUIDELINES}}`, and `{{PRINTER_PROFILE}}`, produces a valid `BUILD_PLAN.json` file conforming to the defined schema. All placeholder substitution SHALL be performed by `src/render_prompt.py planning` before invoking the LLM (see `planner-research-prompt-rendering` spec), not by hand in the main session and not by `orchestrate.py`.
 
@@ -735,3 +733,15 @@ and SHALL NOT contain round-by-round build history, dated "ROUND N" narrative, o
 - **WHEN** a correction changes a decision recorded in `planning_notes`
 - **THEN** the field states the decision as it now stands, without a
   "changed from X to Y this session" narrative
+
+### Requirement: Planner compression-load instruction yields a schema-valid load
+The planning prompt (`prompts/planning.md`, rule 10) SHALL instruct the planner to declare a resting/compressive part (base, plinth, foot, gasket, shim) or a non-load-bearing flat cover/panel as `load: {"dir": [0, 0, -1], "type": "compression"}`, so the emitted `load` satisfies `build_plan_schema.json`'s `required: ["dir"]`. The prompt SHALL state that the direction is ignored for strength scoring when the type is `compression`.
+
+#### Scenario: Compression part passes plan validation
+- **WHEN** the planner follows rule 10 for a base or flat cover
+- **THEN** the part's `load` carries both `dir` and `type: "compression"` and plan validation reports no missing-`dir` error
+
+#### Scenario: Prompt never shows a dir-less load
+- **WHEN** `prompts/planning.md` is rendered
+- **THEN** no instruction or example shows `load.type: "compression"` without an accompanying `dir`
+

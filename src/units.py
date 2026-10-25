@@ -156,10 +156,56 @@ def bbox_envelope(
 
 
 def plate_of(part: dict, union_id: str, union: dict | None = None) -> str:
-    """Plate for a union: its own `plate`, else the part's `plate`, else the union id."""
+    """Plate for a union: its own `plate`, else the part's, else its `object`, else its id."""
     if union is not None and union.get("plate"):
         return union["plate"]
-    return part.get("plate") or union_id
+    return part.get("plate") or (union or {}).get("object") or union_id
+
+
+_DEFAULT_COLORS = {
+    "PLA": "#D9D9D9",
+    "PETG": "#9FC5E8",
+    "ABS": "#E6E6E6",
+    "ASA": "#CFCFCF",
+    "TPU": "#222222",
+    "PA": "#F3E5AB",
+    "PC": "#F2F2F2",
+    "PVA": "#FFE599",
+    "HIPS": "#F9F9F9",
+}
+
+
+def material_of(plan: dict, part: dict, union: dict | None = None) -> str:
+    """Material for a union: its own `material`, else the part's, else the plan's."""
+    return (union or {}).get("material") or part.get("material") or plan.get("material", "PLA")
+
+
+def color_of(plan: dict, part: dict, union: dict | None = None) -> str:
+    """Color for a union: its own `color`, else the part's, else one derived from its material."""
+    return (
+        (union or {}).get("color")
+        or part.get("color")
+        or _DEFAULT_COLORS.get(material_of(plan, part, union), "#D9D9D9")
+    ).upper()
+
+
+def union_materials(plan: dict) -> dict[str, tuple[str, str]]:
+    """Union id -> ``(material, color)`` in plan order."""
+    out: dict[str, tuple[str, str]] = {}
+    for part in plan.get("parts", []):
+        for u in part.get("unions") or [None]:
+            uid = u["id"] if u else part["id"]
+            out[uid] = (material_of(plan, part, u), color_of(plan, part, u))
+    return out
+
+
+def assign_slots(plan: dict) -> dict[str, int]:
+    """Union id -> 1-based filament slot; distinct (material, color) pairs are numbered in
+    order of first appearance."""
+    slots: dict[tuple[str, str], int] = {}
+    return {
+        uid: slots.setdefault(pair, len(slots) + 1) for uid, pair in union_materials(plan).items()
+    }
 
 
 def is_copy(part: dict) -> bool:
@@ -184,6 +230,24 @@ def iter_unions(plan: dict) -> list[tuple[dict, str, str]]:
             pid = part["id"]
             out.append((part, pid, plate_of(part, pid)))
     return out
+
+
+def union_entries(plan: dict) -> dict[str, dict]:
+    """Union id -> its declared `unions[]` entry (`{}` for a part's implicit single union)."""
+    out: dict[str, dict] = {}
+    for part in plan.get("parts", []):
+        for u in part.get("unions") or [{"id": part["id"]}]:
+            out[u["id"]] = u
+    return out
+
+
+def object_groups(plan: dict) -> dict[str, list[str]]:
+    """Slicer-object id -> member union ids in plan order, for unions declaring `object`."""
+    groups: dict[str, list[str]] = {}
+    for uid, entry in union_entries(plan).items():
+        if entry.get("object"):
+            groups.setdefault(entry["object"], []).append(uid)
+    return groups
 
 
 def resolve_unions(part: dict, result: Any) -> list[tuple[str, Any]]:
