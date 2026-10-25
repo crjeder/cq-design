@@ -15,21 +15,25 @@ shape before passing it in).
 """
 
 import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import numpy as np
 
 _CORE = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
-_MATERIAL_NS = "http://schemas.microsoft.com/3dmanufacturing/material/2015/02"
 _REL_3DMODEL = "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"
 
 # Bambu/OrcaSlicer's importer (bbs_3mf.cpp) only sets its internal m_is_bbl_3mf flag --
-# and therefore only honors Metadata/model_settings.config's <plate>/<model_instance>
-# plate assignments -- when the model's top-level Application metadata starts with
-# "BambuStudio-" or "OrcaSlicer-". Without it, the file is treated as a "3rd party"
-# 3MF: plate metadata is parsed but never applied, so every object lands on plate 1.
-_GENERATOR_APPLICATION = "OrcaSlicer-2.3.0"
+# and therefore only honors Metadata/model_settings.config's plate and extruder
+# assignments -- when the model's top-level Application metadata starts with a known
+# prefix: OrcaSlicer accepts "BambuStudio-" or "OrcaSlicer-", Snapmaker Orca only
+# "BambuStudio-" or "Snapmaker_Orca-". Without it, the file is treated as a "3rd party"
+# 3MF: the config is parsed but never applied, so every object lands on plate 1. The
+# version is a released Bambu Studio at or below 2.3.2, which Orca's loader treats as a
+# compatible older project (no newer-version warning).
+_GENERATOR_APPLICATION = "BambuStudio-01.10.00.00"
+_PRODUCTION_NS = "http://schemas.microsoft.com/3dmanufacturing/production/2015/06"
 
 _RELS = (
     '<?xml version="1.0" encoding="UTF-8"?>'
@@ -83,11 +87,8 @@ def _add_object(
     shape: Any,
     tolerance: float,
     angular_tolerance: float,
-    color_pindex: int | None = None,
 ) -> int:
     """Append one named <object>, welding tessellation vertices before writing.
-
-    A `color_pindex` references that entry of the `m:colorgroup` (id 1) the caller wrote.
 
     A `plate` of None omits the plate metadata (single-object exports have no
     plate grouping). The mesh body is pre-serialised into `fragments` (spliced in
@@ -97,9 +98,6 @@ def _add_object(
     verts, tris = shape.tessellate(tolerance, angular_tolerance)
     verts, tris = _weld(verts, tris)
     obj = ET.SubElement(resources, "object", id=obj_id, name=name, type="model")
-    if color_pindex is not None:
-        obj.set("pid", _COLOR_GROUP_ID)
-        obj.set("pindex", str(color_pindex))
     if plate is not None:
         meta_group = ET.SubElement(obj, "metadatagroup")
         ET.SubElement(meta_group, "metadata", name="plate").text = plate
@@ -111,11 +109,9 @@ def _add_object(
     return _nonmanifold_edges(tris)
 
 
-_COLOR_GROUP_ID = "1000"
-
-
 def _model_settings_config(
-    plate_assignments: list[tuple[str, str]], extruders: dict[str, int] | None = None
+    plate_assignments: list[tuple[str, str]],
+    object_parts: dict[str, tuple[str, list[tuple[str, str, int | None]]]] | None = None,
 ) -> bytes:
     """Build `Metadata/model_settings.config` assigning objects to slicer plates.
 
@@ -127,11 +123,15 @@ def _model_settings_config(
     `3D/3dmodel.model`. `instance_id` is always `0` (we never emit more than one
     instance of an object).
 
+    `object_parts` maps a component object's id to `(name, [(sub_id, part_name,
+    filament), ...])`. Each becomes an `<object>` with one `<part>` per component; the
+    importer builds the object's volumes from exactly these parts, so every component
+    must be listed. A part's `extruder` overrides the object's, which is the first
+    member's filament (the importer drops a single volume's own extruder and reads the
+    object's). A `None` filament writes no `extruder` key.
+
     Args:
         plate_assignments: list of (object_id, plate_id) in object order.
-        extruders: object_id -> 1-based filament slot, written as the object-level
-            `extruder` metadata key (what Bambu Studio's exporter writes from
-            `ModelObject::config`). Omitted for single-material models.
     """
     plate_order: list[str] = []
     for _obj_id, plate in plate_assignments:
@@ -139,9 +139,17 @@ def _model_settings_config(
             plate_order.append(plate)
 
     config = ET.Element("config")
-    for obj_id, slot in (extruders or {}).items():
+    for obj_id, (name, parts) in (object_parts or {}).items():
         obj_el = ET.SubElement(config, "object", id=obj_id)
-        ET.SubElement(obj_el, "metadata", key="extruder", value=str(slot))
+        ET.SubElement(obj_el, "metadata", key="name", value=name)
+        first = next((f for _sub, _name, f in parts if f is not None), None)
+        if first is not None:
+            ET.SubElement(obj_el, "metadata", key="extruder", value=str(first))
+        for sub_id, part_name, filament in parts:
+            part_el = ET.SubElement(obj_el, "part", id=sub_id, subtype="normal_part")
+            ET.SubElement(part_el, "metadata", key="name", value=part_name)
+            if filament is not None:
+                ET.SubElement(part_el, "metadata", key="extruder", value=str(filament))
     for plate_index, plate in enumerate(plate_order, start=1):
         plate_el = ET.SubElement(config, "plate")
         ET.SubElement(plate_el, "metadata", key="plater_id", value=str(plate_index))
@@ -158,17 +166,21 @@ def _model_settings_config(
 
 
 def write_named_3mf(
-    objects: list[tuple],
+    objects: Sequence[tuple[str, str, Sequence[tuple[str, Any, int | None]]]],
     path: str,
     tolerance: float | None = None,
     angular_tolerance: float | None = None,
 ) -> int:
-    """Write a 3MF with one named object per union, grouped onto slicer plates.
+    """Write a 3MF with one named object per entry, grouped onto slicer plates.
+
+    An object with one body and no filament is an inline mesh. Any other object (several
+    bodies, or a filament slot) uses the Bambu project layout: each body's mesh in its own
+    `3D/Objects/object_<id>.model` (3MF production extension, `p:path`), a root object of
+    `<components>`, and a per-part `extruder` in `Metadata/model_settings.config`.
 
     Args:
-        objects: list of (union_name, plate_id, cq_shape) or, for a multi-material model,
-            (union_name, plate_id, cq_shape, (slot, "#RRGGBB")); every object must then
-            carry the 4th element. Slot is the 1-based filament slot.
+        objects: list of (object_name, plate_id, bodies), each body a
+            (body_name, cq_shape, filament or None), all in the same pose
         path: output .3mf path
         tolerance: linear tessellation tolerance in mm; defaults to
             `mesh_io.EXPORT_TESSELLATION_TOLERANCE_MM`
@@ -189,39 +201,62 @@ def write_named_3mf(
     resources = ET.SubElement(model, "resources")
     build = ET.SubElement(model, "build")
 
-    multi = bool(objects) and len(objects[0]) == 4
-    extruders: dict[str, int] = {}
-    slot_colors: dict[int, str] = {}
-    if multi:
-        # Bambu Studio reads the 3MF materials extension (m:colorgroup / m:color), not
-        # <basematerials>. One entry per slot (pindex = slot - 1); Bambu numbers extruders
-        # by distinct color, so slots sharing a color rely on the explicit extruder key.
-        model.set("xmlns:m", _MATERIAL_NS)
-        group = ET.SubElement(resources, "m:colorgroup", id=_COLOR_GROUP_ID)
-        slot_colors.update({slot: color for *_head, (slot, color) in objects})
-        for slot in sorted(slot_colors):
-            ET.SubElement(group, "m:color", color=f"{slot_colors[slot]}FF")
-
     plate_assignments: list[tuple[str, str]] = []
+    object_parts: dict[str, tuple[str, list[tuple[str, str, int | None]]]] = {}
+    sub_models: dict[str, ET.Element] = {}
     fragments: dict[str, str] = {}
     nonmanifold = 0
-    for i, (name, plate, shape, *material) in enumerate(objects):
-        obj_id = str(i + 1)
-        pindex = None
-        if material:
-            slot, _color = material[0]
-            extruders[obj_id] = slot
-            pindex = sorted(slot_colors).index(slot)
-        nonmanifold += _add_object(
-            resources, fragments, obj_id, name, plate, shape, tolerance, angular_tolerance, pindex
-        )
+    next_id = 1
+    for name, plate, bodies in objects:
+        if len(bodies) == 1 and bodies[0][2] is None:
+            obj_id = str(next_id)
+            next_id += 1
+            shape = bodies[0][1]
+            nonmanifold += _add_object(
+                resources, fragments, obj_id, name, plate, shape, tolerance, angular_tolerance
+            )
+        else:
+            parts = []
+            for body_name, shape, filament in bodies:
+                sub_id = str(next_id)
+                next_id += 1
+                sub_model = ET.Element("model", {"unit": "millimeter", "xmlns": _CORE})
+                sub_resources = ET.SubElement(sub_model, "resources")
+                nonmanifold += _add_object(
+                    sub_resources,
+                    fragments,
+                    sub_id,
+                    body_name,
+                    None,
+                    shape,
+                    tolerance,
+                    angular_tolerance,
+                )
+                sub_models[f"/3D/Objects/object_{sub_id}.model"] = sub_model
+                parts.append((sub_id, body_name, filament))
+            obj_id = str(next_id)
+            next_id += 1
+            obj = ET.SubElement(resources, "object", id=obj_id, name=name, type="model")
+            meta_group = ET.SubElement(obj, "metadatagroup")
+            ET.SubElement(meta_group, "metadata", name="plate").text = plate
+            components = ET.SubElement(obj, "components")
+            for sub_id, _name, _filament in parts:
+                ET.SubElement(
+                    components,
+                    "component",
+                    {"p:path": f"/3D/Objects/object_{sub_id}.model", "objectid": sub_id},
+                )
+            object_parts[obj_id] = (name, parts)
         ET.SubElement(build, "item", objectid=obj_id)
         plate_assignments.append((obj_id, plate))
 
+    if sub_models:
+        model.set("xmlns:p", _PRODUCTION_NS)
+        model.set("requiredextensions", "p")
     extra_files = {
-        "Metadata/model_settings.config": _model_settings_config(plate_assignments, extruders)
+        "Metadata/model_settings.config": _model_settings_config(plate_assignments, object_parts)
     }
-    _write_zip(model, path, fragments, extra_files)
+    _write_zip(model, path, fragments, extra_files, sub_models)
     return nonmanifold
 
 
@@ -262,6 +297,7 @@ def _write_zip(
     path: str,
     fragments: dict[str, str],
     extra_files: dict[str, bytes] | None = None,
+    sub_models: dict[str, ET.Element] | None = None,
 ) -> None:
     """Pack a model element into a minimal 3MF OPC container.
 
@@ -271,15 +307,36 @@ def _write_zip(
     written verbatim; BambuStudio/OrcaSlicer locate their proprietary metadata files
     by fixed path during zip iteration, not via OPC relationships, so no `.rels` or
     `[Content_Types].xml` entry is required for them.
+
+    `sub_models` maps a `/3D/Objects/...` part path to its model element. The importer
+    discovers them only through `3D/_rels/3dmodel.model.rels`, whose targets must equal
+    the components' `p:path` exactly.
     """
-    text = ET.tostring(model, xml_declaration=True, encoding="utf-8").decode("utf-8")
-    for token, body in fragments.items():
-        text = text.replace(token, body)
-    xml = text.encode("utf-8")
+
+    def _serialize(element: ET.Element) -> bytes:
+        text = ET.tostring(element, xml_declaration=True, encoding="utf-8").decode("utf-8")
+        for token, body in fragments.items():
+            if token in text:
+                text = text.replace(token, body)
+        return text.encode("utf-8")
+
     with ZipFile(path, "w", ZIP_DEFLATED) as zf:
         zf.writestr("_rels/.rels", _RELS)
         zf.writestr("[Content_Types].xml", _CONTENT_TYPES)
-        zf.writestr("3D/3dmodel.model", xml)
+        zf.writestr("3D/3dmodel.model", _serialize(model))
+        if sub_models:
+            rels = "".join(
+                f'<Relationship Target="{target}" Id="rel{i}" Type="{_REL_3DMODEL}"/>'
+                for i, target in enumerate(sub_models, start=1)
+            )
+            zf.writestr(
+                "3D/_rels/3dmodel.model.rels",
+                '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns='
+                f'"http://schemas.openxmlformats.org/package/2006/relationships">{rels}'
+                "</Relationships>",
+            )
+            for target, element in sub_models.items():
+                zf.writestr(target.lstrip("/"), _serialize(element))
         for name, data in (extra_files or {}).items():
             zf.writestr(name, data)
 

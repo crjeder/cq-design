@@ -43,7 +43,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     feature_presence_check.py # Per-part interfaces[] position assertion
     placement.py             # Assembly-pose placement helper (cq + trimesh)
     mate_chain.py            # Derived pose along a `joints` mate chain from root_part
-    units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out); per-union material/color/slot resolution
+    units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
     write_assembly.py        # Assembly writer: assembled-pose per-union + keep-out-zone STLs + manifest (the checks' input); assemble() poses unions
     deliverables.py          # User-facing files, all in print pose: named 3MF, per-union/plate STL, STEP/OBJ/IGES/SCAD (called by build.py)
@@ -85,7 +85,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     exporters/
       __init__.py            # run_exporters(script, formats, output_dir)
       stl.py step.py threemf.py obj.py iges.py scad.py
-      threemf_multi.py       # Multi-object 3MF writer (named unions + plate metadata; color + extruder per object when multi-material)
+      threemf_multi.py       # Multi-object 3MF writer (named unions, multi-body objects, plate + extruder metadata)
 
   evals/
     cases/<case>/        # request.md, golden BUILD_PLAN.json, golden/*.stl, case.json
@@ -93,6 +93,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
     generate_goldens.py  # Regenerates the golden STLs
     import_external_corpus.py # Manual: imports a filtered/sampled slice of a local external
                           # text->CadQuery corpus snapshot into evals/cases/
+    cadprompt_bench.py   # External benchmark: delivers cadprompt/parts/*.py, scores vs local CADPrompt
+    cadprompt/           # parts/p<id>.py (one script per selected prompt), sample_run.md
     cadgenbench_run.py   # CADGenBench: fetch fixtures, generate output.step, sanity-check, zip
     README.md            # Eval-runner contract (scoring, cost sources, --generate)
 
@@ -135,6 +137,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_log.py                      # Journal/attempt/request_log helpers + CLI -- fast, no CadQuery
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
+    test_cadprompt_bench.py          # CADPrompt scoring (normalize/ICP/Chamfer/IoU) -- no CadQuery
     test_cadgenbench_run.py          # CADGenBench canonical pose + zip packaging (CadQuery)
     test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims

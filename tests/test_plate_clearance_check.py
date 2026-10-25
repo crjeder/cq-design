@@ -56,6 +56,28 @@ def test_multi_union_part_co_plated_unions_flagged(tmp_path):
 # ---- 3.1 pair below threshold flagged ----------------------------------------
 
 
+def _object_plan(tmp_path, cx):
+    """Two unions of one part in slicer object 'knob'; box B centred at (cx, 0, 0)."""
+    box_stl(tmp_path / "body.stl", (0, 0, 0))
+    box_stl(tmp_path / "ring.stl", (cx, 0, 0))
+    unions = [{"id": "body", "object": "knob"}, {"id": "ring", "object": "knob"}]
+    return _plan([{"id": "knob_part", "unions": unions}])
+
+
+def test_touching_object_members_pass(tmp_path):
+    issues = run_plate_clearance_check(_object_plan(tmp_path, 10.0), str(tmp_path))
+    assert [i for i in issues if i["severity"] == "error"] == []
+
+
+def test_overlapping_object_members_flagged(tmp_path):
+    issues = run_plate_clearance_check(_object_plan(tmp_path, 8.0), str(tmp_path))
+    (issue,) = [i for i in issues if i["severity"] == "error"]
+    assert issue["type"] == "object_member_overlap"
+    assert issue["severity"] == "error"
+    assert issue["object"] == "knob"
+    assert issue["overlap_mm3"] == pytest.approx(200.0, rel=0.01)
+
+
 def test_pair_below_threshold_flagged(tmp_path):
     plan = _two_on_one_plate(tmp_path, cx=10.1)  # gap 0.1 < 0.2
     issues = run_plate_clearance_check(plan, str(tmp_path))
