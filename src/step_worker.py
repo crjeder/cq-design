@@ -124,9 +124,20 @@ def _check_stuck(script: Path, failing: list[dict], content: str) -> list[dict]:
     return stuck
 
 
+def _log_run(script: Path, part_id: str, ok: bool) -> None:
+    """Append this run to steps.jsonl under the part's current attempt (plan revision)."""
+    from log import load_project_plan, plan_revision
+
+    attempt = plan_revision(load_project_plan(script.parent), part_id)
+    with _history(script).open("a", encoding="utf-8") as f:
+        record = {"event": "run", "ok": ok, "attempt": attempt, "ts": time.time()}
+        f.write(json.dumps(record) + "\n")
+
+
 def run_steps(script: Path, cache: dict | None) -> dict:
     """Execute the step list and build the report (no full tier)."""
     part, error = _execute(script, cache)
+    _log_run(script, getattr(part, "id", script.stem), error is None)
     steps = list(getattr(part, "steps", []))
     failed = next((s for s in steps if not s.get("ok", True)), None)
     report: dict = {
