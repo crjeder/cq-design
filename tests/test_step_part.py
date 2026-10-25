@@ -135,7 +135,7 @@ def test_part_matches_hand_built_workplane(plan):
         .box(40, 30, 4, centered=(True, True, False))
         .union(cq.Workplane("XY").circle(4).extrude(6).faces(">Z").hole(3.2).translate((10, 5, 4)))
     )
-    assert result.val().Volume() == pytest.approx(hand.val().Volume(), rel=1e-6)
+    assert result.findSolid().Volume() == pytest.approx(hand.findSolid().Volume(), rel=1e-6)
     assert result.val().BoundingBox().zmax == pytest.approx(10)
     assert [s["kind"] for s in part.steps] == [
         "select",
@@ -153,7 +153,7 @@ def test_boss_probes_follow_placement(plan):
     plan()
     part, _ = _build()
     bore = [p for p in part.registry.probes if p.label == "bore"]
-    assert bore[0].p == pytest.approx((10, 5, 7))
+    assert bore[0].p == pytest.approx((10, 5, 8.5))
 
 
 def test_select_missing_instance_names_planned_ids(plan):
@@ -177,20 +177,37 @@ def test_floating_union_fails_on_solid_count(plan):
 
 
 def test_union_filling_a_plan_bore_fails(plan):
-    plan(
-        interfaces=[
-            {"type": "screw_mount", "name": "m1", "position_mm": [10, 5, 7], "diameter_mm": 3.2}
-        ]
-    )
-    _build()  # the boss bore is open at the plan position
+    plug = {"name": "cylinder", "id": "plug", "params": {"d": 3, "h": 6}}
+    m1 = {
+        "type": "screw_mount",
+        "name": "m1",
+        "instance": "boss",
+        "position_mm": [10, 5, 8.5],
+        "diameter_mm": 3.2,
+    }
+    plan(blocks=[PLATE, BOSS, plug], interfaces=[m1])
+    part = Part("plate")
+    plate = part.select("box", id="plate")
+    part.resize(plate)
+    part.place(plate, op="base")  # m1 is not armed until the boss step
+    boss = part.select("screw_boss", id="boss")
+    part.resize(boss)
+    part.place(boss, at=(10, 5, 4), op="union")
+    filler = part.select("cylinder", id="plug")
+    part.resize(filler)
+    with pytest.raises(RuntimeError, match="probe_failed.*m1"):
+        part.place(filler, at=(10, 5, 4), op="union")
+
+
+def test_plan_probe_without_instance_is_checked_at_result(plan):
+    m1 = {"type": "screw_mount", "name": "m1", "position_mm": [0, 0, 2], "diameter_mm": 3}
+    plan(blocks=[PLATE], interfaces=[m1])
     part = Part("plate")
     plate = part.select("box", id="plate")
     part.resize(plate)
     part.place(plate, op="base")
-    plug = part.select("box", id="plate")
-    part.resize(plug)
     with pytest.raises(RuntimeError, match="probe_failed.*m1"):
-        part.place(plug, at=(10, 5, 4), op="union")
+        part.result()
 
 
 def test_cut_retires_overlapped_block_probe(plan):

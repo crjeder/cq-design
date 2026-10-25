@@ -1,29 +1,23 @@
 """Archetype: phone/tablet stand. A wedge-shaped base with a flat vertical back section
 and a sloped front ramp, with a slot cut into the flat back section that holds a flat
 device at a fixed viewing angle. Use for phone stands, tablet stands, and card/photo
-holders."""
+holders.
 
-import cadquery as cq
+Step form: every size and position comes from this archetype's plan `part` in
+templates/archetypes.json (copied into BUILD_PLAN.json), never from the script."""
 
-from cq_verify import verify_boolean
+from blocks import Part
 
-# PARAMETERS
-base_w = 80.0  # mm base width (X)
-base_d = 70.0  # mm base footprint depth (Y), back edge to front edge
-base_h = 45.0  # mm base height at the back (Z)
-back_flat_w = 20.0  # mm depth of the flat vertical back section that holds the slot
-slot_w = 74.0  # mm slot width (X), slightly less than base_w
-slot_gap = 6.0  # mm slot opening width (device thickness + clearance)
-slot_depth = 15.0  # mm how far the slot cuts down into the back section from the top
+part = Part("stand")
+# YZ wedge profile extruded along X, centered on X.
+wedge = part.select("prism", id="wedge")
+part.resize(wedge)
+part.place(wedge, at=(-part.param("wedge", "h") / 2, 0, 0), rotate=(90, 0, 90), op="base")
 
-wedge_pts = [(0, 0), (base_d, 0), (back_flat_w, base_h), (0, base_h)]
-wedge = cq.Workplane("YZ").polyline(wedge_pts).close().extrude(base_w / 2, both=True)
+# The slot box overshoots the top by 1 mm; its planned position is the cut's center.
+slot = part.select("box", id="slot")
+part.resize(slot)
+x, y, z = part.positions("slot")[0]
+part.place(slot, at=(x, y, z - part.param("slot", "h") / 2 + 0.5), op="cut")
 
-slot_y_center = back_flat_w / 2
-slot = (
-    cq.Workplane("XY")
-    .workplane(offset=base_h - slot_depth)
-    .transformed(offset=(0, slot_y_center, 0))
-    .box(slot_w, slot_gap, slot_depth + 1, centered=(True, True, False))
-)
-result = verify_boolean(wedge, wedge.cut(slot), "cut", "device_slot")
+result = part.result()

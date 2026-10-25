@@ -78,6 +78,8 @@ class Probe:
     sign: int | None = None
     owner: str | int = "plan"
     label: str = ""
+    # Plan probes only: the blocks_needed instance whose place step builds the feature.
+    instance: str | None = None
 
     def key(self) -> tuple:
         """Identity for failure history: (owner, kind, rounded location)."""
@@ -164,6 +166,7 @@ def _extents(shape):
 def evaluate(probe: Probe, shape) -> tuple[bool, Any]:
     """Check one probe on shape. Returns (ok, observed value)."""
     k = probe.kind
+    got: Any
     if k in ("solid_at", "empty_at"):
         got = classify(shape, probe.p)
         return got == ("IN" if k == "solid_at" else "OUT"), got
@@ -180,6 +183,7 @@ def evaluate(probe: Probe, shape) -> tuple[bool, Any]:
             else:
                 ok = all(abs(s - e) <= probe.tol for s, e in zip(size, probe.size, strict=True))
             return ok, got
+        assert probe.lo is not None and probe.hi is not None
         ok = all(abs(a - b) <= probe.tol for a, b in zip(lo, probe.lo, strict=True)) and all(
             abs(a - b) <= probe.tol for a, b in zip(hi, probe.hi, strict=True)
         )
@@ -231,15 +235,21 @@ class Registry:
         self.retired.extend(gone)
         return gone
 
-    def check(self, shape, final: bool = False) -> tuple[int, list[dict]]:
-        """Check every live probe. bbox probes in 'within' mode become exact when final."""
-        failed = []
+    def check(self, shape, final: bool = False, armed=frozenset()) -> tuple[int, list[dict]]:
+        """Check every live probe. A plan feature probe is armed once its instance is placed
+        (in `armed`), or only at the final check when it names no instance. bbox probes in
+        'within' mode become exact when final."""
+        checked, failed = 0, []
         for p in self.probes:
+            feature = p.owner == "plan" and p.kind != "bbox"
+            if feature and not final and p.instance not in armed:
+                continue
             probe = replace(p, mode="exact") if final and p.kind == "bbox" else p
+            checked += 1
             ok, got = evaluate(probe, shape)
             if not ok:
                 failed.append({**as_dict(p), "got": got})
-        return len(self.probes), failed
+        return checked, failed
 
 
 def as_dict(p: Probe) -> dict:
@@ -265,18 +275,16 @@ def plan_probes(part: dict) -> tuple[list[Probe], list[str]]:
         if pos is None or width is None or t not in CUT_TYPES | BOSS_TYPES:
             unprobed.append(name)
             continue
-        if t in BOSS_TYPES:
-            probes.append(solid_at(pos, label=name))
-            continue
-        probes.append(empty_at(pos, label=name))
+        found = [solid_at(pos, label=name)] if t in BOSS_TYPES else [empty_at(pos, label=name)]
         axis = WALL_AXIS.get(str(itf.get("wall", "")).lower())
         if t in THROUGH_TYPES and axis:
-            probes.append(ray(pos, axis, hits=0, length=2 * width, label=name))
+            found.append(ray(pos, axis, hits=0, length=2 * width, label=name))
+        probes.extend(replace(p, instance=itf.get("instance")) for p in found)
     return probes, unprobed
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     pp = sub.add_parser("plan", help="print the step-0 probes a plan part entry seeds")
     pp.add_argument("plan")

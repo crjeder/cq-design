@@ -80,13 +80,14 @@ class Part:
             b["id"]: b for b in part.get("blocks_needed", []) if isinstance(b, dict) and "id" in b
         }
         self.inventory = {e["name"]: e for e in load_inventory()}
-        self.body = None
+        self.body: Any = None
         self.unions: dict[str, Any] = {}
         self.steps: list[dict] = []
         self.registry = pr.Registry()
         seeded, self.unprobed_interfaces = pr.plan_probes(part)
         self.registry.add(seeded, "plan")
         self.placed = False
+        self.armed: set[str] = set()
 
     def _record(self, kind: str, label: str, **info) -> dict:
         step = {"index": len(self.steps), "kind": kind, "block": label, "ok": True, **info}
@@ -150,6 +151,10 @@ class Part:
             raise self._error(step, "probe_failed", f"{handle.name} own probes failed: {failed}")
         return handle
 
+    def has(self, id: str) -> bool:
+        """Whether the plan declares instance `id` (an optional feature of the part)."""
+        return id in self.instances
+
     def param(self, id: str, name: str) -> Any:
         try:
             return self.instances[id]["params"][name]
@@ -210,7 +215,8 @@ class Part:
             self.registry.add([pr.transform(q, p, rotate) for q in local], step["index"])
         whole = self._whole()
         solids = [len(b.Solids()) for b in self._bodies()]
-        checked, failed = self.registry.check(whole)
+        self.armed.add(handle.id)
+        checked, failed = self.registry.check(whole, armed=self.armed)
         step["solids"] = solids[0] if len(solids) == 1 else solids
         gone = [pr.as_dict(r) for r in retired]
         step["probes"] = {"checked": checked, "failed": failed, "retired": gone}

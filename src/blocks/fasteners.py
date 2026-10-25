@@ -25,10 +25,11 @@ def screw_boss(d_screw: float, d_outer: float, h: float) -> cq.Workplane:
 
 
 def screw_boss_probes(d_screw: float, d_outer: float, h: float) -> list:
+    # Upper half only: a boss is often sunk into the floor it stands on.
     wall_r = (d_screw + d_outer) / 4
     return [
-        empty_at((0, 0, h / 2), "bore"),
-        ray((0, 0, h / 2), (0, 0, 1), 0, length=h - 0.2, label="bore open"),
+        empty_at((0, 0, 0.75 * h), "bore"),
+        ray((0, 0, 0.75 * h), (0, 0, 1), 0, length=h / 2 - 0.2, label="bore open"),
         solid_at((wall_r, 0, h / 2), "wall"),
         bbox((-d_outer / 2, -d_outer / 2, 0), (d_outer / 2, d_outer / 2, h)),
     ]

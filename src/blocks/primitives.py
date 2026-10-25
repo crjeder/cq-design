@@ -1,11 +1,13 @@
 """Primitive building blocks: basic shapes used as foundations for other blocks.
 
-The step primitives (`box`, `cylinder`, `cone`, `sphere`, `prism`, `revolve`) are the
+The step primitives (`box`, `cylinder`, `cone`, `sphere`, `prism`, `revolve`, `torus`) are the
 only way a step script builds geometry no block covers. Each sits centered in XY with its
 bottom at Z=0 (`sphere`: centered at the origin) and has a `*_probes` function. Entries
 with cosmetic edge sets also have `*_edge_sets`: set name -> local-frame edges, which the
 print-pose finishing pass chamfers or fillets from the plan instance's `edges`.
 """
+
+import math
 
 import cadquery as cq
 
@@ -158,3 +160,17 @@ def hollow_box_edge_sets(w: float, d: float, h: float, wall: float, floor_t: flo
         "bottom_outer": outer.edges("<Z").vals(),
         "vertical_outer": outer.edges("|Z").vals(),
     }
+
+
+def torus(r: float, d: float, angle: float = 360.0) -> cq.Workplane:
+    """Round rod of diameter d bent around the Z axis at centerline radius r, starting on
+    +X and sweeping `angle` degrees toward +Y (hooks, rings, handles)."""
+    return cq.Workplane("XZ").moveTo(r, 0).circle(d / 2).revolve(angle, (0, 0, 0), (0, 1, 0))
+
+
+def torus_probes(r: float, d: float, angle: float = 360.0) -> list:
+    half = math.radians(angle / 2)
+    probes = [solid_at((r * math.cos(half), r * math.sin(half), 0), "rod")]
+    if r > d / 2 + 0.2:
+        probes.append(empty_at((0, 0, 0), "axis"))
+    return probes
