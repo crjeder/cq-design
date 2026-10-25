@@ -17,7 +17,7 @@ from estampo_export import write_estampo_toml
 from exporters import _REGISTRY
 from exporters.threemf_multi import write_named_3mf
 from placement import apply_cq
-from units import is_copy, object_groups, plate_of, union_entries
+from units import assign_slots, is_copy, object_groups, plate_of, union_entries, union_materials
 from write_assembly import assemble
 
 _NAME_MAX_LEN = 64
@@ -180,12 +180,16 @@ def _write_3mf(
 ) -> str:
     """Write `model.3mf` and guard its index topology.
 
+    A union's filament is its explicit `filament`, else its material slot.
     One named object per union, except that the members of an `object` group become the
     bodies of one object. Members come from one part (one placement), so posing each in
     the first member's print orientation keeps their relative pose.
     """
     entries = union_entries(plan)
     groups = object_groups(plan)
+    # An explicit union `filament` wins; otherwise a multi-material plan gets the slot
+    # assigned per distinct (material, color).
+    auto_slots = assign_slots(plan) if len(set(union_materials(plan).values())) > 1 else {}
     # One record per 3MF object: every ungrouped union, and each group's first member.
     leaders = [
         (uid, part)
@@ -197,7 +201,11 @@ def _write_3mf(
         rotate = (print_orientations.get(pose_uid) or {}).get("rotate")
         wp = asm["authored"][uid]
         wp = apply_cq(wp, {"rotate": rotate}) if rotate else wp
-        return uid, cq.Compound.makeCompound(wp.vals()), entries[uid].get("filament")  # type: ignore[arg-type]
+        return (
+            uid,
+            cq.Compound.makeCompound(wp.vals()),
+            entries[uid].get("filament") or auto_slots.get(uid),
+        )  # type: ignore[arg-type]
 
     objects = []
     for name, (uid, _part) in zip(_dedupe_object_names(leaders), leaders, strict=True):

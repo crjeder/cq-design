@@ -83,6 +83,10 @@ def _run_wrapper_check(
     must cover every union, not only the one `stl` happens to point at.
     """
     constraints = plan.get("constraints", {})
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    part: dict = next((p for p in plan.get("parts", []) if p["id"] == stem), {})
+    # Weight estimate uses the part's material; per-union densities within one part are not split.
+    material = part.get("material") or plan.get("material")
     # Line width approximates nozzle diameter * 1.1; drives the brittle thin-wall
     # threshold in the wrapper's thin-interface check.
     line_width = round(plan.get("nozzle_mm", 0.4) * 1.1, 2)
@@ -95,9 +99,9 @@ def _run_wrapper_check(
         "--line-width",
         str(line_width),
         "--density",
-        str(_material_density(plan.get("material"))),
+        str(_material_density(material)),
         "--material",
-        plan.get("material") or "PLA",
+        material or "PLA",
         "--deliver",
         "--formats",
         "stl",

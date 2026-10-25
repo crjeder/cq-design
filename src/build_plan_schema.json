@@ -44,8 +44,8 @@
     },
     "material": {
       "type": "string",
-      "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC"],
-      "description": "Filament material"
+      "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC", "PVA", "HIPS"],
+      "description": "Default filament material; a part or union may override it"
     },
     "nozzle_mm": {
       "type": "number",
@@ -181,6 +181,16 @@
             "pattern": "^[a-z][a-z0-9_]*$",
             "description": "Print-group id. Parts sharing a plate print in one job (print-in-place). Defaults to the part's own id (one part per plate) when omitted."
           },
+          "material": {
+            "type": "string",
+            "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC", "PVA", "HIPS"],
+            "description": "Filament material for this part's unions; overrides the plan-level `material`. A union's own `material` overrides this. Different materials are treated as non-sticky: nothing relies on adhesion across their boundary."
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "description": "Display and filament color (#RRGGBB) for this part's unions; defaults to a color derived from the resolved material."
+          },
           "copy_of": {
             "type": "object",
             "required": ["part"],
@@ -209,6 +219,16 @@
                   "type": "string",
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "description": "Print-group id for this union; defaults to the part's `plate`, else the union's `object`, else the union id"
+                },
+                "material": {
+                  "type": "string",
+                  "enum": ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC", "PVA", "HIPS"],
+                  "description": "Filament material for this union; defaults to the part's `material`, else the plan's"
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$",
+                  "description": "Display and filament color (#RRGGBB) for this union; defaults to the part's `color`, else a color derived from the resolved material"
                 },
                 "object": {
                   "type": "string",
