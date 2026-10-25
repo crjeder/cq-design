@@ -48,3 +48,20 @@ Mutants of the same scripts (one defect each):
   layer that covers it, which supports D4.
 - `verify_stage` (bbox + volume floor) and `verify_boolean` (volume sign) missed both
   detached-feature mutants; connectivity needs the solid count.
+
+## Eval run 2026-10-25 (partial, 9.1 not complete)
+
+Run dir `evals/runs/step-loop-probes` (gitignored), installed skill at c43fefa. Only 4 of
+13 cases generated: the other 9 `claude -p` calls returned in under a second with zero
+tokens (usage limit), so they have no artifacts. Rerun those with `--cases` before 9.2.
+
+| case | 2026-09 attempts (validate runs) / visual_mismatch | 2026-10 attempts (plan revisions) / step runs / visual_mismatch | chamfer 09 -> 10 (mm) |
+|---|---|---|---|
+| adapter-ring | 2 / 1 | 1 / 1 / 0 | 0.000 -> 0.000 |
+| boss-plate | 4 / 1 | 1 / 1 / 0 | 0.031 -> 0.015 |
+| east-side-mount | 2 / 1 | 1 / 2 / 0 | 2.674 -> 2.613 |
+| enclosure-body | 2 / 0 | 1 / 1 / 0 | 0.013 -> 0.000 |
+
+On these 4 cases (3 of them the baseline's `visual_mismatch` parts) every part passed
+first shot with no `visual_mismatch` and no `blocked`; billed cost per part was
+2.13-2.88 USD (baseline 0.57-6.34). Not yet a comparison of rates: 9 cases missing.
