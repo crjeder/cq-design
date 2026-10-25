@@ -162,6 +162,52 @@ def plate_of(part: dict, union_id: str, union: dict | None = None) -> str:
     return part.get("plate") or union_id
 
 
+_DEFAULT_COLORS = {
+    "PLA": "#D9D9D9",
+    "PETG": "#9FC5E8",
+    "ABS": "#E6E6E6",
+    "ASA": "#CFCFCF",
+    "TPU": "#222222",
+    "PA": "#F3E5AB",
+    "PC": "#F2F2F2",
+    "PVA": "#FFE599",
+    "HIPS": "#F9F9F9",
+}
+
+
+def material_of(plan: dict, part: dict, union: dict | None = None) -> str:
+    """Material for a union: its own `material`, else the part's, else the plan's."""
+    return (union or {}).get("material") or part.get("material") or plan.get("material", "PLA")
+
+
+def color_of(plan: dict, part: dict, union: dict | None = None) -> str:
+    """Color for a union: its own `color`, else the part's, else one derived from its material."""
+    return (
+        (union or {}).get("color")
+        or part.get("color")
+        or _DEFAULT_COLORS.get(material_of(plan, part, union), "#D9D9D9")
+    ).upper()
+
+
+def union_materials(plan: dict) -> dict[str, tuple[str, str]]:
+    """Union id -> ``(material, color)`` in plan order."""
+    out: dict[str, tuple[str, str]] = {}
+    for part in plan.get("parts", []):
+        for u in part.get("unions") or [None]:
+            uid = u["id"] if u else part["id"]
+            out[uid] = (material_of(plan, part, u), color_of(plan, part, u))
+    return out
+
+
+def assign_slots(plan: dict) -> dict[str, int]:
+    """Union id -> 1-based filament slot; distinct (material, color) pairs are numbered in
+    order of first appearance."""
+    slots: dict[tuple[str, str], int] = {}
+    return {
+        uid: slots.setdefault(pair, len(slots) + 1) for uid, pair in union_materials(plan).items()
+    }
+
+
 def is_copy(part: dict) -> bool:
     """True when the part is declared `copy_of` another part (no script of its own)."""
     return bool(part.get("copy_of"))

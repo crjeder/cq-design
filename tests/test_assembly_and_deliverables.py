@@ -847,3 +847,43 @@ def test_write_assembly_without_progress_prints_nothing(tmp_path, capsys):
     assert sorted(Path(p).name for p in plain["union_stls"].values()) == sorted(
         Path(p).name for p in with_cb["union_stls"].values()
     )
+
+
+def test_multi_material_3mf_carries_colors_and_extruders(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "body")
+    _write_part(parts_dir, "grip")
+    plan = _plan(
+        [
+            {"id": "body", "description": "Rigid body"},
+            {"id": "grip", "description": "Soft grip", "material": "TPU", "color": "#112233"},
+        ]
+    )
+
+    result = _export(plan, str(parts_dir), str(tmp_path / "dist"), formats=("3mf",))
+
+    with zipfile.ZipFile(result["model_3mf"]) as zf:
+        model = ET.fromstring(zf.read("3D/3dmodel.model"))
+        settings = ET.fromstring(zf.read("Metadata/model_settings.config"))
+    colors = [c.get("color") for c in model.iter() if c.tag.endswith("}color")]
+    assert colors == ["#D9D9D9FF", "#112233FF"]
+    extruders = {
+        o.get("id"): next(m.get("value") for m in o.iter("metadata") if m.get("key") == "extruder")
+        for o in settings.findall("object")
+    }
+    assert extruders == {"1": "1", "2": "2"}
+    assert [o.get("pindex") for o in model.iter(_NS + "object")] == ["0", "1"]
+
+
+def test_single_material_3mf_has_no_extruder_or_color_metadata(tmp_path):
+    parts_dir = tmp_path / "parts"
+    parts_dir.mkdir()
+    _write_part(parts_dir, "body")
+    plan = _plan([{"id": "body", "description": "Rigid body"}])
+
+    result = _export(plan, str(parts_dir), str(tmp_path / "dist"), formats=("3mf",))
+
+    with zipfile.ZipFile(result["model_3mf"]) as zf:
+        assert b"colorgroup" not in zf.read("3D/3dmodel.model")
+        assert b'key="extruder"' not in zf.read("Metadata/model_settings.config")

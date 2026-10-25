@@ -1133,7 +1133,35 @@ def _coined_names(plan: dict) -> list[str]:
     return flagged
 
 
-def summarize(plan: dict, plan_path: Path) -> str:
+def _materials_block(plan: dict, max_materials: int) -> list[str]:
+    """Per-union material/slot table plus a slot-overflow warning; empty for a plan whose
+    unions all resolve to one (material, color)."""
+    from units import assign_slots, union_materials
+
+    pairs = union_materials(plan)
+    slots = assign_slots(plan)
+    if len(set(pairs.values())) < 2:
+        return []
+    out = [
+        "**Materials**",
+        "",
+        _table(
+            ["Union", "Material", "Color", "Slot"],
+            [[uid, m, c, slots[uid]] for uid, (m, c) in pairs.items()],
+        ),
+        "",
+    ]
+    needed = len(set(slots.values()))
+    if needed > max_materials:
+        out += [
+            f"**WARNING: {needed} materials, {max_materials} slots.** Ask the user how to "
+            "proceed (merge materials, drop one, or confirm a manual filament swap).",
+            "",
+        ]
+    return out
+
+
+def summarize(plan: dict, plan_path: Path, max_materials: int = 1) -> str:
     """Markdown checkpoint tables for a validated plan."""
     parts = plan["parts"]
     out = [f"Written to: `{plan_path.resolve()}`", ""]
@@ -1145,6 +1173,7 @@ def summarize(plan: dict, plan_path: Path) -> str:
             [[plan.get("printer", ""), plan["material"], f"{plan['nozzle_mm']:g} mm"]],
         ),
         "",
+        *_materials_block(plan, max_materials),
         "**Parts**",
         "",
         _table(
@@ -1466,7 +1495,11 @@ def _cmd_summary(args: argparse.Namespace) -> int:
     from units import load_plan
 
     path = Path(args.plan)
-    print(summarize(load_plan(str(path)), path))
+    profile_path = Path(args.profile) if args.profile else path.parent / "profile.json"
+    max_materials = 1
+    if profile_path.is_file():
+        max_materials = json.loads(profile_path.read_text(encoding="utf-8")).get("max_materials", 1)
+    print(summarize(load_plan(str(path)), path, max_materials))
     return 0
 
 
@@ -1499,6 +1532,9 @@ def main(argv: list[str] | None = None) -> int:
 
     sp = sub.add_parser("summary", help="Render the Phase 2 checkpoint tables as Markdown")
     sp.add_argument("plan", help="Path to BUILD_PLAN.json")
+    sp.add_argument(
+        "--profile", help="Path to profile.json for max_materials (default: next to the plan)"
+    )
     sp.set_defaults(func=_cmd_summary)
 
     ip = sub.add_parser(
