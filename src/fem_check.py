@@ -422,6 +422,13 @@ def run_fem_check(
     if part is None:
         return _skip(f"part '{part_id}' not found in plan")
 
+    from units import union_materials
+
+    if len({m for m, _c in union_materials(plan).values()}) > 1:
+        return _skip(
+            "plan uses more than one material; the solver models a single isotropic material"
+        )
+
     material = _resolve_material(plan, materials_path)
     if material is None:
         return _skip(f"material '{plan.get('material')}' has no entry in material_properties.json")

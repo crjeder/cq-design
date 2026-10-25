@@ -103,6 +103,17 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
    union is its own body for export and the kinematic/clearance checks, may have its own
    `plate`, and is what `kinematics.moving_union` names. Union ids are unique model-wide.
 
+6b. **One material unless there is a reason.** Keep the plan-level `material`. Give a part or
+   union its own `material` (and optionally `color`) only when the user asks, or when you can
+   name the trigger in `planning_notes`: a compliant part against a rigid one (TPU grip,
+   gasket, bumper), a soluble support (PVA/HIPS), or a heat zone. Different materials are
+   non-sticky: never rely on adhesion between them to carry load, and use a mechanical
+   joint (dovetail, groove, pin) where the boundary must hold. Touching or overlapping
+   bodies of different materials are fine and need no comment. Slots: the printer profile's
+   `max_materials` (default 1) is how many distinct material+color pairs one print can
+   use; if the plan needs more, the `summary` shows a WARNING -- stop and ask the user
+   (merge, drop one, or confirm a manual filament swap) before approval.
+
 6a. **Identical or pairwise-mirrored parts are one script.** Give the second part
    `copy_of: {"part": "<first id>", "mirror": "X"|"Y"|"Z"}` (omit `mirror` for an identical
    copy) instead of authoring it again. It keeps its own `id`, `placement`, and `plate`. The
@@ -228,7 +239,7 @@ states a different value: then use the stated value and note the deviation in
 
 ## Required output schema
 
-Optional fields: `intent_ts` (rule 16), `coordinate_frame`, `archetype`, `plate`, `pose_intent`, `show_face`,
+Optional fields: `intent_ts` (rule 16), `coordinate_frame`, `archetype`, `plate`, `material`/`color` (per part or union, rule 6b), `pose_intent`, `show_face`,
 per-part `optimize_for`, `part_notes` (needed when `blocks_needed` is empty or geometry is
 non-standard), `unions`, `joints`, `root_part`, `kinematics` (only for a declared range of
 motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always set `load`
