@@ -43,7 +43,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     feature_presence_check.py # Per-part interfaces[] position assertion
     placement.py             # Assembly-pose placement helper (cq + trimesh)
     mate_chain.py            # Derived pose along a `joints` mate chain from root_part
-    units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
+    units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out); per-union material/color/slot resolution
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
     write_assembly.py        # Assembly writer: assembled-pose per-union + keep-out-zone STLs + manifest (the checks' input); assemble() poses unions
     deliverables.py          # User-facing files, all in print pose: named 3MF, per-union/plate STL, STEP/OBJ/IGES/SCAD (called by build.py)
@@ -85,7 +85,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     exporters/
       __init__.py            # run_exporters(script, formats, output_dir)
       stl.py step.py threemf.py obj.py iges.py scad.py
-      threemf_multi.py       # Multi-object 3MF writer (named unions + plate metadata)
+      threemf_multi.py       # Multi-object 3MF writer (named unions + plate metadata; color + extruder per object when multi-material)
 
   evals/
     cases/<case>/        # request.md, golden BUILD_PLAN.json, golden/*.stl, case.json

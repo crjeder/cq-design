@@ -79,8 +79,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] cover more of the workflow (slicing, parameters, print)
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Add textures capability
-- [ ] Multi color / material support -- [details](#multi-color-material-support-claude-to-print)
-- [ ] Engineering of multi-material interfaces and properties
+- [x] Multi color / material support -- change `multi-material-planning`; per-union `material`/`color`, filament slots, `max_materials`, 3MF color + extruder ([details](#multi-color-material-support-claude-to-print))
+- [ ] Engineering of multi-material interfaces and properties -- boundaries are treated as non-sticky (no adhesion assumed, touching is silent); still open: multi-material FEM, per-union density within one part, one-object-with-volumes 3MF grouping
 - [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible) -- layer height and infill already exported via `--formats estampo`; walls/support/brim remain
 
 ### Optimisation
@@ -247,7 +247,7 @@ Order matters: 1 produces the evidence 4 needs, 2 and 3 cut fix-loop failures,
   - Done when: editing a part to remove a large feature produces one warning naming
     the old and new volume.
 
-- [ ] **8. Multi-color / multi-material 3MF export** (source: OzAILabs/Claude-To-Print, rated High; backlog item "Multi color / material support")
+- [x] **8. Multi-color / multi-material 3MF export** (superseded by change `multi-material-planning`: per-union `material` + `color`, slot assignment, `max_materials`; written as object-level `extruder` metadata + `m:colorgroup`, not `<basematerials>`) (source: OzAILabs/Claude-To-Print, rated High; backlog item "Multi color / material support")
   - Why: `exporters/threemf_multi.py` writes one named object per union plus Bambu/Orca
     plate metadata (`_model_settings_config`), but no per-object color or filament.
   - Do: (a) schema: optional `color` (`#RRGGBB`) and `filament` (1-based slot) on a
@@ -1093,7 +1093,7 @@ deterministic-export -> mesh-QA -> visual-feedback pipeline). Concrete
 mechanism: multi-color/multi-material 3MF export via `lib3mf`, splitting a
 part into named color regions and exporting a pre-colored 3MF for
 AMS-style multi-filament printers. `threemf_multi.py` currently tracks
-named unions/plates but not per-region color -- that's the gap to close.
+named unions/plates but not per-region color -- closed per-union by change `multi-material-planning` (a color boundary inside one solid remains out of scope).
 
 ### Parameter Sets
 e. g. Lego interface definition

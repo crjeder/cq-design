@@ -21,6 +21,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import numpy as np
 
 _CORE = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
+_MATERIAL_NS = "http://schemas.microsoft.com/3dmanufacturing/material/2015/02"
 _REL_3DMODEL = "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"
 
 # Bambu/OrcaSlicer's importer (bbs_3mf.cpp) only sets its internal m_is_bbl_3mf flag --
@@ -82,8 +83,11 @@ def _add_object(
     shape: Any,
     tolerance: float,
     angular_tolerance: float,
+    color_pindex: int | None = None,
 ) -> int:
     """Append one named <object>, welding tessellation vertices before writing.
+
+    A `color_pindex` references that entry of the `m:colorgroup` (id 1) the caller wrote.
 
     A `plate` of None omits the plate metadata (single-object exports have no
     plate grouping). The mesh body is pre-serialised into `fragments` (spliced in
@@ -93,6 +97,9 @@ def _add_object(
     verts, tris = shape.tessellate(tolerance, angular_tolerance)
     verts, tris = _weld(verts, tris)
     obj = ET.SubElement(resources, "object", id=obj_id, name=name, type="model")
+    if color_pindex is not None:
+        obj.set("pid", _COLOR_GROUP_ID)
+        obj.set("pindex", str(color_pindex))
     if plate is not None:
         meta_group = ET.SubElement(obj, "metadatagroup")
         ET.SubElement(meta_group, "metadata", name="plate").text = plate
@@ -104,7 +111,12 @@ def _add_object(
     return _nonmanifold_edges(tris)
 
 
-def _model_settings_config(plate_assignments: list[tuple[str, str]]) -> bytes:
+_COLOR_GROUP_ID = "1000"
+
+
+def _model_settings_config(
+    plate_assignments: list[tuple[str, str]], extruders: dict[str, int] | None = None
+) -> bytes:
     """Build `Metadata/model_settings.config` assigning objects to slicer plates.
 
     Matches Bambu Studio / OrcaSlicer's proprietary 3MF plate schema (reverse
@@ -117,6 +129,9 @@ def _model_settings_config(plate_assignments: list[tuple[str, str]]) -> bytes:
 
     Args:
         plate_assignments: list of (object_id, plate_id) in object order.
+        extruders: object_id -> 1-based filament slot, written as the object-level
+            `extruder` metadata key (what Bambu Studio's exporter writes from
+            `ModelObject::config`). Omitted for single-material models.
     """
     plate_order: list[str] = []
     for _obj_id, plate in plate_assignments:
@@ -124,6 +139,9 @@ def _model_settings_config(plate_assignments: list[tuple[str, str]]) -> bytes:
             plate_order.append(plate)
 
     config = ET.Element("config")
+    for obj_id, slot in (extruders or {}).items():
+        obj_el = ET.SubElement(config, "object", id=obj_id)
+        ET.SubElement(obj_el, "metadata", key="extruder", value=str(slot))
     for plate_index, plate in enumerate(plate_order, start=1):
         plate_el = ET.SubElement(config, "plate")
         ET.SubElement(plate_el, "metadata", key="plater_id", value=str(plate_index))
@@ -140,7 +158,7 @@ def _model_settings_config(plate_assignments: list[tuple[str, str]]) -> bytes:
 
 
 def write_named_3mf(
-    objects: list[tuple[str, str, Any]],
+    objects: list[tuple],
     path: str,
     tolerance: float | None = None,
     angular_tolerance: float | None = None,
@@ -148,7 +166,9 @@ def write_named_3mf(
     """Write a 3MF with one named object per union, grouped onto slicer plates.
 
     Args:
-        objects: list of (union_name, plate_id, cq_shape) in assembled pose
+        objects: list of (union_name, plate_id, cq_shape) or, for a multi-material model,
+            (union_name, plate_id, cq_shape, (slot, "#RRGGBB")); every object must then
+            carry the 4th element. Slot is the 1-based filament slot.
         path: output .3mf path
         tolerance: linear tessellation tolerance in mm; defaults to
             `mesh_io.EXPORT_TESSELLATION_TOLERANCE_MM`
@@ -169,18 +189,38 @@ def write_named_3mf(
     resources = ET.SubElement(model, "resources")
     build = ET.SubElement(model, "build")
 
+    multi = bool(objects) and len(objects[0]) == 4
+    extruders: dict[str, int] = {}
+    slot_colors: dict[int, str] = {}
+    if multi:
+        # Bambu Studio reads the 3MF materials extension (m:colorgroup / m:color), not
+        # <basematerials>. One entry per slot (pindex = slot - 1); Bambu numbers extruders
+        # by distinct color, so slots sharing a color rely on the explicit extruder key.
+        model.set("xmlns:m", _MATERIAL_NS)
+        group = ET.SubElement(resources, "m:colorgroup", id=_COLOR_GROUP_ID)
+        slot_colors.update({slot: color for *_head, (slot, color) in objects})
+        for slot in sorted(slot_colors):
+            ET.SubElement(group, "m:color", color=f"{slot_colors[slot]}FF")
+
     plate_assignments: list[tuple[str, str]] = []
     fragments: dict[str, str] = {}
     nonmanifold = 0
-    for i, (name, plate, shape) in enumerate(objects):
+    for i, (name, plate, shape, *material) in enumerate(objects):
         obj_id = str(i + 1)
+        pindex = None
+        if material:
+            slot, _color = material[0]
+            extruders[obj_id] = slot
+            pindex = sorted(slot_colors).index(slot)
         nonmanifold += _add_object(
-            resources, fragments, obj_id, name, plate, shape, tolerance, angular_tolerance
+            resources, fragments, obj_id, name, plate, shape, tolerance, angular_tolerance, pindex
         )
         ET.SubElement(build, "item", objectid=obj_id)
         plate_assignments.append((obj_id, plate))
 
-    extra_files = {"Metadata/model_settings.config": _model_settings_config(plate_assignments)}
+    extra_files = {
+        "Metadata/model_settings.config": _model_settings_config(plate_assignments, extruders)
+    }
     _write_zip(model, path, fragments, extra_files)
     return nonmanifold
 
