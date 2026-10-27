@@ -6,7 +6,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
 ```
 .
   .claude-plugin/        # plugin.json (skills: ["."]) + marketplace.json; repo root is the plugin root
-  commands/              # /cq-design:design plan init update build render status
+  commands/              # /cq-design:design plan edit init update build render status
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
@@ -141,7 +141,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
     test_cadprompt_bench.py          # CADPrompt scoring (normalize/ICP/Chamfer/IoU) -- no CadQuery
-    test_cadgenbench_run.py          # CADGenBench canonical pose + zip packaging (CadQuery)
+    test_cadgenbench_run.py          # CADGenBench prompts, canonical pose + zip packaging (CadQuery)
+    test_edit_command.py             # /cq-design:edit import -> diff -> STEP sequence, frame kept (CadQuery)
     test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # profile.json schema + write-back -- fast, no CadQuery
