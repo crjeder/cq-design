@@ -62,6 +62,7 @@ Two separate catalogues, because they answer two different questions:
 | [OpenVSP/OpenVSP](https://github.com/OpenVSP/OpenVSP) | 839 | 2026-08 | **Very Low** | Standalone aircraft OML/analysis application, not a Python part library. Out of domain for FDM blocks. |
 | [CadQuery/awesome-cadquery](https://github.com/CadQuery/awesome-cadquery) | 181 | 2026-06 | **N/A** (index) | Curated link list, not a library — useful as a discovery starting point (surfaced most of the above), not a source of code. |
 | [phillipthelen/awesome-build123d](https://github.com/phillipthelen/awesome-build123d) | 89 | 2026-05 | **N/A** (index) | Same role for the build123d ecosystem. |
+| https://grabcad.com/library/software/step-slash-iges | | | |
 
 ### Personal model collections
 

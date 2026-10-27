@@ -201,6 +201,7 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | https://github.com/annguyenphanhuu/text2cad | Dockerized text -> FreeCAD service for industrial sheet-metal parts (plates, tubes, bends, enclosures / coffrets) with example spec files | Low | Read the repo tree: `FreeCadUtil` function library per part family plus a `GeometryAnalyzer`; domain (sheet metal, French industrial enclosures) is outside FDM printing. No license |
 | https://github.com/tengfeizhang666/text2cad-rag | Derivative of giuliano-t/openAI-to-freeCAD-workflow: pluggable local LLM, Chroma + BGE reranker RAG over a few-shot cookbook, FreeCAD headless run, trimesh validity check (closed, consistent winding, volume > 0) | Low | Read the README: RAG over examples and a trimesh sanity check, both already covered (`reference/`, wrapper `watertight`) |
 | https://github.com/Principle-of-Procrastination/text2cad | SOLIDWORKS 2026 C# add-in MVP: server proposes an `ExecutionPlan` (versioned DSL), local client validates strictly, previews, user confirms, bridge creates native features | Low | Read the README: proprietary-CAD bridge; the validate-preview-confirm-execute plan DSL mirrors `BUILD_PLAN.json` approval, nothing new |
+| [burr](https://crates.io/crates/burr) | | |
 
 ## Details
 
