@@ -27,15 +27,30 @@ fix: let the program own the pipeline not the llm
 
 ### Geometry / Blocks / Tools
 
-- [ ] custom  support https://github.com/gittrahan/support-fins
+- [ ] custom support https://github.com/gittrahan/support-fins
 - [ ] "parameter sets" not a full tool, but critical dimensions. LLM freely designs but gets a few constraints (e. g. gridfinity, gravitrax, lgego) (details)[#parameter-
 - [ ] PCB Clip generator. instead of using screws to hold to PCBs in place combine standoffs and clip heads.
 - [ ] Tool to create enclosures (for all major maker boards and cutouts for all widely used connectors
 - [ ] tool to produce cable traces where cables are held press fit
-- [ ] [step.parts](https://www.step.parts) integration like:https://github.com/earthtojake/text-to-cad/blob/main/skills/step-parts/SKILL.md
+- [ ] [step.parts](https://www.step.parts) integration like: https://github.com/earthtojake/text-to-cad/blob/main/skills/step-parts/SKILL.md
 - [ ] change rules into advisories: make holes drop shaped --> hole found. consider drop shape like [DfAM Check](https://github.com/earthtojake/text-to-cad/blob/main/skills/dfam-check/SKILL.md)
-- [ ] review [burr](https://crates.io/crates/burr)
-- [ ] edit mode (import step) and apply changes
+- [x] review [burr](https://crates.io/crates/burr)
+- [x] edit mode (import step) and apply changes
+- [ ] Interference check across all parts at rest (a real gap)
+Varen: its assembly export checks every pair of parts for overlap, with a quick bounding-box pass first. A table of expected overlaps lets intended ones through, such as gear mesh or press fits, each with a volume limit and a reason.
+cq-design today: only three overlap checks exist, and none tests every pair of parts:
+kinematic_check.py checks parts that move, but only for declared kinematics entries.
+plate_clearance_check.py only compares unions on the same plate.
+keep_out_check.py only checks declared zones.
+Result: a lid sitting 1 mm inside its box, with no joint declared, passes the gate. The src/interference.py docstring already lists this as its “next intended caller”.
+Fix: the overlap primitive exists (check_interference, which measures intersection volume). What’s needed is a new check that runs every pair of write_assembly.py STLs through it, plus an optional plan field listing allowed overlaps (a, b, max_volume_mm3, reason).
+- [ ] Hole checks against the solid geometry, never passing an ambiguous match
+Varen: it measures the cylindrical faces on the final solid (diameter, axis, span). A hole’s position is where the cylinder axis meets the host surface, not the cylinder’s own reported centre. A planned hole is checked only when exactly one cylinder matches it. The outcomes are MATCHED, AMBIGUOUS, NOT_FOUND and UNAVAILABLE, and AMBIGUOUS never passes.
+cq-design today: feature_presence_check.py:24 says plainly that holes made with .hole/.cboreHole are “out of first scope”. measure_stl.py finds cylinders from the mesh only.
+Fix: measuring the CadQuery solid’s cylindrical faces directly would cover those holes, and the “a single match or no pass” rule is the part to copy. Varen found the need the hard way: its gears shipped with floating teeth and a “through hole” that cut nothing, because the checks only looked at whether the mesh was well formed.
+- [ ] Drawing feature edges on preview renders (lower value, worth a look)
+varen: its renderer draws the model’s real edges without the extra diagonal lines that come from the mesh triangles.
+cq-design today: I found no edge overlay in preview.py, render_preview.py or zbuffer.py. Drawn edges would make visual review easier, especially for chamfers and shallow steps.
 
 ### Skill improvement
 
@@ -45,6 +60,7 @@ fix: let the program own the pipeline not the llm
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] the skill should have a way to distinguish between geometry which is fixed and one that is flexible and can be changed by the skill any time e. g. during optimization
+- [ ] generate testable statements from user intent (different agent then planer)
 
 ### Kinematic, Joints and Simulation
 
