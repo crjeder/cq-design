@@ -34,6 +34,8 @@ fix: let the program own the pipeline not the llm
 - [ ] tool to produce cable traces where cables are held press fit
 - [ ] [step.parts](https://www.step.parts) integration like: https://github.com/earthtojake/text-to-cad/blob/main/skills/step-parts/SKILL.md
 - [ ] change rules into advisories: make holes drop shaped --> hole found. consider drop shape like [DfAM Check](https://github.com/earthtojake/text-to-cad/blob/main/skills/dfam-check/SKILL.md)
+- [ ] review [burr](https://crates.io/crates/burr)
+- [x] edit mode (import step) and apply changes -- `/cq-design:edit`
 - [x] review [burr](https://crates.io/crates/burr)
 - [x] edit mode (import step) and apply changes
 - [ ] Interference check across all parts at rest (a real gap)
