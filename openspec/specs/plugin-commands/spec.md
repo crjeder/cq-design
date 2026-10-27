@@ -3,16 +3,14 @@
 ## Purpose
 
 The namespaced `/cq-design:*` commands the plugin provides and what each runs.
-
 ## Requirements
-
 ### Requirement: Namespaced command set
 
-The plugin SHALL provide exactly these commands as files under `commands/`: `design`, `plan`, `init`, `update`, `build`, `render`, `status`, invoked as `/cq-design:<name>`. `SKILL.md` SHALL NOT carry a competing command table.
+The plugin SHALL provide exactly these commands as files under `commands/`: `design`, `plan`, `edit`, `init`, `update`, `build`, `render`, `status`, invoked as `/cq-design:<name>`. `SKILL.md` SHALL NOT carry a competing command table. (`/cq-design:edit` is specified by the `step-edit-command` capability.)
 
 #### Scenario: Commands listed
 - **WHEN** the plugin is enabled
-- **THEN** `/cq-design:design`, `:plan`, `:init`, `:update`, `:build`, `:render`, `:status` are offered
+- **THEN** `/cq-design:design`, `:plan`, `:edit`, `:init`, `:update`, `:build`, `:render`, `:status` are offered
 
 ### Requirement: design and plan run the pipeline
 
@@ -66,3 +64,4 @@ The init command lines (`uv sync`, `init_permissions.py`, `printer_profile_valid
 - **WHEN** `SKILL.md` Prerequisites describes directory setup
 - **THEN** it says to run the `/cq-design:init` logic and points to `commands/init.md`
 - **AND** it contains no `init_permissions.py` or `printer_profile_validate.py` command line
+
