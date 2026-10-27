@@ -1,5 +1,6 @@
 import itertools
 import json
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -31,6 +32,36 @@ def test_canonical_matrix_is_a_rotation_for_every_axis_order():
         m = np.array(cadgenbench_run.canonical_matrix((0, 0, 0), extents))[:3, :3]
         assert np.allclose(m @ m.T, np.eye(3))
         assert np.isclose(np.linalg.det(m), 1.0)
+
+
+def test_build_prompt_edit_fixture_invokes_edit_command(tmp_path):
+    (tmp_path / "edit_description.txt").write_text("Add a 5 mm hole.\n")
+    prompt = cadgenbench_run.build_prompt(tmp_path)
+    assert prompt.startswith("/cq-design:edit input.step Add a 5 mm hole.")
+    assert "build/build.py" not in prompt
+
+
+def test_build_prompt_generation_fixture(tmp_path):
+    (tmp_path / "input.png").write_text("x")
+    prompt = cadgenbench_run.build_prompt(tmp_path)
+    assert "engineering drawing (input.png" in prompt
+    assert "build/build.py --formats step" in prompt and "/cq-design:edit" not in prompt
+
+
+def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    for fid in ("101", "102"):
+        (data / fid).mkdir(parents=True)
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(kwargs["cwd"])
+        out = {"is_error": True, "result": "You've hit your session limit · resets 1pm"}
+        return subprocess.CompletedProcess(cmd, 1, stdout=json.dumps(out), stderr="")
+
+    monkeypatch.setattr(cadgenbench_run.subprocess, "run", fake_run)
+    cadgenbench_run.generate(tmp_path / "run", data, ["101", "102"], 10, False)
+    assert len(calls) == 1
 
 
 def test_package_keeps_every_fixture_folder_and_does_not_agree(tmp_path):
