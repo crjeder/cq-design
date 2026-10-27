@@ -33,6 +33,20 @@ def test_canonical_matrix_is_a_rotation_for_every_axis_order():
         assert np.isclose(np.linalg.det(m), 1.0)
 
 
+def test_build_prompt_edit_fixture_invokes_edit_command(tmp_path):
+    (tmp_path / "edit_description.txt").write_text("Add a 5 mm hole.\n")
+    prompt = cadgenbench_run.build_prompt(tmp_path)
+    assert prompt.startswith("/cq-design:edit input.step Add a 5 mm hole.")
+    assert "build/build.py" not in prompt
+
+
+def test_build_prompt_generation_fixture(tmp_path):
+    (tmp_path / "input.png").write_text("x")
+    prompt = cadgenbench_run.build_prompt(tmp_path)
+    assert "engineering drawing (input.png" in prompt
+    assert "build/build.py --formats step" in prompt and "/cq-design:edit" not in prompt
+
+
 def test_package_keeps_every_fixture_folder_and_does_not_agree(tmp_path):
     run = tmp_path / "run"
     (run / "101").mkdir(parents=True)

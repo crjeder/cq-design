@@ -77,8 +77,7 @@ UNATTENDED = (
 FIDELITY = (
     "This is a CAD-accuracy benchmark, not a print job: model the nominal geometry "
     "exactly, in millimetres, as ONE single solid. Do not add print clearances, "
-    "chamfers, fillets, elephant-foot compensation, or split it into several parts. "
-    "Deliver the STEP format (build/build.py --formats step)."
+    "chamfers, fillets, elephant-foot compensation, or split it into several parts."
 )
 
 
@@ -109,22 +108,19 @@ def build_prompt(fixture_dir: Path) -> str:
     """The `claude -p` prompt for one fixture, generation or editing."""
     edit = fixture_dir / "edit_description.txt"
     if edit.is_file():
-        task = (
-            "Starting solid: input.step in the current directory (renders of it are in "
-            "renders/). Import it with cq.importers.importStep and apply this edit, "
-            "keeping everything else unchanged and in the same coordinates:\n\n"
+        # a slash command only expands at the start of the prompt; the rest is its argument
+        return (
+            "/cq-design:edit input.step "
             + edit.read_text(encoding="utf-8").strip()
+            + f"\n\n{UNATTENDED}\n\n{FIDELITY}"
         )
-    else:
-        drawings = ", ".join(sorted(p.name for p in fixture_dir.glob("input*.png")))
-        task = (
-            f"Reproduce the part shown in the engineering drawing ({drawings} in the "
-            "current directory; read it with the Read tool). The drawing's dimensions "
-            "are authoritative."
-        )
+    drawings = ", ".join(sorted(p.name for p in fixture_dir.glob("input*.png")))
     return (
         "Use the cq-design skill to fulfil this request in the current directory. "
-        f"{UNATTENDED}\n\n{FIDELITY}\n\n{task}"
+        f"{UNATTENDED}\n\n{FIDELITY} Deliver the STEP format (build/build.py --formats "
+        f"step).\n\nReproduce the part shown in the engineering drawing ({drawings} in "
+        "the current directory; read it with the Read tool). The drawing's dimensions "
+        "are authoritative."
     )
 
 

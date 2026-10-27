@@ -31,7 +31,8 @@ Install [uv](https://docs.astral.sh/uv/), then in Claude Code:
 /plugin install cq-design@cq-design
 ```
 
-Commands: `/cq-design:design` (full pipeline), `:plan` (phases 1-2), `:init` (prepare a
+Commands: `/cq-design:design` (full pipeline), `:plan` (phases 1-2), `:edit <file> <change>` (apply a
+change to a STEP/BREP solid in its own coordinates, delivers `out/<stem>_edited.step`), `:init` (prepare a
 directory), `:update` (refresh a bundled project's tooling), `:build [format]` (generate
 model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only). The Python
 environment lives in the plugin's data directory and survives plugin updates.
