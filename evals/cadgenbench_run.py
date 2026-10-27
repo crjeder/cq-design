@@ -11,7 +11,8 @@ after you upload the zip yourself. Steps, each skipped when its output exists:
            the canonical pose (bbox centre at the origin, extents Lx >= Ly >= Lz)
            and writes <run>/<id>/output.step. The run gets an explicit tool
            allowlist (ALLOWED_TOOLS), not --dangerously-skip-permissions; a tool
-           outside it is denied, not prompted.
+           outside it is denied, not prompted. Generation stops at the first
+           usage-limit error; rerun the same command to resume.
 3. check   the dataset's `sanity_check_submission.py` validity gate on every
            output.step, in an isolated uv env with the `cadgenbench` package
            (Python 3.12, CADGENBENCH_REF + SANITY_PINS). Results go to <run>/sanity.json.
@@ -67,6 +68,9 @@ ALLOWED_TOOLS = [
     "Bash(uv:*)",
     "Bash(python:*)",
 ]
+
+# `claude -p` result text when the plan's limit is reached ("You've hit your session limit")
+LIMIT_MARKERS = ("session limit", "usage limit")
 
 UNATTENDED = (
     "This is an unattended benchmark run -- there is no user to answer clarifying "
@@ -128,8 +132,8 @@ def build_prompt(fixture_dir: Path) -> str:
     )
 
 
-def run_fixture(fixture_dir: Path, work_dir: Path, timeout_s: int) -> None:
-    """Copy the fixture inputs into work_dir and run cq-design there via `claude -p`."""
+def run_fixture(fixture_dir: Path, work_dir: Path, timeout_s: int) -> bool:
+    """Run cq-design in work_dir via `claude -p`; return True if it hit a usage limit."""
     shutil.copytree(fixture_dir, work_dir, dirs_exist_ok=True)
     shutil.copyfile(SKILL_CONFIG_SRC, work_dir / "skill_config.json")
     cmd = [
@@ -149,17 +153,21 @@ def run_fixture(fixture_dir: Path, work_dir: Path, timeout_s: int) -> None:
         )
     except subprocess.TimeoutExpired:
         print(f"  {fixture_dir.name}: timed out after {timeout_s}s", file=sys.stderr)
-        return
+        return False
     try:
         env = json.loads(proc.stdout)
     except (json.JSONDecodeError, TypeError):
         print(f"  {fixture_dir.name}: unparseable `claude -p` JSON", file=sys.stderr)
-        return
+        return False
     if env.get("is_error"):
-        print(f"  {fixture_dir.name}: `claude -p` error: {env.get('result')}", file=sys.stderr)
+        result = str(env.get("result"))
+        print(f"  {fixture_dir.name}: `claude -p` error: {result}", file=sys.stderr)
+        if any(m in result for m in LIMIT_MARKERS):
+            return True
     keys = ("session_id", "num_turns", "duration_ms", "total_cost_usd", "usage")
     cost = {k: env.get(k) for k in keys}
     (work_dir / "cost.json").write_text(json.dumps(cost, indent=2) + "\n", encoding="utf-8")
+    return False
 
 
 def delivered_steps(work_dir: Path) -> list[Path]:
@@ -251,7 +259,9 @@ def generate(
             continue
         work = run_dir / "_work" / fid
         print(f"generating {fid} ...")
-        run_fixture(data_dir / fid, work, timeout_s)
+        if run_fixture(data_dir / fid, work, timeout_s):
+            print(f"  usage limit hit at {fid}: stopping; rerun to resume", file=sys.stderr)
+            return
         steps = delivered_steps(work)
         if not steps:
             print(f"  {fid}: no STEP delivered -- left missing", file=sys.stderr)
