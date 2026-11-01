@@ -69,8 +69,8 @@ ALLOWED_TOOLS = [
     "Bash(python:*)",
 ]
 
-# `claude -p` result text when the plan's limit is reached ("You've hit your session limit")
-LIMIT_MARKERS = ("session limit", "usage limit")
+# `claude -p` result text when a plan limit is reached ("You've hit your session/weekly limit")
+LIMIT_MARKERS = ("session limit", "weekly limit", "usage limit")
 
 UNATTENDED = (
     "This is an unattended benchmark run -- there is no user to answer clarifying "
