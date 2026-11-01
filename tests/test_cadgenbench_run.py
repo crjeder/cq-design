@@ -7,6 +7,7 @@ from pathlib import Path
 
 import cadquery as cq
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "evals"))
 
@@ -34,7 +35,8 @@ def test_canonical_matrix_is_a_rotation_for_every_axis_order():
         assert np.isclose(np.linalg.det(m), 1.0)
 
 
-def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch):
+@pytest.mark.parametrize("kind", ["session", "weekly"])
+def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch, kind):
     data = tmp_path / "data"
     for fid in ("101", "102"):
         (data / fid).mkdir(parents=True)
@@ -42,7 +44,7 @@ def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch):
 
     def fake_run(cmd, **kwargs):
         calls.append(kwargs["cwd"])
-        out = {"is_error": True, "result": "You've hit your session limit · resets 1pm"}
+        out = {"is_error": True, "result": f"You've hit your {kind} limit · resets 1pm"}
         return subprocess.CompletedProcess(cmd, 1, stdout=json.dumps(out), stderr="")
 
     monkeypatch.setattr(cadgenbench_run.subprocess, "run", fake_run)
