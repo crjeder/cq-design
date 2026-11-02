@@ -6,9 +6,7 @@ Define how the assembly of a whole model is written: one assembled-pose STL per 
 keep-out zone plus a provenance manifest, the source of truth for the whole-model checks.
 User-facing model files (3MF, plate STLs, STEP/OBJ/IGES/SCAD) are produced by `build.py`
 (see `build-script`).
-
 ## Requirements
-
 ### Requirement: Export writes a provenance manifest alongside the STLs
 
 The exporter SHALL write a provenance manifest into the STL output directory recording,
@@ -114,3 +112,16 @@ The 3MF writers in `exporters/threemf_multi.py` SHALL weld tessellation vertices
 - **WHEN** `deliverables.py` writes `model.3mf`
 - **THEN** it raises RuntimeError if the writer's returned count is non-zero
 - **AND** it does not re-open the written file to count edges
+
+### Requirement: Multi-material 3MF
+A 3MF export of a plan with more than one resolved material SHALL record each body's filament slot (extruder) so Bambu Studio / OrcaSlicer open it with filaments pre-assigned. A plan
+with a single material SHALL export as before.
+
+#### Scenario: Two-material export
+- **WHEN** two unions resolve to different slots
+- **THEN** the 3MF carries two distinct extruder assignments (an explicit union `filament` wins over the assigned slot)
+
+#### Scenario: STL and STEP unchanged
+- **WHEN** the same plan is exported as STL or STEP
+- **THEN** output is identical to a single-material plan
+

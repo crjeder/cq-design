@@ -3,15 +3,18 @@
 ## Purpose
 
 Defines requirements for the `blocks/` package: a machine-readable inventory of reusable CadQuery geometry primitives and the rules for how the orchestrator selects and injects them into per-part prompts.
-
 ## Requirements
-
 ### Requirement: Block inventory is a machine-readable JSON catalog
-The system SHALL provide `blocks/inventory.json` containing an array of block descriptors. Each descriptor SHALL include:
+The system SHALL provide `blocks/inventory.json` containing an array of block descriptors
+covering blocks, archetype templates and primitives. Each descriptor SHALL include:
 
 - `name` (string, required, unique, kebab-case)
+- `kind` (string, required, one of `block`, `template`, `primitive`)
 - `module` (string, required, Python dotted path, e.g. `blocks.fasteners`)
 - `function` (string, required, Python function name)
+- `probes` (string, required, name of the probe function in the same module)
+- `edge_sets` (object, required, edge-set name -> description; may be empty; the
+  entry's module provides the set's curves in local coordinates for the finishing pass)
 - `use` (string, required, plain-English description of the block's purpose and when to use it)
 - `params` (object, required, parameter name → unit string)
 - `dimensions` (array of 3 numbers or null if variable, in mm [w, d, h])
@@ -24,13 +27,16 @@ Each interface descriptor SHALL include:
 
 #### Scenario: Block lookup by name
 - **WHEN** the orchestrator looks up `"pcb_standoff"` in the inventory
-- **THEN** it receives the full descriptor including params, dimensions, and interfaces
+- **THEN** it receives the full descriptor including params, dimensions, probes, and
+  interfaces
 
 #### Scenario: Unknown block name in plan
 - **WHEN** `BUILD_PLAN.json` references a block name not present in `inventory.json`
 - **THEN** plan validation fails with an error listing the unknown name
 
----
+#### Scenario: Descriptor without probes
+- **WHEN** an inventory descriptor omits `probes`
+- **THEN** inventory schema validation fails naming the descriptor
 
 ### Requirement: Interface type vocabulary is a closed set
 The system SHALL enforce that all interface `type` values in `inventory.json` belong to the
@@ -217,3 +223,4 @@ functions that build them.
 - **WHEN** `socket_head_cap_screw`, `hex_head_screw`, or `hex_nut` is called
 - **THEN** the function builds its fastener solid via a function-local fastener-class
   import and returns a valid `cq.Workplane`
+

@@ -9,9 +9,7 @@ base body, a workplane whose origin drifted, and (for scratch-authored parts) a 
 construction stage whose bbox/volume doesn't match the plan -- so the offending feature
 or stage can be named in a typed error rather than surfacing downstream as a vague
 watertight/dimension symptom.
-
 ## Requirements
-
 ### Requirement: In-script helper detects silent boolean failures
 
 The project SHALL provide a helper importable by a generated part script (via the
@@ -346,28 +344,6 @@ typed errors, carrying the stage `label` and mismatch detail in the error messag
 
 ---
 
-### Requirement: Scratch parts require a staged construction plan
-
-For a part authored from scratch -- no matching block, no matching archetype
-template -- the part-generation guidance SHALL require the script to open with an
-ordered construction plan: named stages, each asserted via `verify_stage` with an
-expected bbox and/or minimum volume, as the script executes. This requirement SHALL
-NOT apply to parts built from a block or an archetype template, which already
-inherit verified topology.
-
-#### Scenario: Scratch part script includes staged assertions
-
-- **WHEN** a part has no archetype match and is authored as raw fluent CadQuery
-- **THEN** the generated script asserts each construction stage via `verify_stage`
-  before proceeding to the next stage
-
-#### Scenario: Archetype-based part is exempt
-
-- **WHEN** a part is built by copying and editing an archetype template
-- **THEN** the construction-plan requirement does not apply
-
----
-
 ### Requirement: In-script helper checks a fillet radius before the kernel
 
 `cq_verify` SHALL provide `check_fillet(body, radius, selector=None, label="")` that
@@ -474,3 +450,4 @@ wall sized from a parameter.
 - **WHEN** the rendered part prompt is read
 - **THEN** its Construction-time verification section names all three helpers, their
   typed error kinds, and the adjacent-edge rule
+

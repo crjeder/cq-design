@@ -6,9 +6,7 @@ Defines the repo-root `profile.json` file that records a user's default printer,
 material, nozzle, and constraint settings, the schema it must conform to, how it is seeded
 into a new working directory, and how per-model overrides persist back to it as the new
 project default.
-
 ## Requirements
-
 ### Requirement: Repo-root printer profile file
 
 The system SHALL support an optional `profile.json` file in the working directory
@@ -219,3 +217,16 @@ add no extra files.
 
 - **WHEN** `preferred_format` is `"step"` and `--formats obj` is passed
 - **THEN** both `step` and `obj` files are written per union
+
+### Requirement: Configured material slots
+The printer profile SHALL accept an optional integer `max_materials` (>= 1), the number of
+filament slots available. When absent it SHALL mean 1.
+
+#### Scenario: Default
+- **WHEN** a profile omits `max_materials`
+- **THEN** the planner treats the printer as single-material
+
+#### Scenario: Invalid value
+- **WHEN** `max_materials` is 0
+- **THEN** profile validation fails
+
