@@ -16,6 +16,17 @@ pair MAY be represented by more than one line, appended at different times as mo
 learned about that attempt; the last such line in file order is authoritative for that
 attempt's `outcome`, `error_types`, and `visual_review`.
 
+#### Scenario: Failed attempt is logged with its error types
+- **WHEN** a part attempt fails with wrapper errors of type `silent_boolean`
+  and `thin_interface`
+- **THEN** one line is appended to `build/attempts.jsonl` with `outcome: "fail"`
+  and `error_types: ["silent_boolean", "thin_interface"]`
+
+#### Scenario: Passing attempt is logged
+- **WHEN** a part attempt passes validation on attempt 3
+- **THEN** one line is appended with `attempt: 3`, `outcome: "pass"`, and
+  `error_types: []`
+
 #### Scenario: Step failures stay inside one attempt
 - **WHEN** a builder has five failing step runs and then passes, with no plan change
 - **THEN** `build/attempts.jsonl` has attempt 1 with `outcome: "pass"` and

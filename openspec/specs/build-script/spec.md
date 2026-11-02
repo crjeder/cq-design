@@ -7,9 +7,7 @@ directory's `build/` folder. The script lets a user regenerate all deliverable
 artifacts (`model.3mf`, per-union and per-plate STLs) in print orientation from
 `BUILD_PLAN.json` and the per-part scripts, without re-invoking the skill, and
 reports results with a CI-usable exit code.
-
 ## Requirements
-
 ### Requirement: A runnable build script is delivered into the build directory
 
 The skill SHALL place a self-contained, runnable `build.py` into the `build/`
@@ -209,12 +207,15 @@ supported keys. The reported results SHALL list the files written for each forma
 
 `build.py` SHALL write, per requested format:
 
-- `3mf`: `model.3mf` in which each union is a separately named object, in its print
-  orientation when one is resolved, else its assembled pose. Names SHALL derive from the
-  part's `description` (whitespace collapsed, control characters removed, length bounded),
-  falling back to the part `id` when empty, and SHALL be disambiguated with the part `id`
-  suffix only for colliding names. Each object SHALL carry its `plate` tag as metadata.
-  Distinct unions SHALL NOT be fused, and the written 3MF SHALL have no non-manifold edges.
+- `3mf`: `model.3mf` in which each union without an `object` is a separately named
+  object, and each `object` group is one named object whose members are its parts (see
+  the `multi-color-export` capability), in print orientation when one is resolved, else
+  the assembled pose. Names SHALL derive from the part's `description` (whitespace
+  collapsed, control characters removed, length bounded), falling back to the part `id`
+  when empty, and SHALL be disambiguated with the part `id` suffix only for colliding
+  names; a group's parts SHALL be named by their union ids. Each object SHALL carry its
+  `plate` tag as metadata. Distinct unions SHALL NOT be fused, and the written 3MF SHALL
+  have no non-manifold edges.
 - `stl`: one STL per union in the assembled pose and one fused print-pose STL per plate
   holding more than one union.
 - `step`, `obj`, `iges`, `scad`: one `<union-id>.<ext>` per union in the assembled pose.
@@ -222,8 +223,13 @@ supported keys. The reported results SHALL list the files written for each forma
 
 #### Scenario: Each union is a named 3MF object
 
-- **WHEN** a model with multiple unions is built with `--formats 3mf`
+- **WHEN** a model with multiple unions, none declaring `object`, is built with `--formats 3mf`
 - **THEN** each union is a separately named object with its plate in metadata, and no two are fused
+
+#### Scenario: An object group is one 3MF object
+
+- **WHEN** two unions share `object: "knob"` and `--formats 3mf` runs
+- **THEN** `model.3mf` holds one object for the group with two unfused parts named after the union ids
 
 #### Scenario: Per-union STL plus fused plate STL
 
@@ -255,3 +261,4 @@ regenerated.
 
 - **WHEN** a part script changed after the assembly step wrote its manifest
 - **THEN** `build.py --formats stl` regenerates the per-union STLs and says so
+
