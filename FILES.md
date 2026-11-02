@@ -10,6 +10,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
+    mesh_gate.py             # CADGenBench-equivalent STEP mesh gate (topology-stitched, closed manifold)
     cq_verify.py             # Construction-time assertions (verify_boolean, verify_feature_bounds, check_workplane, verify_stage, verify_backed)
     quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes (model from skill_config.json's models.fix_loop)
     plan.py                  # BUILD_PLAN.json: `validate` (schema + inventory cross-check),
