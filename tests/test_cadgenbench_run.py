@@ -35,6 +35,17 @@ def test_canonical_matrix_is_a_rotation_for_every_axis_order():
         assert np.isclose(np.linalg.det(m), 1.0)
 
 
+def test_write_candidate_falls_back_to_unposed_when_pose_breaks_it(tmp_path, monkeypatch):
+    src = tmp_path / "in.step"
+    cq.Workplane().box(10, 20, 30).translate((7, 0, 0)).findSolid().exportStep(str(src))
+    out = tmp_path / "101" / "output.step"
+    monkeypatch.setattr(cadgenbench_run, "step_is_valid", lambda p: False)
+    cadgenbench_run.write_candidate([src], out)
+    extents, center = _extents(cq.importers.importStep(str(out)).findSolid())
+    assert [round(e, 3) for e in extents] == [10, 20, 30]
+    assert round(center[0], 3) == 7
+
+
 @pytest.mark.parametrize("kind", ["session", "weekly"])
 def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch, kind):
     data = tmp_path / "data"
