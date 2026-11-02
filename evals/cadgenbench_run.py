@@ -201,12 +201,24 @@ def canonical_pose(shape: cq.Shape) -> cq.Shape:
     return shape.transformShape(cq.Matrix(trsf))
 
 
+def step_is_valid(path: Path) -> bool:
+    """True when the STEP file re-imports as a valid B-rep."""
+    return cq.importers.importStep(str(path)).findSolid().isValid()
+
+
 def write_candidate(steps: list[Path], out_path: Path) -> None:
-    """Fuse the delivered STEP(s), pose canonically, and export output.step."""
+    """Fuse the delivered STEP(s), pose canonically, and export output.step.
+
+    The canonical pose is only recommended (the grader aligns rigidly itself), so
+    when posing makes the exported solid invalid, the unposed solid is written.
+    """
     shapes: list[cq.Shape] = [cq.importers.importStep(str(p)).findSolid() for p in steps]
     fused = functools.reduce(lambda a, b: a.fuse(b), shapes)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     canonical_pose(fused).exportStep(str(out_path))
+    if not step_is_valid(out_path):
+        print(f"  {out_path.parent.name}: posed solid invalid -- writing unposed", file=sys.stderr)
+        fused.exportStep(str(out_path))
 
 
 def sanity_check(data_dir: Path, step: Path) -> tuple[bool, str]:
