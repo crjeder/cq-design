@@ -729,6 +729,19 @@ def _brep_errors(run_dir: str) -> list[dict]:
     for uid, statuses in checks.items():
         if not statuses:
             continue
+        if statuses[0].startswith("Mesh: "):
+            err = {
+                "type": "invalid_mesh",
+                "message": "STEP does not tessellate to a closed manifold: " + statuses[0][6:],
+                "hint": (
+                    "the solid is BRep-valid but its delivered STEP meshes with open or "
+                    "over-shared edges (graders reject it) -- usually coincident faces left by "
+                    "a clean=False union/cut; overlap the tool into the body (or past it, for a "
+                    "cut) instead of making it face-flush or coaxial with an existing surface"
+                ),
+            }
+            errors.extend(_attribute_to_union([err], uid, multi))
+            continue
         err = {
             "type": "invalid_brep",
             "message": "BRepCheck failed: " + "; ".join(statuses),
