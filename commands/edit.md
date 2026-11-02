@@ -11,27 +11,29 @@ The first argument is the file, the rest is the change. Stop with one line, writ
 
 Read `SKILL.md`'s Coordinate system section. Directions in the change ("top", "left", "front") are in the input's own frame: +Z up, +Y north, +X east.
 
-1. Write `build/edit_input.py`, the unmodified input. Use the input's **absolute** path (scripts run in a temp dir); `importBrep` for `.brep`:
+1. Write `build/edit_input.py`, the input. Use the input's **absolute** path (scripts run in a temp dir). `import_solid` handles `.step`/`.stp`/`.brep`, checks the solid and repairs an invalid one topologically:
 
    ```python
-   import cadquery as cq
+   from blocks import import_solid
 
-   result = cq.importers.importStep(r"<absolute path of the input>")
+   result = import_solid(r"<absolute path of the input>")
    ```
 
-2. Write `build/<stem>_edited.py` (`<stem>` is the input file name without extension, so delivery is named `out/<stem>_edited.step`): the same import, then the change as operations on that imported body only -- `cut`/`union` with authored features (`from blocks import ...` where a block fits), or face/edge operations on it (a hole is resized by filling it and re-cutting). Never rebuild the part from scratch, and never translate, rotate or re-centre the import. Measure positions from the imported body (`result.val().BoundingBox()`, `.faces(">Z")`), not from guesses.
+   Run step 3's command on it once. A `[cq-design:step-repair]` line in `stdout` means the input was invalid and was repaired: quote it in the report. A `step_unrepairable` error means the input cannot be repaired within the volume limit: stop, deliver nothing, and report the error.
+
+2. Write `build/<stem>_edited.py` (`<stem>` is the input file name without extension, so delivery is named `out/<stem>_edited.step`): the same `import_solid` import (never `cq.importers` directly), then the change as operations on that imported body only -- `cut`/`union` with authored features (`from blocks import ...` where a block fits), or face/edge operations on it (a hole is resized by filling it and re-cutting). Never rebuild the part from scratch, and never translate, rotate or re-centre the import. Measure positions from the imported body (`result.val().BoundingBox()`, `.faces(">Z")`), not from guesses.
 
 3. Run and preview until `success` is true (read each error's `hint`):
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" build/<stem>_edited.py --preview
+   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" --timeout 600 build/<stem>_edited.py --preview
    ```
 
 4. Mesh both scripts and diff input (A) against result (B):
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" build/edit_input.py --deliver --formats stl --output-dir build/edit_diff
-   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" build/<stem>_edited.py --deliver --formats stl --output-dir build/edit_diff
+   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" --timeout 600 build/edit_input.py --deliver --formats stl --output-dir build/edit_diff
+   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" --timeout 600 build/<stem>_edited.py --deliver --formats stl --output-dir build/edit_diff
    uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/diff_models.py" build/edit_diff/edit_input.stl build/edit_diff/<stem>_edited.stl --png build/edit_diff/diff.png
    ```
 
@@ -42,7 +44,7 @@ Read `SKILL.md`'s Coordinate system section. Directions in the change ("top", "l
 6. Deliver; this writes `out/<stem>_edited.step`. Never write to the input file.
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" build/<stem>_edited.py --deliver --formats step --output-dir out
+   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" --timeout 600 build/<stem>_edited.py --deliver --formats step --output-dir out
    ```
 
-Report: the delivered path, `only_a_volume`, `only_b_volume`, `bbox_delta`, `build/edit_diff/diff.png`, how you read the change's directions, and any assumption you made.
+Report: the delivered path, the repair line if there was one, `only_a_volume`, `only_b_volume`, `bbox_delta`, `build/edit_diff/diff.png`, how you read the change's directions, and any assumption you made.

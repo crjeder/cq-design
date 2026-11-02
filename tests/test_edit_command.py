@@ -5,7 +5,7 @@ from conftest import run_wrapper as run
 
 from diff_models import diff_models
 
-IMPORT = 'import cadquery as cq\n\nresult = cq.importers.importStep(r"{}")\n'
+IMPORT = 'from blocks import import_solid\n\nresult = import_solid(r"{}")\n'
 
 
 def _deliver(script, fmt, out_dir):

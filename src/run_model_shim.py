@@ -29,13 +29,29 @@ def main() -> None:
         # Script exports its own files or has no geometry -- nothing to do.
         return
 
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    bodies = (
+        {uid: wp for uid, wp in result.items() if uid != KEEP_OUT_KEY}
+        if isinstance(result, dict)
+        else {stem: result}
+    )
+    # BRepCheck every body; the wrapper turns non-empty lists into invalid_brep errors.
+    from blocks.imported import brep_statuses
+
+    checks = {}
+    for uid, wp in bodies.items():
+        shape = wp.val() if hasattr(wp, "val") else wp
+        checks[uid] = brep_statuses(shape.wrapped)
+    with open("brep_check.json", "w", encoding="utf-8") as f:
+        json.dump(checks, f)
+
     # --deliver without --print-rotate: write the delivery formats from this load instead of
     # having the wrapper import the script a second time. The wrapper reads the manifest.
+    # An invalid body is never delivered.
     deliver_manifest = os.environ.get("CQ_DELIVER_MANIFEST")
-    if deliver_manifest:
+    if deliver_manifest and not any(checks.values()):
         from exporters import export_loaded
 
-        stem = os.path.splitext(os.path.basename(script_path))[0]
         manifest: dict[str, object]
         try:
             paths = export_loaded(
@@ -66,7 +82,6 @@ def main() -> None:
                 continue
             cq.exporters.export(wp, f"{uid}.stl")
     else:
-        stem = os.path.splitext(os.path.basename(script_path))[0]
         cq.exporters.export(result, f"{stem}.stl")
 
 
