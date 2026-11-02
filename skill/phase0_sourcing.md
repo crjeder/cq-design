@@ -62,7 +62,10 @@ FreeCAD source).
 Taken once a candidate's agent-assigned `Rung` is `2` (STEP/BREP/IGES file for the part
 or a mating component, with no parametric source available).
 
-- Import with `cq.importers.importStep(path)` (or the matching IGES/BREP importer).
+- Import STEP/BREP with `from blocks import import_solid` / `import_solid(path)`, which
+  checks the solid and repairs an invalid one (IGES: `cq.importers`). A
+  `step_unrepairable` error means the file is a broken solid: drop the candidate and
+  continue with the next rung.
 - Scope it as **exactly** a dumb solid: a mating reference to measure against, or a
   base body for boolean modification (cut/union) inside a normal part script. It is
   **not reparametrizable** — do not attempt to recover features or edit its dimensions
