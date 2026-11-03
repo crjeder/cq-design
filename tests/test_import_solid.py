@@ -102,6 +102,47 @@ def test_wrapper_blocks_invalid_result(tmp_path):
     assert len(errs) == 1 and "BRepCheck" in errs[0]["message"]
 
 
+_TETRA = [(0, 2, 1), (0, 1, 3), (1, 2, 3), (0, 3, 2)]
+
+
+@pytest.mark.parametrize(
+    "tris, match",
+    [
+        (_TETRA[:3], "not closed: 3 open"),
+        (_TETRA + [(0, 1, 4), (0, 4, 1)], "shared by 4"),
+        ([(0, 1, 2), (0, 1, 3), (1, 2, 3), (0, 3, 2)], "orientation"),
+    ],
+)
+def test_mesh_validate_rejects(tris, match):
+    import numpy as np
+
+    from mesh_gate import MeshGateError, _validate
+
+    with pytest.raises(MeshGateError, match=match):
+        _validate(np.array(tris))
+
+
+def test_mesh_gate_passes_closed_solids():
+    import numpy as np
+
+    from mesh_gate import _validate, mesh_gate_error
+
+    _validate(np.array(_TETRA))
+    body = cq.Workplane().box(20, 10, 5).faces(">Z").workplane().hole(4).edges("|Z").fillet(1)
+    assert mesh_gate_error(body.findSolid().wrapped) is None
+
+
+def test_mesh_sidecar_maps_to_invalid_mesh(tmp_path):
+    from run_cadquery_model import _brep_errors
+
+    (tmp_path / "brep_check.json").write_text(
+        json.dumps({"a": ["Mesh: mesh not closed: 12 open edges"], "b": []})
+    )
+    errs = _brep_errors(str(tmp_path))
+    assert [(e["type"], e["union"]) for e in errs] == [("invalid_mesh", "a")]
+    assert "12 open edges" in errs[0]["message"]
+
+
 def test_wrapper_attributes_invalid_union(tmp_path):
     script = tmp_path / "multi.py"
     script.write_text(

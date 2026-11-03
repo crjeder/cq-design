@@ -37,11 +37,17 @@ def main() -> None:
     )
     # BRepCheck every body; the wrapper turns non-empty lists into invalid_brep errors.
     from blocks.imported import brep_statuses
+    from mesh_gate import mesh_gate_error
 
     checks = {}
     for uid, wp in bodies.items():
         shape = wp.val() if hasattr(wp, "val") else wp
         checks[uid] = brep_statuses(shape.wrapped)
+        # grader-equivalent STEP mesh gate, only meaningful on a BRep-valid body
+        if not checks[uid]:
+            reason = mesh_gate_error(shape.wrapped)
+            if reason:
+                checks[uid] = [f"Mesh: {reason}"]
     with open("brep_check.json", "w", encoding="utf-8") as f:
         json.dump(checks, f)
 
