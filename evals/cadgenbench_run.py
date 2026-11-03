@@ -70,8 +70,8 @@ ALLOWED_TOOLS = [
     "Bash(python:*)",
 ]
 
-# `claude -p` result text when the plan's limit is reached ("You've hit your session limit")
-LIMIT_MARKERS = ("session limit", "usage limit")
+# `claude -p` result text when a plan limit is reached ("You've hit your session/weekly limit")
+LIMIT_MARKERS = ("session limit", "weekly limit", "usage limit")
 
 UNATTENDED = (
     "This is an unattended benchmark run -- there is no user to answer clarifying "
@@ -245,6 +245,9 @@ def write_candidate(steps: list[Path], out_path: Path) -> None:
     shapes: list[cq.Shape] = [cq.importers.importStep(str(p)).findSolid() for p in steps]
     fused = functools.reduce(lambda a, b: a.fuse(b), shapes)
     canonical_pose(fused).exportStep(str(out_path))
+    if not step_is_valid(out_path):
+        print(f"  {out_path.parent.name}: posed solid invalid -- writing unposed", file=sys.stderr)
+        fused.exportStep(str(out_path))
 
 
 def sanity_check(data_dir: Path, step: Path) -> tuple[bool, str]:
