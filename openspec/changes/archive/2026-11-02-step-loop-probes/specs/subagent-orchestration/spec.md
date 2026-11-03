@@ -42,6 +42,12 @@ geometry; the main session SHALL ask the user (plan change, hint, accept as-is, 
 skip); on a plan change or a hint, the SAME builder agent SHALL be resumed rather than a
 new agent spawned.
 
+#### Scenario: Hint after exhaustion
+- **WHEN** the user provides a hint for a part blocked with `probe_stuck` or
+  `missing_block`
+- **THEN** the original builder agent is resumed with the hint and its step history
+  intact, not a new agent
+
 #### Scenario: Hint after a stuck probe
 - **WHEN** the user provides a hint for a part blocked with `probe_stuck`
 - **THEN** the original builder agent is resumed with the hint and its step history

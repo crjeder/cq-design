@@ -146,6 +146,11 @@ _VERIFY_HINTS = {
         "plan probe or matched no edge -- edge sizes are plan values: ask the user to change "
         "or drop the edge treatment"
     ),
+    "step_unrepairable": (
+        "the imported file is itself an invalid solid and blocks.import_solid could not "
+        "repair it within the volume limit -- the faulty region must be rebuilt rather "
+        "than edited, or raise max_volume_deviation if the reported delta is acceptable"
+    ),
     "thin_ligament": (
         "too little material beside the hole — widen the wall, shrink the hole, or move "
         "it, until the ligament meets the minimum"
@@ -712,6 +717,44 @@ def _run_geometry_checks(union_stls: list[str], args, result: dict) -> bool:
     return bool(args.strict and not result["watertight"])
 
 
+def _brep_errors(run_dir: str) -> list[dict]:
+    """One invalid_brep error per body the shim's BRepCheck flagged (none without a sidecar)."""
+    path = os.path.join(run_dir, "brep_check.json")
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        checks = json.load(f)
+    multi = len(checks) > 1
+    errors = []
+    for uid, statuses in checks.items():
+        if not statuses:
+            continue
+        if statuses[0].startswith("Mesh: "):
+            err = {
+                "type": "invalid_mesh",
+                "message": "STEP does not tessellate to a closed manifold: " + statuses[0][6:],
+                "hint": (
+                    "the solid is BRep-valid but its delivered STEP meshes with open or "
+                    "over-shared edges (graders reject it) -- usually coincident faces left by "
+                    "a clean=False union/cut; overlap the tool into the body (or past it, for a "
+                    "cut) instead of making it face-flush or coaxial with an existing surface"
+                ),
+            }
+            errors.extend(_attribute_to_union([err], uid, multi))
+            continue
+        err = {
+            "type": "invalid_brep",
+            "message": "BRepCheck failed: " + "; ".join(statuses),
+            "hint": (
+                "the result body is not a valid solid (STEP consumers and graders reject it) -- "
+                "find the last boolean/fillet/chamfer that produced it and change it; for an "
+                "imported file, import it with blocks.import_solid, which repairs it"
+            ),
+        }
+        errors.extend(_attribute_to_union([err], uid, multi))
+    return errors
+
+
 def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: dict) -> bool:
     """Render the preview into `result`. Returns True if rendering failed."""
     preview_paths, render_err = _render_preview(
@@ -1047,6 +1090,14 @@ def main():
                 result["success"] = False
                 _emit(args, result)
                 sys.exit(1)
+
+        # Invalid BRep is blocking regardless of --strict: the shim skipped delivery.
+        brep_errors = _brep_errors(run_dir)
+        if brep_errors:
+            result["errors"].extend(brep_errors)
+            result["success"] = False
+            _emit(args, result)
+            sys.exit(1)
 
         # Preview rendering via render_preview.py subprocess (CQ-native, no OpenGL)
         if (

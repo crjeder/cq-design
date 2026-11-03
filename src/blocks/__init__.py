@@ -11,6 +11,7 @@ Legacy direct calls:
     from blocks import counterbore_hole, countersink_hole, hex_nut_trap
     from blocks import keeper_lock_eye, keeper_lock_hook
     from blocks import gridfinity_bin, gridfinity_baseplate, gridfinity_feet
+    from blocks import import_solid  # checked STEP/BREP import with repair
 """
 
 from blocks.connectors import (
@@ -48,6 +49,7 @@ from blocks.hardware import (
     hex_nut,
     socket_head_cap_screw,
 )
+from blocks.imported import import_solid
 from blocks.joints import (
     ball_socket,
     ball_stud,
@@ -79,6 +81,7 @@ from blocks.print_frame import print_up
 
 __all__ = [
     "Part",
+    "import_solid",
     "box",
     "cylinder",
     "cone",
