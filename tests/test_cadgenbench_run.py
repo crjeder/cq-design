@@ -28,6 +28,19 @@ def test_canonical_pose_orders_extents_and_centres():
         assert all(abs(c) < 1e-6 for c in center)
 
 
+def test_single_step_posed_through_placement(tmp_path):
+    for i, dims in enumerate([(10, 30, 20), (5, 10, 40), (40, 5, 10), (20, 40, 10)]):
+        body = cq.Workplane().box(*dims).faces(">Z").workplane().hole(3).translate((7, -3, 11))
+        src, out = tmp_path / f"in{i}.step", tmp_path / f"out{i}.step"
+        body.findSolid().exportStep(str(src))
+        cadgenbench_run.write_candidate([src], out)
+        posed = cq.importers.importStep(str(out)).findSolid()
+        extents, center = _extents(posed)
+        assert [round(e, 3) for e in extents] == sorted(dims, reverse=True)
+        assert all(abs(c) < 1e-6 for c in center)
+        assert abs(posed.Volume() - body.findSolid().Volume()) < 1e-6
+
+
 def test_canonical_matrix_is_a_rotation_for_every_axis_order():
     for extents in itertools.permutations((1.0, 2.0, 3.0)):
         m = np.array(cadgenbench_run.canonical_matrix((0, 0, 0), extents))[:3, :3]
@@ -35,19 +48,21 @@ def test_canonical_matrix_is_a_rotation_for_every_axis_order():
         assert np.isclose(np.linalg.det(m), 1.0)
 
 
-def test_write_candidate_falls_back_to_unposed_when_pose_breaks_it(tmp_path, monkeypatch):
-    src = tmp_path / "in.step"
-    cq.Workplane().box(10, 20, 30).translate((7, 0, 0)).findSolid().exportStep(str(src))
-    out = tmp_path / "101" / "output.step"
-    monkeypatch.setattr(cadgenbench_run, "step_is_valid", lambda p: False)
-    cadgenbench_run.write_candidate([src], out)
-    extents, center = _extents(cq.importers.importStep(str(out)).findSolid())
-    assert [round(e, 3) for e in extents] == [10, 20, 30]
-    assert round(center[0], 3) == 7
+def test_build_prompt_edit_fixture_invokes_edit_command(tmp_path):
+    (tmp_path / "edit_description.txt").write_text("Add a 5 mm hole.\n")
+    prompt = cadgenbench_run.build_prompt(tmp_path)
+    assert prompt.startswith("/cq-design:edit input.step Add a 5 mm hole.")
+    assert "build/build.py" not in prompt
 
 
-@pytest.mark.parametrize("kind", ["session", "weekly"])
-def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch, kind):
+def test_build_prompt_generation_fixture(tmp_path):
+    (tmp_path / "input.png").write_text("x")
+    prompt = cadgenbench_run.build_prompt(tmp_path)
+    assert "engineering drawing (input.png" in prompt
+    assert "build/build.py --formats step" in prompt and "/cq-design:edit" not in prompt
+
+
+def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch):
     data = tmp_path / "data"
     for fid in ("101", "102"):
         (data / fid).mkdir(parents=True)

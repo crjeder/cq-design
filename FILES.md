@@ -6,10 +6,11 @@ Repository layout, one line per file. Full per-script contract detail lives in
 ```
 .
   .claude-plugin/        # plugin.json (skills: ["."]) + marketplace.json; repo root is the plugin root
-  commands/              # /cq-design:design plan init update build render status
+  commands/              # /cq-design:design plan edit init update build render status
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
+    mesh_gate.py             # CADGenBench-equivalent STEP mesh gate (topology-stitched, closed manifold)
     cq_verify.py             # Construction-time assertions (verify_boolean, verify_feature_bounds, check_workplane, verify_stage, verify_backed)
     quality_gate.py          # DFM + geometry/overhang aggregation, claude -p fixes (model from skill_config.json's models.fix_loop)
     plan.py                  # BUILD_PLAN.json: `validate` (schema + inventory cross-check),
@@ -81,6 +82,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
       hardware.py            # cq_warehouse-backed fastener geometry
       joints.py              # dovetail_groove / dovetail_tongue sliding joints
       gridfinity.py          # Gridfinity bins, baseplates, feet, socket cutters (42 mm grid standard)
+      imported.py            # import_solid: checked STEP/BREP import with topological repair
       inventory.json         # Machine-readable block descriptors
       inventory_schema.json  # JSON Schema for inventory.json
       validate.py            # Inventory loader + validator
@@ -141,7 +143,9 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
     test_cadprompt_bench.py          # CADPrompt scoring (normalize/ICP/Chamfer/IoU) -- no CadQuery
-    test_cadgenbench_run.py          # CADGenBench canonical pose + zip packaging (CadQuery)
+    test_cadgenbench_run.py          # CADGenBench prompts, canonical pose + zip packaging (CadQuery)
+    test_edit_command.py             # /cq-design:edit import -> diff -> STEP sequence, frame kept (CadQuery)
+    test_import_solid.py             # import_solid repair ladder + wrapper invalid_brep/step_unrepairable (CadQuery)
     test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # profile.json schema + write-back -- fast, no CadQuery
