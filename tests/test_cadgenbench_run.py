@@ -27,6 +27,19 @@ def test_canonical_pose_orders_extents_and_centres():
         assert all(abs(c) < 1e-6 for c in center)
 
 
+def test_single_step_posed_through_placement(tmp_path):
+    for i, dims in enumerate([(10, 30, 20), (5, 10, 40), (40, 5, 10), (20, 40, 10)]):
+        body = cq.Workplane().box(*dims).faces(">Z").workplane().hole(3).translate((7, -3, 11))
+        src, out = tmp_path / f"in{i}.step", tmp_path / f"out{i}.step"
+        body.findSolid().exportStep(str(src))
+        cadgenbench_run.write_candidate([src], out)
+        posed = cq.importers.importStep(str(out)).findSolid()
+        extents, center = _extents(posed)
+        assert [round(e, 3) for e in extents] == sorted(dims, reverse=True)
+        assert all(abs(c) < 1e-6 for c in center)
+        assert abs(posed.Volume() - body.findSolid().Volume()) < 1e-6
+
+
 def test_canonical_matrix_is_a_rotation_for_every_axis_order():
     for extents in itertools.permutations((1.0, 2.0, 3.0)):
         m = np.array(cadgenbench_run.canonical_matrix((0, 0, 0), extents))[:3, :3]

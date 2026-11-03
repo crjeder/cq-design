@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import functools
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -197,11 +198,52 @@ def canonical_pose(shape: cq.Shape) -> cq.Shape:
     return shape.transformShape(cq.Matrix(trsf))
 
 
+def pose_step_text(src: Path, out_path: Path) -> None:
+    """Write src in the canonical pose by rewriting only its shape representation's placement.
+
+    STEP readers apply that placement as the shape's location, so the B-rep geometry is
+    byte-identical to src. A read + OCC re-export instead perturbs it, which on a
+    high-tolerance solid can flip the grader's mesh gate (CADGenBench 249).
+    """
+    bb = cq.importers.importStep(str(src)).findSolid().BoundingBox()
+    m = canonical_matrix((bb.center.x, bb.center.y, bb.center.z), (bb.xlen, bb.ylen, bb.zlen))
+    text = src.read_text(encoding="utf-8", errors="surrogateescape")
+    rep = re.search(r"SHAPE_REPRESENTATION\('[^']*',\((#\d+)", text)
+    if rep is None:
+        raise ValueError(f"{src}: no shape representation placement")
+    place = re.search(
+        re.escape(rep.group(1)) + r"\s*=\s*AXIS2_PLACEMENT_3D\('([^']*)',#\d+,#\d+,#\d+\)", text
+    )
+    if place is None:
+        raise ValueError(f"{src}: shape representation item is not an AXIS2_PLACEMENT_3D")
+    n = max(int(i) for i in re.findall(r"^#(\d+)\s*=", text, re.M))
+
+    def tup(v: list[float]) -> str:
+        return "(" + ",".join(repr(float(x)) for x in v) + ")"
+
+    # fresh entities: the old point/directions may be shared with geometry
+    origin, axis, ref = ([m[i][j] for i in range(3)] for j in (3, 2, 0))
+    new = (
+        f"#{n + 1} = CARTESIAN_POINT('',{tup(origin)});\n"
+        f"#{n + 2} = DIRECTION('',{tup(axis)});\n"
+        f"#{n + 3} = DIRECTION('',{tup(ref)});\n"
+    )
+    placement = (
+        f"{rep.group(1)} = AXIS2_PLACEMENT_3D('{place.group(1)}',#{n + 1},#{n + 2},#{n + 3})"
+    )
+    text = text[: place.start()] + placement + text[place.end() :]
+    end = text.index("ENDSEC;", text.index("DATA;"))
+    out_path.write_text(text[:end] + new + text[end:], encoding="utf-8", errors="surrogateescape")
+
+
 def write_candidate(steps: list[Path], out_path: Path) -> None:
-    """Fuse the delivered STEP(s), pose canonically, and export output.step."""
+    """Pose the delivered STEP canonically (fusing several first) and write output.step."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if len(steps) == 1:
+        pose_step_text(steps[0], out_path)
+        return
     shapes: list[cq.Shape] = [cq.importers.importStep(str(p)).findSolid() for p in steps]
     fused = functools.reduce(lambda a, b: a.fuse(b), shapes)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
     canonical_pose(fused).exportStep(str(out_path))
 
 
