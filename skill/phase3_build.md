@@ -157,6 +157,11 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
 
 ## Write-backs on acceptance
 
+Mark the accepted script (also on **accept as-is**); the gate loop restores to it:
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/script_history.py" mark accepted build/<part_id>.py
+```
+
 From the accepted contract, into that part's `BUILD_PLAN.json` entry:
 - `placement` (replacing any planner proposal). Write nothing when it is `null`; a
   mate-chained part never carries `placement`. Tell the user only when it replaces a
@@ -368,8 +373,20 @@ means `passed: false`, not a crash: the report is still written. Read
 finding by its own `action` field, not by its `type`:
 
 - **`fix`** -> resume the part's builder with `fix: <type>: <message> (hint: <hint>)`,
-  re-audit if geometry changed, re-export, re-run the gate. At most 2 rounds per part;
-  then summarize the remaining findings to the user.
+  re-audit if geometry changed, re-export, re-run the gate with
+  `--previous build/<union_id>.quality_gate.json` (copy the previous report aside first,
+  e.g. to `build/<union_id>.quality_gate.round<n>.json`, and pass that copy). Read its `delta`:
+  - `resolved` empty or `regressed` non-empty -> the round made nothing better: undo it
+    before anything else, never by editing the script back:
+    ```bash
+    uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/script_history.py" restore accepted build/<part_id>.py
+    ```
+    and start the next round's resume with `fix: previous edit reverted (<delta>): ...`.
+  - otherwise keep the edit and re-run `script_history.py mark accepted build/<part_id>.py`.
+
+  At most 2 rounds per part; then summarize the remaining findings to the user. If the
+  last round was reverted, first re-export and re-run the gate from the restored script,
+  so the delivered files come from `accepted`.
 - **`re_export`** -> the STL predates an edit: re-run the model export, then the gate. No
   builder involved.
 - **`ask_user`** -> surface the finding's `message` and `hint` and ask before doing

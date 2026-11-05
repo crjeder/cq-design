@@ -21,6 +21,8 @@ stage). The orchestrator resumes you with one of:
 - `change: <feedback>` -> rework the current stage, return `stage_ready` again.
 - `finish` -> build every remaining stage in this run.
 - `fix: <finding or hint>` -> targeted edit of the finished part, re-validate, return the contract.
+  When it says your previous edit was reverted, the script is already back at the
+  accepted version: take a different approach, not the reverted one again.
 
 {{PITFALLS}}
 
@@ -50,6 +52,17 @@ render. To pick a `--detail` `section=` position for a bore, run
 `uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/section_select.py" build/{{PART_ID}}.py`
 and use its `extra_section_args`.
 
+Undo (every run's source is kept automatically): never revert an edit by editing the text
+back. Run
+`uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/script_history.py" restore <target> build/{{PART_ID}}.py`
+with target `@prev` (the source before your last edit), `@last_ok` (the latest fully
+passing run) or a snapshot/mark name.
+
+Suppress: add `--suppress <instance_id>` (repeatable) to the `step_worker.py run` command
+to run without that instance's steps, without editing the script -- to test whether one
+feature causes a failure. A suppressed run never runs the full tier; never return a
+contract from one.
+
 Snapshots (yours only, never shown to the user): `step_worker.py snapshot save <name>
 build/{{PART_ID}}.py` keeps the last passing step; `snapshot restore <name> ...` rewrites
 the script from it; `snapshot compare <a> <b> ...` diffs two of them.
@@ -62,8 +75,9 @@ the script from it; `snapshot compare <a> <b> ...` diffs two of them.
      extra steps. Its sizes come from the plan, never from the script.
    - Otherwise: write the step list from the plan's `blocks_needed` instances.
 2. **Lint**, then **run**.
-3. **A failing step** (`success: false`, `failed_step` set): fix THAT step, or restore a
-   snapshot and take a different approach -- never stack fixes on later steps. Read
+3. **A failing step** (`success: false`, `failed_step` set): fix THAT step, or restore
+   (`@prev` when your last edit broke a step that passed before) and take a different
+   approach -- never stack fixes on later steps. Read
    `failing_probes` (owner `plan` = the plan's intent; a step index = that block's own
    check) and `diff_vs_last_good`; read each error's `hint`.
    - A plan probe failing, or a value that must change, means the plan is wrong for this

@@ -968,7 +968,20 @@ def _emit(args: argparse.Namespace, result: dict) -> None:
             record_attempt(Path(args.attempts_log), Path(args.script).stem, result, args.model)
         except Exception as exc:  # telemetry must never break a validate run
             _append_stderr(result, f"attempt telemetry not written: {exc}")
+    _record_history(args.script, bool(result["success"]))
     print(json.dumps(result, indent=2))
+
+
+def _record_history(script: str, ok: bool) -> None:
+    """Record the run in script history, with the plan revision when the script is a part."""
+    from script_history import current_attempt, record_run
+
+    path = Path(script).resolve()
+    try:
+        attempt = current_attempt(path)
+    except Exception:
+        attempt = None
+    record_run(path, ok, attempt=attempt)
 
 
 def main():

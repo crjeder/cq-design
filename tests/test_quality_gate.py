@@ -2,6 +2,7 @@
 
 import json
 import math
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -869,3 +870,51 @@ def test_vertical_feature_below_layer_height(tmp_path):
     assert v[0]["min_gap_mm"] == pytest.approx(0.1, abs=1e-3)
     clean = quality_gate._analyze_stl(str(stl), OVERHANG_DEG, layer_height_mm=0.08)
     assert _issues_of(clean, "vertical_feature_below_layer") == []
+
+
+def _report(*issues):
+    return {
+        "issues": [
+            dict(zip(("type", "action", "source"), i, strict=True), union=None) for i in issues
+        ]
+    }
+
+
+def test_gate_delta_lists_resolved_and_regressed_blocking_findings():
+    from quality_gate import gate_delta
+
+    before = _report(("non_watertight", "fix", "trimesh"), ("overhang_exceeded", "fix", "trimesh"))
+    after = _report(
+        ("overhang_exceeded", "fix", "trimesh"),
+        ("keep_out_violation", "fix", "keep_out"),
+        ("cosmetic_slope", "warn_only", "cosmetic"),
+    )
+    delta = gate_delta(before, after)
+    assert [d["type"] for d in delta["resolved"]] == ["non_watertight"]
+    assert [d["type"] for d in delta["regressed"]] == ["keep_out_violation"]
+
+
+def test_missing_previous_report_fails_naming_the_path(tmp_path):
+    import subprocess
+    import sys
+
+    gate = Path(quality_gate.__file__)
+    missing = tmp_path / "round1.json"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(gate),
+            "--script",
+            str(tmp_path / "p.py"),
+            "--plan",
+            str(tmp_path / "BUILD_PLAN.json"),
+            "--previous",
+            str(missing),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 1
+    report = json.loads(proc.stdout)
+    assert report["issues"][0]["type"] == "file_error"
+    assert str(missing) in report["issues"][0]["message"]

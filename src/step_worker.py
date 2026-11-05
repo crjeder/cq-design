@@ -36,6 +36,8 @@ from multiprocessing.connection import Client, Listener
 from pathlib import Path
 from typing import Any, cast
 
+import script_history
+
 SRC = Path(__file__).resolve().parent
 IDLE_TIMEOUT_S = 600
 RUN_TIMEOUT_S = 300
@@ -124,7 +126,7 @@ def _check_stuck(script: Path, failing: list[dict], content: str) -> list[dict]:
     return stuck
 
 
-def _log_run(script: Path, part_id: str, ok: bool) -> None:
+def _log_run(script: Path, part_id: str, ok: bool) -> int:
     """Append this run to steps.jsonl under the part's current attempt (plan revision)."""
     from log import load_project_plan, plan_revision
 
@@ -132,16 +134,22 @@ def _log_run(script: Path, part_id: str, ok: bool) -> None:
     with _history(script).open("a", encoding="utf-8") as f:
         record = {"event": "run", "ok": ok, "attempt": attempt, "ts": time.time()}
         f.write(json.dumps(record) + "\n")
+    return attempt
 
 
-def run_steps(script: Path, cache: dict | None) -> dict:
+def run_steps(script: Path, cache: dict | None, suppress: list[str] | None = None) -> dict:
     """Execute the step list and build the report (no full tier)."""
-    part, error = _execute(script, cache)
-    _log_run(script, getattr(part, "id", script.stem), error is None)
+    os.environ["CQ_SUPPRESS"] = json.dumps(suppress or [])
+    try:
+        part, error = _execute(script, cache)
+    finally:
+        os.environ.pop("CQ_SUPPRESS", None)
+    attempt = _log_run(script, getattr(part, "id", script.stem), error is None)
     steps = list(getattr(part, "steps", []))
     failed = next((s for s in steps if not s.get("ok", True)), None)
     report: dict = {
         "success": error is None,
+        "attempt": attempt,
         "part_id": getattr(part, "id", script.stem),
         "steps": steps,
         "failed_step": failed["index"] if failed else None,
@@ -149,6 +157,7 @@ def run_steps(script: Path, cache: dict | None) -> dict:
         "diff_vs_last_good": None,
         "probe_stuck": False,
         "unprobed_interfaces": getattr(part, "unprobed_interfaces", []),
+        "suppressed": list(suppress or []),
     }
     if error is None:
         return report
@@ -225,7 +234,7 @@ def handle(request: dict, cache_for) -> dict:
     """Serve one request; cache_for(script) gives the step cache (None = cold)."""
     script = Path(request["script"]).resolve()
     if request["cmd"] == "run":
-        return run_steps(script, cache_for(script))
+        return run_steps(script, cache_for(script), request.get("suppress"))
     return snapshot(request["action"], request["names"], script, cache_for(script))
 
 
@@ -334,10 +343,12 @@ def request_worker(request: dict) -> dict:
 
 
 def _full_tier(script: Path, extra: list[str]) -> dict:
+    # Recorded once, by the step run that started it (main).
     proc = subprocess.run(
         [sys.executable, str(SRC / "run_cadquery_model.py"), str(script), *extra],
         capture_output=True,
         text=True,
+        env={**os.environ, script_history.SKIP_ENV: "1"},
     )
     try:
         return json.loads(proc.stdout)
@@ -352,6 +363,13 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("script")
     r.add_argument("full_args", nargs="*", help="run_cadquery_model.py args (after --)")
     r.add_argument("--no-full", action="store_true", help="skip the full tier")
+    r.add_argument(
+        "--suppress",
+        action="append",
+        default=[],
+        metavar="INSTANCE_ID",
+        help="run without this plan instance's steps (repeatable; never runs the full tier)",
+    )
     s = sub.add_parser("snapshot")
     s.add_argument("action", choices=["save", "restore", "compare"])
     s.add_argument("names", nargs="+")
@@ -379,11 +397,18 @@ def main(argv: list[str] | None = None) -> int:
         }
         report = request_worker(req)
     else:
-        report = request_worker({"cmd": "run", "script": args.script})
+        request = {"cmd": "run", "script": args.script, "suppress": args.suppress}
+        report = request_worker(request)
         report["full"] = None
-        if report.get("success") and not args.no_full:
+        if report.get("success") and not args.no_full and not args.suppress:
             report["full"] = _full_tier(Path(args.script), args.full_args)
             report["success"] = bool(report["full"].get("success"))
+        script_history.record_run(
+            Path(args.script).resolve(),
+            bool(report.get("success")),
+            attempt=report.get("attempt"),
+            suppressed=args.suppress,
+        )
     print(json.dumps(report, indent=2, default=str))
     return 0 if report.get("success") else 1
 
