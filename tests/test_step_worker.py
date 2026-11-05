@@ -182,3 +182,51 @@ def test_warm_worker_reused_then_cold_fallback_after_crash(project):
     finally:
         _, info = sw._connect(script.parent)
         sw._kill(info)
+
+
+def test_suppressed_instance_is_skipped_without_editing_the_script(project):
+    script = project()
+    before = script.read_text(encoding="utf-8")
+    report = sw.run_steps(script, None, ["hole"])
+    assert report["success"], report.get("error")
+    assert report["suppressed"] == ["hole"]
+    hole = [s for s in report["steps"] if s.get("id") == "hole"]
+    assert [s["kind"] for s in hole] == ["select", "resize", "place"]
+    assert all(s["suppressed"] for s in hole)
+    assert script.read_text(encoding="utf-8") == before
+
+
+def test_suppressing_a_planned_feature_fails_its_plan_probe(project):
+    report = sw.run_steps(project(), None, ["boss"])
+    assert not report["success"]
+    assert report["steps"][-1]["kind"] == "result"
+
+
+def test_suppress_toggle_stays_cache_warm(project):
+    script, cache = project(), dict[str, dict]()
+    sw.run_steps(script, cache, ["hole"])
+    sw.run_steps(script, cache)
+    third = sw.run_steps(script, cache, ["hole"])
+    built = [s for s in third["steps"] if s["kind"] != "result" and not s.get("suppressed")]
+    assert all(s.get("cached") for s in built)
+
+
+def test_suppressing_an_unknown_instance_is_a_plan_error(project):
+    report = sw.run_steps(project(), None, ["nope"])
+    assert not report["success"] and "not blocks_needed" in report["error"]
+
+
+def test_run_records_history_once_and_suppressed_skips_full(project, capsys, monkeypatch):
+    import script_history as sh
+
+    monkeypatch.delenv(sh.SKIP_ENV, raising=False)
+    script = project()
+    try:
+        assert sw.main(["run", str(script), "--suppress", "hole"]) == 0
+        report = json.loads(capsys.readouterr().out)
+        assert report["full"] is None
+        runs = [e for e in sh._events(script) if e["event"] == "run"]
+        assert len(runs) == 1 and runs[0]["suppressed"] == ["hole"] and runs[0]["attempt"] == 1
+    finally:
+        _, info = sw._connect(script.parent)
+        sw._kill(info)

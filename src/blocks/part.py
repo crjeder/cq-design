@@ -135,6 +135,17 @@ class Part:
         plan_probes = json.dumps([pr.as_dict(p) for p in seeded], sort_keys=True, default=str)
         self.key = hashlib.sha256(f"part:{part_id}|{plan_probes}".encode()).hexdigest()
         self.last_good: dict | None = None
+        # Instances the step worker runs without (`run --suppress`): their steps are recorded
+        # but build nothing and do not advance the key chain.
+        self.suppressed = set(json.loads(os.environ.get("CQ_SUPPRESS") or "[]"))
+        unknown = sorted(self.suppressed - set(self.instances))
+        if unknown:
+            raise _fail(
+                "step_plan",
+                part_id,
+                f"--suppress {unknown}: not blocks_needed instances; planned ids: "
+                f"{sorted(self.instances)}",
+            )
         Part.last = self
 
     def _chain(self, kind: str, args: dict, module: str = "") -> str:
@@ -197,6 +208,9 @@ class Part:
                 "step_plan",
                 f"instance {id!r} is planned as {inst.get('name')!r}, not {name!r}",
             )
+        if id in self.suppressed:
+            step["suppressed"] = True
+            return Handle(name, id, self.inventory[name], inst)
         key = self._chain("select", {"name": name, "id": id})
         if Part.cache is not None:
             step["cached"] = key in Part.cache
@@ -204,6 +218,9 @@ class Part:
         return Handle(name, id, self.inventory[name], inst)
 
     def resize(self, handle: Handle) -> Handle:
+        if handle.id in self.suppressed:
+            self._record("resize", handle.name, id=handle.id, suppressed=True)
+            return handle
         params = dict(self.instances[handle.id].get("params", {}))
         step = self._record("resize", handle.name, id=handle.id, args=params)
         declared = set(handle.entry.get("params", {}))
@@ -272,6 +289,9 @@ class Part:
     def place(
         self, handle: Handle, at=None, rotate=(0, 0, 0), op: str = "union", into=None, member=None
     ):
+        if handle.id in self.suppressed:
+            self._record("place", handle.name, id=handle.id, op=op, suppressed=True)
+            return handle
         if handle.shape is None:
             raise _fail("step_plan", handle.id, f"place before resize of {handle.id!r}")
         pair = isinstance(handle.shape, dict)

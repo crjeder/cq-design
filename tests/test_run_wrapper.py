@@ -687,3 +687,18 @@ def test_deliver_executes_script_once(tmp_path):
     assert rc == 0, data
     assert data["stl"].endswith("once.stl") and data["threemf"].endswith("once.3mf")
     assert counter.read_text() == "x"
+
+
+def test_runs_are_recorded_in_script_history(tmp_path, monkeypatch):
+    import script_history as sh
+
+    monkeypatch.delenv(sh.SKIP_ENV, raising=False)
+    script = tmp_path / "part_edited.py"
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
+    run(script)
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 12)\n")
+    run(script)
+    runs = [e for e in sh._events(script) if e["event"] == "run"]
+    assert [r["ok"] for r in runs] == [True, True]
+    assert len({r["src"] for r in runs}) == 2
+    assert all("attempt" not in r for r in runs)

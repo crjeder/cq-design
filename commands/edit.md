@@ -39,6 +39,12 @@ Read `SKILL.md`'s Coordinate system section. Directions in the change ("top", "l
 
    `identical: true` means the edit did nothing: revise `build/<stem>_edited.py`. Also revise when `only_a_volume` (removed) / `only_b_volume` (added) or `bbox_delta` contradict the change -- material removed when it only adds, the bounding box moving when the change is internal. Look at the input preview (run step 3 on `build/edit_input.py` once), the result preview and `build/edit_diff/diff.png` (common gray, removed red, added green) before accepting.
 
+   When a revision turns a run that had `success: true` into a failing one, or fails a diff check the previous revision passed, undo it before revising again -- never by editing the text back (every run's source is kept):
+
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/script_history.py" restore @prev build/<stem>_edited.py
+   ```
+
 5. After 5 failed iterations of steps 2-4, stop: deliver nothing and report the last errors and diff.
 
 6. Deliver; this writes `out/<stem>_edited.step`. Never write to the input file.
