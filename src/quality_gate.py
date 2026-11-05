@@ -108,6 +108,7 @@ def _run_wrapper_check(
     ]
     env = os.environ.copy()
     env["PYTHONPATH"] = SKILL_ROOT + os.pathsep + env.get("PYTHONPATH", "")
+    env["CQ_HISTORY_SKIP"] = "1"  # the gate runs accepted scripts, not edits
 
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     try:
@@ -1320,6 +1321,24 @@ def run_gate(
 # ---------------------------------------------------------------------------
 
 
+def _blocking_ids(report: dict) -> set[tuple]:
+    return {
+        (i.get("type"), i.get("union"), i.get("source"))
+        for i in report.get("issues", [])
+        if i.get("action") in ("fix", "re_export")
+    }
+
+
+def gate_delta(previous: dict, current: dict) -> dict:
+    """Blocking findings (type, union, source) resolved and regressed since previous."""
+    before, after = _blocking_ids(previous), _blocking_ids(current)
+
+    def listed(ids):
+        return [{"type": t, "union": u, "source": src} for t, u, src in sorted(ids, key=str)]
+
+    return {"resolved": listed(before - after), "regressed": listed(after - before)}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run quality gate on a CAD model script")
     parser.add_argument("--script", required=True, help="Path to the part/union Python script")
@@ -1354,12 +1373,18 @@ def main():
         help="Invoke claude to fix errors (cold-context, no plan/render/attempt history); "
         "default is report-only",
     )
+    parser.add_argument(
+        "--previous",
+        default=None,
+        help="The previous round's gate report; adds `delta` (resolved / regressed findings)",
+    )
     args = parser.parse_args()
 
     from units import InputFileError, read_json
 
     try:
         orientation = read_json(args.orientation, "orientation file") if args.orientation else None
+        previous = read_json(args.previous, "previous gate report") if args.previous else None
         report = run_gate(
             args.script,
             args.plan,
@@ -1370,6 +1395,8 @@ def main():
             orientation=orientation,
             attempts_log=args.attempts_log,
         )
+        if previous is not None:
+            report["delta"] = gate_delta(previous, report)
     except InputFileError as e:
         report = {
             "passed": False,

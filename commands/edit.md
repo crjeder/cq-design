@@ -11,17 +11,26 @@ The first argument is the file, the rest is the change. Stop with one line, writ
 
 Read `SKILL.md`'s Coordinate system section. Directions in the change ("top", "left", "front") are in the input's own frame: +Z up, +Y north, +X east.
 
-1. Write `build/edit_input.py`, the input. Use the input's **absolute** path (scripts run in a temp dir). `import_solid` handles `.step`/`.stp`/`.brep`, checks the solid and repairs an invalid one topologically:
+Scripts are created and changed only with `script_ops.py`, never with Edit/Write: write a script's code (or one section's code) to `build/<stem>.op.py`, then run
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/script_ops.py" <new|replace|insert|remove|move> build/<script>.py ...
+```
+
+(`new <script> --code <file>`, `replace <script> <section> --code <file>`, `insert <script> --after <section> --code <file>`, `remove <script> <section>`). Every operation is a `# step: <name>` section; a section's code file starts with its marker. A refused command left the file unchanged: read its `errors`, fix the code file, retry.
+
+1. Create `build/edit_input.py`, the input, with `script_ops.py new build/edit_input.py --code build/edit_input.op.py`. Use the input's **absolute** path (scripts run in a temp dir). `import_solid` handles `.step`/`.stp`/`.brep`, checks the solid and repairs an invalid one topologically:
 
    ```python
    from blocks import import_solid
 
+   # step: import
    result = import_solid(r"<absolute path of the input>")
    ```
 
    Run step 3's command on it once. A `[cq-design:step-repair]` line in `stdout` means the input was invalid and was repaired: quote it in the report. A `step_unrepairable` error means the input cannot be repaired within the volume limit: stop, deliver nothing, and report the error.
 
-2. Write `build/<stem>_edited.py` (`<stem>` is the input file name without extension, so delivery is named `out/<stem>_edited.step`): the same `import_solid` import (never `cq.importers` directly), then the change as operations on that imported body only -- `cut`/`union` with authored features (`from blocks import ...` where a block fits), or face/edge operations on it (a hole is resized by filling it and re-cutting). Never rebuild the part from scratch, and never translate, rotate or re-centre the import. Measure positions from the imported body (`result.val().BoundingBox()`, `.faces(">Z")`), not from guesses.
+2. Create `build/<stem>_edited.py` with `script_ops.py new --code` (`<stem>` is the input file name without extension, so delivery is named `out/<stem>_edited.step`): the same `# step: import` section (never `cq.importers` directly), then the change as operations on that imported body only, each in its own `# step: <feature>` section -- `cut`/`union` with authored features (`from blocks import ...` where a block fits), or face/edge operations on it (a hole is resized by filling it and re-cutting). Never rebuild the part from scratch, and never translate, rotate or re-centre the import. Measure positions from the imported body (`result.val().BoundingBox()`, `.faces(">Z")`), not from guesses.
 
 3. Run and preview until `success` is true (read each error's `hint`):
 
@@ -37,7 +46,13 @@ Read `SKILL.md`'s Coordinate system section. Directions in the change ("top", "l
    uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/diff_models.py" build/edit_diff/edit_input.stl build/edit_diff/<stem>_edited.stl --png build/edit_diff/diff.png
    ```
 
-   `identical: true` means the edit did nothing: revise `build/<stem>_edited.py`. Also revise when `only_a_volume` (removed) / `only_b_volume` (added) or `bbox_delta` contradict the change -- material removed when it only adds, the bounding box moving when the change is internal. Look at the input preview (run step 3 on `build/edit_input.py` once), the result preview and `build/edit_diff/diff.png` (common gray, removed red, added green) before accepting.
+   `identical: true` means the edit did nothing: revise `build/<stem>_edited.py` (a section command on the section at fault). Also revise when `only_a_volume` (removed) / `only_b_volume` (added) or `bbox_delta` contradict the change -- material removed when it only adds, the bounding box moving when the change is internal. Look at the input preview (run step 3 on `build/edit_input.py` once), the result preview and `build/edit_diff/diff.png` (common gray, removed red, added green) before accepting.
+
+   When a revision turns a run that had `success: true` into a failing one, or fails a diff check the previous revision passed, undo it before revising again -- never by editing the text back (every run's source is kept):
+
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/script_history.py" restore @prev build/<stem>_edited.py
+   ```
 
 5. After 5 failed iterations of steps 2-4, stop: deliver nothing and report the last errors and diff.
 
