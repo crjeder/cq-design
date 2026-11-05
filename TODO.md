@@ -22,6 +22,11 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [x] always write the files in print position
 - [ ] LLM didn’t follow the full cq-design pipeline. Its working folder has no BUILD_PLAN.json and no build/: just a part.py and two STEP files in out/ (model.step and part.step). The editing run seems to have taken a shortcut. It may need a prompt change if you want editing tasks to go through the real skill.
 fix: let the program own the pipeline not the llm
+- [ ] `session_cost.py` misreports cost: counts each API call once per transcript line (159 vs 96 calls), never reads `<session>/subagents/*.jsonl`, prices `claude-opus-5-5` / `claude-sonnet-5-5` at the $15/$15 default ([details](#siebtragerhalter-session-2026-11-04))
+- [ ] session cost driven by context re-reads: main session relays every checkpoint at 84k-198k tokens of context, each of 6 sub-agents starts at 61k tokens, all but the builder run Opus ([details](#siebtragerhalter-session-2026-11-04))
+- [ ] `parameters.py` is never imported: plan params are hand-copied derived numbers (71 = 70 + 1, 62.5, 33.5), so editing a sourced measurement changes nothing ([details](#siebtragerhalter-session-2026-11-04))
+- [ ] cross-section previews are uninformative: the section cap gets the same flat shade as every parallel face behind it, and the cut positions come from the interface centre along the wall normal, not across the feature ([details](#siebtragerhalter-session-2026-11-04))
+- [ ] feature callouts sit only on the orthographic panels, which have no edge lines, so the features they point at are invisible there; the isometric panel, where they can be seen, gets no labels ([details](#siebtragerhalter-session-2026-11-04))
 
 ## Backlog
 
@@ -1168,4 +1173,138 @@ attempt. build123d-mcp keeps one spawned worker with OCC loaded, SIGKILLs and
 respawns it on crash or timeout (their ADR 0002). Keep cq-design's whole-script
 runs (reproducible deliverable) but execute them in a persistent worker. Measure
 first: if the import is a small share of a typical attempt, drop this item.
+
+### Siebtragerhalter session (2026-11-04)
+
+Project `D:\3D Druck\Siebträgerhalter` (IMS 58 mm basket drawer tower, 1 part,
+session `bf64528b`). Figures below come from the deduplicated transcripts (main + 6
+sub-agents), priced at one flat rate so the shares are comparable. Absolute dollars
+depend on the real Opus 5.5 / Sonnet 5.5 rates, which are not in `model_prices.json`.
+
+**a) Cost.** `build/cost.json` says $45.83. That number is wrong in ways that
+partly cancel:
+
+- `session_cost.parse_transcript` sums `usage` on every `type: assistant` line. One
+  API call is written as several lines (one per content block) that repeat the same
+  `message.id` and `usage`, so the main transcript's 96 calls were counted 159 times.
+- Sub-agent turns live in `<session>/subagents/agent-*.jsonl`, not as `isSidechain`
+  lines in the main transcript, so `main_vs_subagent.subagent` is 0 and about 57% of
+  the session is missing.
+- `claude-opus-5-5` and `claude-sonnet-5-5` are not in `model_prices.json`, so both
+  fall back to `default` ($15 in / $15 out). The Sonnet builder is priced like Opus.
+- `attempts.jsonl` / `--model` record `claude-sonnet-5` (from `part_author_model()`),
+  but the builder actually ran `claude-sonnet-5-5`.
+
+Fix: dedupe by `message.id`, also read `subagents/*.jsonl` (they are the sub-agent
+side), add the 5.5 model ids to `model_prices.json`, and warn when a model falls back
+to `default`. Add a test with a split-content transcript and a subagents dir.
+
+Where the tokens went (flat-rate shares of the corrected total). 97% of input-side
+tokens are cache reads, so cost is roughly calls x context size:
+
+| Segment | Share | Note |
+|---|---|---|
+| Phase 0 + 1 (sourcing + research agents, main turns) | 26% | research agent: 40 calls for 7 basket dimensions |
+| Work discarded by the re-plan (first plan, 62.5 mm resolve, first stub) | 22% | |
+| The re-plan itself | 9% | planner resumed at ~150k context |
+| New stub + 3 build stages + first audit | 18% | |
+| "Raise bumps to 0.8" (one param change) | 12% | 6 hand-written Python plan edits in main, builder re-run, full Opus re-audit |
+| "Drop the rounding" + export + delivery | 6% | |
+| Cost/energy questions after a 4 h break | 5% | cache expired, 196k context re-created for one `cat` |
+
+Across all segments, the main session alone is 43% (96 calls; context 84k at the
+first call, 198k at the end, avg 142k).
+
+The re-plan therefore accounts for about 30% (discarded work + redo). That is real,
+but it came from a user design change at the first preview, not a pipeline fault.
+The structural causes:
+
+1. Main-session baseline: `/cq-design:init` and `/cq-design` ran in one session, and
+   the system prompt carries every MCP tool and skill, so the first call was already
+   84k. Main is a relay: 15 separate `log.py journal append` Bash calls, 13 `wrap_up`,
+   10 `update_plan`, 7 `SendMessage`. Each one re-reads the whole context.
+   Fix: fold the journal append into the script that completes the milestone
+   (`plan.py validate`, `print_orientation.py`, `build.py`, ...) or batch it with the
+   checkpoint's other call. Recommend a fresh session after init.
+2. Sub-agent baseline: every spawn is `general-purpose` with the full tool list
+   (browser, docs, Artifact, terminal, visualize, ...) = 61k tokens before it reads
+   its prompt. Fix: ship plugin agent definitions (`agents/*.md`) with a minimal
+   `tools:` list (builder/auditor/planner: Bash, Read, Write, Edit; research and
+   sourcing also get web tools).
+3. Model choice: sourcing, research, planner and both audits ran on the inherited
+   Opus. Only the builder was spawned with `model: sonnet`. Fix: set `model:` per
+   agent definition (Sonnet for sourcing, research and audit, Opus for the planner).
+4. Small plan edits go through main-session Python heredocs that dump the plan
+   (10k-char tool results). Fix: a `plan.py set <part>.<block>.params.h=0.8` command
+   that validates and prints only the diff, and a lighter re-check for a pure param
+   change (re-run probes and gate, skip the visual audit).
+5. Late concept check: the dish-rack vs drawer-tower mismatch surfaced only at the
+   profile stub, after planning and builder spin-up. A Phase 1 concept sketch (one
+   cheap blocky render of the reformulation) would catch it before Phase 2.
+
+**b) `parameters.py` is not imported.** That is by contract, not an accident:
+`skill/phase1_requirements.md` (At approval) prescribes the docstring "Sourced
+real-world measurements this design is based on (not imported by the build)", and
+Phase 2 only amends it. The planner then writes literal numbers into
+`BUILD_PLAN.json`: groove 71 (= `BASKET_RIM_OD_MM` 70 + 1), rail 4.25, cup cutout
+62.5 (= ridge 60.5 + 2), level pitch 33.5 (= `BASKET_HEIGHT_MAX_MM` 28.5 + 5 gap).
+Part scripts read `part.param(...)` from the plan, so Phase 0/1 results reach the
+model only as a one-time manual copy. Changing `parameters.py` after a test print
+does nothing, and nothing checks that the plan numbers still match the sources.
+
+Possible fixes, in order of effort:
+- Plan params may reference `parameters.py` names as expressions
+  (`"w": "BASKET_RIM_OD_MM + 2*GROOVE_CLEARANCE_MM"`). `plan.py validate` evaluates
+  them against the module's constants (names + arithmetic only, unknown names
+  rejected), and `Part.param` returns the evaluated value. Design allowances
+  (clearance, gap, wall) also go into `parameters.py`, marked `# design choice`, so
+  each derivation is visible.
+- Cheaper: a `source` expression per param (`"source": "BASKET_RIM_OD_MM + 1"`) that
+  `plan.py validate` recomputes and flags on mismatch. Literals stay, drift is caught.
+- Either way `export_standalone.py` already copies `parameters.py`, so the standalone
+  bundle would then really be parametric on the sourced values.
+
+**c) Cross-sections show nothing.** `preview/storage_shelf_preview_section_z_72mm.png`
+is a uniform 110 x 100 blue rectangle. The real z = 72 cut is an 81 x 80 U with the
+channel open. Causes:
+- `preview._shade_triangles` is flat Lambert shading only. `render_section` views
+  the kept half straight down the cut normal, so the cap, the base-plate top (z = 4)
+  and the channel floor all have normal +z and get the same colour. With no edge
+  lines or depth cue they merge into one silhouette: the base plate's footprint.
+- Cut choice: `render_prompt.section_cuts` proposed `z=2` (through the base plate),
+  `z=72.75` (cup_cutout centre along its `top` wall normal, which lands between rail
+  levels 69.75 and 103.25) and `x=33.4`. The builder ignored the rendered command and
+  passed its own `--extra-section z=72`. `section_select` found no bores or bosses,
+  so `--auto-sections` added nothing. The informative cut for this part is `y=0`
+  (the U profile with all 8 rail notches): across the slot run, not along the wall
+  normal.
+- Both audits passed with this image as evidence. Nothing flags a blank section.
+
+Fixes: draw the section cap in a distinct colour with an outline (cap = triangles
+lying on the cut plane) and add depth shading or edge lines to the section render;
+for `slot` / `clearance_opening` interfaces pick the axis perpendicular to the
+feature's long direction; have `render_section` report "uninformative" when the cap
+silhouette equals the uncut silhouette (no hole, no notch), so the auditor knows the
+image carries nothing; make the builder use the prompt's command verbatim (it may add
+cuts, not replace them).
+
+**d) Labels where the features cannot be seen.** `render_multi_view` puts callouts
+"on the three orthographic panels only (not isometric)" by design. In this part:
+- The orthographic panels have the same flat shading and no edge lines. The South
+  view (looking into the open front) is one dark silhouette, the top view one light
+  rectangle. Rails, channel and bumps are not visible in any of them.
+- Callout anchors are projected without a visibility test, so badges point at hidden
+  interior features. All 4 `rim_rails` levels and the 8 `front_bump`s project onto
+  2-4 points in the top view, so badges pile up (3/4/5/6, 11/13, 12/14).
+- The isometric panel is the only one where rails and the open front read, and it
+  has no labels.
+This is the same root issue as the open defect "every feature which is named in
+prose has to be shown and named in preview".
+
+Fixes: draw feature/silhouette edges in every panel (projected B-rep edges, or
+depth-discontinuity lines from the z-buffer `zbuffer.rasterize` already builds); per
+callout pick the panel where its anchor is visible (z-buffer depth test at the
+projected point, with tolerance), allowing the isometric panel; if no panel shows it,
+mark it "hidden" in the legend and render a `--detail` view for it; merge badges that
+project within a few pixels of each other ("rim_rails x4").
 
