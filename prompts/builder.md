@@ -21,6 +21,8 @@ stage). The orchestrator resumes you with one of:
 - `change: <feedback>` -> rework the current stage, return `stage_ready` again.
 - `finish` -> build every remaining stage in this run.
 - `fix: <finding or hint>` -> targeted edit of the finished part, re-validate, return the contract.
+  When it says your previous edit was reverted, the script is already back at the
+  accepted version: take a different approach, not the reverted one again.
 
 {{PITFALLS}}
 
@@ -50,6 +52,35 @@ render. To pick a `--detail` `section=` position for a bore, run
 `uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/section_select.py" build/{{PART_ID}}.py`
 and use its `extra_section_args`.
 
+Editing: never use Edit/Write on `build/{{PART_ID}}.py` (the disposable stub is exempt).
+Change it only through group commands, one plan instance per group (its `select`,
+`resize`, `place` calls and the position arithmetic between them). Write the group's code
+to `build/{{PART_ID}}.op.py`, ending with a statement (a trailing comment joins the next
+group), then:
+
+```bash
+uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/script_ops.py" <command> build/{{PART_ID}}.py ...
+#   list | show <id> | new (--template <file> | --code build/{{PART_ID}}.op.py)
+#   replace <id> --code build/{{PART_ID}}.op.py
+#   insert (--after <id> | --first) --code build/{{PART_ID}}.op.py
+#   remove <id> | move <id> (--after <id> | --first)
+```
+
+A refused command (`success: false`, typed `errors` with `hint`) left the file unchanged:
+fix the code file and retry. A run report with `unmanaged_edit: true` means the script was
+changed outside these commands; the orchestrator reports it.
+
+Undo (every run's source is kept automatically): never revert an edit by editing the text
+back. Run
+`uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/script_history.py" restore <target> build/{{PART_ID}}.py`
+with target `@prev` (the source before your last edit), `@last_ok` (the latest fully
+passing run) or a snapshot/mark name.
+
+Suppress: add `--suppress <instance_id>` (repeatable) to the `step_worker.py run` command
+to run without that instance's steps, without editing the script -- to test whether one
+feature causes a failure. A suppressed run never runs the full tier; never return a
+contract from one.
+
 Snapshots (yours only, never shown to the user): `step_worker.py snapshot save <name>
 build/{{PART_ID}}.py` keeps the last passing step; `snapshot restore <name> ...` rewrites
 the script from it; `snapshot compare <a> <b> ...` diffs two of them.
@@ -57,13 +88,16 @@ the script from it; `snapshot compare <a> <b> ...` diffs two of them.
 ## Procedure (each stage)
 
 1. **Start point** (first stage only). {{START_POINT}}
-   - From a template: copy `{{SKILL_DIR}}/templates/<file>` verbatim to
-     `build/{{PART_ID}}.py`, set its `Part("...")` id to `{{PART_ID}}`, apply deltas as
-     extra steps. Its sizes come from the plan, never from the script.
-   - Otherwise: write the step list from the plan's `blocks_needed` instances.
+   - From a template: `script_ops.py new build/{{PART_ID}}.py --template
+     {{SKILL_DIR}}/templates/<file>` (it sets the `Part("...")` id), then apply deltas
+     as extra instance groups with `insert`. Its sizes come from the plan, never from the
+     script.
+   - Otherwise: `new --code` with the header, first instance and `result =
+     part.result()`, then `insert` each further `blocks_needed` instance.
 2. **Lint**, then **run**.
-3. **A failing step** (`success: false`, `failed_step` set): fix THAT step, or restore a
-   snapshot and take a different approach -- never stack fixes on later steps. Read
+3. **A failing step** (`success: false`, `failed_step` set): fix THAT step, or restore
+   (`@prev` when your last edit broke a step that passed before) and take a different
+   approach -- never stack fixes on later steps. Read
    `failing_probes` (owner `plan` = the plan's intent; a step index = that block's own
    check) and `diff_vs_last_good`; read each error's `hint`.
    - A plan probe failing, or a value that must change, means the plan is wrong for this

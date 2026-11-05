@@ -17,6 +17,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
                              # `summary` (Phase 2 checkpoint Markdown tables), `import-params`
                              # (reconcile a part script's PARAMETERS block back into the plan)
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
+    script_history.py        # Per-script source log recorded by the run tools; restore/mark targets (stdlib only)
+    script_ops.py            # Group commands (new/replace/insert/remove/move) over part and edit scripts, preflighted (stdlib only)
     probes.py                # Probe kinds on BRep (solid_at/empty_at/ray/bbox), registry, plan-derived probes
     step_worker.py           # Warm step worker: prefix-cached step runs, per-step probe checks, snapshots, stuck rule
     render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
@@ -137,6 +139,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
                                      # round-trip -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
+    test_script_history.py           # Script history recording, restore targets, marks -- fast, no CadQuery
+    test_script_ops.py               # Group layout, commands, preflight refusals, unmanaged edits -- fast, no CadQuery
     test_render_prompt.py            # Builder/audit/planning/research prompt rendering -- fast, no CadQuery
     test_skill_version.py            # Version stamping/detection/compare -- fast, no CadQuery
     test_log.py                      # Journal/attempt/request_log helpers + CLI -- fast, no CadQuery

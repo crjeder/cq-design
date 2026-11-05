@@ -8,6 +8,9 @@ import trimesh
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
+# Runs of repo scripts (templates, fixtures) must not write history/ into the repo; the
+# history tests opt back in by deleting this.
+os.environ["CQ_HISTORY_SKIP"] = "1"
 
 WRAPPER = os.path.join(REPO_ROOT, "src", "run_cadquery_model.py")
 

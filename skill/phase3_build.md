@@ -95,6 +95,9 @@ For each part in `plan["parts"]`, in order (skip any part with `copy_of`: it has
          phase3/stub_approved:<part_id> "<summary>"
      ```
    - `passed` -> **Implementation audit** below.
+   - Any contract whose `step_report` has `unmanaged_edit: true` (the builder changed its
+     script outside `script_ops.py`): list it with that part's `decisions` at the design
+     approval checkpoint. It does not block the audit.
    - `blocked` -> **Escalation** below.
 
 Preview images stay out of this session unless the user asks you to look at one.
@@ -156,6 +159,11 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
    round; a second fail goes to **Escalation**.
 
 ## Write-backs on acceptance
+
+Mark the accepted script (also on **accept as-is**); the gate loop restores to it:
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/script_history.py" mark accepted build/<part_id>.py
+```
 
 From the accepted contract, into that part's `BUILD_PLAN.json` entry:
 - `placement` (replacing any planner proposal). Write nothing when it is `null`; a
@@ -368,8 +376,20 @@ means `passed: false`, not a crash: the report is still written. Read
 finding by its own `action` field, not by its `type`:
 
 - **`fix`** -> resume the part's builder with `fix: <type>: <message> (hint: <hint>)`,
-  re-audit if geometry changed, re-export, re-run the gate. At most 2 rounds per part;
-  then summarize the remaining findings to the user.
+  re-audit if geometry changed, re-export, re-run the gate with
+  `--previous build/<union_id>.quality_gate.json` (copy the previous report aside first,
+  e.g. to `build/<union_id>.quality_gate.round<n>.json`, and pass that copy). Read its `delta`:
+  - `resolved` empty or `regressed` non-empty -> the round made nothing better: undo it
+    before anything else, never by editing the script back:
+    ```bash
+    uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/script_history.py" restore accepted build/<part_id>.py
+    ```
+    and start the next round's resume with `fix: previous edit reverted (<delta>): ...`.
+  - otherwise keep the edit and re-run `script_history.py mark accepted build/<part_id>.py`.
+
+  At most 2 rounds per part; then summarize the remaining findings to the user. If the
+  last round was reverted, first re-export and re-run the gate from the restored script,
+  so the delivered files come from `accepted`.
 - **`re_export`** -> the STL predates an edit: re-run the model export, then the gate. No
   builder involved.
 - **`ask_user`** -> surface the finding's `message` and `hint` and ask before doing
