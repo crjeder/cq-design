@@ -7,8 +7,10 @@ id=X)` up to the next `select` or the tail, addressed by instance id `X`; an
 `if part.has("X"):` whose body holds only instance `X`'s statements SHALL belong to group
 `X`. In any other script, a group SHALL run from a `# step: <name>` comment line to the
 next marker or the tail, addressed by `<name>`; a script with neither SHALL be one group
-named `whole`. The header SHALL be the statements before the first group and the tail the
-last top-level `result = ...` assignment. `script_ops.py list <script>` SHALL print each
+named `whole`. The header SHALL be the statements before the first group. In a step script
+the tail SHALL be a final top-level `result = ...` assignment after the last group; marked
+and `whole` scripts SHALL have no tail (edit scripts reassign `result` in every section).
+A group SHALL end at its last statement, so comments after it belong to the next region. `script_ops.py list <script>` SHALL print each
 group's id, kind, line span and source hash, and `show <script> <group>` its source.
 
 #### Scenario: Step script grouped by instance
@@ -57,8 +59,9 @@ group's id, or `insert` reuses an existing id); `scope_violation` (header, tail 
 group other than the addressed one differs from the current file); `undefined_local` (a
 group reads a top-level name that the header, an earlier group or the group itself does
 not assign); `unknown_instance` (a step-script group id that is not a `blocks_needed`
-instance of the part in the project's `BUILD_PLAN.json`); and `script_lint.py` findings
-(with `--step` for step scripts), returned as the command's errors. On success it SHALL
+instance of the part in the project's `BUILD_PLAN.json`); and, for step scripts only,
+`script_lint.py --step` findings, returned as the command's errors (edit and legacy
+scripts are raw CadQuery, where lint's magic-number advice does not apply). On success it SHALL
 write the file atomically.
 
 #### Scenario: Code for the wrong group

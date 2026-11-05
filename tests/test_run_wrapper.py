@@ -702,3 +702,16 @@ def test_runs_are_recorded_in_script_history(tmp_path, monkeypatch):
     assert [r["ok"] for r in runs] == [True, True]
     assert len({r["src"] for r in runs}) == 2
     assert all("attempt" not in r for r in runs)
+
+
+def test_unmanaged_edit_flag(tmp_path):
+    import script_history as sh
+
+    script = tmp_path / "part_edited.py"
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 10)\n")
+    assert run(script)[1]["unmanaged_edit"] is False
+    sh.record_command(script, "new", None)
+    assert run(script)[1]["unmanaged_edit"] is False
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(20, 15, 11)\n")
+    rc, data = run(script)
+    assert rc == 0 and data["unmanaged_edit"] is True
