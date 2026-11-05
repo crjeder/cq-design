@@ -403,6 +403,7 @@ def main(argv: list[str] | None = None) -> int:
         if report.get("success") and not args.no_full and not args.suppress:
             report["full"] = _full_tier(Path(args.script), args.full_args)
             report["success"] = bool(report["full"].get("success"))
+        report["unmanaged_edit"] = script_history.unmanaged(Path(args.script).resolve())
         script_history.record_run(
             Path(args.script).resolve(),
             bool(report.get("success")),

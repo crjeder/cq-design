@@ -968,15 +968,18 @@ def _emit(args: argparse.Namespace, result: dict) -> None:
             record_attempt(Path(args.attempts_log), Path(args.script).stem, result, args.model)
         except Exception as exc:  # telemetry must never break a validate run
             _append_stderr(result, f"attempt telemetry not written: {exc}")
-    _record_history(args.script, bool(result["success"]))
+    _record_history(args.script, result)
     print(json.dumps(result, indent=2))
 
 
-def _record_history(script: str, ok: bool) -> None:
-    """Record the run in script history, with the plan revision when the script is a part."""
-    from script_history import current_attempt, record_run
+def _record_history(script: str, result: dict) -> None:
+    """Record the run in script history (with the plan revision when the script is a part)
+    and flag a script changed outside script_ops (`unmanaged_edit`)."""
+    from script_history import current_attempt, record_run, unmanaged
 
     path = Path(script).resolve()
+    ok = bool(result["success"])
+    result["unmanaged_edit"] = unmanaged(path)
     try:
         attempt = current_attempt(path)
     except Exception:

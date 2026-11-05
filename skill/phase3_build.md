@@ -95,6 +95,9 @@ For each part in `plan["parts"]`, in order (skip any part with `copy_of`: it has
          phase3/stub_approved:<part_id> "<summary>"
      ```
    - `passed` -> **Implementation audit** below.
+   - Any contract whose `step_report` has `unmanaged_edit: true` (the builder changed its
+     script outside `script_ops.py`): list it with that part's `decisions` at the design
+     approval checkpoint. It does not block the audit.
    - `blocked` -> **Escalation** below.
 
 Preview images stay out of this session unless the user asks you to look at one.

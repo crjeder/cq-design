@@ -230,3 +230,18 @@ def test_run_records_history_once_and_suppressed_skips_full(project, capsys, mon
     finally:
         _, info = sw._connect(script.parent)
         sw._kill(info)
+
+
+def test_text_edit_after_a_command_is_flagged_unmanaged(project, capsys):
+    import script_history as sh
+
+    script = project()
+    sh.record_command(script, "new", None)
+    script.write_text(script.read_text(encoding="utf-8") + "# hand edit\n", encoding="utf-8")
+    try:
+        sw.main(["run", str(script), "--no-full"])
+        report = json.loads(capsys.readouterr().out)
+        assert report["unmanaged_edit"] is True and report["success"]
+    finally:
+        _, info = sw._connect(script.parent)
+        sw._kill(info)

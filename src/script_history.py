@@ -71,9 +71,27 @@ def record_run(
             event["attempt"] = attempt
         if suppressed:
             event["suppressed"] = list(suppressed)
+        if unmanaged(script):
+            event["unmanaged"] = True
         _append(script, event)
     except Exception as exc:
         print(f"[cq-design:history] run not recorded: {exc}", file=sys.stderr)
+
+
+def record_command(script: Path, command: str, group: str | None) -> str:
+    """Record a script_ops command that just wrote script; return the new source hash."""
+    sha = _store(script)
+    _append(script, {"event": "command", "command": command, "group": group, "src": sha})
+    return sha
+
+
+def unmanaged(script: Path) -> bool:
+    """True when script was changed outside script_ops / restore since it was managed."""
+    try:
+        managed = {e["src"] for e in _events(script) if e.get("event") in ("command", "restore")}
+        return bool(managed) and source_hash(script.read_text(encoding="utf-8")) not in managed
+    except (OSError, ValueError):
+        return False
 
 
 def _resolve(script: Path, target: str, events: list[dict]) -> tuple[str | None, str | None]:

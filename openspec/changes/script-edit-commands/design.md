@@ -104,8 +104,9 @@ file is untouched:
    This is what makes `remove` and `move` safe across locals.
 5. `unknown_instance` (step scripts): an inserted group's id is not a `blocks_needed`
    instance of the part in `BUILD_PLAN.json`.
-6. Lint: `script_lint.py` on the candidate (`--step` for step scripts); its findings are
-   returned as the command's errors.
+6. Lint (step scripts only): `script_lint.py --step` on the candidate; its findings are
+   returned as the command's errors. Edit and legacy scripts are raw CadQuery, where
+   lint's magic-number findings would refuse every legitimate edit.
 
 Then the file is written atomically (temp file + replace) and a `command` event is
 appended through `script_history` with the command, group and new `src`.
