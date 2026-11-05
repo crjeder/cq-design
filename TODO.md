@@ -21,7 +21,7 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] every feature which is named in prose has to be shown and named in preview.
 - [x] always write the files in print position
 - [ ] LLM didn’t follow the full cq-design pipeline. Its working folder has no BUILD_PLAN.json and no build/: just a part.py and two STEP files in out/ (model.step and part.step). The editing run seems to have taken a shortcut. It may need a prompt change if you want editing tasks to go through the real skill.
-fix: let the program own the pipeline not the llm
+fix: let the program own the pipeline not the llm. exeption for edits.
 
 ## Backlog
 
