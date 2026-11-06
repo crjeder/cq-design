@@ -61,7 +61,7 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d models
-- [ ] optimization: https://github.com/yeicor-3d/dl4to4ocp
+- [x] optimization: https://github.com/yeicor-3d/dl4to4ocp -- rejected not relevant for FDM
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] the skill should have a way to distinguish between geometry which is fixed and one that is flexible and can be changed by the skill any time e. g. during optimization
