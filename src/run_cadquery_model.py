@@ -576,6 +576,8 @@ def _render_preview(
     density_g_cm3: float = 1.24,
     material: str = "PLA",
     auto_sections: bool = False,
+    features: list[str] | None = None,
+    sheet: bool = False,
 ) -> tuple[list[str], str | None]:
     """Invoke render_preview.py as a subprocess.
 
@@ -588,7 +590,10 @@ def _render_preview(
     numbered badge + leader line on the tile's three orthographic panels, plus a
     legend line. `unlocated_names` is a list of raw feature-name strings,
     forwarded as repeated --unlocated-name flags: unbadged legend entries for
-    named features with no known position. render_preview.py parses and
+    named features with no known position. `features` is a list of raw
+    "name=...;center=x,y,z[;diameter=d|size=w,h]" specs in relevance order, forwarded
+    as repeated --feature flags (per-feature views); `sheet` forwards --sheet (one
+    2 x 2 sheet, listed first among the extra previews). render_preview.py parses and
     validates all of these.
 
     `preview_dir` is where the preview PNG(s) are written; omit it to write
@@ -633,6 +638,10 @@ def _render_preview(
         cmd.extend(["--callout", spec])
     for name in unlocated_names or []:
         cmd.extend(["--unlocated-name", name])
+    for spec in features or []:
+        cmd.extend(["--feature", spec])
+    if sheet:
+        cmd.append("--sheet")
 
     proc = subprocess.run(
         cmd,
@@ -771,6 +780,8 @@ def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: 
         args.density,
         args.material,
         args.auto_sections,
+        args.feature,
+        args.sheet,
     )
     if render_err:
         _append_stderr(result, render_err)
@@ -879,6 +890,22 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "Named feature with no known position (requires --preview): listed in "
             "the tile legend as 'NAME (not located)' without a badge. Repeatable."
         ),
+    )
+    parser.add_argument(
+        "--feature",
+        action="append",
+        default=[],
+        metavar="SPEC",
+        help=(
+            "Per-feature preview (requires --preview), in relevance order: "
+            "'name=<feature>;center=x,y,z[;diameter=<d>|;size=<w>,<h>]'. Forwarded to "
+            "render_preview.py --feature. Repeatable."
+        ),
+    )
+    parser.add_argument(
+        "--sheet",
+        action="store_true",
+        help="Forward --sheet to render_preview.py (requires --preview): one 2 x 2 sheet",
     )
     parser.add_argument(
         "--preview-dir",

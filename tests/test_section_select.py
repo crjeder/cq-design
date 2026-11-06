@@ -5,7 +5,7 @@ import sys
 
 import cadquery as cq
 
-from section_select import detect_features, select_sections
+from section_select import detect_features, score_slices, select_sections
 
 SRC = os.path.join(os.path.dirname(__file__), "..", "src")
 
@@ -67,3 +67,49 @@ def test_cli(tmp_path):
     )
     assert out.returncode == 0, out.stderr
     assert json.loads(out.stdout)["extra_section_args"] == ["x=10"]
+
+
+def u_channel():
+    # U profile in the YZ plane, running along x, with two notches through both walls
+    wp = cq.Workplane("XY").box(40, 30, 20)
+    wp = wp.cut(cq.Workplane("XY").box(50, 24, 20).translate((0, 0, 13)))
+    for x in (-10, 10):
+        wp = wp.cut(cq.Workplane("XY").box(4, 40, 8).translate((x, 0, 16)))
+    return wp.val()
+
+
+def open_enclosure_with_posts():
+    wp = cq.Workplane("XY").box(60, 40, 30, centered=(True, True, False))
+    wp = wp.cut(
+        cq.Workplane("XY").box(56, 36, 30, centered=(True, True, False)).translate((0, 0, 2))
+    )
+    for x, y in ((-20, -12), (20, -12), (-20, 12), (20, 12)):
+        wp = wp.union(cq.Workplane("XY").workplane(offset=2).center(x, y).circle(3).extrude(20))
+    return wp.val()
+
+
+def test_slices_pick_the_u_profile_for_a_notched_channel():
+    cuts = score_slices(u_channel())
+    assert len(cuts) <= 2
+    assert any(c["axis"] == "x" for c in cuts)  # a cut across the channel shows the U
+
+
+def test_slices_pick_mid_height_for_an_enclosure_with_posts():
+    cuts = score_slices(open_enclosure_with_posts())
+    z = [c for c in cuts if c["axis"] == "z"]
+    assert z and 2 < z[0]["position_mm"] < 22  # through the posts, not above them
+
+
+def test_slices_ignore_a_plain_box():
+    assert score_slices(cq.Workplane("XY").box(20, 20, 20).val()) == []
+
+
+def test_slices_skip_reserved_positions():
+    shape = open_enclosure_with_posts()
+    z = next(c for c in score_slices(shape) if c["axis"] == "z")["position_mm"]
+    again = score_slices(shape, reserved=[("z", z)])
+    assert all(not (c["axis"] == "z" and abs(c["position_mm"] - z) < 0.5) for c in again)
+
+
+def test_slices_time_budget_returns_empty():
+    assert score_slices(u_channel(), budget_s=-1) == []

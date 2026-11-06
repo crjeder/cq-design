@@ -11,12 +11,17 @@ import argparse
 import json
 import math
 import sys
+import time
 from typing import cast
 
 AXES = "xyz"
 MIN_RADIUS_MM = 0.5
 MIN_COVERAGE = 0.5  # face area / full-cylinder area; drops fillets, keeps seam-split halves
 DEDUPE_MM = 0.5
+SLICES_PER_AXIS = 15
+SLICE_BUDGET_S = 5.0
+MIN_SLICE_SCORE = 0.5  # below this a slice shows nothing a bbox-centre cut would not
+MAX_LOOPS_SCORED = 6
 
 
 def _axis_index(direction, tol=1e-3):
@@ -133,6 +138,68 @@ def select_sections(shape, max_cuts=3, reserved=()):
         cands = [(ca, cp) for ca, cp in cands if not (ca == a and abs(cp - p) < DEDUPE_MM)]
         out.append({"axis": a, "position_mm": round(p, 3), "features": shown})
     return out
+
+
+def _slice_stats(shape, axis, pos, bb):
+    """(area, loops, void_fraction) of the shape's section at `axis`=`pos`, None if empty.
+
+    loops counts every boundary but the outermost (holes and island outlines); void is
+    the share of the section's own bbox that is empty.
+    """
+    import cadquery as cq
+
+    n = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
+    base = [(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2]
+    base["xyz".index(axis)] = pos
+    span = max(bb.xlen, bb.ylen, bb.zlen) * 2
+    faces = shape.intersect(cq.Face.makePlane(span, span, tuple(base), n)).Faces()
+    area = sum(f.Area() for f in faces)
+    if not faces or area <= 0:
+        return None
+    loops = sum(len(f.Wires()) for f in faces) - 1
+    sb = cq.Compound.makeCompound(faces).BoundingBox()
+    ext = sorted([sb.xlen, sb.ylen, sb.zlen])[1:]  # the two in-plane extents
+    return area, loops, max(0.0, 1.0 - area / max(ext[0] * ext[1], 1e-9))
+
+
+def score_slices(shape, max_cuts=2, reserved=(), budget_s=SLICE_BUDGET_S):
+    """Up to `max_cuts` [{axis, position_mm, score}] from slice analysis; [] past the time budget.
+
+    Samples SLICES_PER_AXIS planes per axis; score = min(loops, 6) + 2 x void fraction +
+    area change vs the neighbouring slices (relative to the axis' largest area). Takes the
+    best slice per axis, drops any within DEDUPE_MM of a `reserved` cut or scoring below
+    MIN_SLICE_SCORE, then the best `max_cuts`.
+    """
+    start = time.monotonic()
+    bb = shape.BoundingBox()
+    best = []
+    for axis in AXES:
+        lo = getattr(bb, axis + "min")
+        step = getattr(bb, axis + "len") / (SLICES_PER_AXIS + 1)
+        poses = [lo + step * (i + 1) for i in range(SLICES_PER_AXIS)]
+        stats = []
+        for p in poses:
+            if time.monotonic() - start > budget_s:
+                return []
+            stats.append(_slice_stats(shape, axis, p, bb))
+        top = max((st[0] for st in stats if st), default=0.0)
+        cands = []
+        for i, (p, st) in enumerate(zip(poses, stats, strict=True)):
+            if st is None or top <= 0:
+                continue
+            nbrs = [stats[j][0] for j in (i - 1, i + 1) if 0 <= j < len(stats) and stats[j]]
+            change = sum(abs(st[0] - a) for a in nbrs) / (len(nbrs) or 1) / top
+            score = min(st[1], MAX_LOOPS_SCORED) + 2 * st[2] + change
+            if score >= MIN_SLICE_SCORE and not any(
+                axis == ra and abs(p - rp) < DEDUPE_MM for ra, rp in reserved
+            ):
+                cands.append((score, axis, p))
+        if cands:
+            best.append(max(cands, key=lambda c: (c[0], -abs(c[2] - (lo + step * 8)))))
+    best.sort(key=lambda c: -c[0])
+    return [
+        {"axis": a, "position_mm": round(p, 3), "score": round(s, 3)} for s, a, p in best[:max_cuts]
+    ]
 
 
 def _parse_reserve(spec):

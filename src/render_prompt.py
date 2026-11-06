@@ -27,6 +27,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from feature_frame import section_plane
 from log import _read_records, fold_attempts, part_author_model, role_model, search_request_log
 from plan import _is_load_bearing, is_step_script
 from printer_profile_validate import validate_profile
@@ -42,6 +43,7 @@ ADV3D_RE = re.compile(r"revolve|loft|sweep|twist", re.IGNORECASE)
 LOAD_SECTIONS = {"Snap-Fit Strain Formula", "Rib / Boss / Gusset Ratios"}
 MIN_INTENT_CHARS = 120
 MAX_SECTIONS = 3
+MIN_FEATURE_DEPTH_MM = 0.5
 
 
 def _read(path: Path) -> str:
@@ -98,37 +100,90 @@ def scoped_request(plan: dict, part: dict) -> str | None:
     return "\n".join(lines)
 
 
-def section_cuts(plan: dict, part: dict) -> list[str]:
-    """Up to 3 `axis=value` cuts through named+positioned interfaces, request-mentioned first."""
+def _mentions(entry: dict, pid: str, name: str) -> bool:
+    """Whether a request_log entry targets (or, untargeted, names) interface `name` of `pid`."""
+    if entry.get("targets"):
+        return name in entry["targets"] or f"{pid}.{name}" in entry["targets"]
+    return name.lower() in entry.get("text", "").lower()
+
+
+def _size(itf: dict) -> float:
+    return max([itf.get("diameter_mm") or 0, *(itf.get("size_mm") or [])])
+
+
+def rank_features(plan: dict, part: dict) -> list[dict]:
+    """Named+positioned interfaces, most relevant first.
+
+    Tiers: named in the newest request_log entry (the current prompt); targeted by any
+    clarification/correction (ask_user answers are clarifications); any other mention; the
+    rest. Within a tier the most recently mentioned first, then larger, then plan order.
+    """
     log = plan.get("request_log") or []
     pid = part["id"]
     ranked = []
     for order, itf in enumerate(part.get("interfaces") or []):
-        name, pos = itf.get("name"), itf.get("position_mm")
-        if not name or not pos:
+        name = itf.get("name")
+        if not name or not itf.get("position_mm"):
             continue
-        hits = [
-            ({"clarification": 1, "correction": 2}.get(e.get("kind"), 3), -idx)
-            for idx, e in enumerate(log)
-            if (
-                name in e["targets"] or f"{pid}.{name}" in e["targets"]
-                if e.get("targets")
-                else name.lower() in e.get("text", "").lower()
-            )
-        ]
-        key = min(hits) if hits and min(hits)[0] < 3 else (3, order)
-        # ponytail: axis falls back to the largest |position| component;
-        # exact needs the bbox center, which only exists after the build
-        axis = (
-            WALL_AXIS.get(str(itf.get("wall", "")).lower())
-            or "xyz"[max(range(3), key=lambda i: abs(pos[i]))]
-        )
-        ranked.append((key, f"{axis}={pos['xyz'.index(axis)]:g}"))
+        hits = [(idx, e) for idx, e in enumerate(log) if _mentions(e, pid, name)]
+        if hits and hits[-1][0] == len(log) - 1:
+            tier = 0
+        elif any(e.get("kind") in ("clarification", "correction") for _, e in hits):
+            tier = 1
+        else:
+            tier = 2 if hits else 3
+        ranked.append(((tier, -(hits[-1][0] if hits else -1), -_size(itf), order), itf))
     ranked.sort(key=lambda r: r[0])
-    return [cut for _, cut in ranked[:MAX_SECTIONS]]
+    return [itf for _, itf in ranked]
 
 
-def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
+def load_frames(part_id: str, preview_dir: str = "preview") -> dict:
+    """Feature frames the previous build's render_preview wrote for this part ({} if none)."""
+    path = Path(preview_dir) / f"{part_id}_preview_frames.json"
+    try:
+        return json.loads(_read(path))
+    except (OSError, ValueError):
+        return {}
+
+
+def section_cuts(plan: dict, part: dict, frames: dict | None = None) -> list[str]:
+    """Up to 3 `axis=value` cuts through named+positioned interfaces, most relevant first.
+
+    An interface with a derived feature frame (from a previous build) is cut by the plane
+    containing its normal; one without keeps the wall/position fallback.
+    """
+    cuts = []
+    for itf in rank_features(plan, part)[:MAX_SECTIONS]:
+        frame = (frames or {}).get(itf["name"])
+        if frame and frame["depth_mm"] >= MIN_FEATURE_DEPTH_MM:
+            axis, pos = section_plane(frame)
+        else:
+            # ponytail: axis falls back to the largest |position| component;
+            # exact needs the bbox center, which only exists after the build
+            xyz = itf["position_mm"]
+            axis = (
+                WALL_AXIS.get(str(itf.get("wall", "")).lower())
+                or "xyz"[max(range(3), key=lambda i: abs(xyz[i]))]
+            )
+            pos = xyz["xyz".index(axis)]
+        cuts.append(f"{axis}={pos:g}")
+    return cuts
+
+
+def feature_flags(plan: dict, part: dict) -> list[str]:
+    """`--feature` specs for every positioned named interface, most relevant first."""
+    flags = []
+    for itf in rank_features(plan, part):
+        spec = f"name={itf['name']};center=" + ",".join(f"{v:g}" for v in itf["position_mm"])
+        if itf.get("diameter_mm"):
+            spec += f";diameter={itf['diameter_mm']:g}"
+        elif itf.get("size_mm"):
+            spec += ";size=" + ",".join(f"{v:g}" for v in itf["size_mm"])
+        flags.append(f'--feature "{spec}"')
+    return flags
+
+
+def validate_args(plan: dict, part: dict, is_final: bool = True, frames: dict | None = None) -> str:
     dims = part["dimensions"]
     cons = plan["constraints"]
     args = []
@@ -139,7 +194,7 @@ def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
         ]
     args += [
         f"--wall-min {cons['wall_min_mm']:g}",
-        "--strict --preview --preview-dir preview --cross-sections --auto-sections",
+        "--strict --preview --preview-dir preview --cross-sections --auto-sections --sheet",
         f"--attempts-log build/attempts.jsonl --model {part_author_model()}",
     ]
     for itf in part.get("interfaces") or []:
@@ -150,7 +205,8 @@ def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
             args.append(f'--callout "name={itf["name"]};center={center}"')
         else:
             args.append(f"--unlocated-name {itf['name']}")
-    args += [f"--extra-section {cut}" for cut in section_cuts(plan, part)]
+    args += feature_flags(plan, part)
+    args += [f"--extra-section {cut}" for cut in section_cuts(plan, part, frames)]
     return " ".join(args)
 
 
@@ -294,6 +350,7 @@ def render_builder(
     plan: dict, part: dict, override: str | None, attempts: Path | None
 ) -> tuple[str, list[str]]:
     part_stages = stages(plan, part, override)
+    frames = load_frames(part["id"])
     skill_dir = SKILL_DIR.as_posix()
     run_tool = f'uv run --project "{skill_dir}" python "{skill_dir}/src'
     validate_commands = "\n\n".join(
@@ -304,7 +361,7 @@ def render_builder(
             if stage == "profile_stub"
             else f'{run_tool}/step_worker.py" run \\\n'
             f"    build/{part['id']}.py -- "
-            f"{validate_args(plan, part, stage == part_stages[-1])}"
+            f"{validate_args(plan, part, stage == part_stages[-1], frames)}"
         )
         for stage in part_stages
     )
