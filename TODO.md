@@ -68,6 +68,7 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] the skill should have a way to distinguish between geometry which is fixed and one that is flexible and can be changed by the skill any time e. g. during optimization
 - [ ] generate testable statements from user intent (different agent then planer)
+- [ ] replace ascii-art with SVG illustrations
 
 ### Kinematic, Joints and Simulation
 
