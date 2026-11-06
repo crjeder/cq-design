@@ -23,8 +23,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 - [ ] LLM didn’t follow the full cq-design pipeline. Its working folder has no BUILD_PLAN.json and no build/: just a part.py and two STEP files in out/ (model.step and part.step). The editing run seems to have taken a shortcut. It may need a prompt change if you want editing tasks to go through the real skill.
 fix: let the program own the pipeline not the llm. exeption for edits.
 - [x] `session_cost.py` misreports cost: counts each API call once per transcript line (159 vs 96 calls), never reads `<session>/subagents/*.jsonl`, prices `claude-opus-5-5` / `claude-sonnet-5-5` at the $15/$15 default ([details](#siebtragerhalter-session-2026-11-04))
-- [ ] session cost driven by context re-reads: main session relays every checkpoint at 84k-198k tokens of context, each of 6 sub-agents starts at 61k tokens, all but the builder run Opus ([details](#siebtragerhalter-session-2026-11-04))
-- [ ] `parameters.py` is never imported: plan params are hand-copied derived numbers (71 = 70 + 1, 62.5, 33.5), so editing a sourced measurement changes nothing ([details](#siebtragerhalter-session-2026-11-04))
+- [x] session cost driven by context re-reads: main session relays every checkpoint at 84k-198k tokens of context, each of 6 sub-agents starts at 61k tokens, all but the builder run Opus ([details](#siebtragerhalter-session-2026-11-04)) -- change `reduce-session-cost`: named agents (minimal tools, Sonnet for sourcing/research/builder/audit), journal side effects, partial rebuild; auditor-on-Sonnet eval (task 2.5) still to run
+- [x] `parameters.py` is never imported: plan params are hand-copied derived numbers (71 = 70 + 1, 62.5, 33.5), so editing a sourced measurement changes nothing ([details](#siebtragerhalter-session-2026-11-04))
 - [ ] cross-section previews are uninformative: the section cap gets the same flat shade as every parallel face behind it, and the cut positions come from the interface centre along the wall normal, not across the feature ([details](#siebtragerhalter-session-2026-11-04))
 - [ ] feature callouts sit only on the orthographic panels, which have no edge lines, so the features they point at are invisible there; the isometric panel, where they can be seen, gets no labels ([details](#siebtragerhalter-session-2026-11-04))
 
@@ -67,7 +67,7 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] the skill should have a way to distinguish between geometry which is fixed and one that is flexible and can be changed by the skill any time e. g. during optimization
 - [ ] generate testable statements from user intent (different agent then planer)
-- [ ] replace ascii-art with SVG illustrations
+- [x] replace ascii-art with SVG illustrations
 
 ### Kinematic, Joints and Simulation
 

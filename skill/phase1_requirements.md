@@ -20,7 +20,7 @@ A wrong dimension is a parameter edit; a wrong topology rebuilds every part buil
 When the request's shape has more than one plausible reading (a recessed pit vs. a raised
 rim, which end of a taper is wide, a bare dimension with no stated reference, a feature on
 top of vs. inside another), resolve it before any dimension lookup: draw a small labeled
-cross-section (a diagram tool if available, else ASCII) and ask a direct either/or
+cross-section (render it with `concept_sketch.py`, see the exit checkpoint; never ASCII art) and ask a direct either/or
 question naming both readings. Wait for the answer, then:
 ```bash
 uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
@@ -63,13 +63,14 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" research 
     --targets-file build/lookup_targets.md [--known-file build/known_context.md]
 ```
 
-Spawn one agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
-on the session default model. It returns a dimension table (status `confirmed`,
+Spawn the `cq-design-research` agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
+on the render output's `model`. It returns a dimension table (status `confirmed`,
 `single-source`, `conflict`, `missing`) and sources.
 
 ## Exit checkpoint
 
-One message, one approval, covering:
+One message, one approval, covering (the `dimensions_approved` milestone is written only
+after all three are approved):
 
 1. **Dimension table** -- the research rows (omit when nothing was looked up), with every
    `conflict`/`missing` row resolved with the user or converted to `assumed` (a concrete
@@ -87,7 +88,18 @@ One message, one approval, covering:
    > 24 mm (no source -- adjust after a test fit). Based on the user's sketch,
    > `sketches/broom-hook-2026-09-01T10-00-00Z.jpg`.
 
-Do not start Phase 2 until the user approves or corrects it. Corrections replace the
+3. **Concept sketch** -- a simple SVG of the understood concept, so a misreading shows
+   before planning. Write `sketches/concept.json` (one entry per main shape in the front,
+   top and side views that matter, labels for the named features, the key dimensions from
+   the table) and render it; show the SVG with the message:
+   ```bash
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/concept_sketch.py" sketches/concept.json --out sketches/concept.svg
+   ```
+   `concept_sketch.py --help` and its docstring give the JSON shape. The sketch only
+   communicates; nothing is derived from it. A rejected sketch is a correction: amend
+   `concept.json`, re-render, and log it with `log.py request add --kind correction`.
+
+Do not start Phase 2 until the user approves or corrects all three. Corrections replace the
 looked-up values; a corrected reading becomes the approved text. The approved reformulation
 is copied verbatim into `BUILD_PLAN.json`'s `intent` by the planner; `request_log`'s
 `initial` entry keeps the user's original wording. If the log already holds
@@ -98,13 +110,17 @@ entry's `ts`; with only an `initial` entry, no stamp is needed.
 
 In the same turn, write `parameters.py` at the project root: every real-world measurement
 the design rests on (table rows with their status, and user-stated values), one commented
-constant each. Skip only when there are none.
+constant each, ending the line with an origin tag: `# user`, `# researched: <source>`,
+`# assumed`, or (Phase 2 only) `# design choice`. `parameters.py` is the single source of
+every dimension: Phase 2 plan params are expressions over these names, so editing a
+constant here reaches the build. Skip only when there are none.
 
 ```python
-"""Sourced real-world measurements this design is based on (not imported by the build)."""
+"""Real-world measurements and design allowances; plan params are expressions over these."""
 
-TV_BASE_WIDTH_MM = 385.0   # user-stated
-IPHONE_15_PRO_WIDTH_MM = 70.6  # apple.com/iphone-15-pro/specs, confirmed vs. gsmarena.com
+TV_BASE_WIDTH_MM = 385.0   # user
+IPHONE_15_PRO_WIDTH_MM = 70.6  # researched: apple.com/iphone-15-pro/specs, confirmed vs. gsmarena.com
+HANDLE_DIAMETER_MM = 24.0  # assumed
 ```
 
 Then always append the milestone, even when nothing was looked up (resume keys on it).

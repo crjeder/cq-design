@@ -918,3 +918,21 @@ def test_missing_previous_report_fails_naming_the_path(tmp_path):
     report = json.loads(proc.stdout)
     assert report["issues"][0]["type"] == "file_error"
     assert str(missing) in report["issues"][0]["message"]
+
+
+def test_parameters_traceability_advisories(tmp_path):
+    (tmp_path / "parameters.py").write_text("RIM_MM = 70  # user\nGAP_MM = 3.5\n", encoding="utf-8")
+    plan = {
+        "parts": [
+            {
+                "id": "p",
+                "blocks_needed": [
+                    {"name": "box", "id": "b", "params": {"w": 70, "d": "RIM_MM + 1", "h": 1}}
+                ],
+            }
+        ]
+    }
+    issues = quality_gate._run_parameters_traceability_stage(str(tmp_path), plan)
+    types = sorted(i["type"] for i in issues)
+    assert types == ["parameter_literal_duplicates_constant", "parameters_untagged"]
+    assert "GAP_MM" in next(i for i in issues if i["type"] == "parameters_untagged")["message"]

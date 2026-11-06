@@ -42,14 +42,14 @@ line; the format below is what that command writes.
 | 0 | `rung_decision` | The sourcing ladder resolves — records the chosen rung, source, and license verdict |
 | 1 | `topology_confirmed` | The user confirms a topology reading at the clarification step |
 | 1 | `dimensions_approved` | The user approves/corrects the Phase 1 exit checkpoint — always written, even when nothing was looked up (`parameters.py` is written in the same turn when there are measurements — see `skill/phase1_requirements.md`) |
-| 2 | `plan_written` | `BUILD_PLAN.json` passes `plan.py validate` |
+| 2 | `plan_written` | `BUILD_PLAN.json` passes `plan.py validate` (the script writes the line) |
 | 2 | `plan_approved` | The user approves the Phase 2 plan summary |
 | 3 | `stub_approved:<part_id>` | The user approves a part's `profile_stub` stage |
 | 3 | `part_accepted:<part_id>` | A part passes the Implementation audit (or is accepted as-is at escalation) |
 | 3 | `escalation:<part_id>` | The user resolves a blocked-builder escalation — records the outcome (hint verbatim / accepted as-is / skipped) |
 | 3 | `design_approved` | The user approves the Design approval checkpoint (all parts done) |
 | 3 | `orientation_chosen` | Print-orientation optimization completes for every union |
-| 3 | `assembly_written` | Assembled-pose per-union STLs and the manifest are written (`write_assembly.py`) |
+| 3 | `assembly_written` | Assembled-pose per-union STLs and the manifest are written (`write_assembly.py` writes the line) |
 | 3 | `gate_result` | The quality gate finishes — records pass/fail and remaining error count |
 | 4 | `delivered` | Phase 4's model files (`build.py`), report and `README.md` are complete |
 

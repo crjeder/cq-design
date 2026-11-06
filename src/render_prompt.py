@@ -27,7 +27,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from log import _read_records, fold_attempts, part_author_model, search_request_log
+from log import _read_records, fold_attempts, part_author_model, role_model, search_request_log
 from plan import _is_load_bearing, is_step_script
 from printer_profile_validate import validate_profile
 
@@ -600,6 +600,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         out = Path(args.out or "build/sourcing_prompt.txt")
 
+    extra.setdefault(
+        "model",
+        role_model({"audit": "auditor", "planning": "planner"}.get(args.kind, args.kind)),
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     print(json.dumps({"out": out.as_posix(), "chars": len(text), **extra}))

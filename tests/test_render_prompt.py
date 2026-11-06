@@ -101,7 +101,7 @@ def test_builder_cli_prints_default_model_without_config(tmp_path, monkeypatch, 
     monkeypatch.chdir(tmp_path)
     assert rp.main(["builder", "--plan", "BUILD_PLAN.json", "--part", "lid"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["model"] == "claude-sonnet-5"
+    assert out["model"] == "claude-sonnet-5-5"
 
 
 def test_every_eval_case_renders_without_placeholders(tmp_path):
