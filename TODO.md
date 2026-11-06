@@ -41,7 +41,6 @@ fix: let the program own the pipeline not the llm. exeption for edits.
 - [ ] change rules into advisories: make holes drop shaped --> hole found. consider drop shape like [DfAM Check](https://github.com/earthtojake/text-to-cad/blob/main/skills/dfam-check/SKILL.md)
 - [x] edit mode (import step) and apply changes -- `/cq-design:edit`
 - [x] review [burr](https://crates.io/crates/burr)
-- [x] edit mode (import step) and apply changes
 - [ ] Interference check across all parts at rest (a real gap)
 Varen: its assembly export checks every pair of parts for overlap, with a quick bounding-box pass first. A table of expected overlaps lets intended ones through, such as gear mesh or press fits, each with a volume limit and a reason.
 cq-design today: only three overlap checks exist, and none tests every pair of parts:
