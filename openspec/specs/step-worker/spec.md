@@ -94,3 +94,28 @@ set `probe_stuck: true` and include both occurrences.
 - **WHEN** the rewritten step 4 passes the bore probe but fails a wall probe
 - **THEN** `probe_stuck` is false
 
+### Requirement: Step runs are recorded in script history
+`step_worker.py run` SHALL record each run through `script_history.record_run` with `ok`
+true only when every step passed and the full tier, when it ran, succeeded; with the plan
+revision it computes for `steps.jsonl`; and with the `--suppress` ids when any were given.
+It SHALL set `CQ_HISTORY_SKIP=1` on the full-tier `run_cadquery_model.py` subprocess so
+the run is recorded once. Warm and fallback runs SHALL record the same way.
+
+#### Scenario: Failing step is recorded
+- **WHEN** a step run fails at step 3
+- **THEN** `build/history/<part>/log.jsonl` gains one `run` event with `ok: false` and the
+  script's `src`
+
+#### Scenario: Fallback run is recorded
+- **WHEN** the worker crashes and the run is served cold (`worker: "fallback"`)
+- **THEN** exactly one `run` event is recorded for it
+
+### Requirement: Run report flags unmanaged edits
+The `step_worker.py run` report SHALL include `unmanaged_edit` as defined by `script-ops`
+for both warm and fallback runs, and its value SHALL also appear in the saved step report
+the builder passes to the audit.
+
+#### Scenario: Unmanaged edit in a warm run
+- **WHEN** the builder edits `build/<part>.py` as text after its last `script_ops.py`
+  command and runs the step worker
+- **THEN** the report has `unmanaged_edit: true` and the steps run as usual

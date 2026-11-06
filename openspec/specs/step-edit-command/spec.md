@@ -21,7 +21,7 @@
 
 ### Requirement: One edit script on the imported body
 
-The command SHALL write exactly two scripts: `build/edit_input.py`, whose `result` is the imported file, and `build/<stem>_edited.py`, whose `result` is the imported file with the change applied. Both scripts SHALL import the file with `blocks.import_solid` (the checked import, which may repair an invalid input), never with `cq.importers` directly. `build/<stem>_edited.py` SHALL modify the imported body only by operations on it (boolean cut/union with authored features, or face/edge operations on it); it SHALL NOT rebuild the part from scratch. Both scripts SHALL reference the input by path, never embed its geometry. The command SHALL NOT run phases 0-2 and SHALL NOT write `BUILD_PLAN.json`. When `import_solid` repairs the input, the command's report SHALL quote the `[cq-design:step-repair]` line. When it raises `step_unrepairable`, the command SHALL stop, deliver nothing, and report the error.
+The command SHALL write exactly two scripts: `build/edit_input.py`, whose `result` is the imported file, and `build/<stem>_edited.py`, whose `result` is the imported file with the change applied. Both scripts SHALL import the file with `blocks.import_solid` (the checked import, which may repair an invalid input), never with `cq.importers` directly. `build/<stem>_edited.py` SHALL modify the imported body only by operations on it (boolean cut/union with authored features, or face/edge operations on it); it SHALL NOT rebuild the part from scratch. Both scripts SHALL reference the input by path, never embed its geometry. The command SHALL NOT run phases 0-2 and SHALL NOT write `BUILD_PLAN.json`. When `import_solid` repairs the input, the command's report SHALL quote the `[cq-design:step-repair]` line. When it raises `step_unrepairable`, the command SHALL stop, deliver nothing, and report the error. Both scripts SHALL be created with `script_ops.py new --code` and SHALL mark each operation with a `# step: <name>` line (`import` for the import); every later revision of `build/<stem>_edited.py` SHALL go through `script_ops.py` `replace`, `insert`, `remove` or `move` on those sections, never through a text edit of the script.
 
 #### Scenario: Hole added
 - **WHEN** the change adds a hole
@@ -39,6 +39,10 @@ The command SHALL write exactly two scripts: `build/edit_input.py`, whose `resul
 - **WHEN** `build/edit_input.py` fails with `step_unrepairable`
 - **THEN** the command stops without delivering and reports the error
 
+#### Scenario: Revision through a section command
+- **WHEN** the diff shows the added hole in the wrong place
+- **THEN** the command rewrites only the `hole` section with `script_ops.py replace` and the `import` section is unchanged
+
 ### Requirement: Input frame preserved
 
 The edited result SHALL stay in the input file's coordinate frame: neither script SHALL translate, rotate or re-centre the imported body, and delivery SHALL NOT apply a print-orientation rotation. Directions in the change description ("top", "left") SHALL be read in the input frame (+Z up, +Y north per `SKILL.md`), and the command SHALL state that reading in its report.
@@ -53,7 +57,7 @@ The edited result SHALL stay in the input file's coordinate frame: neither scrip
 
 ### Requirement: Validate and diff before delivery
 
-The command SHALL run `run_cadquery_model.py build/<stem>_edited.py --preview` and iterate on the script until `success` is true. It SHALL then mesh both scripts (`--deliver --formats stl --output-dir build/edit_diff`) and run `diff_models.py` on input (A) and result (B) with `--png`. When `identical` is true the edit SHALL be treated as not applied and iterated on. When the diff's changed volume (`only_a_volume`, `only_b_volume`) or `bbox_delta` contradicts the description (for example, material removed when the change only adds, or the bounding box grows when the change is internal), the command SHALL iterate. The command SHALL compare the input and result previews and the diff PNG before delivery. After 5 failed iterations it SHALL stop and report the last errors and diff instead of delivering.
+The command SHALL run `run_cadquery_model.py build/<stem>_edited.py --preview` and iterate on the script until `success` is true. It SHALL then mesh both scripts (`--deliver --formats stl --output-dir build/edit_diff`) and run `diff_models.py` on input (A) and result (B) with `--png`. When `identical` is true the edit SHALL be treated as not applied and iterated on. When the diff's changed volume (`only_a_volume`, `only_b_volume`) or `bbox_delta` contradicts the description (for example, material removed when the change only adds, or the bounding box grows when the change is internal), the command SHALL iterate. When a revision turns a run that had `success: true` into a failing one, or fails a diff check the previous revision passed, the command SHALL run `script_history.py restore @prev build/<stem>_edited.py` before revising again, and SHALL NOT revert the revision by editing the text back. The command SHALL compare the input and result previews and the diff PNG before delivery. After 5 failed iterations it SHALL stop and report the last errors and diff instead of delivering.
 
 #### Scenario: Edit had no effect
 - **WHEN** `diff_models.py` reports `identical: true`
@@ -62,6 +66,10 @@ The command SHALL run `run_cadquery_model.py build/<stem>_edited.py --preview` a
 #### Scenario: Wrong direction
 - **WHEN** the change says "add a boss" and the diff shows only `only_a_volume` (material removed)
 - **THEN** the command revises `build/<stem>_edited.py`
+
+#### Scenario: A revision breaks a working script
+- **WHEN** revision 2 succeeded but contradicted the diff, and revision 3 fails with `success: false`
+- **THEN** the command restores `@prev` (revision 2's source) before writing revision 4
 
 #### Scenario: Gives up
 - **WHEN** 5 iterations fail
