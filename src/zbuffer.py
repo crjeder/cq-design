@@ -53,6 +53,15 @@ def rasterize(triangles, colors, project, width, height, bg):
     `triangles` is (n, 3, 3) in mm, `colors` (n, 3) floats in 0..1, `bg` an RGB
     uint8 triple. Rendered at _SSAA x resolution and box-downsampled.
     """
+    return rasterize_with_depth(triangles, colors, project, width, height, bg)[0]
+
+
+def rasterize_with_depth(triangles, colors, project, width, height, bg):
+    """Like `rasterize`, also returning an (height, width) float depth buffer.
+
+    Depth is the per-pixel maximum camera-axis coordinate (nearer = larger) over the
+    SSAA samples; `-inf` marks pixels no triangle covers.
+    """
     w, h = width * _SSAA, height * _SSAA
     img = np.empty((h, w, 3), dtype=float)
     img[:] = np.asarray(bg, dtype=float) / 255.0
@@ -83,4 +92,39 @@ def rasterize(triangles, colors, project, width, height, bg):
         img[sl][hit] = colors[i]
 
     small = img.reshape(height, _SSAA, width, _SSAA, 3).mean(axis=(1, 3))
-    return (np.clip(small, 0, 1) * 255 + 0.5).astype(np.uint8)
+    depth = zbuf.reshape(height, _SSAA, width, _SSAA).max(axis=(1, 3))
+    return (np.clip(small, 0, 1) * 255 + 0.5).astype(np.uint8), depth
+
+
+def edge_mask(depth, rel_threshold=0.01):
+    """Boolean (h, w) mask of silhouette and depth-discontinuity pixels.
+
+    Silhouette: a covered pixel with an uncovered 4-neighbour. Discontinuity: the
+    nearer pixel of a depth step, found as a negative second difference beyond
+    `rel_threshold` x the covered depth range (a planar slope has none, so oblique
+    faces are not mistaken for edges).
+    """
+    covered = np.isfinite(depth)
+    if not covered.any():
+        return np.zeros(depth.shape, dtype=bool)
+    c = np.pad(covered, 1)
+    inner = c[:-2, 1:-1] & c[2:, 1:-1] & c[1:-1, :-2] & c[1:-1, 2:]
+    edge = covered & ~inner
+    rng = float(depth[covered].max() - depth[covered].min())
+    thr = max(rng * rel_threshold, 1e-9)
+    d = np.pad(np.where(covered, depth, 0.0), 1)
+    for lo, hi, both in (
+        (
+            (slice(None, -2), slice(1, -1)),
+            (slice(2, None), slice(1, -1)),
+            c[:-2, 1:-1] & c[2:, 1:-1],
+        ),
+        (
+            (slice(1, -1), slice(None, -2)),
+            (slice(1, -1), slice(2, None)),
+            c[1:-1, :-2] & c[1:-1, 2:],
+        ),
+    ):
+        mid = d[1:-1, 1:-1]
+        edge |= covered & both & (d[lo] + d[hi] - 2 * mid < -thr)
+    return edge
