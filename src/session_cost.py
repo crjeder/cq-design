@@ -50,6 +50,8 @@ def _add(dst: dict, src: dict) -> None:
 
 
 def _price_tokens(tokens: dict, prices: dict, model: str) -> float:
+    if model not in prices:
+        print(f"session_cost: no price for model {model!r}, using default", file=sys.stderr)
     entry = prices.get(model, prices["default"])
     inp, out = entry["input"], entry["output"]
     return (
@@ -60,14 +62,12 @@ def _price_tokens(tokens: dict, prices: dict, model: str) -> float:
     ) / 1e6
 
 
-def parse_transcript(path: Path) -> tuple[dict, int]:
-    """Sum usage per ``(model, side)`` over a transcript's assistant turns.
+def _read_turns(path: Path, side_override: str | None, turns: dict) -> None:
+    """Add a file's assistant turns to ``turns``, keyed by ``message.id``.
 
-    ``side`` is ``"subagent"`` for sidechain turns, ``"main"`` otherwise. Lines
-    that are not assistant turns, do not parse, or carry no ``usage`` are skipped.
+    One API call is written as several lines (one per content block) repeating the
+    same id and usage; keying by id counts it once (the last line wins).
     """
-    acc: dict[tuple[str, str], dict] = {}
-    count = 0
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
@@ -84,15 +84,30 @@ def parse_transcript(path: Path) -> tuple[dict, int]:
         usage = msg.get("usage")
         if not isinstance(usage, dict):
             continue
-        model = msg.get("model") or "unknown"
-        side = "subagent" if obj.get("isSidechain") else "main"
+        side = side_override or ("subagent" if obj.get("isSidechain") else "main")
+        key = msg.get("id") or f"{path}:{len(turns)}"
+        turns[key] = (msg.get("model") or "unknown", side, usage)
+
+
+def parse_transcript(path: Path) -> tuple[dict, int]:
+    """Sum usage per ``(model, side)`` over a transcript's assistant turns.
+
+    Sub-agent turns come from ``<transcript stem>/subagents/*.jsonl`` plus any
+    sidechain lines in the main file. Lines that are not assistant turns, do not
+    parse, or carry no ``usage`` are skipped; repeated ``message.id`` counts once.
+    """
+    turns: dict = {}
+    _read_turns(path, None, turns)
+    for sub in sorted((path.with_suffix("") / "subagents").glob("*.jsonl")):
+        _read_turns(sub, "subagent", turns)
+    acc: dict[tuple[str, str], dict] = {}
+    for model, side, usage in turns.values():
         bucket = acc.setdefault((model, side), _zero())
         bucket["input_tokens"] += usage.get("input_tokens") or 0
         bucket["output_tokens"] += usage.get("output_tokens") or 0
         bucket["cache_read_tokens"] += usage.get("cache_read_input_tokens") or 0
         bucket["cache_creation_tokens"] += usage.get("cache_creation_input_tokens") or 0
-        count += 1
-    return acc, count
+    return acc, len(turns)
 
 
 def session_block(transcript: Path, prices: dict) -> dict:
