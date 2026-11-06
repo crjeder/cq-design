@@ -87,11 +87,11 @@ gate, orange = main-session user interaction.
 
 | Agent | Model | Input | Output | Why it is an agent |
 |---|---|---|---|---|
-| Sourcing | default | rendered `prompts/sourcing.md` by `src/render_prompt.py` | candidate table (source, platform, kind, license, notes) | page snapshots across Thingiverse/Printables/MakerWorld/GitHub are huge; main gets a table and classifies it against the five-rung ladder |
-| Research | default | rendered `prompts/research.md` by `src/render_prompt.py` | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
-| Planner | `skill_config.json`'s `models.planner` (default strong, e.g. Opus) | rendered `prompts/planning.md` by `src/render_prompt.py` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
-| Part builder (x N) | `skill_config.json`'s `models.part_author` (default mid-tier, e.g. Sonnet; `"inline"` skips the spawn) | `build/<id>_prompt.txt` = `prompts/builder.md` + `prompts/part.md`, rendered by `src/render_prompt.py` | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
-| Implementation auditor | default (vision) | `prompts/audit.md` rendered by `src/render_prompt.py`: plan entry, scoped request text, preview/section PNGs, PARAMETERS values for load-bearing parts, NOT the geometry code | per-question pass/fail with cited views | kills self-review bias - the author never grades its own homework |
+| Sourcing (`cq-design-sourcing`) | `models.sourcing` (Sonnet) | rendered `prompts/sourcing.md` by `src/render_prompt.py` | candidate table (source, platform, kind, license, notes) | page snapshots across Thingiverse/Printables/MakerWorld/GitHub are huge; main gets a table and classifies it against the five-rung ladder |
+| Research (`cq-design-research`) | `models.research` (Sonnet) | rendered `prompts/research.md` by `src/render_prompt.py` | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
+| Planner (`cq-design-planner`) | `models.planner` (strong, Opus) | rendered `prompts/planning.md` by `src/render_prompt.py` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
+| Part builder (x N) (`cq-design-builder`) | `models.part_author` (Sonnet; `"inline"` skips the spawn) | `build/<id>_prompt.txt` = `prompts/builder.md` + `prompts/part.md`, rendered by `src/render_prompt.py` | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
+| Implementation auditor (`cq-design-auditor`) | `models.auditor` (Sonnet, vision) | `prompts/audit.md` rendered by `src/render_prompt.py`: plan entry, scoped request text, preview/section PNGs, PARAMETERS values for load-bearing parts, NOT the geometry code | per-question pass/fail with cited views | kills self-review bias - the author never grades its own homework |
 
 Remarks:
 - Research: lookup targets need to be researched and improved
@@ -120,9 +120,12 @@ Remarks:
 - **Orientation is not terminal.** The print-orientation loop can demand
   geometry edits (chamfer an overhang, add a foot); that re-enters the builder
   and re-runs validation + audit for the touched part.
-- **No `.claude/agents/` files needed.** `src/render_prompt.py` writes each
-  agent's prompt to a file; main spawns the agent with "read this file and
-  follow it" and a per-call model override. Portable with the skill.
+- **Named agents with minimal tools.** `agents/*.md` define each role with a
+  `tools:` list and a `model:`; a generic spawn would load every MCP tool
+  (about 61k tokens before the prompt). `src/render_prompt.py` writes each
+  agent's prompt to a file and prints the configured `model`; main spawns the
+  named agent with "read this file and follow it". The installers ship `agents/`
+  (local install, no marketplace); the skill is not usable without them.
 
 ## Known tensions (measured, not assumed)
 

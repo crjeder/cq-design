@@ -700,3 +700,21 @@ def test_add_snapshot_scripts_ignored_unless_parameter_level(tmp_path, level):
 def test_add_parameter_entry_without_flag_has_no_baseline(tmp_path):
     plan = _add(tmp_path, "--level", "parameter", "--target", "cradle")
     assert "script_baseline" not in plan["request_log"][-1]
+
+
+def test_role_model_reads_config(tmp_path, monkeypatch):
+    (tmp_path / "skill_config.json").write_text(
+        json.dumps({"models": {"auditor": "claude-sonnet-5-5"}}), encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    assert log.role_model("auditor") == "claude-sonnet-5-5"
+
+
+def test_append_once(tmp_path):
+    j = tmp_path / "journal.md"
+    assert log.append_once(j, "phase2/plan_written", "ok") is False  # no journal: untouched
+    assert not j.exists()
+    j.write_text("- phase1/dimensions_approved: x\n", encoding="utf-8")
+    assert log.append_once(j, "phase2/plan_written", "ok") is True
+    assert log.append_once(j, "phase2/plan_written", "ok") is False
+    assert j.read_text(encoding="utf-8").count("plan_written") == 1

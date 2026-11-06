@@ -1997,3 +1997,48 @@ def test_copy_of_multi_union_source(plan_file):
     plan["parts"][0] = {**plan["parts"][0], "unions": [{"id": "a"}, {"id": "b"}]}
     errors = validate_plan(plan_file(plan))
     assert any("unions" in e for e in errors)
+
+
+def _expr_plan(w):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["blocks_needed"] = [
+        {"name": "box", "id": "b", "params": {"w": w, "d": 10, "h": 2}}
+    ]
+    return plan
+
+
+def test_expression_param_validates_and_unknown_name_fails(plan_file, tmp_path):
+    (tmp_path / "parameters.py").write_text("W_MM = 8  # user\n", encoding="utf-8")
+    assert validate_plan(plan_file(_expr_plan("W_MM + 2"))) == []
+    errors = validate_plan(plan_file(_expr_plan("NOPE_MM")))
+    assert any("NOPE_MM" in e for e in errors)
+
+
+def test_validate_reports_only_changed_parts(plan_file, tmp_path, capsys):
+    from plan import main
+
+    (tmp_path / "parameters.py").write_text("W_MM = 8\n", encoding="utf-8")
+    path = plan_file(_expr_plan("W_MM + 2"))
+    assert main(["validate", path]) == 0
+    assert "Resolved params changed" not in capsys.readouterr().out
+    assert main(["validate", path]) == 0
+    assert "Resolved params changed" not in capsys.readouterr().out
+    (tmp_path / "parameters.py").write_text("W_MM = 9\n", encoding="utf-8")
+    assert main(["validate", path]) == 0
+    assert "Resolved params changed for: " in capsys.readouterr().out
+
+
+def test_validate_journals_plan_written_once(plan_file, tmp_path, capsys):
+    from plan import main
+
+    (tmp_path / "build").mkdir()
+    journal = tmp_path / "build" / "journal.md"
+    journal.write_text("- phase1/dimensions_approved: x\n", encoding="utf-8")
+    path = plan_file(VALID_PLAN)
+    assert main(["validate", path]) == 0
+    assert main(["validate", path]) == 0
+    assert journal.read_text(encoding="utf-8").count("phase2/plan_written") == 1
+    bad = dict(VALID_PLAN, parts="nope")
+    journal.write_text("", encoding="utf-8")
+    assert main(["validate", plan_file(bad)]) == 1
+    assert journal.read_text(encoding="utf-8") == ""

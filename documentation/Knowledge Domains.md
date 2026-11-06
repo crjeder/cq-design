@@ -45,19 +45,7 @@ The model must decode ambiguous human language into explicit geometry.
 
 Success requires seamless integration across these fields:
 
-```
-                  ┌───────────────────────────────┐
-                  │      Mechanical Engineering    │
-                  │   (Feature Ordering & DFM)    │
-                  └───────────────┬───────────────┘
-                                  │
-                                  ▼
-┌──────────────────────────────┐     ┌──────────────────────────────┐
-│     3D Spatial Reasoning     ├────►│       CadQuery API &         │
-│  (Workplanes & Selectors)    │     │       Python Code            │
-└──────────────────────────────┘     └──────────────────────────────┘
-
-```
+![Knowledge domains](img/knowledge-domains.svg)
 
 | Domain Pair | Key Skills Learned at the Intersection |
 | --- | --- |
@@ -72,18 +60,7 @@ Even with strong pre-training across geometry and Python, a text-to-CAD model ca
 
 The CAD generation process needs to operate as an iterative cycle:
 
-```
-┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
-│   Text Prompt   │ ───►  │    Model Code   │ ───►  │ Python / CAD    │
-│  (User Request) │       │   Generation    │       │   Execution     │
-└─────────────────┘       └─────────────────┘       └────────┬────────┘
-         ▲                                                   │
-         │                ┌─────────────────┐                │
-         └────────────────┤ Error / Visual  │ ◄──────────────┘
-                          │  Feedback Loop  │   (Execution Result)
-                          └─────────────────┘
-
-```
+![Generate, execute, feed back](img/generation-loop.svg)
 
 The model must master three runtime feedback capabilities:
 

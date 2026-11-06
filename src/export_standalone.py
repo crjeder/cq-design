@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parent
-HELPERS = ("cq_verify", "cq_compat", "probes", "placement", "blocks")
+HELPERS = ("cq_verify", "cq_compat", "probes", "plan_params", "placement", "blocks")
 WAREHOUSE_MARKERS = ("cq_warehouse", "heat_set_boss")
 STDLIB = sys.stdlib_module_names
 

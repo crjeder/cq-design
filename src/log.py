@@ -44,6 +44,22 @@ def append_line(path: str | Path, milestone: str, text: str) -> str:
     return line
 
 
+def append_once(path: str | Path, milestone: str, text: str) -> bool:
+    """Append the milestone line only if the journal exists and lacks that exact line.
+
+    Used by scripts that complete a milestone themselves, so a re-run adds nothing and a
+    project without a journal (no Phase 0/1 yet) is left alone. Returns whether it wrote.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return False
+    line = f"- {milestone}: {text}"
+    if line in path.read_text(encoding="utf-8").splitlines():
+        return False
+    append_line(path, milestone, text)
+    return True
+
+
 SKILL_DIR = Path(__file__).resolve().parent.parent
 
 _REQUIRED_FIELDS = {
@@ -185,16 +201,19 @@ def _run_hook() -> int:
     return 0
 
 
-def part_author_model() -> str:
-    """`models.part_author` from ./skill_config.json, else the seeded default."""
+def role_model(role: str) -> str:
+    """`models.<role>` from ./skill_config.json, else the seeded default."""
     for path in (Path("skill_config.json"), SKILL_DIR / "src/skill_config.default.json"):
         if path.is_file():
-            model = (
-                json.loads(path.read_text(encoding="utf-8")).get("models", {}).get("part_author")
-            )
+            model = json.loads(path.read_text(encoding="utf-8")).get("models", {}).get(role)
             if model and model != "inline":
                 return model
     return "unknown"
+
+
+def part_author_model() -> str:
+    """`models.part_author` from ./skill_config.json, else the seeded default."""
+    return role_model("part_author")
 
 
 def _prompt_chars(build_dir: Path, part_id: str, attempt: int) -> int | None:

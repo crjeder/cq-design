@@ -39,15 +39,22 @@ $RepoRoot = Split-Path -Parent (Resolve-Path $PSCommandPath)
 
 # Copied into a copy install; everything else in the repo is dev-only.
 $Allowlist = @(
-    "SKILL.md", ".claude-plugin", "commands", "skill", "prompts", "reference", "src",
+    "SKILL.md", ".claude-plugin", "agents", "commands", "skill", "prompts", "reference", "src",
     "templates", "pyproject.toml", "uv.lock", ".python-version", "LICENSE")
 
 $SkillsDir = if ($Dest) { $Dest }
     elseif ($env:CLAUDE_SKILLS_DIR) { $env:CLAUDE_SKILLS_DIR }
     else { Join-Path $HOME ".claude\skills" }
 $Destination = Join-Path $SkillsDir $SkillName
+# Agents are also placed in the personal agents directory (sibling of the skills dir) so
+# they load even when a skills-dir copy does not expose agents/. Local only, no marketplace.
+$AgentsDir = if ($env:CLAUDE_AGENTS_DIR) { $env:CLAUDE_AGENTS_DIR }
+    else { Join-Path (Split-Path -Parent $SkillsDir) "agents" }
 
 if ($Uninstall) {
+    Get-ChildItem -LiteralPath (Join-Path $RepoRoot "agents") -Filter *.md | ForEach-Object {
+        Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $AgentsDir "cq-design-$($_.Name)")
+    }
     if (Test-Path $Destination) {
         Remove-Item -Recurse -Force $Destination
         Write-Host "Removed $Destination"
@@ -119,6 +126,12 @@ if ($Link) {
         Write-Host "Note: $RepoRoot is not a git checkout -- skipping .version.json (skill_version.py will report 'unknown')"
     }
 }
+
+New-Item -ItemType Directory -Force -Path $AgentsDir | Out-Null
+Get-ChildItem -LiteralPath (Join-Path $RepoRoot "agents") -Filter *.md | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $AgentsDir "cq-design-$($_.Name)") -Force
+}
+Write-Host "Copied agents to $AgentsDir"
 
 Write-Host "Provisioning environment with 'uv sync'..."
 uv sync --project $Destination
