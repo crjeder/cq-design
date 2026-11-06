@@ -30,6 +30,9 @@ from typing import Any
 
 import jsonschema
 
+import log
+import plan_params
+
 _SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "build_plan_schema.json")
 _INVENTORY_PATH = os.path.join(os.path.dirname(__file__), "blocks", "inventory.json")
 _ARCHETYPES_PATH = os.path.join(os.path.dirname(__file__), "..", "templates", "archetypes.json")
@@ -135,6 +138,10 @@ def validate_plan(
                     f"(not in inventory). Available: {sorted(valid_blocks)}"
                 )
 
+    _, param_errors = plan_params.resolve_plan(
+        plan, plan_params.load_constants(Path(plan_path).resolve().parent / "parameters.py")
+    )
+    errors.extend(param_errors)
     errors.extend(_check_instances(plan, inventory_path))
     errors.extend(_check_archetypes(plan, archetypes_path))
     errors.extend(_check_unions(plan))
@@ -1506,6 +1513,27 @@ def run(script_path: str, part_id: str, plan_path: str, write: bool) -> dict[str
     return report
 
 
+def _report_changed_params(plan_path: str, plan: dict[str, Any]) -> None:
+    """Record each part's resolved-param hash in build/params_resolved.json and print
+    the parts whose resolved params changed since the previous successful validate."""
+    root = Path(plan_path).resolve().parent
+    resolved, _ = plan_params.resolve_plan(plan, plan_params.load_constants(root / "parameters.py"))
+    new = plan_params.resolved_hashes(resolved)
+    store = root / "build" / "params_resolved.json"
+    try:
+        old = json.loads(store.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        old = None
+    changed = plan_params.changed_parts(old, new)
+    if changed:
+        print(
+            f"\nResolved params changed for: {', '.join(changed)} "
+            "(rebuild, re-gate, re-audit only these)"
+        )
+    store.parent.mkdir(exist_ok=True)
+    store.write_text(json.dumps(new, indent=2), encoding="utf-8")
+
+
 def _cmd_validate(args: argparse.Namespace) -> int:
     errors = validate_plan(args.plan, args.inventory, args.archetypes)
     if errors:
@@ -1517,6 +1545,13 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     plan = _load_json(args.plan)
     n_parts = len(plan.get("parts", []))
     print(f"BUILD_PLAN OK — {n_parts} part(s), schema_version={plan.get('schema_version')}")
+
+    _report_changed_params(args.plan, plan)
+    log.append_once(
+        Path(args.plan).resolve().parent / "build" / "journal.md",
+        "phase2/plan_written",
+        f"BUILD_PLAN.json validated, {n_parts} parts",
+    )
 
     findings = check_block_thinness(plan)
     if findings:

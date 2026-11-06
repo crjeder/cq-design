@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 250" role="img" aria-labelledby="t d">
+  <title id="t">Knowledge domains</title>
+  <desc id="d">Mechanical Engineering (feature ordering and DFM) informs 3D spatial reasoning (workplanes and selectors), which leads to CadQuery API and Python code.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#444"/>
+    </marker>
+    <style>
+      rect{fill:#f4f6f8;stroke:#444;stroke-width:1.5}
+      text{font:14px sans-serif;fill:#222;text-anchor:middle}
+      line{stroke:#444;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="640" height="250" style="fill:#fff;stroke:none"/>
+  <rect x="190" y="20" width="260" height="60" rx="6"/>
+  <text x="320" y="46">Mechanical Engineering</text>
+  <text x="320" y="66">(Feature Ordering &amp; DFM)</text>
+  <line x1="320" y1="80" x2="320" y2="120" marker-end="url(#a)"/>
+  <rect x="20" y="130" width="260" height="70" rx="6"/>
+  <text x="150" y="159">3D Spatial Reasoning</text>
+  <text x="150" y="179">(Workplanes &amp; Selectors)</text>
+  <rect x="360" y="130" width="260" height="70" rx="6"/>
+  <text x="490" y="159">CadQuery API &amp;</text>
+  <text x="490" y="179">Python Code</text>
+  <line x1="280" y1="165" x2="358" y2="165" marker-end="url(#a)"/>
+</svg>

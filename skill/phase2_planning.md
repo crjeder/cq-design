@@ -18,20 +18,16 @@ Pass `--plan` only on a re-plan. It writes `build/planning_prompt.txt` and print
 user for printer, material, nozzle, and constraints; do not open `profile.json`
 yourself.
 
-Spawn one agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
-on `models.planner` from `skill_config.json` (absent: the strongest available model -- a
-topology error here costs a rebuild of every part). It has no user channel. It writes
+Spawn the `cq-design-planner` agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
+on the render output's `model` (`models.planner`; a topology error here costs a rebuild of
+every part). It has no user channel. It writes
 `BUILD_PLAN.json` (indent 2) itself, runs `plan.py validate` itself, and retries against
 its own validator errors internally (up to 3 attempts, same convention as the builder
 agent in Phase 3) before returning its status contract (`status`, `parts`, `attempts`,
 `open_items`, `error_summary`) as its final message -- never the plan JSON.
 
-- `status: "valid"` ->
-  ```bash
-  uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
-      phase2/plan_written "BUILD_PLAN.json validated, <n> parts"
-  ```
-  then proceed to the plan summary checkpoint below.
+- `status: "valid"` -> proceed to the plan summary checkpoint below. (`plan.py validate`
+  already journaled `phase2/plan_written`; do not append it.)
 - `status: "blocked"` -> the agent exhausted its retries with validator errors remaining
   (`error_summary`). Summarize the errors to the user, get a decision, and resume the same
   planner agent with it -- never spawn a second planner.
@@ -40,8 +36,12 @@ Read `BUILD_PLAN.json` from disk only if you need to inspect it yourself; the pl
 checkpoint below reads it through `plan.py summary`, not through this session parsing the
 agent's reply.
 
-**`parameters.py`:** add or amend a sourced constant (with its source comment) only when
-planning introduced a real-world measurement Phase 1 did not capture.
+**`parameters.py`:** it is the single source of every dimension. Add a constant (origin tag
+`# user`, `# researched: <source>`, `# assumed`, or `# design choice` for a clearance, gap or
+wall allowance) for every number the plan needs that Phase 1 did not capture, and write
+every `blocks_needed[].params` value that derives from one as an expression over those
+names (`"w": "BASKET_RIM_OD_MM + GROOVE_CLEARANCE_MM"`), never as a hand-computed literal.
+`plan.py validate` evaluates the expressions; an unknown name is an error.
 
 **Printer profile write-back:** for each `printer`, `material`, `nozzle_mm`, or
 `constraints` value that differs from `profile.json` and was not flagged as a

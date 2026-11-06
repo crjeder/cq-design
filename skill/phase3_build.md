@@ -58,8 +58,9 @@ reference from the user, restate it with the plan name and its callout badge num
 - **Model.** The `model` field of Step 1's render output (resolved from
   `models.part_author` in `skill_config.json`; absent: Sonnet-class). Do not read
   `skill_config.json` yourself for this. Value `"inline"`: do not spawn; follow the
-  rendered builder prompt yourself, returning the same contract to yourself. Auditors
-  always run as fresh agents on the session default.
+  rendered builder prompt yourself, returning the same contract to yourself. Builders
+  spawn as `cq-design-builder`. Auditors always run as fresh `cq-design-auditor` agents
+  (on the render output's `model`).
 - **Stages** come from the plan's `review_policy` (default `every_stage`): `every_stage`
   stages every part; `checkpoints` stages parts with an interface or 3+ blocks;
   `minimal` stages nothing and skips the profile stub. A user request for "show me each
@@ -82,7 +83,7 @@ For each part in `plan["parts"]`, in order (skip any part with `copy_of`: it has
        --plan BUILD_PLAN.json --part <part_id> --attempts build/attempts.jsonl [--override staged|autonomous]
    ```
    It writes `build/<part_id>_prompt.txt` and prints `{"out", "chars", "stages"}`.
-2. **Spawn** the builder (model per Routing) with exactly this prompt:
+2. **Spawn** the `cq-design-builder` agent (model per Routing) with exactly this prompt:
    `Read <out> in full and follow it. Working directory: <absolute cwd>.`
 3. **Handle each return** (the builder's JSON contract):
    - `stage_ready` -> **stage checkpoint**: tell the user the stage and `summary`, list
@@ -101,6 +102,13 @@ For each part in `plan["parts"]`, in order (skip any part with `copy_of`: it has
    - `blocked` -> **Escalation** below.
 
 Preview images stay out of this session unless the user asks you to look at one.
+
+## Dimension edits
+
+A changed measurement is one `Edit` of its constant in `parameters.py`. Then run
+`plan.py validate BUILD_PLAN.json`: it prints `Resolved params changed for: <parts>`.
+Rebuild, re-gate and re-audit only those parts; leave the others untouched. Do not
+hand-edit plan params that are expressions.
 
 ## Escalation
 
@@ -131,7 +139,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
 
 ## Implementation audit
 
-1. Render and spawn a fresh auditor for every `passed` contract:
+1. Render and spawn a fresh `cq-design-auditor` agent for every `passed` contract:
    ```bash
    uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" audit \
        --plan BUILD_PLAN.json --part <part_id> --script build/<part_id>.py \
@@ -354,10 +362,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/bundle_project.py" .
 uv sync
 ```
 
-```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
-    phase3/assembly_written "<n> assembled STL(s) + manifest written"
-```
+`write_assembly.py` journals `phase3/assembly_written` itself; do not append it.
 
 ## Quality gate
 

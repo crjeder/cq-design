@@ -1,8 +1,11 @@
 {
-  "_comment": "Model per LLM role. 'inline' = run in the calling session (no spawn, no --model). Fable 5 is 2x Opus 5 price and targets long-horizon work, not one-shot planning - measure before setting planner to claude-fable-5.",
+  "_comment": "Model per LLM role. Absent key = the model in the role's agents/*.md. 'inline' = run in the calling session (no spawn, no --model). Fable 5 is 2x Opus 5 price and targets long-horizon work, not one-shot planning - measure before setting planner to claude-fable-5.",
   "models": {
-    "planner": "claude-opus-5",
-    "part_author": "claude-sonnet-5",
-    "fix_loop": "claude-sonnet-5"
+    "planner": "claude-opus-5-5",
+    "part_author": "claude-sonnet-5-5",
+    "fix_loop": "claude-sonnet-5-5",
+    "sourcing": "claude-sonnet-5-5",
+    "research": "claude-sonnet-5-5",
+    "auditor": "claude-sonnet-5-5"
   }
 }

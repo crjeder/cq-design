@@ -39,6 +39,8 @@ BUNDLE_MODULES = (
     "cq_verify.py",
     "cq_compat.py",
     "probes.py",
+    "plan_params.py",
+    "log.py",
 )
 BUNDLE_PACKAGES = ("exporters", "blocks")
 
