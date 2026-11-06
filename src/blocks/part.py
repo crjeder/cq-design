@@ -28,10 +28,12 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any
 
 import cadquery as cq
 
+import plan_params
 import probes as pr
 from blocks.validate import load_inventory
 
@@ -113,6 +115,11 @@ class Part:
         path = plan_path or find_plan(script)
         with open(path, encoding="utf-8") as f:
             plan = json.load(f)
+        plan, param_errors = plan_params.resolve_plan(
+            plan, plan_params.load_constants(Path(path).resolve().parent / "parameters.py")
+        )
+        if param_errors:
+            raise _fail("step_plan", part_id, "; ".join(param_errors))
         part = next((p for p in plan.get("parts", []) if p.get("id") == part_id), None)
         if part is None:
             raise _fail("step_plan", part_id, f"part {part_id!r} not in {path}")

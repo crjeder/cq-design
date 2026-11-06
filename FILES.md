@@ -6,6 +6,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
 ```
 .
   .claude-plugin/        # plugin.json (skills: ["."]) + marketplace.json; repo root is the plugin root
+  agents/                # Role agents (sourcing research planner builder auditor): minimal tools + model; installers ship them
   commands/              # /cq-design:design plan edit init update build render status
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
@@ -19,6 +20,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
     script_lint.py           # AST-based pre-flight lint for a generated part script (stdlib only)
     script_history.py        # Per-script source log recorded by the run tools; restore/mark targets (stdlib only)
     script_ops.py            # Group commands (new/replace/insert/remove/move) over part and edit scripts, preflighted (stdlib only)
+    plan_params.py           # Evaluate BUILD_PLAN.json string params as expressions over parameters.py constants; resolved-param hashes
+    concept_sketch.py        # Phase 1 concept sketch: JSON -> SVG (no CadQuery)
     probes.py                # Probe kinds on BRep (solid_at/empty_at/ray/bbox), registry, plan-derived probes
     step_worker.py           # Warm step worker: prefix-cached step runs, per-step probe checks, snapshots, stuck rule
     render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
@@ -135,6 +138,9 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_stl_to_3mf.py               # 3MF export path
     test_cq_warehouse_integration.py # cq_warehouse fastener integration
     test_prose_layer.py              # Paths + CLI flags in SKILL.md/commands/skill/prompts exist -- fast, no CadQuery
+    test_plan_params.py              # Expression evaluator: resolve, unknown name, unsafe syntax, change detection
+    test_concept_sketch.py           # Concept sketch renderer
+    test_agents.py                   # Agent frontmatter, minimal tools, no general-purpose spawns
     test_plan.py                     # Schema validation, Phase 2 summary rendering, parameter
                                      # round-trip -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery

@@ -61,7 +61,12 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
    `{"name": "<entry>", "id": "<unique snake_case id>", "params": {...}}` with every
    param the entry lists (those marked `?` are optional), in mm. The plan owns every
    dimension: the part script reads these values and holds none, so a later size
-   correction is a plan edit, never a script edit. A position the script must place a
+   correction is a plan edit, never a script edit. Every dimension traces to a constant in
+   `parameters.py` (tagged `# user`, `# researched`, `# assumed` or `# design choice`): write
+   each param that derives from one as an expression over those names
+   (`"w": "BASKET_RIM_OD_MM + GROOVE_CLEARANCE_MM"`; numbers, those names, `+ - * / //`,
+   parentheses, `min`/`max`/`round` only), not a hand-computed literal. A new allowance
+   becomes a new `# design choice` constant first. A position the script must place a
    feature at goes in an `interfaces[]` entry with `position_mm` (feature center) and
    `"instance": "<id>"`; one interface per placed copy, in placement order. Add
    `extents_mm` when it helps the thin-block check.

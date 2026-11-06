@@ -22,7 +22,11 @@ For more usage instructions see [`USE.md`](USE.md)
 
 ## Setup
 
-### As a plugin (recommended)
+### With the installer (recommended, local only)
+
+Install [uv](https://docs.astral.sh/uv/), clone the repo, and run `./install.sh` (or `./install.ps1`). It copies the skill and its role agents (`agents/`) from the checkout; no marketplace or network source is needed. The skill requires the agents.
+
+### As a plugin (optional, needs the marketplace)
 
 Install [uv](https://docs.astral.sh/uv/), then in Claude Code:
 
@@ -37,7 +41,7 @@ directory), `:update` (refresh a bundled project's tooling), `:build [format]` (
 model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only). The Python
 environment lives in the plugin's data directory and survives plugin updates.
 
-### With the installer
+### Installer details
 
 Claude Code loads the copy as a plugin (`cq-design@skills-dir`), so the skill and the
 `/cq-design:*` commands above both work. The installer provisions its own venv at

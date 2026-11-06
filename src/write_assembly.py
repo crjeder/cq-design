@@ -26,9 +26,11 @@ import os
 import re
 import sys
 from collections.abc import Callable
+from pathlib import Path
 
 import cadquery as cq
 
+import log
 from exporters import _load_result
 from freshness import write_manifest
 from mate_chain import compute_mate_poses
@@ -237,6 +239,11 @@ def main() -> None:
         }
         print(json.dumps({"success": False, "errors": [error]}, indent=2))
         sys.exit(1)
+    log.append_once(
+        Path(args.plan).resolve().parent / "build" / "journal.md",
+        "phase3/assembly_written",
+        f"{len(result['union_stls'])} assembled STL(s) + manifest written",
+    )
     print(json.dumps(result, indent=2))
     sys.exit(0)
 

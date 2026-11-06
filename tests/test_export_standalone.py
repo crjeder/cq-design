@@ -86,3 +86,33 @@ def test_step_script_ships_plan_and_builds(tmp_path):
         env={**os.environ, "PYTHONPATH": str(out)},
     )
     assert run.returncode == 0, run.stderr
+
+
+def test_expression_plan_builds_standalone(tmp_path):
+    plan = {
+        "parts": [
+            {
+                "id": "a",
+                "dimensions": {"w_mm": 10, "d_mm": 10, "h_mm": 2},
+                "interfaces": [],
+                "blocks_needed": [
+                    {"name": "box", "id": "b", "params": {"w": "W_MM + 2", "d": 10, "h": 2}}
+                ],
+            }
+        ]
+    }
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+    body = (
+        "from blocks import Part\npart = Part('a')\nb = part.select('box', id='b')\n"
+        "part.resize(b)\npart.place(b, op='base')\nresult = part.result()\n"
+    )
+    out, _ = _run(tmp_path, {"a": body}, parameters=True)
+    (out / "parameters.py").write_text("W_MM = 8\n", encoding="utf-8")
+    run = subprocess.run(
+        [sys.executable, "-c", "import runpy; runpy.run_path('a.py')"],
+        cwd=out,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(out)},
+    )
+    assert run.returncode == 0, run.stderr

@@ -6,6 +6,7 @@
 #   ./install.sh --link          Symlink the repo instead of copying
 #   ./install.sh --uninstall     Remove the installed skill
 #   ./install.sh --dest <dir>    Override the skills directory
+#   (agents go to $CLAUDE_AGENTS_DIR, default: <skills dir>/../agents)
 #   ./install.sh --help
 #
 # Destination defaults to $CLAUDE_SKILLS_DIR/cq-design, or
@@ -17,7 +18,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Copied into a copy install; everything else in the repo is dev-only.
 ALLOWLIST=(
-    SKILL.md .claude-plugin commands skill prompts reference src templates
+    SKILL.md .claude-plugin agents commands skill prompts reference src templates
     pyproject.toml uv.lock .python-version LICENSE
 )
 
@@ -40,8 +41,18 @@ while [ $# -gt 0 ]; do
 done
 
 dest="$skills_dir/$SKILL_NAME"
+# Agents are also placed in the personal agents directory (sibling of the skills dir) so
+# they load even when a skills-dir copy does not expose agents/. Local only, no marketplace.
+agents_dir="${CLAUDE_AGENTS_DIR:-$(dirname "$skills_dir")/agents}"
+
+remove_agents() {
+    for f in "$REPO_ROOT"/agents/*.md; do
+        rm -f "$agents_dir/cq-design-$(basename "$f")"
+    done
+}
 
 if [ "$uninstall" -eq 1 ]; then
+    remove_agents
     if [ -e "$dest" ] || [ -L "$dest" ]; then
         rm -rf "$dest"
         echo "Removed $dest"
@@ -98,6 +109,12 @@ EOF
         echo "Note: $REPO_ROOT is not a git checkout -- skipping .version.json (skill_version.py will report 'unknown')"
     fi
 fi
+
+mkdir -p "$agents_dir"
+for f in "$REPO_ROOT"/agents/*.md; do
+    cp "$f" "$agents_dir/cq-design-$(basename "$f")"
+done
+echo "Copied agents to $agents_dir"
 
 echo "Provisioning environment with 'uv sync'..."
 uv sync --project "$dest"

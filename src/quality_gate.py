@@ -31,6 +31,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 SKILL_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -760,6 +761,71 @@ def _run_parameters_unresolved_stage(project_root: str) -> list[dict]:
     return issues
 
 
+_ORIGIN_TAGS = ("user", "researched", "assumed", "design choice")
+
+
+def _run_parameters_traceability_stage(project_root: str, plan: dict) -> list[dict]:
+    """Advisory: a parameters.py constant without an origin tag comment, and a numeric
+    instance param in the plan that duplicates a constant's value instead of
+    referencing it (a hand-copied number goes stale when the constant is edited)."""
+    import ast
+
+    import plan_params
+    from units import make_issue
+
+    params_path = os.path.join(project_root, "parameters.py")
+    if not os.path.isfile(params_path):
+        return []
+    with open(params_path, encoding="utf-8") as f:
+        source = f.read()
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    lines = source.splitlines()
+    consts = plan_params.load_constants(Path(params_path))
+    issues = []
+    for node in tree.body:
+        if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
+            continue
+        name = getattr(node.targets[0], "id", None)
+        if name not in consts:
+            continue
+        comment = lines[node.lineno - 1].partition("#")[2].lower()
+        if not any(tag in comment for tag in _ORIGIN_TAGS):
+            issues.append(
+                make_issue(
+                    "parameters",
+                    "warning",
+                    "parameters_untagged",
+                    f"parameters.py constant {name} has no origin tag comment.",
+                    "End the line with # user, # researched: <source>, # assumed or "
+                    "# design choice (skill/phase1_requirements.md).",
+                )
+            )
+    by_value: dict[float, str] = {}
+    for name, value in consts.items():
+        by_value.setdefault(value, name)
+    for part in plan.get("parts", []):
+        for block in part.get("blocks_needed", []):
+            if not isinstance(block, dict):
+                continue
+            for pname, value in (block.get("params") or {}).items():
+                if isinstance(value, (int, float)) and value not in (0, 1) and value in by_value:
+                    issues.append(
+                        make_issue(
+                            "parameters",
+                            "warning",
+                            "parameter_literal_duplicates_constant",
+                            f"Part '{part.get('id')}' instance '{block.get('id')}' param "
+                            f"'{pname}' = {value} equals parameters.py {by_value[value]}.",
+                            f'Use the expression "{by_value[value]}" so an edit to the '
+                            "constant reaches the build.",
+                        )
+                    )
+    return issues
+
+
 def _run_kinematic_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) -> list[dict]:
     """Run the kinematic range check when the plan declares any joints.
 
@@ -1267,6 +1333,9 @@ def run_gate(
     # plan fields, so it must not run unless the plan validates.
     plan_issues = _run_plan_validation_stage(plan_path)
     all_issues += plan_issues
+
+    if not any(i["severity"] == "error" for i in plan_issues):
+        all_issues += _run_parameters_traceability_stage(project_root, plan)
 
     # The kinematic and plate-clearance stages raw-index plan fields, so they run only
     # when the plan validates; a malformed plan fails on the structured plan_invalid error
