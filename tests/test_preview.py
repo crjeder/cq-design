@@ -249,13 +249,13 @@ def test_legend_line_none_without_callouts():
     assert preview._legend_line([], []) is None
 
 
-def test_callouts_change_ortho_panels_but_not_isometric(box_workplane, tmp_path):
-    """Badges + leader lines are drawn on the three orthographic panels only; the
-    isometric panel is pixel-identical with or without callouts."""
+def test_callout_drawn_on_first_panel_where_visible(box_workplane, tmp_path):
+    """An anchor on the south face is visible in the south panel and occluded in the
+    west and above panels: only the south panel changes."""
     from PIL import Image
 
     view_size = 200
-    callouts = [{"name": "corner", "center": (4, 4, 4)}]
+    callouts = [{"name": "corner", "center": (-4, -5, 4)}]
 
     plain_png = tmp_path / "plain.png"
     calledout_png = tmp_path / "calledout.png"
@@ -281,8 +281,8 @@ def test_callouts_change_ortho_panels_but_not_isometric(box_workplane, tmp_path)
 
     south_diff, west_diff, above_diff, iso_diff = diffs
     assert south_diff > 0
-    assert west_diff > 0
-    assert above_diff > 0
+    assert west_diff == 0
+    assert above_diff == 0
     assert iso_diff == 0
 
 
@@ -320,3 +320,117 @@ def test_flat_face_shades_uniformly_and_nearer_occludes(tmp_path):
     solid_rows, solid_rows_big = rows(side), rows(side_big)
     assert img.shape == (200, 200, 3)
     assert solid_rows > solid_rows_big
+
+
+# --- preview-section-readability ---
+
+
+def test_edge_mask_separates_step_from_plate():
+    """A raised block on a plate has a depth edge at its rim even though its top
+    face and the plate top share a +Z normal (same shade)."""
+    import zbuffer
+
+    plate = cq.Workplane("XY").box(30, 30, 2)
+    both = plate.union(cq.Workplane("XY").workplane(offset=1).box(10, 10, 6))
+    verts, tris = preview._tessellate(both)
+    project = zbuffer.make_camera(verts, 0, -90, 200, 200)
+    _, depth = zbuffer.rasterize_with_depth(
+        tris, np.ones((len(tris), 3)), project, 200, 200, (0, 0, 0)
+    )
+    edges = zbuffer.edge_mask(depth)
+    covered = np.isfinite(depth)
+    inner_edges = edges[covered & ~np.pad(~covered, 0)].sum()
+    assert inner_edges > 0
+    # edge between plate top (z=1) and block side exists mid-image
+    assert edges[100:140, :].any()
+
+
+def test_rasterize_matches_rasterize_with_depth_image():
+    import zbuffer
+
+    box = cq.Workplane("XY").box(10, 10, 10)
+    verts, tris = preview._tessellate(box)
+    project = zbuffer.make_camera(verts, 25, -60, 80, 80)
+    colors = preview._shade_triangles(tris)
+    a = zbuffer.rasterize(tris, colors, project, 80, 80, (0, 0, 0))
+    b, depth = zbuffer.rasterize_with_depth(tris, colors, project, 80, 80, (0, 0, 0))
+    assert (a == b).all() and depth.shape == (80, 80)
+
+
+def test_section_through_solid_block_not_informative(tmp_path):
+    block = cq.Workplane("XY").box(20, 20, 20)
+    res = preview.render_section(block, str(tmp_path / "s.png"), "z", 0.0, view_size=200)
+    assert res is not None
+    assert res.informative is False
+
+
+def test_section_through_bore_informative(tmp_path):
+    part = cq.Workplane("XY").box(20, 20, 20).faces(">Z").workplane().hole(6)
+    z_cut = preview.render_section(part, str(tmp_path / "z.png"), "z", 0.0, view_size=200)
+    x_cut = preview.render_section(part, str(tmp_path / "x.png"), "x", 0.0, view_size=200)
+    assert z_cut is not None and x_cut is not None
+    assert z_cut.informative is True  # inner hole in the cap
+    assert x_cut.informative is True  # cap narrower than uncut silhouette
+
+
+def test_cap_colour_differs_from_coplanar_normal_face(tmp_path):
+    """Z-cut of a plate+block: the cap and the lower plate top both face +Z."""
+    from PIL import Image
+
+    part = (
+        cq.Workplane("XY")
+        .box(30, 30, 2)
+        .union(cq.Workplane("XY").workplane(offset=1).box(10, 10, 6))
+    )
+    out = tmp_path / "cap.png"
+    preview.render_section(part, str(out), "z", 2.0, view_size=200)
+    img = np.asarray(Image.open(out).convert("RGB"), dtype=int)
+    centre = img[100, 100]  # cap through the block
+    plate = img[100, 20]  # plate top, uncut region outside the block
+    assert tuple(centre) != tuple(plate)
+    assert (np.abs(centre - np.array(preview._CAP_COLOR) * 255) < 3).all()
+
+
+def test_visible_occluded_anchor():
+    import zbuffer
+
+    box = cq.Workplane("XY").box(10, 10, 10)
+    verts, tris = preview._tessellate(box)
+    project = zbuffer.make_camera(verts, 90, -90, 100, 100)
+    _, depth = zbuffer.rasterize_with_depth(
+        tris, np.ones((len(tris), 3)), project, 100, 100, (0, 0, 0)
+    )
+    assert preview._visible((0, 0, 5), project, depth)
+    assert not preview._visible((0, 0, -5), project, depth)
+
+
+def test_hidden_callout_listed_and_no_badge(tmp_path):
+    enclosed = cq.Workplane("XY").box(20, 20, 20).cut(cq.Workplane("XY").box(6, 6, 6))
+    out = tmp_path / "t.png"
+    preview.render_multi_view(
+        enclosed, str(out), view_size=200, callouts=[{"name": "void_post", "center": (0, 0, 0)}]
+    )
+    _, legend, hidden = preview._place_callouts(
+        [{"name": "void_post", "center": (0, 0, 0)}],
+        [
+            (r[1], r[2])
+            for r in [
+                preview._render_panel(enclosed, e, a, 200, 200)
+                for e, a, _l, _o in preview.MULTI_VIEW_PANELS
+            ]
+        ],
+        200,
+    )
+    assert hidden == ["void_post"] and legend == []
+    assert preview._legend_line(legend, None, hidden) == "void_post (hidden)"
+
+
+def test_coincident_callouts_merge_into_one_badge():
+    box = cq.Workplane("XY").box(20, 20, 20)
+    panels = [
+        preview._render_panel(box, e, a, 200, 200) for e, a, _l, _o in preview.MULTI_VIEW_PANELS
+    ]
+    callouts = [{"name": "rim_rails", "center": (x, -10, 0)} for x in (0.0, 0.1, 0.2, 0.3)]
+    badges, legend, hidden = preview._place_callouts(callouts, [(r[1], r[2]) for r in panels], 200)
+    assert sum(len(b) for b in badges) == 1
+    assert legend == [{"name": "rim_rails x4"}] and hidden == []

@@ -302,7 +302,7 @@ def _render_all(
                     file=sys.stderr,
                 )
             else:
-                extra_previews.append(section_path)
+                extra_previews.append(written)
 
     for spec in details:
         detail_path = os.path.join(out_dir, f"{stem}_detail_{spec['name']}.png")
@@ -322,7 +322,7 @@ def _render_all(
                     file=sys.stderr,
                 )
             else:
-                extra_previews.append(section_path)
+                extra_previews.append(written)
 
     return extra_previews
 
@@ -420,7 +420,9 @@ def main():
 
     print(f"Preview saved: {args.output} ({os.path.getsize(args.output)} bytes)")
     for path in extra_previews:
-        print(f"Detail preview saved: {path}")
+        flag = getattr(path, "informative", None)
+        note = "" if flag is None else f" (informative: {str(flag).lower()})"
+        print(f"Detail preview saved: {path}{note}")
     print(json.dumps({"extra_previews": extra_previews}))
     sys.exit(0)
 

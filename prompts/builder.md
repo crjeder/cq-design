@@ -42,6 +42,8 @@ validate + render command after `--` and puts that result under `full`:
 {{VALIDATE_ARGS}}
 ```
 
+Run the command above verbatim: you may append cuts or details but never replace or drop the supplied `--extra-section` / `--auto-sections` flags. A section printed `(informative: false)` shows no hole, notch or void: do not rely on it, pick another cut.
+
 Add `--detail "name=<feature>;center=<x>,<y>,<z>;size=<mm>[;section=<axis>=<pos>]"` when a
 message names one small feature (frame 2-4x its size), and `--extra-section axis=mm` when
 a message asks for a view that no current file shows.
