@@ -42,7 +42,9 @@ validate + render command after `--` and puts that result under `full`:
 {{VALIDATE_ARGS}}
 ```
 
-Run the command above verbatim: you may append cuts or details but never replace or drop the supplied `--extra-section` / `--auto-sections` flags. A section printed `(informative: false)` shows no hole, notch or void: do not rely on it, pick another cut.
+Run the command above verbatim: you may append cuts or details but never replace or drop the supplied `--extra-section` / `--auto-sections` / `--feature` / `--sheet` flags.
+
+Open `preview/{{PART_ID}}_preview_sheet.png` first: one 2 x 2 sheet of at most 4 tiles, the most relevant named features first (marked with their badge number, in a section through the feature axis when it has depth), then whole-part sections. A feature listed `(not shown)` or `(not located)` in its footer has no tile. For detail, open the full-size per-tile files beside it: `preview/{{PART_ID}}_preview_feature_<name>.png` (view along the feature normal) and `..._feature_<name>_section.png`. A section printed `(informative: false)` shows no hole, notch or void: do not rely on it, pick another cut.
 
 Add `--detail "name=<feature>;center=<x>,<y>,<z>;size=<mm>[;section=<axis>=<pos>]"` when a
 message names one small feature (frame 2-4x its size), and `--extra-section axis=mm` when

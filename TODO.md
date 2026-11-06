@@ -891,19 +891,6 @@ the world joint axis automatically (interface naming: keep assembly/mating
 docks conceptually distinct from kinematic axes even though both live in the
 block `interfaces` array).
 
-### Preview proactive detail renders
-Render feature detail previews more proactively. The `--detail` capability
-exists (`render_preview.py`/`preview.py` render a high-res zoomed view +
-optional cross-section per named feature; wired in SKILL.md Step 3 "Feature
-detail previews"), but in a live run detail previews were not generated for
-small/critical features by default -- only on explicit request or the
-complexity-gate path. Decide when the skill should auto-render a detail
-preview (e.g. every interface/joint feature, or any feature below a size
-threshold vs. the whole-part bbox) so small features are actually
-inspectable without the user asking, and make SKILL.md prescribe it rather
-than leave it to judgement. (Deferred from the orientation/overhang fix
-session.)
-
 ### BOSL2-style anchors
 BOSL2-style attachment/anchor helper for INTRA-part feature placement
 (explored 2026-07-22). BOSL2 attachments (BelfrySCAD/BOSL2 wiki
