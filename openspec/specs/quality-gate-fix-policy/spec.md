@@ -97,6 +97,17 @@ remaining findings are escalated to the user rather than retried. `skill/phase3_
 SHALL express this routing generically by `action` and SHALL NOT enumerate individual
 finding `type`s.
 
+For every part script (step-form or legacy), the orchestrator SHALL run
+`script_history.py mark accepted build/<part_id>.py` when the part is accepted (audit
+pass or accept-as-is). Every gate re-run after a `fix` round SHALL pass `--previous` with
+the prior round's report. When `delta.resolved` is empty or `delta.regressed` is
+non-empty, the orchestrator SHALL run `script_history.py restore accepted
+build/<part_id>.py` before anything else, and the next round's builder resume SHALL state
+that the previous edit was reverted and why. Otherwise it SHALL mark `accepted` again as
+the new baseline. When the round cap is reached and the last round was reverted, Model
+export and the gate SHALL be re-run from the restored script before the remaining
+findings are summarized, so delivered files come from `accepted`.
+
 #### Scenario: Gate error is fixed with full context
 
 - **WHEN** the gate reports a finding with `action: fix`
@@ -127,6 +138,23 @@ finding `type`s.
 - **THEN** the gate passes, no fix round runs, and the findings are surfaced alongside
   the print recipe
 
+#### Scenario: A regressing fix round is undone
+
+- **WHEN** gate round 1's fix leaves `delta.regressed` non-empty
+- **THEN** the orchestrator restores `accepted`, and the round-2 resume tells the builder
+  its previous edit was reverted together with the regressed findings
+
+#### Scenario: A round with progress becomes the baseline
+
+- **WHEN** gate round 1's fix resolves a finding and regresses none
+- **THEN** the edited script is kept and marked as `accepted`
+
+#### Scenario: Delivery after an exhausted, reverted loop
+
+- **WHEN** round 2 is reverted and findings remain
+- **THEN** export and the gate re-run from `accepted` before the summary, and the
+  delivered files are built from `accepted`
+
 ### Requirement: The cold-context fixer remains available
 
 The `--fix` path SHALL keep the existing fix-prompt renderer and `claude -p`
@@ -155,3 +183,22 @@ SHALL invoke `claude -p` with no `--model` flag.
   directory
 - **THEN** `claude -p` is invoked with no `--model` flag and the fix path behaves
   exactly as before this change
+
+### Requirement: The gate reports a delta against a previous report
+`quality_gate.py --previous <report.json>` SHALL add
+`"delta": {"resolved": [...], "regressed": [...]}` to its report. A finding's identity
+SHALL be its `(type, union, source)`, taken over findings whose `action` is `fix` or
+`re_export`. `resolved` SHALL list identities present in the previous report and absent
+from this one; `regressed` SHALL list identities present in this report and absent from
+the previous one. Without `--previous` the report SHALL carry no `delta` key. An
+unreadable or non-JSON previous report SHALL exit 1 with an error naming the path, never
+an empty delta.
+
+#### Scenario: A round that fixed one finding
+- **WHEN** the previous report had `non_watertight` and `overhang_exceeded` and this run
+  has only `overhang_exceeded`
+- **THEN** `delta.resolved` lists `non_watertight` and `delta.regressed` is empty
+
+#### Scenario: A round that introduced a new error
+- **WHEN** this run has a `keep_out_violation` the previous report did not
+- **THEN** `delta.regressed` lists `keep_out_violation`
