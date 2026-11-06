@@ -184,26 +184,170 @@ def _info_lines(wp, n_triangles, density_g_cm3=1.24, material="PLA"):
 # ---------------------------------------------------------------------------
 
 
-def _draw_callouts(img, callouts, project):
-    """Draw a numbered badge + leader line at each callout's projected 2D position.
+def _draw_callouts(img, badges):
+    """Draw a numbered badge + leader line at each projected 2D position.
 
-    Projects each callout's build-pose `center` through the panel's own camera
-    (`project`) -- pure 3D-to-2D projection, no vision or heuristic placement
-    (design D2). Badge numbers follow `callouts` order (1-based).
+    `badges` is a list of `(number, (x, y))` -- pure 3D-to-2D projection, no vision or
+    heuristic placement (design D2). Leader offsets cycle with the badge number.
     """
     draw = ImageDraw.Draw(img)
     k = img.width / DEFAULT_VIEW_SIZE
     font = _get_font(max(int(14 * k), 8))
     rad = 11 * k
-    for i, callout in enumerate(callouts, start=1):
-        x, y, _ = project(callout["center"])
-        dx, dy = _CALLOUT_OFFSETS[(i - 1) % len(_CALLOUT_OFFSETS)]
+    for num, (x, y) in badges:
+        dx, dy = _CALLOUT_OFFSETS[(num - 1) % len(_CALLOUT_OFFSETS)]
         bx, by = x + dx * k, y - dy * k
         draw.line([(x, y), (bx, by)], fill="black", width=max(int(k), 1))
         draw.ellipse(
             [bx - rad, by - rad, bx + rad, by + rad], fill="#FFD400", outline="black", width=2
         )
-        draw.text((bx, by), str(i), fill="black", font=font, anchor="mm")
+        draw.text((bx, by), str(num), fill="black", font=font, anchor="mm")
+
+
+_CAP_COLOR = np.array([0.95, 0.55, 0.15])
+_EDGE_RGB = (40, 40, 50)
+_VISIBLE_TOL = 0.01
+_MERGE_PX = 12
+
+
+class SectionPath(str):
+    """Output path of a section render; `.informative` is False when the cap shows no
+    hole, notch or void (advisory, not a gate)."""
+
+    informative: bool | None
+
+    def __new__(cls, path, informative):
+        obj = super().__new__(cls, path)
+        obj.informative = informative
+        return obj
+
+
+def _on_plane(triangles, axis, pos, tol=1e-3):
+    """Boolean mask of triangles whose vertices all lie on the axis-aligned plane."""
+    coord = triangles[:, :, "xyz".index(axis)]
+    return (np.abs(coord - pos) < tol).all(axis=1)
+
+
+def _mask(triangles, project, width, height):
+    """Coverage mask of `triangles` in a camera (no shading)."""
+    if len(triangles) == 0:
+        return np.zeros((height, width), dtype=bool)
+    white = np.ones((len(triangles), 3))
+    arr = zbuffer.rasterize(triangles, white, project, width, height, (0, 0, 0))
+    return arr[:, :, 0] > 127
+
+
+def _has_inner_hole(mask):
+    """True if `mask` has background pixels not connected to the image border."""
+    step = max(1, max(mask.shape) // 256)
+    solid = np.pad(mask[::step, ::step], 1)
+    reach = np.zeros_like(solid)
+    reach[0, :] = reach[-1, :] = reach[:, 0] = reach[:, -1] = True
+    reach &= ~solid
+    while True:
+        grown = reach.copy()
+        grown[1:] |= reach[:-1]
+        grown[:-1] |= reach[1:]
+        grown[:, 1:] |= reach[:, :-1]
+        grown[:, :-1] |= reach[:, 1:]
+        grown &= ~solid
+        if (grown == reach).all():
+            return bool((~solid & ~reach).any())
+        reach = grown
+
+
+def _cap_info(cap_tris, uncut_wp, project, width, height):
+    """Return (cap_mask, informative): cap smaller than the uncut silhouette or holed."""
+    cap_mask = _mask(cap_tris, project, width, height)
+    _, uncut_tris = _tessellate(uncut_wp)
+    sil = _mask(uncut_tris, project, width, height)
+    cap_px = int(cap_mask.sum())
+    informative = bool(cap_px > 0 and (cap_px < 0.98 * sil.sum() or _has_inner_hole(cap_mask)))
+    return cap_mask, informative
+
+
+def _render_panel(wp, elev, azim, width, height, focus=None, cap=None, uncut=None):
+    """Render one view. Returns `(PIL image, project, depth buffer, informative)`.
+
+    `cap=(axis, pos)` colours triangles lying on that plane distinctly and outlines
+    them; with `uncut` (the shape before the cut) `informative` reports whether the
+    cap differs from the uncut silhouette (None when not a section).
+    """
+    verts, triangles = _tessellate(wp)
+    bg = tuple(int(_BG_COLOR[i : i + 2], 16) for i in (1, 3, 5))
+    if len(triangles) == 0:
+        return Image.new("RGB", (width, height), bg), None, None, None
+
+    project = zbuffer.make_camera(verts, elev, azim, width, height, focus)
+    colors = _shade_triangles(triangles)
+    on_cap = _on_plane(triangles, *cap) if cap else None
+    if cap:
+        colors[on_cap] = _CAP_COLOR
+    arr, depth = zbuffer.rasterize_with_depth(triangles, colors, project, width, height, bg)
+    arr[zbuffer.edge_mask(depth)] = _EDGE_RGB
+    informative = None
+    if cap:
+        cap_mask, informative = _cap_info(triangles[on_cap], uncut, project, width, height)
+        inner = cap_mask.copy()
+        inner[1:-1, 1:-1] = (
+            cap_mask[1:-1, 1:-1]
+            & cap_mask[:-2, 1:-1]
+            & cap_mask[2:, 1:-1]
+            & cap_mask[1:-1, :-2]
+            & cap_mask[1:-1, 2:]
+        )
+        arr[cap_mask & ~inner] = _EDGE_RGB
+    return Image.fromarray(arr, "RGB"), project, depth, informative
+
+
+def _visible(center, project, depth):
+    """Z-buffer visibility test: is `center` inside the frame and not occluded?"""
+    x, y, z = project(center)
+    h, w = depth.shape
+    ix, iy = int(x), int(y)
+    if not (0 <= ix < w and 0 <= iy < h):
+        return False
+    covered = np.isfinite(depth)
+    if not covered.any():
+        return True
+    tol = max(_VISIBLE_TOL * float(depth[covered].max() - depth[covered].min()), 1e-3)
+    return bool(z >= depth[iy, ix] - tol)
+
+
+def _place_callouts(callouts, panels, view_size):
+    """Assign each callout to the first panel where it is visible, merging near badges.
+
+    `panels` is a list of `(project, depth)` in preference order. Returns
+    `(badges_per_panel, legend_callouts, hidden_names)`: badges as `(number, (x, y))`
+    per panel, legend entries as `{"name"}` dicts (`"name xN"` for merged groups),
+    and names visible in no panel.
+    """
+    radius = _MERGE_PX * view_size / DEFAULT_VIEW_SIZE
+    groups: list[tuple[int, list, list[str]]] = []  # (panel_idx, [xy, ...], [name, ...])
+    hidden: list[str] = []
+    for c in callouts:
+        for pi, (project, depth) in enumerate(panels):
+            if project is None or not _visible(c["center"], project, depth):
+                continue
+            xy = project(c["center"])[:2]
+            for g in groups:
+                gx, gy = np.mean(g[1], axis=0)
+                if g[0] == pi and np.hypot(xy[0] - gx, xy[1] - gy) <= radius:
+                    g[1].append(xy)
+                    g[2].append(c["name"])
+                    break
+            else:
+                groups.append((pi, [xy], [c["name"]]))
+            break
+        else:
+            hidden.append(c["name"])
+    badges: list[list] = [[] for _ in panels]
+    legend: list[dict] = []
+    for num, (pi, xys, names) in enumerate(groups, start=1):
+        badges[pi].append((num, tuple(np.mean(xys, axis=0))))
+        label = names[0] if len(set(names)) == 1 else " + ".join(names)
+        legend.append({"name": f"{label} x{len(names)}" if len(names) > 1 else label})
+    return badges, legend, hidden
 
 
 def _render_cq_view(
@@ -219,31 +363,26 @@ def _render_cq_view(
     """Render one view of a CadQuery object. Returns a PIL Image (RGB).
 
     Rasterizes with a numpy z-buffer (zbuffer.py): per-pixel depth test, so coplanar
-    flat faces shade uniformly. No display server or OpenGL needed. Every view is
-    orthographic.
+    flat faces shade uniformly, with silhouette/depth-discontinuity edge lines. No
+    display server or OpenGL needed. Every view is orthographic.
 
     `focus` is an optional `(center_xyz, size_mm)` pair overriding the default
     whole-mesh-fit framing with a fixed-size window centered on a point -- used for
     feature detail views where the feature is small relative to the whole part and
     would be imperceptible at the default whole-part framing.
 
-    `ortho` marks the axis-aligned drei-tafel panels where an undistorted measured
-    projection matters; it gates `callouts`.
-
-    `callouts`, when given, is a list of `{"name": str, "center": (x, y, z)}` --
-    only meaningful when `ortho=True` (see `render_multi_view`); each draws a
-    numbered badge via `_draw_callouts`.
+    `callouts` (with `ortho=True`) is a list of `{"name": str, "center": (x, y, z)}`
+    badged where the anchor is visible; the tile path (`render_multi_view`) places
+    callouts across panels itself.
     """
-    verts, triangles = _tessellate(wp)
-    bg = tuple(int(_BG_COLOR[i : i + 2], 16) for i in (1, 3, 5))
-    if len(triangles) == 0:
-        return Image.new("RGB", (width, height), bg)
-
-    project = zbuffer.make_camera(verts, elev, azim, width, height, focus)
-    arr = zbuffer.rasterize(triangles, _shade_triangles(triangles), project, width, height, bg)
-    img = Image.fromarray(arr, "RGB")
-    if callouts and ortho:
-        _draw_callouts(img, callouts, project)
+    img, project, depth, _ = _render_panel(wp, elev, azim, width, height, focus)
+    if callouts and ortho and project is not None:
+        badges = [
+            (i, project(c["center"])[:2])
+            for i, c in enumerate(callouts, start=1)
+            if _visible(c["center"], project, depth)
+        ]
+        _draw_callouts(img, badges)
     return img
 
 
@@ -344,11 +483,18 @@ def render_detail_section(
     if sec is None:
         return None
     elev, azim = _SECTION_CAMERA[axis]
-    img = _render_cq_view(
-        sec, elev, azim, view_size, view_size, focus=(tuple(focus_center), focus_size)
+    img, _, _, informative = _render_panel(
+        sec,
+        elev,
+        azim,
+        view_size,
+        view_size,
+        focus=(tuple(focus_center), focus_size),
+        cap=(axis, position),
+        uncut=shape,
     )
     img.save(output_path)
-    return output_path
+    return SectionPath(output_path, informative)
 
 
 def render_section(wp, output_path, axis, position, view_size=DEFAULT_VIEW_SIZE):
@@ -366,16 +512,19 @@ def render_section(wp, output_path, axis, position, view_size=DEFAULT_VIEW_SIZE)
     if sec is None:
         return None
     elev, azim = _SECTION_CAMERA[axis]
-    img = _render_cq_view(sec, elev, azim, view_size, view_size)
+    img, _, _, informative = _render_panel(
+        sec, elev, azim, view_size, view_size, cap=(axis, position), uncut=shape
+    )
     img.save(output_path)
-    return output_path
+    return SectionPath(output_path, informative)
 
 
-def _legend_line(callouts, unlocated_names):
+def _legend_line(callouts, unlocated_names, hidden_names=None):
     """Caption legend row mapping badge numbers to names, or None if no callouts."""
-    if not callouts and not unlocated_names:
+    if not callouts and not unlocated_names and not hidden_names:
         return None
     parts = [f"{i} {c['name']}" for i, c in enumerate(callouts or [], start=1)]
+    parts += [f"{name} (hidden)" for name in (hidden_names or [])]
     parts += [f"{name} (not located)" for name in (unlocated_names or [])]
     return "   ".join(parts)
 
@@ -413,31 +562,29 @@ def render_multi_view(
     --cross-sections).
 
     `callouts`, when given, is a list of `{"name": str, "center": (x, y, z)}`
-    (build pose) -- each gets a numbered badge + leader line on the three
-    orthographic panels only (not isometric), and a caption legend line mapping
-    badge numbers to names, in supply order. `unlocated_names` are named features
-    with no known position: listed in the legend unbadged as "name (not located)"
-    so the tile still carries the complete agreed vocabulary. Neither argument
-    changes anything when omitted.
-    """
-    legend_line = _legend_line(callouts, unlocated_names)
+    (build pose) -- each gets a numbered badge + leader line on the first panel
+    (orthographic panels, then isometric) where a z-buffer test shows it unoccluded;
+    badges within 12 px merge ("name xN"); a callout visible nowhere is listed
+    "name (hidden)". The caption legend maps badge numbers to names.
 
+    `unlocated_names` are named features with no known position: listed in the
+    legend unbadged as "name (not located)" so the tile still carries the complete
+    agreed vocabulary. Neither argument changes anything when omitted.
+    """
     _, triangles = _tessellate(wp)
-    images = [
-        (
-            _render_cq_view(
-                wp,
-                elev,
-                azim,
-                view_size,
-                view_size,
-                ortho=ortho,
-                callouts=callouts if ortho else None,
-            ),
-            label,
-        )
-        for elev, azim, label, ortho in MULTI_VIEW_PANELS
+    rendered = [
+        _render_panel(wp, elev, azim, view_size, view_size)
+        for elev, azim, _label, _ortho in MULTI_VIEW_PANELS
     ]
+    legend_callouts, hidden = callouts, []
+    if callouts:
+        badges, legend_callouts, hidden = _place_callouts(
+            callouts, [(r[1], r[2]) for r in rendered], view_size
+        )
+        for r, panel_badges in zip(rendered, badges, strict=True):
+            _draw_callouts(r[0], panel_badges)
+    legend_line = _legend_line(legend_callouts, unlocated_names, hidden)
+    images = [(r[0], p[2]) for r, p in zip(rendered, MULTI_VIEW_PANELS, strict=True)]
 
     cols = 2
     rows = (len(images) + cols - 1) // cols
