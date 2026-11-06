@@ -83,6 +83,33 @@ def test_unknown_model_uses_default(tmp_path):
     assert abs(block["totals"]["cost_usd"] - 0.015) < 1e-9  # 1000 * 15 / 1e6
 
 
+def _turn(mid, out, sidechain=False, model="claude-sonnet-5"):
+    return json.dumps(
+        {
+            "type": "assistant",
+            "isSidechain": sidechain,
+            "message": {
+                "id": mid,
+                "model": model,
+                "usage": {"input_tokens": 1000, "output_tokens": out},
+            },
+        }
+    )
+
+
+def test_split_content_lines_counted_once_and_subagents_dir_read(tmp_path):
+    main = _transcript(tmp_path, "\n".join([_turn("m1", 10), _turn("m1", 500), _turn("m2", 0)]))
+    sub = tmp_path / "sess-a" / "subagents"
+    sub.mkdir(parents=True)
+    (sub / "agent-1.jsonl").write_text(_turn("s1", 0, True) + "\n", encoding="utf-8")
+
+    block = session_cost.session_block(main, PRICES)
+
+    assert block["message_count"] == 3
+    assert block["totals"]["output_tokens"] == 500
+    assert block["main_vs_subagent"]["subagent"]["input_tokens"] == 1000
+
+
 def test_merge_keeps_prior_session(tmp_path):
     out = tmp_path / "cost.json"
     session_cost.merge_cost(out, "a", session_cost.session_block(_transcript(tmp_path), PRICES))
