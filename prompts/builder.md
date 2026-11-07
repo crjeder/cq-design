@@ -42,15 +42,24 @@ validate + render command after `--` and puts that result under `full`:
 {{VALIDATE_ARGS}}
 ```
 
-Run the command above verbatim: you may append cuts or details but never replace or drop the supplied `--extra-section` / `--auto-sections` flags. A section printed `(informative: false)` shows no hole, notch or void: do not rely on it, pick another cut.
+Run the command above verbatim: you may append cuts or details but never replace or drop the supplied `--feature` / `--sheet` / `--auto-sections` flags. A section printed `(informative: false)` shows no hole, notch or void: do not rely on it, pick another cut.
+
+Open the `*_sheet.png` first: one 2 x 2 sheet of at most 4 tiles, ranked by relevance (features the
+user named or changed, then the largest, then whole-part sections). A feature tile shows the
+feature from along its normal with a yellow marker, beside a section through its axis when it has
+depth. A feature in the footer as `(not shown)` has no tile; render it with its own `--feature`
+spec (the same `name=...;center=...` form as in the command). `(not located)` means the solid has no
+geometry at that position: fix the position or the model. Drill into the per-tile files
+(`*_feature_<name>.png`, `*_feature_<name>_section.png`, `*_section_*.png`) only to answer a
+question the sheet leaves open.
 
 Add `--detail "name=<feature>;center=<x>,<y>,<z>;size=<mm>[;section=<axis>=<pos>]"` when a
-message names one small feature (frame 2-4x its size), and `--extra-section axis=mm` when
-a message asks for a view that no current file shows.
-Section cuts are chosen in this order: plan/request-driven `--extra-section` cuts first,
-then `--auto-sections` (already in the command) fills the remaining slots, up to 3 cuts in total,
-with cuts through bore/boss axes. Only when neither gives a cut do the bounding-box-center cuts
-render. To pick a `--detail` `section=` position for a bore, run
+message names one small feature the sheet does not show (frame 2-4x its size), and
+`--extra-section axis=mm` when a message asks for a view that no current file shows.
+Whole-part cuts (`--auto-sections`, already in the command) are chosen from bore/boss axes first,
+then by slicing the part and scoring the profile (holes, voids, area change), up to 3 cuts in
+total. Only when none gives a cut do the bounding-box-center cuts render. To pick a `--detail`
+`section=` position for a bore, run
 `uv run --project "{{SKILL_DIR}}" python "{{SKILL_DIR}}/src/section_select.py" build/{{PART_ID}}.py`
 and use its `extra_section_args`.
 
