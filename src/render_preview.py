@@ -251,6 +251,63 @@ def _parse_details(args) -> list[dict]:
     return details
 
 
+def _parse_features(args) -> list[dict]:
+    """Parse and validate every `--feature` spec, exiting on error."""
+    from feature_frame import parse_feature_spec
+
+    features = []
+    for spec in args.feature:
+        try:
+            features.append(parse_feature_spec(spec))
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(1)
+    return features
+
+
+def _render_features(result, features, out_dir, stem):
+    """Render the first MAX_FEATURES located features (in the order given).
+
+    Returns `(tiles, notes, paths, frames)`: one `(path, caption)` sheet tile per feature
+    (its axis section when that renders and shows something, else its view), footer notes
+    for features not shown or not located, every written file, and `{name: frame}`.
+    """
+    import preview
+    from feature_frame import derive_frame
+
+    shape = _whole_shape(result)
+    tiles: list[tuple[str, str]] = []
+    notes: list[str] = []
+    paths: list[str] = []
+    frames: dict[str, dict] = {}
+    for number, feat in enumerate(features, start=1):
+        name = feat["name"]
+        try:
+            frame = derive_frame(shape, feat["center"], feat["extent"])
+            if frame is None:
+                notes.append(f"{name} (not located)")
+                continue
+            if len(tiles) >= MAX_FEATURES:
+                notes.append(f"{name} (not shown)")
+                continue
+            frames[name] = frame
+            view_path = os.path.join(out_dir, f"{stem}_feature_{name}.png")
+            _, view = preview.render_feature_view(result, view_path, frame, number)
+            paths.append(view_path)
+            tile = (view_path, f"{number} {name} - view {view}")
+            sec_path = os.path.join(out_dir, f"{stem}_feature_{name}_section.png")
+            sec = preview.render_feature_section(result, sec_path, frame, number)
+            if sec is not None:
+                paths.append(sec)
+                if sec.informative and sec.cut is not None:
+                    tile = (sec_path, f"{number} {name} - section {sec.cut[0]}={sec.cut[1]:g}")
+            tiles.append(tile)
+        except Exception as exc:
+            print(f"WARNING: feature '{name}' preview failed: {exc}", file=sys.stderr)
+            notes.append(f"{name} (not shown)")
+    return tiles, notes, paths, frames
+
+
 def _load_script_result(script_path: str, skill_root: str):
     """Run the model script in an isolated temp dir and return its validated `result`."""
     if not os.path.exists(script_path):
@@ -458,16 +515,24 @@ def _render_all(
             extra_previews,
         )
 
-    for spec in details:
+    for number, spec in enumerate(details, start=1):
         detail_path = os.path.join(out_dir, f"{stem}_detail_{spec['name']}.png")
-        preview.render_detail_view(result, detail_path, spec["center"], spec["size"])
+        preview.render_detail_view(
+            result, detail_path, spec["center"], spec["size"], marker=(number, spec["center"])
+        )
         extra_previews.append(detail_path)
 
         if spec["section"] is not None:
             axis, pos = spec["section"]
             section_path = os.path.join(out_dir, f"{stem}_section_{axis}_{spec['name']}.png")
             written = preview.render_detail_section(
-                result, section_path, axis, pos, spec["center"], spec["size"]
+                result,
+                section_path,
+                axis,
+                pos,
+                spec["center"],
+                spec["size"],
+                marker=(number, spec["center"]),
             )
             if written is None:
                 print(
@@ -477,6 +542,18 @@ def _render_all(
                 )
             else:
                 extra_previews.append(written)
+
+    if features or args.sheet:
+        tiles, notes, paths, frames = _render_features(result, features or [], out_dir, stem)
+        if frames:
+            with open(os.path.join(out_dir, f"{stem}_frames.json"), "w", encoding="utf-8") as f:
+                json.dump(frames, f)
+        sheet_tiles = (tiles + section_tiles)[:MAX_FEATURES]
+        if args.sheet and sheet_tiles:
+            sheet_path = os.path.join(out_dir, f"{stem}_sheet.png")
+            preview.render_sheet(sheet_tiles, sheet_path, notes, title=title)
+            extra_previews.insert(0, sheet_path)
+        extra_previews += paths
 
     return extra_previews
 
@@ -578,9 +655,32 @@ def main():
             "'NAME (not located)' without a badge. Repeatable."
         ),
     )
+    parser.add_argument(
+        "--feature",
+        action="append",
+        default=[],
+        metavar="SPEC",
+        help=(
+            "Per-feature preview in relevance order: 'name=<feature>;center=x,y,z"
+            "[;diameter=<d>|;size=<w>,<h>]'. The feature's bbox, normal and depth are "
+            "derived from the solid; writes <stem>_feature_<name>.png (camera along the "
+            "normal, marker on the feature) and, when it has depth, "
+            "<stem>_feature_<name>_section.png. Only the first 4 located features are "
+            "rendered; the rest are listed '(not shown)'. Repeatable."
+        ),
+    )
+    parser.add_argument(
+        "--sheet",
+        action="store_true",
+        help=(
+            "Compose one 2 x 2 <stem>_sheet.png of at most 4 tiles: --feature tiles in "
+            "order, then whole-part sections. Listed first among the extra previews."
+        ),
+    )
     args = parser.parse_args()
 
     extra_sections = _parse_extra_sections(args)
+    features = _parse_features(args)
     details = _parse_details(args)
     callouts = _parse_callouts(args)
     features = _parse_features(args)
