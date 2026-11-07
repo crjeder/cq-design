@@ -25,6 +25,7 @@ import sys
 import tempfile
 
 MAX_SECTIONS = 3
+MAX_SLICE_CUTS = 2
 
 
 def _parse_detail_spec(spec: str) -> dict:
@@ -94,6 +95,58 @@ def _parse_callout_spec(spec: str) -> dict:
     return {"name": name, "center": center}
 
 
+def _parse_feature_spec(spec: str) -> dict:
+    """Parse one `--feature` spec into `{name, center, diameter, size, section}`.
+
+    Format: `name=<feature>;center=x,y,z[;diameter=<mm>|;size=<w>,<h>][;section=AXIS=MM]`
+    (build pose). `section` is the cut used only when no feature frame is found.
+    Raises ValueError with a message naming the problem on any malformed spec.
+    """
+    parts = dict(item.split("=", 1) for item in spec.split(";") if item)
+    for required in ("name", "center"):
+        if required not in parts:
+            raise ValueError(f"missing '{required}=' in --feature spec '{spec}'")
+    name = parts["name"].strip()
+    if not name:
+        raise ValueError(f"empty name= in --feature spec '{spec}'")
+    try:
+        center = tuple(float(v) for v in parts["center"].split(","))
+        diameter = float(parts["diameter"]) if "diameter" in parts else None
+        size = [float(v) for v in parts["size"].split(",")] if "size" in parts else None
+    except ValueError as exc:
+        raise ValueError(f"non-numeric center/diameter/size in --feature spec '{spec}'") from exc
+    if len(center) != 3:
+        raise ValueError(f"center= must be 3 comma-separated values in --feature spec '{spec}'")
+    section = None
+    if "section" in parts:
+        axis, _, pos = parts["section"].partition("=")
+        try:
+            section = (axis.strip().lower(), float(pos))
+        except ValueError as exc:
+            raise ValueError(f"section= must be AXIS=MM in --feature spec '{spec}'") from exc
+        if section[0] not in ("x", "y", "z"):
+            raise ValueError(f"section= axis must be x/y/z in --feature spec '{spec}'")
+    return {
+        "name": name,
+        "center": center,
+        "diameter": diameter,
+        "size": size,
+        "section": section,
+    }
+
+
+def _parse_features(args) -> list[dict]:
+    """Parse and validate every `--feature` spec, exiting on error."""
+    features = []
+    for spec in args.feature:
+        try:
+            features.append(_parse_feature_spec(spec))
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(1)
+    return features
+
+
 def _parse_callouts(args) -> list[dict]:
     """Parse and validate every `--callout` spec, exiting on error."""
     callouts = []
@@ -106,19 +159,30 @@ def _parse_callouts(args) -> list[dict]:
     return callouts
 
 
+def _compound(result):
+    """Every solid of `result` as one Shape (`.val()` would drop unions merged with .add())."""
+    import cadquery as cq
+
+    if isinstance(result, cq.Workplane):
+        return cq.Compound.makeCompound([v for v in result.vals() if isinstance(v, cq.Shape)])
+    return result
+
+
 def _auto_cuts(result, reserved, slots):
-    """Geometry-driven (axis, pos) cuts from section_select; [] on any selector error."""
+    """Geometry-driven (axis, pos) cuts: bore/boss cuts first, then slice-scored cuts
+    (at most 2 overall) in the remaining slots; [] on any selector error."""
     if slots <= 0:
         return []
     try:
-        import cadquery as cq
+        from section_select import score_slices, select_sections
 
-        from section_select import select_sections
-
-        shape = result
-        if isinstance(result, cq.Workplane):  # .val() would drop unions merged with .add()
-            shape = cq.Compound.makeCompound([v for v in result.vals() if isinstance(v, cq.Shape)])
-        return [(s["axis"], s["position_mm"]) for s in select_sections(shape, slots, reserved)]
+        shape = _compound(result)
+        cuts = [(s["axis"], s["position_mm"]) for s in select_sections(shape, slots, reserved)]
+        free = min(MAX_SLICE_CUTS, slots - len(cuts))
+        if free > 0:
+            scored = score_slices(shape, [*reserved, *cuts], free)
+            cuts += [(s["axis"], s["position_mm"]) for s in scored]
+        return cuts
     except Exception as exc:
         print(f"WARNING: --auto-sections failed: {exc}", file=sys.stderr)
         return []
@@ -249,16 +313,89 @@ def _load_script_result(script_path: str, skill_root: str):
     return result
 
 
+def _feature_frames(result, features):
+    """`[(spec, frame | None)]`: each `--feature` with its solid-derived frame."""
+    from feature_frame import feature_frame
+
+    shape = _compound(result) if features else None
+    return [
+        (spec, feature_frame(shape, spec["center"], spec["diameter"], spec["size"]))
+        for spec in features
+    ]
+
+
+def _render_features(result, framed, capped, out_dir, stem, extra_previews):
+    """Render each located `--feature` (view, plus a section when it has depth).
+
+    With `capped` (--sheet) only the first SHEET_MAX_TILES located features are rendered;
+    the rest are returned as not shown. Returns `(tiles, not_shown, not_located)`: tiles
+    as `(PIL image, caption)`, the others name lists. Written files go to `extra_previews`.
+    """
+    from PIL import Image
+
+    import preview
+
+    tiles: list[tuple] = []
+    not_shown: list[str] = []
+    not_located: list[str] = []
+    for spec, frame in framed:
+        if frame is None:
+            not_located.append(spec["name"])
+            continue
+        if capped and len(tiles) >= preview.SHEET_MAX_TILES:
+            not_shown.append(spec["name"])
+            continue
+        base = os.path.join(out_dir, f"{stem}_feature_{spec['name']}")
+        view = preview.render_feature_view(result, f"{base}.png", frame, spec["center"])
+        extra_previews.append(view)
+        image, caption = Image.open(view), f"{spec['name']} (view)"
+        section = preview.render_feature_section(
+            result, f"{base}_section.png", frame, spec["center"]
+        )
+        if section is not None:
+            extra_previews.append(section)
+            image = preview.side_by_side(image, Image.open(section))
+            caption = f"{spec['name']} (view + section)"
+        tiles.append((image, caption))
+    return tiles, not_shown, not_located
+
+
+def _write_sheet(title, out_dir, stem, feature_tiles, section_tiles, not_shown, not_located, out):
+    """Compose ranked feature tiles, then whole-part sections, into `<stem>_sheet.png`.
+
+    The sheet path is inserted first in `out` so reviewers open it before the tile files.
+    """
+    from PIL import Image
+
+    import preview
+
+    tiles = list(feature_tiles)
+    for path, caption in section_tiles:
+        if len(tiles) >= preview.SHEET_MAX_TILES:
+            break
+        tiles.append((Image.open(path), caption))
+    sheet = os.path.join(out_dir, f"{stem}_sheet.png")
+    preview.render_sheet(tiles, sheet, f"{title} - preview sheet", not_shown, not_located)
+    out.insert(0, sheet)
+
+
 def _render_all(
     result,
     args,
     extra_sections: list[tuple[str, float]],
     details: list[dict],
     callouts: list[dict],
+    features: list[dict] | None = None,
 ) -> list[str]:
     """Render the main preview plus any cross-section/detail files. Return extra preview paths."""
     import preview
 
+    framed = _feature_frames(result, features or [])
+    # A feature with no frame keeps its caller-supplied guess cut as an ordinary section.
+    extra_sections = [
+        *extra_sections,
+        *(spec["section"] for spec, frame in framed if frame is None and spec["section"]),
+    ]
     title = args.title or (
         os.path.splitext(os.path.basename(args.script))[0].replace("_", " ").title()
     )
@@ -281,6 +418,7 @@ def _render_all(
     out_dir = os.path.dirname(args.output) or "."
     stem = os.path.splitext(os.path.basename(args.output))[0]
     extra_previews = []
+    section_tiles = []
 
     # Cross-sections as SEPARATE files (multi view only): through the
     # caller-supplied declared positions (--extra-section) when provided, else the
@@ -303,6 +441,22 @@ def _render_all(
                 )
             else:
                 extra_previews.append(written)
+                section_tiles.append((written, f"Section {axis} = {pos:g} mm"))
+
+    feature_tiles, not_shown, not_located = _render_features(
+        result, framed, args.sheet, out_dir, stem, extra_previews
+    )
+    if args.sheet:
+        _write_sheet(
+            title,
+            out_dir,
+            stem,
+            feature_tiles,
+            section_tiles,
+            not_shown,
+            not_located,
+            extra_previews,
+        )
 
     for spec in details:
         detail_path = os.path.join(out_dir, f"{stem}_detail_{spec['name']}.png")
@@ -381,6 +535,28 @@ def main():
         ),
     )
     parser.add_argument(
+        "--feature",
+        action="append",
+        default=[],
+        metavar="SPEC",
+        help=(
+            "Per-feature preview: 'name=<feature>;center=x,y,z[;diameter=<mm>|;size=<w>,<h>]'. "
+            "Derives the feature frame (bbox, normal, depth) from the solid, renders a view "
+            "along the normal with a marker and, when depth >= 0.5 mm, a section through its "
+            "axis. A feature with no geometry near center is listed '(not located)'. "
+            "Repeatable; supply order is relevance order."
+        ),
+    )
+    parser.add_argument(
+        "--sheet",
+        action="store_true",
+        help=(
+            "Compose a 2 x 2 <stem>_sheet.png from at most 4 tiles: --feature tiles in "
+            "supply order, then whole-part sections. Features beyond 4 are not rendered and "
+            "appear only as '(not shown)' legend entries."
+        ),
+    )
+    parser.add_argument(
         "--callout",
         action="append",
         default=[],
@@ -407,13 +583,14 @@ def main():
     extra_sections = _parse_extra_sections(args)
     details = _parse_details(args)
     callouts = _parse_callouts(args)
+    features = _parse_features(args)
 
     script_path = os.path.abspath(args.script)
     skill_root = os.path.dirname(os.path.abspath(__file__))
     result = _load_script_result(script_path, skill_root)
 
     try:
-        extra_previews = _render_all(result, args, extra_sections, details, callouts)
+        extra_previews = _render_all(result, args, extra_sections, details, callouts, features)
     except Exception as exc:
         print(f"ERROR: preview render failed: {exc}", file=sys.stderr)
         sys.exit(1)
