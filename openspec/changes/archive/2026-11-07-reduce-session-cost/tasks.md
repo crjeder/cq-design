@@ -9,7 +9,7 @@
 - [x] 2.2 Add `sourcing`, `research`, `auditor` to `src/skill_config.default.json` and the config reader; fall back to the agent file's model
 - [x] 2.3 Make `part_author_model()` / attempts log record the real model id; test in `tests/test_log.py`
 - [x] 2.4 Replace `general-purpose` spawn instructions in `SKILL.md`, `skill/phase*.md`, `commands/*.md`; update `src/render_prompt.py` output text; add a test that no shipped prose names `general-purpose` for these roles
-- [ ] 2.5 Run the audit eval case with the auditor on Sonnet vs the previous model; record the result in the change
+- [x] 2.5 Run the audit eval case with the auditor on Sonnet vs the previous model; record the result in the change (`evals/audit_eval.py`, 4 L-bracket variants: Sonnet 5.5 and Opus 5.5 both 4/4 correct verdicts; cost per variant about $0.15-0.18 vs $0.30-0.32. Limits: one small part, 3 defect kinds; does not cover blank-section previews, TODO.md line 28)
 - [x] 2.6 Rewrite `ARCHITECTURE.md` agent roster and the "No `.claude/agents/` files" rule
 
 ## 3. Installers
@@ -45,5 +45,5 @@
 
 ## 7. Wrap up
 
-- [ ] 7.1 Run `uv run pytest tests/` and `ruff check` on changed Python
+- [x] 7.1 Run `uv run pytest tests/` and `ruff check` on changed Python
 - [x] 7.2 Tick the `TODO.md` items (lines 26, 27, 70) and trim the Siebtragerhalter details that this change resolves
