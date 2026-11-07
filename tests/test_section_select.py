@@ -70,46 +70,43 @@ def test_cli(tmp_path):
 
 
 def u_channel():
-    # U profile in the YZ plane, running along x, with two notches through both walls
-    wp = cq.Workplane("XY").box(40, 30, 20)
-    wp = wp.cut(cq.Workplane("XY").box(50, 24, 20).translate((0, 0, 13)))
-    for x in (-10, 10):
-        wp = wp.cut(cq.Workplane("XY").box(4, 40, 8).translate((x, 0, 16)))
+    prof = [(-20, 0), (20, 0), (20, 20), (17, 20), (17, 3), (-17, 3), (-17, 20), (-20, 20)]
+    wp = cq.Workplane("YZ").polyline(prof).close().extrude(30, both=True)
+    for x in (-15, 15):  # notches in both walls
+        wp = wp.cut(
+            cq.Workplane("XY").box(6, 50, 8, centered=(True, True, False)).translate((x, 0, 12))
+        )
     return wp.val()
 
 
-def open_enclosure_with_posts():
-    wp = cq.Workplane("XY").box(60, 40, 30, centered=(True, True, False))
+def hollow_enclosure():
+    wp = cq.Workplane("XY").box(40, 30, 20, centered=(True, True, False))
     wp = wp.cut(
-        cq.Workplane("XY").box(56, 36, 30, centered=(True, True, False)).translate((0, 0, 2))
+        cq.Workplane("XY").box(36, 26, 20, centered=(True, True, False)).translate((0, 0, 2))
     )
-    for x, y in ((-20, -12), (20, -12), (-20, 12), (20, 12)):
-        wp = wp.union(cq.Workplane("XY").workplane(offset=2).center(x, y).circle(3).extrude(20))
+    for x, y in ((-12, -8), (12, -8), (-12, 8), (12, 8)):
+        wp = wp.union(cq.Workplane("XY").center(x, y).circle(2).extrude(15))
     return wp.val()
 
 
-def test_slices_pick_the_u_profile_for_a_notched_channel():
-    cuts = score_slices(u_channel())
-    assert len(cuts) <= 2
-    assert any(c["axis"] == "x" for c in cuts)  # a cut across the channel shows the U
+def test_slices_u_profile_cuts_across_channel():
+    (first, *_) = score_slices(u_channel())
+    assert first["axis"] == "x"
 
 
-def test_slices_pick_mid_height_for_an_enclosure_with_posts():
-    cuts = score_slices(open_enclosure_with_posts())
-    z = [c for c in cuts if c["axis"] == "z"]
-    assert z and 2 < z[0]["position_mm"] < 22  # through the posts, not above them
+def test_slices_enclosure_mid_height_shows_posts():
+    (first, *_) = score_slices(hollow_enclosure())
+    assert first["axis"] == "z" and 2 < first["position_mm"] < 15
 
 
-def test_slices_ignore_a_plain_box():
-    assert score_slices(cq.Workplane("XY").box(20, 20, 20).val()) == []
+def test_slices_plain_box_and_reserved():
+    assert score_slices(cq.Workplane("XY").box(10, 10, 10).val()) == []
+    cuts = score_slices(hollow_enclosure())
+    assert (
+        score_slices(hollow_enclosure(), reserved=[(c["axis"], c["position_mm"]) for c in cuts])[0]
+        != cuts[0]
+    )
 
 
-def test_slices_skip_reserved_positions():
-    shape = open_enclosure_with_posts()
-    z = next(c for c in score_slices(shape) if c["axis"] == "z")["position_mm"]
-    again = score_slices(shape, reserved=[("z", z)])
-    assert all(not (c["axis"] == "z" and abs(c["position_mm"] - z) < 0.5) for c in again)
-
-
-def test_slices_time_budget_returns_empty():
-    assert score_slices(u_channel(), budget_s=-1) == []
+def test_slices_time_cap_returns_without_error():
+    assert score_slices(hollow_enclosure(), time_cap_s=0) == []

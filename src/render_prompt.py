@@ -42,8 +42,6 @@ TEXT_RE = re.compile(r"text|engrave|emboss|label", re.IGNORECASE)
 ADV3D_RE = re.compile(r"revolve|loft|sweep|twist", re.IGNORECASE)
 LOAD_SECTIONS = {"Snap-Fit Strain Formula", "Rib / Boss / Gusset Ratios"}
 MIN_INTENT_CHARS = 120
-MAX_SECTIONS = 3
-MIN_FEATURE_DEPTH_MM = 0.5
 
 
 def _read(path: Path) -> str:
@@ -101,22 +99,27 @@ def scoped_request(plan: dict, part: dict) -> str | None:
 
 
 def _mentions(entry: dict, pid: str, name: str) -> bool:
-    """Whether a request_log entry targets (or, untargeted, names) interface `name` of `pid`."""
+    """Whether a request_log entry targets the interface `name`, or (untargeted) names it."""
     if entry.get("targets"):
         return name in entry["targets"] or f"{pid}.{name}" in entry["targets"]
-    return name.lower() in entry.get("text", "").lower()
+    text = entry.get("text", "").lower()
+    return any(
+        re.search(rf"(?<![a-z0-9]){re.escape(v)}(?![a-z0-9])", text)
+        for v in {name.lower(), name.lower().replace("_", " ")}
+    )
 
 
-def _size(itf: dict) -> float:
-    return max([itf.get("diameter_mm") or 0, *(itf.get("size_mm") or [])])
+def _feature_size(itf: dict) -> float:
+    return float(itf.get("diameter_mm") or max(itf.get("size_mm") or [0]))
 
 
-def rank_features(plan: dict, part: dict) -> list[dict]:
+def ranked_interfaces(plan: dict, part: dict) -> list[dict]:
     """Named+positioned interfaces, most relevant first.
 
-    Tiers: named in the newest request_log entry (the current prompt); targeted by any
-    clarification/correction (ask_user answers are clarifications); any other mention; the
-    rest. Within a tier the most recently mentioned first, then larger, then plan order.
+    Tiers: named in the newest request_log entry (the current prompt), then targeted by
+    a `clarification` (incl. ask_user answers), then a `correction`, then any other
+    mention; newer entries first within a tier. Unmentioned interfaces follow by
+    size (largest first), then declared order.
     """
     log = plan.get("request_log") or []
     pid = part["id"]
@@ -125,62 +128,43 @@ def rank_features(plan: dict, part: dict) -> list[dict]:
         name = itf.get("name")
         if not name or not itf.get("position_mm"):
             continue
-        hits = [(idx, e) for idx, e in enumerate(log) if _mentions(e, pid, name)]
-        if hits and hits[-1][0] == len(log) - 1:
-            tier = 0
-        elif any(e.get("kind") in ("clarification", "correction") for _, e in hits):
-            tier = 1
-        else:
-            tier = 2 if hits else 3
-        ranked.append(((tier, -(hits[-1][0] if hits else -1), -_size(itf), order), itf))
+        hits = [
+            (
+                0
+                if idx == len(log) - 1
+                else {"clarification": 1, "correction": 2}.get(e.get("kind"), 3),
+                -idx,
+            )
+            for idx, e in enumerate(log)
+            if _mentions(e, pid, name)
+        ]
+        tier, recency = min(hits) if hits else (4, 0)
+        ranked.append(((tier, recency, -_feature_size(itf), order), itf))
     ranked.sort(key=lambda r: r[0])
     return [itf for _, itf in ranked]
 
 
-def load_frames(part_id: str, preview_dir: str = "preview") -> dict:
-    """Feature frames the previous build's render_preview wrote for this part ({} if none)."""
-    path = Path(preview_dir) / f"{part_id}_preview_frames.json"
-    try:
-        return json.loads(_read(path))
-    except (OSError, ValueError):
-        return {}
+def fallback_cut(itf: dict) -> str:
+    """`axis=value` cut through an interface, used only when its feature frame is not found."""
+    pos = itf["position_mm"]
+    # ponytail: axis falls back to the largest |position| component;
+    # the frame (derived from the built solid) replaces this guess when it exists
+    axis = (
+        WALL_AXIS.get(str(itf.get("wall", "")).lower())
+        or "xyz"[max(range(3), key=lambda i: abs(pos[i]))]
+    )
+    return f"{axis}={pos['xyz'.index(axis)]:g}"
 
 
-def section_cuts(plan: dict, part: dict, frames: dict | None = None) -> list[str]:
-    """Up to 3 `axis=value` cuts through named+positioned interfaces, most relevant first.
-
-    An interface with a derived feature frame (from a previous build) is cut by the plane
-    containing its normal; one without keeps the wall/position fallback.
-    """
-    cuts = []
-    for itf in rank_features(plan, part)[:MAX_SECTIONS]:
-        frame = (frames or {}).get(itf["name"])
-        if frame and frame["depth_mm"] >= MIN_FEATURE_DEPTH_MM:
-            axis, pos = section_plane(frame)
-        else:
-            # ponytail: axis falls back to the largest |position| component;
-            # exact needs the bbox center, which only exists after the build
-            xyz = itf["position_mm"]
-            axis = (
-                WALL_AXIS.get(str(itf.get("wall", "")).lower())
-                or "xyz"[max(range(3), key=lambda i: abs(xyz[i]))]
-            )
-            pos = xyz["xyz".index(axis)]
-        cuts.append(f"{axis}={pos:g}")
-    return cuts
-
-
-def feature_flags(plan: dict, part: dict) -> list[str]:
-    """`--feature` specs for every positioned named interface, most relevant first."""
-    flags = []
-    for itf in rank_features(plan, part):
-        spec = f"name={itf['name']};center=" + ",".join(f"{v:g}" for v in itf["position_mm"])
-        if itf.get("diameter_mm"):
-            spec += f";diameter={itf['diameter_mm']:g}"
-        elif itf.get("size_mm"):
-            spec += ";size=" + ",".join(f"{v:g}" for v in itf["size_mm"])
-        flags.append(f'--feature "{spec}"')
-    return flags
+def feature_spec(itf: dict) -> str:
+    """`--feature` spec: name, centre, size hint, and the wall-guess cut as frame fallback."""
+    center = ",".join(f"{v:g}" for v in itf["position_mm"])
+    spec = f"name={itf['name']};center={center}"
+    if itf.get("diameter_mm"):
+        spec += f";diameter={itf['diameter_mm']:g}"
+    elif itf.get("size_mm"):
+        spec += ";size=" + ",".join(f"{v:g}" for v in itf["size_mm"])
+    return f"{spec};section={fallback_cut(itf)}"
 
 
 def validate_args(plan: dict, part: dict, is_final: bool = True, frames: dict | None = None) -> str:
@@ -205,8 +189,8 @@ def validate_args(plan: dict, part: dict, is_final: bool = True, frames: dict | 
             args.append(f'--callout "name={itf["name"]};center={center}"')
         else:
             args.append(f"--unlocated-name {itf['name']}")
-    args += feature_flags(plan, part)
-    args += [f"--extra-section {cut}" for cut in section_cuts(plan, part, frames)]
+    args += [f'--feature "{feature_spec(itf)}"' for itf in ranked_interfaces(plan, part)]
+    args.append("--sheet")
     return " ".join(args)
 
 

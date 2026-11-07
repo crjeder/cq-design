@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Derive a named feature's bbox, axis-snapped normal and depth from the built solid.
+"""Derive a feature's bounding box, normal and depth from the built solid.
 
 Usage:
-    python feature_frame.py model.py --feature "name=usb;center=10,-25,2;diameter=5" ...
-    (--feature also accepts ";size=w,h" in place of ";diameter=d")
+    python feature_frame.py model.py --center x,y,z [--diameter D] [--size W,H]
 
-Prints {"features": [{"name", "located", "bbox_min", "bbox_max", "center", "axis",
-"sign", "depth_mm"}]}; a feature with no solid faces near its position has
-"located": false and no frame fields.
+Prints {"located": true, "bbox": {"min", "max"}, "center", "axis", "normal", "depth_mm"}
+or {"located": false} when no solid face lies near the position.
 """
 
 import argparse
@@ -15,129 +13,133 @@ import json
 import sys
 from typing import cast
 
+from section_select import _axis_index
+
 AXES = "xyz"
-
 MIN_WINDOW_MM = 2.0
-HOST_FACTOR = 2.0  # a face spanning more than HOST_FACTOR x the window is the host wall
+FLAT_DEPTH_MM = 0.5  # below this a feature has no depth worth a section
 
 
-def parse_feature_spec(spec: str) -> dict:
-    """Parse `name=<n>;center=x,y,z;diameter=<d>|size=<w>[,<h>]` into `{name, center, extent}`.
-
-    `extent` is the feature's largest 2D dimension in mm (0 when neither key is given).
-    Raises ValueError naming the problem on a malformed spec.
-    """
-    parts = dict(item.split("=", 1) for item in spec.split(";") if "=" in item)
-    for required in ("name", "center"):
-        if required not in parts:
-            raise ValueError(f"missing '{required}=' in --feature spec '{spec}'")
-    name = parts["name"].strip()
-    if not name:
-        raise ValueError(f"empty name= in --feature spec '{spec}'")
-    try:
-        center = tuple(float(v) for v in parts["center"].split(","))
-        dims = [float(v) for v in (parts.get("diameter") or parts.get("size") or "0").split(",")]
-    except ValueError as exc:
-        raise ValueError(f"non-numeric center/diameter/size in --feature spec '{spec}'") from exc
-    if len(center) != 3:
-        raise ValueError(f"center= must be 3 comma-separated values in --feature spec '{spec}'")
-    return {"name": name, "center": center, "extent": max(dims)}
+def _extents(bb):
+    return (bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin)
 
 
-def _snap(x, y, z, tol=1e-3):
-    """Index of the world axis (x, y, z) is parallel to, else None."""
-    comps = [abs(x), abs(y), abs(z)]
-    i = max(range(3), key=lambda k: comps[k])
-    return i if comps[i] > 1 - tol else None
+def _lo_hi(bb):
+    return (bb.xmin, bb.ymin, bb.zmin), (bb.xmax, bb.ymax, bb.zmax)
 
 
-def _face_axis(face) -> tuple[int | None, bool]:
-    """(world axis index of the face's normal/axis or None, is_planar)."""
+def window_radius(diameter_mm=None, size_mm=None):
+    """Search-window radius: the feature's own extent, never below MIN_WINDOW_MM."""
+    return max(diameter_mm or 0.0, *(size_mm or [0.0]), MIN_WINDOW_MM)
+
+
+def _face_axis(face):
+    """(axis_idx, is_planar) a face points along, else None (non-axis-aligned or other)."""
     kind = face.geomType()
-    if kind == "PLANE":
-        return _snap(*face.normalAt().toTuple()), True
-    if kind in ("CYLINDER", "CONE"):
-        surf = face._geomAdaptor()
-        d = (surf.Cylinder() if kind == "CYLINDER" else surf.Cone()).Axis().Direction()
-        return _snap(d.X(), d.Y(), d.Z()), False
-    return None, False
-
-
-def section_plane(frame: dict) -> tuple[str, float]:
-    """(axis, position_mm) of the axis-aligned plane containing the frame's normal and its
-    longer in-plane axis, through the bbox centre (plane normal = the shorter in-plane axis)."""
-    n = AXES.index(frame["axis"])
-    ext = [hi - lo for lo, hi in zip(frame["bbox_min"], frame["bbox_max"], strict=True)]
-    shorter = min((i for i in range(3) if i != n), key=lambda i: ext[i])
-    return AXES[shorter], frame["center"][shorter]
-
-
-def derive_frame(shape, center, extent=0.0) -> dict | None:
-    """Frame dict for the feature at `center` (mm), or None when no solid faces are near it.
-
-    Window radius is `max(extent, MIN_WINDOW_MM)`. Faces spanning more than HOST_FACTOR x the
-    window are the host wall: they are excluded from the bbox/depth and, when planar, set the
-    normal axis (the surface the feature sits on); without a host the area-weighted axis of
-    the remaining faces decides. `sign` points away from the part bbox centre.
-    """
-    win = max(extent, MIN_WINDOW_MM)
-    lo = [c - win for c in center]
-    hi = [c + win for c in center]
-    kept, host_area, vote_area = [], [0.0] * 3, [0.0] * 3
-    for face in shape.Faces():
-        bb = face.BoundingBox()
-        fmin, fmax = (bb.xmin, bb.ymin, bb.zmin), (bb.xmax, bb.ymax, bb.zmax)
-        if any(fmin[i] > hi[i] or fmax[i] < lo[i] for i in range(3)):
-            continue
-        axis, planar = _face_axis(face)
-        if max(fmax[i] - fmin[i] for i in range(3)) > HOST_FACTOR * 2 * win:
-            if planar and axis is not None:
-                host_area[axis] += face.Area()
-            continue
-        kept.append((fmin, fmax))
-        if axis is not None:
-            vote_area[axis] += face.Area()
-    if not kept:
+    try:
+        if kind == "PLANE":
+            n = face.normalAt()
+            i = max(range(3), key=lambda k: abs((n.x, n.y, n.z)[k]))
+            return (i, True) if abs((n.x, n.y, n.z)[i]) > 1 - 1e-3 else None
+        if kind == "CYLINDER":
+            idx = _axis_index(face._geomAdaptor().Cylinder().Axis().Direction())
+        elif kind == "CONE":
+            idx = _axis_index(face._geomAdaptor().Cone().Axis().Direction())
+        else:
+            return None
+    except Exception:
         return None
-    votes = host_area if any(host_area) else vote_area
-    if not any(votes):
-        return None  # only free-form faces: no world axis to snap to
-    idx = max(range(3), key=lambda i: votes[i])
-    bmin = [min(f[0][i] for f in kept) for i in range(3)]
-    bmax = [max(f[1][i] for f in kept) for i in range(3)]
-    sb = shape.BoundingBox()
-    mid = ((sb.xmin + sb.xmax) / 2, (sb.ymin + sb.ymax) / 2, (sb.zmin + sb.zmax) / 2)[idx]
+    return None if idx is None else (idx, False)
+
+
+def _host_axis(host, position):
+    """Axis of the axis-aligned planar host face nearest `position` (larger area breaks ties).
+
+    The nearest plane is the wall the feature sits in; a bigger face further away (a floor
+    seen across a large window) must not outvote it.
+    """
+    best = None
+    for face in host:
+        a = _face_axis(face)
+        if not (a and a[1]):
+            continue
+        dist = abs(face.Center().toTuple()[a[0]] - position[a[0]])
+        key = (round(dist / 0.5), -face.Area())
+        if best is None or key < best[0]:
+            best = (key, a[0])
+    return None if best is None else best[1]
+
+
+def feature_frame(shape, position, diameter_mm=None, size_mm=None):
+    """Frame of the feature near `position`, or None when no faces are found.
+
+    Faces whose bbox meets a cube of radius `window_radius` around `position` are the
+    candidates; those spanning more than twice that radius are the host wall and are
+    excluded from the bbox. The normal axis is the host wall's (nearest planar host
+    face), else the remaining faces' area-dominant axis; its sign points from the part
+    centre toward the feature. `depth_mm` is the bbox extent along the normal.
+    """
+    r = window_radius(diameter_mm, size_mm)
+    feat: list = []
+    host: list = []
+    for face in shape.Faces():
+        lo, hi = _lo_hi(face.BoundingBox())
+        if any(hi[i] < position[i] - r or lo[i] > position[i] + r for i in range(3)):
+            continue
+        spans = max(_extents(face.BoundingBox()))
+        (host if spans > 2 * r else feat).append(face)
+    if not feat:
+        return None
+
+    los, his = zip(*(_lo_hi(f.BoundingBox()) for f in feat), strict=True)
+    lo = [min(v[i] for v in los) for i in range(3)]
+    hi = [max(v[i] for v in his) for i in range(3)]
+
+    idx = _host_axis(host, position)
+    if idx is None:
+        score = [0.0, 0.0, 0.0]
+        for face in feat:
+            a = _face_axis(face)
+            if a:
+                score[a[0]] += face.Area()
+        if not any(score):
+            return None
+        idx = max(range(3), key=lambda k: score[k])
+
+    pb = shape.BoundingBox()
+    plo, phi = _lo_hi(pb)
+    centre = (plo[idx] + phi[idx]) / 2
+    sign = 1 if position[idx] >= centre else -1
+    normal = [0, 0, 0]
+    normal[idx] = sign
     return {
-        "bbox_min": [round(v, 3) for v in bmin],
-        "bbox_max": [round(v, 3) for v in bmax],
-        "center": [round((a + b) / 2, 3) for a, b in zip(bmin, bmax, strict=True)],
+        "located": True,
+        "bbox": {"min": [round(v, 3) for v in lo], "max": [round(v, 3) for v in hi]},
+        "center": [round((lo[i] + hi[i]) / 2, 3) for i in range(3)],
         "axis": AXES[idx],
-        "sign": 1 if center[idx] >= mid else -1,
-        "depth_mm": round(bmax[idx] - bmin[idx], 3),
+        "normal": normal,
+        "depth_mm": round(hi[idx] - lo[idx], 3),
     }
-
-
-def frames_for(shape, specs: list[dict]) -> list[dict]:
-    """`[{name, located, ...frame}]` for parsed feature specs, in order."""
-    out = []
-    for s in specs:
-        frame = derive_frame(shape, s["center"], s["extent"])
-        out.append({"name": s["name"], "located": frame is not None, **(frame or {})})
-    return out
 
 
 def main():
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("script")
-    parser.add_argument("--feature", action="append", default=[], metavar="SPEC")
+    parser.add_argument("--center", required=True, metavar="X,Y,Z")
+    parser.add_argument("--diameter", type=float)
+    parser.add_argument("--size", metavar="W,H")
     args = parser.parse_args()
+
     try:
+        center = [float(v) for v in args.center.split(",")]
+        if len(center) != 3:
+            raise ValueError("--center must be 3 comma-separated values")
+        size = [float(v) for v in args.size.split(",")] if args.size else None
         import cadquery as cq
 
         from exporters import _load_result
         from units import KEEP_OUT_KEY
 
-        specs = [parse_feature_spec(s) for s in args.feature]
         result = _load_result(args.script)
         shape: cq.Shape
         if isinstance(result, dict):
@@ -145,11 +147,11 @@ def main():
             shape = cq.Compound.makeCompound(vals)
         else:
             shape = cast(cq.Shape, result.val())
-        features = frames_for(shape, specs)
+        frame = feature_frame(shape, center, args.diameter, size)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
-    print(json.dumps({"features": features}))
+    print(json.dumps(frame or {"located": False}))
 
 
 if __name__ == "__main__":

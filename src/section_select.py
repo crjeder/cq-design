@@ -140,63 +140,74 @@ def select_sections(shape, max_cuts=3, reserved=()):
     return out
 
 
-def _slice_stats(shape, axis, pos, bb):
-    """(area, loops, void_fraction) of the shape's section at `axis`=`pos`, None if empty.
+N_SLICES = 15
+MIN_SLICE_SCORE = 1.2  # a lone small hole scores ~1 and is already shown by its bore cut
+SLICE_TIME_CAP_S = 5.0
 
-    loops counts every boundary but the outermost (holes and island outlines); void is
-    the share of the section's own bbox that is empty.
+
+def _slice_metrics(shape, axis, pos, span):
+    """(area, inner_loops, void_fraction) of the section at `axis`=`pos`; None if empty.
+
+    Void fraction is measured per section face against its own bounding box, so a
+    plain rectangle scores 0 and a U profile or hollow ring scores high.
     """
     import cadquery as cq
 
-    n = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
-    base = [(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2]
-    base["xyz".index(axis)] = pos
-    span = max(bb.xlen, bb.ylen, bb.zlen) * 2
-    faces = shape.intersect(cq.Face.makePlane(span, span, tuple(base), n)).Faces()
-    area = sum(f.Area() for f in faces)
-    if not faces or area <= 0:
+    normal = cq.Vector(*(1 if a == axis else 0 for a in AXES))
+    centre = cq.Vector(*(pos if a == axis else 0 for a in AXES))
+    faces = shape.intersect(cq.Face.makePlane(span, span, centre, normal)).Faces()
+    if not faces:
         return None
-    loops = sum(len(f.Wires()) for f in faces) - 1
-    sb = cq.Compound.makeCompound(faces).BoundingBox()
-    ext = sorted([sb.xlen, sb.ylen, sb.zlen])[1:]  # the two in-plane extents
-    return area, loops, max(0.0, 1.0 - area / max(ext[0] * ext[1], 1e-9))
+    area = sum(f.Area() for f in faces)
+    boxes = 0.0
+    for f in faces:
+        bb = f.BoundingBox()
+        ext = sorted([bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin])
+        boxes += ext[1] * ext[2]
+    loops = sum(len(f.innerWires()) for f in faces)
+    return area, loops, max(0.0, 1.0 - area / boxes) if boxes > 0 else 0.0
 
 
-def score_slices(shape, max_cuts=2, reserved=(), budget_s=SLICE_BUDGET_S):
-    """Up to `max_cuts` [{axis, position_mm, score}] from slice analysis; [] past the time budget.
+def score_slices(shape, reserved=(), max_cuts=2, time_cap_s=SLICE_TIME_CAP_S):
+    """Up to `max_cuts` [{axis, position_mm, score}] from N_SLICES planes per axis.
 
-    Samples SLICES_PER_AXIS planes per axis; score = min(loops, 6) + 2 x void fraction +
-    area change vs the neighbouring slices (relative to the axis' largest area). Takes the
-    best slice per axis, drops any within DEDUPE_MM of a `reserved` cut or scoring below
-    MIN_SLICE_SCORE, then the best `max_cuts`.
+    Score = inner loops + 2 x void fraction + area change vs neighbouring slices. The
+    best slice per axis competes; cuts within DEDUPE_MM of a `reserved` cut are dropped
+    and scores below MIN_SLICE_SCORE are ignored. Returns what was scored when
+    `time_cap_s` runs out (possibly []), so callers keep their bbox-centre fallback.
     """
-    start = time.monotonic()
+    import time
+
     bb = shape.BoundingBox()
-    best = []
-    for axis in AXES:
-        lo = getattr(bb, axis + "min")
-        step = getattr(bb, axis + "len") / (SLICES_PER_AXIS + 1)
-        poses = [lo + step * (i + 1) for i in range(SLICES_PER_AXIS)]
-        stats = []
-        for p in poses:
-            if time.monotonic() - start > budget_s:
-                return []
-            stats.append(_slice_stats(shape, axis, p, bb))
-        top = max((st[0] for st in stats if st), default=0.0)
-        cands = []
-        for i, (p, st) in enumerate(zip(poses, stats, strict=True)):
-            if st is None or top <= 0:
+    lows, highs = (bb.xmin, bb.ymin, bb.zmin), (bb.xmax, bb.ymax, bb.zmax)
+    span = 4 * max(h - lo for lo, h in zip(lows, highs, strict=True))
+    start = time.monotonic()
+    best: list[tuple[float, str, float]] = []
+    for i, axis in enumerate(AXES):
+        lo, hi = lows[i], highs[i]
+        positions = [lo + (hi - lo) * (k + 1) / (N_SLICES + 1) for k in range(N_SLICES)]
+        metrics = []
+        for pos in positions:
+            if time.monotonic() - start > time_cap_s:
+                return _top_slices(best, max_cuts)
+            metrics.append(_slice_metrics(shape, axis, pos, span))
+        top = max((m[0] for m in metrics if m), default=0.0)
+        scored = []
+        for k, (pos, m) in enumerate(zip(positions, metrics, strict=True)):
+            if m is None or top <= 0:
                 continue
-            nbrs = [stats[j][0] for j in (i - 1, i + 1) if 0 <= j < len(stats) and stats[j]]
-            change = sum(abs(st[0] - a) for a in nbrs) / (len(nbrs) or 1) / top
-            score = min(st[1], MAX_LOOPS_SCORED) + 2 * st[2] + change
-            if score >= MIN_SLICE_SCORE and not any(
-                axis == ra and abs(p - rp) < DEDUPE_MM for ra, rp in reserved
-            ):
-                cands.append((score, axis, p))
-        if cands:
-            best.append(max(cands, key=lambda c: (c[0], -abs(c[2] - (lo + step * 8)))))
-    best.sort(key=lambda c: -c[0])
+            nbrs = [metrics[j][0] for j in (k - 1, k + 1) if 0 <= j < N_SLICES and metrics[j]]
+            change = abs(m[0] - sum(nbrs) / len(nbrs)) / top if nbrs else 0.0
+            score = m[1] + 2.0 * m[2] + change
+            if not any(axis == ra and abs(pos - rp) < DEDUPE_MM for ra, rp in reserved):
+                scored.append((score, axis, pos))
+        if scored:
+            best.append(max(scored, key=lambda s: (s[0], -s[2])))
+    return _top_slices(best, max_cuts)
+
+
+def _top_slices(best, max_cuts):
+    best = sorted((b for b in best if b[0] >= MIN_SLICE_SCORE), key=lambda b: -b[0])
     return [
         {"axis": a, "position_mm": round(p, 3), "score": round(s, 3)} for s, a, p in best[:max_cuts]
     ]
