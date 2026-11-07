@@ -337,3 +337,60 @@ def test_planning_inventory_lists_params_and_edge_sets():
         ]
     )
     assert "Params: w, h; edges: vertical" in lines and "Params: r, angle?" in lines
+
+
+def _ranked_plan(log):
+    itfs = [
+        {"name": n, "position_mm": [i, 0, 1], "diameter_mm": d}
+        for i, (n, d) in enumerate([("big", 20), ("mid", 10), ("small", 2), ("usb_port", 4)])
+    ]
+    plan, part = _plan(request_log=[{"ts": "t", "kind": "initial", "text": "a lid"}, *log])
+    part["interfaces"] = itfs + [{"name": "unplaced"}]
+    return plan, part
+
+
+def _names(plan, part):
+    return [i["name"] for i in rp.rank_features(plan, part)]
+
+
+def test_rank_current_prompt_beats_correction_beats_size():
+    log = [
+        {"ts": "t", "kind": "correction", "text": "shrink it", "targets": ["lid.small"]},
+        {"ts": "t", "kind": "clarification", "text": "the usb_port goes on the left"},
+    ]
+    plan, part = _ranked_plan(log)
+    assert _names(plan, part) == ["usb_port", "small", "big", "mid"]  # unplaced never ranked
+
+
+def test_rank_other_mention_beats_size_only():
+    plan, part = _ranked_plan([])
+    assert _names(plan, part) == ["big", "mid", "usb_port", "small"]  # size order
+    plan, part = _ranked_plan([{"ts": "t", "kind": "initial", "text": "x"}])
+    plan["request_log"][0]["text"] = "a lid with a small hole"
+    plan["request_log"].append({"ts": "t", "kind": "clarification", "text": "ok", "targets": []})
+    assert _names(plan, part)[0] == "small"
+
+
+def test_validate_args_emits_ranked_features_and_sheet():
+    plan, part = _ranked_plan([{"ts": "t", "kind": "clarification", "text": "usb_port moves"}])
+    args = rp.validate_args(plan, part)
+    assert "--sheet" in args
+    feats = args.split("--feature ")[1:]
+    assert len(feats) == 4 and feats[0].startswith('"name=usb_port;center=3,0,1;diameter=4"')
+    assert "--unlocated-name unplaced" in args
+
+
+def test_section_cuts_use_feature_frame_plane_else_wall_fallback():
+    plan, part = _plan()
+    frames = {
+        "c": {  # slot along x on a z wall: the plane contains z and x, so it cuts across y
+            "bbox_min": [-10, -1, 0],
+            "bbox_max": [10, 1, 3],
+            "center": [0, 0.5, 1.5],
+            "axis": "z",
+            "sign": 1,
+            "depth_mm": 3,
+        }
+    }
+    cuts = rp.section_cuts(plan, part, frames)
+    assert cuts[0] == "y=0.5" and cuts[1:] == ["z=3", "y=-25"]

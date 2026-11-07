@@ -876,6 +876,27 @@ def test_joint_valid_two_part_plan_passes(plan_file):
     assert errors == []
 
 
+def test_joint_member_on_multi_union_part_requires_union(plan_file):
+    unions = {"unions": [{"id": "door_a"}, {"id": "door_b"}]}
+    plan = _joints_plan(door_over=unions)
+    errors = validate_plan(plan_file(plan))
+    assert any("must name one with 'union'" in e for e in errors)
+
+    plan["joints"][0]["members"][0]["union"] = "door_b"
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_joint_member_unknown_union_rejected(plan_file):
+    plan = _joints_plan()
+    plan["joints"][0]["members"][0]["union"] = "ghost"
+    errors = validate_plan(plan_file(plan))
+    assert any("'ghost' is not a union of part 'door'" in e for e in errors)
+
+
+def test_joint_member_union_defaults_to_single_union(plan_file):
+    assert validate_plan(plan_file(_joints_plan())) == []
+
+
 def test_joint_dovetail_corner_block_validates_and_derives_pose(plan_file):
     """dovetail_corner_joint backs a cross-part joints entry (pins/tails on two boards)."""
     plan = _joints_plan(

@@ -27,6 +27,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from feature_frame import section_plane
 from log import _read_records, fold_attempts, part_author_model, role_model, search_request_log
 from plan import _is_load_bearing, is_step_script
 from printer_profile_validate import validate_profile
@@ -166,7 +167,7 @@ def feature_spec(itf: dict) -> str:
     return f"{spec};section={fallback_cut(itf)}"
 
 
-def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
+def validate_args(plan: dict, part: dict, is_final: bool = True, frames: dict | None = None) -> str:
     dims = part["dimensions"]
     cons = plan["constraints"]
     args = []
@@ -177,7 +178,7 @@ def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
         ]
     args += [
         f"--wall-min {cons['wall_min_mm']:g}",
-        "--strict --preview --preview-dir preview --cross-sections --auto-sections",
+        "--strict --preview --preview-dir preview --cross-sections --auto-sections --sheet",
         f"--attempts-log build/attempts.jsonl --model {part_author_model()}",
     ]
     for itf in part.get("interfaces") or []:
@@ -333,6 +334,7 @@ def render_builder(
     plan: dict, part: dict, override: str | None, attempts: Path | None
 ) -> tuple[str, list[str]]:
     part_stages = stages(plan, part, override)
+    frames = load_frames(part["id"])
     skill_dir = SKILL_DIR.as_posix()
     run_tool = f'uv run --project "{skill_dir}" python "{skill_dir}/src'
     validate_commands = "\n\n".join(
@@ -343,7 +345,7 @@ def render_builder(
             if stage == "profile_stub"
             else f'{run_tool}/step_worker.py" run \\\n'
             f"    build/{part['id']}.py -- "
-            f"{validate_args(plan, part, stage == part_stages[-1])}"
+            f"{validate_args(plan, part, stage == part_stages[-1], frames)}"
         )
         for stage in part_stages
     )
