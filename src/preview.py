@@ -15,6 +15,8 @@ Public API:
     render_section(workplane, output_path, axis, position, view_size)
     render_detail_view(workplane, output_path, focus_center, focus_size)
     render_detail_section(workplane, output_path, axis, position, focus_center, focus_size)
+    render_feature_view / render_feature_section(workplane, output_path, frame, anchor)
+    render_sheet(tiles, output_path, title, not_shown, not_located)
 
 All functions accept a CadQuery Workplane or Shape as the first argument.
 `render_detail_view`/`render_detail_section` are standalone, high-resolution,
@@ -30,6 +32,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 import zbuffer
+from feature_frame import FLAT_DEPTH_MM
 
 # Cycled leader-line offsets (pixels at the default view size) so badges near the same projected
 # area don't stack directly on top of each other.
@@ -314,6 +317,12 @@ def _visible(center, project, depth):
     return bool(z >= depth[iy, ix] - tol)
 
 
+def _draw_marker(img, project, depth, anchor):
+    """Badge `anchor` (build-pose xyz) on `img` when it is inside the frame and unoccluded."""
+    if anchor is not None and project is not None and _visible(anchor, project, depth):
+        _draw_callouts(img, [(1, tuple(project(anchor)[:2]))])
+
+
 def _place_callouts(callouts, panels, view_size):
     """Assign each callout to the first panel where it is visible, merging near badges.
 
@@ -444,6 +453,7 @@ def render_detail_view(
     elev=25,
     azim=-60,
     view_size=DETAIL_VIEW_SIZE,
+    marker=None,
 ):
     """Render a single high-resolution, zoomed-in view of a small feature.
 
@@ -451,11 +461,13 @@ def render_detail_view(
     the span (mm) of the cubic window to frame -- use roughly 2-4x the feature's
     own size so it's centered with some surrounding context, not the whole part's
     extent. Standalone file, not part of a tile: pair with a descriptive,
-    feature-named `output_path` (see `run_cadquery_model.py --detail`).
+    feature-named `output_path` (see `run_cadquery_model.py --detail`). `marker`, an
+    `(x, y, z)` anchor, gets the callout badge when the z-buffer shows it unoccluded.
     """
-    img = _render_cq_view(
+    img, project, depth, _ = _render_panel(
         wp, elev, azim, view_size, view_size, focus=(tuple(focus_center), focus_size)
     )
+    _draw_marker(img, project, depth, marker)
     img.save(output_path)
     return output_path
 
@@ -468,6 +480,7 @@ def render_detail_section(
     focus_center,
     focus_size,
     view_size=DETAIL_VIEW_SIZE,
+    marker=None,
 ):
     """Render a high-resolution, zoomed-in cross-section through a small feature.
 
@@ -476,14 +489,14 @@ def render_detail_section(
     (see `render_detail_view`). Returns `output_path` on success, `None` if the
     cut fails (OCC failure on a degenerate cut plane) -- the caller should skip
     writing that file and warn rather than save a meaningless blank image under a
-    feature-specific name.
+    feature-specific name. `marker` is as in `render_detail_view`.
     """
     shape = _get_shape(wp)
     sec = _cut_half(shape, axis, position, remove_positive=_SECTION_REMOVE_POSITIVE[axis])
     if sec is None:
         return None
     elev, azim = _SECTION_CAMERA[axis]
-    img, _, _, informative = _render_panel(
+    img, project, depth, informative = _render_panel(
         sec,
         elev,
         azim,
@@ -493,6 +506,10 @@ def render_detail_section(
         cap=(axis, position),
         uncut=shape,
     )
+    if marker is not None:  # sit the anchor on the cap so the occlusion test sees it
+        on_cap = list(marker)
+        on_cap["xyz".index(axis)] = position
+        _draw_marker(img, project, depth, on_cap)
     img.save(output_path)
     return SectionPath(output_path, informative)
 
@@ -519,6 +536,78 @@ def render_section(wp, output_path, axis, position, view_size=DEFAULT_VIEW_SIZE)
     return SectionPath(output_path, informative)
 
 
+# (elev, azim) of a camera looking at a face whose outward normal is the key.
+_NORMAL_CAMERA = {
+    (1, 0, 0): (0, 0),
+    (-1, 0, 0): (0, 180),
+    (0, 1, 0): (0, 90),
+    (0, -1, 0): (0, -90),
+    (0, 0, 1): (90, -90),
+    (0, 0, -1): (-90, -90),
+}
+_ISO_CAMERA = (25, -60)
+_PROBE_SIZE = 300
+
+
+def _feature_focus(frame):
+    """(center, size_mm) framing a feature bbox with some surrounding context."""
+    lo, hi = frame["bbox"]["min"], frame["bbox"]["max"]
+    return tuple(frame["center"]), max(max(h - lo_ for lo_, h in zip(lo, hi, strict=True)) * 2, 6.0)
+
+
+def _feature_camera(wp, frame, anchor):
+    """(elev, azim): along the normal, else the opposite side, else isometric, by visibility."""
+    center, size = _feature_focus(frame)
+    normal = tuple(frame["normal"])
+    flipped = tuple(-v for v in normal)
+    for key in (normal, flipped):
+        elev, azim = _NORMAL_CAMERA[key]
+        _, project, depth, _ = _render_panel(
+            wp, elev, azim, _PROBE_SIZE, _PROBE_SIZE, focus=(center, size)
+        )
+        if project is not None and _visible(anchor, project, depth):
+            return elev, azim
+    return _ISO_CAMERA
+
+
+def render_feature_view(wp, output_path, frame, anchor, view_size=DETAIL_VIEW_SIZE):
+    """Render a feature (see `feature_frame.feature_frame`) from along its normal.
+
+    Framed on the feature bbox with the marker badge at `anchor`; the camera falls back
+    to the opposite side, then to isometric, when the anchor is occluded. Returns the
+    output path.
+    """
+    elev, azim = _feature_camera(wp, frame, anchor)
+    center, size = _feature_focus(frame)
+    return render_detail_view(wp, output_path, center, size, elev, azim, view_size, marker=anchor)
+
+
+def feature_section_plane(frame):
+    """(axis, position) of the section through a feature's axis, or None when it is flat.
+
+    The plane contains the normal and the feature's longer in-plane axis, so its own
+    normal is the shorter in-plane axis, at the bbox centre.
+    """
+    if frame["depth_mm"] < FLAT_DEPTH_MM:
+        return None
+    lo, hi = frame["bbox"]["min"], frame["bbox"]["max"]
+    n = frame["axis"]
+    inplane = [i for i, a in enumerate("xyz") if a != n]
+    short = min(inplane, key=lambda i: hi[i] - lo[i])
+    return "xyz"[short], frame["center"][short]
+
+
+def render_feature_section(wp, output_path, frame, anchor, view_size=DETAIL_VIEW_SIZE):
+    """Section through a feature's axis with the marker; None for a flat feature or a failed cut."""
+    plane = feature_section_plane(frame)
+    if plane is None:
+        return None
+    center, size = _feature_focus(frame)
+    return render_detail_section(
+        wp, output_path, plane[0], plane[1], center, size, view_size, marker=anchor
+    )
+
+
 def _legend_line(callouts, unlocated_names, hidden_names=None):
     """Caption legend row mapping badge numbers to names, or None if no callouts."""
     if not callouts and not unlocated_names and not hidden_names:
@@ -527,6 +616,60 @@ def _legend_line(callouts, unlocated_names, hidden_names=None):
     parts += [f"{name} (hidden)" for name in (hidden_names or [])]
     parts += [f"{name} (not located)" for name in (unlocated_names or [])]
     return "   ".join(parts)
+
+
+SHEET_MAX_TILES = 4
+
+
+def sheet_legend(tiles, not_shown=(), not_located=()):
+    """Footer entries: "NAME (not shown)" for dropped tiles/features, "NAME (not located)"."""
+    dropped = [caption for _, caption in list(tiles)[SHEET_MAX_TILES:]]
+    return [f"{n} (not shown)" for n in [*not_shown, *dropped]] + [
+        f"{n} (not located)" for n in not_located
+    ]
+
+
+def render_sheet(tiles, path, title="Preview sheet", not_shown=(), not_located=()):
+    """Compose at most SHEET_MAX_TILES `(PIL image, caption)` tiles into a 2 x 2 PNG.
+
+    Tiles beyond the cap are dropped and their captions listed, with `not_shown`, as
+    "NAME (not shown)" in the footer legend; `not_located` names get "(not located)".
+    Each tile is scaled to fit a DEFAULT_VIEW_SIZE square, aspect kept. Returns `path`.
+    """
+    tiles = list(tiles)
+    shown = tiles[:SHEET_MAX_TILES]
+    legend = sheet_legend(tiles, not_shown, not_located)
+    size, gap, label_h, header_h = DEFAULT_VIEW_SIZE, 4, 24, 40
+    footer_h = 30 if legend else 10
+    w = size * 2 + gap
+    rows = max(1, (len(shown) + 1) // 2)
+    h = header_h + rows * (size + label_h) + (rows - 1) * gap + footer_h
+    canvas = Image.new("RGB", (w, h), "white")
+    draw = ImageDraw.Draw(canvas)
+    draw.text((w // 2, 12), title, fill="black", font=_get_font(20), anchor="mt")
+    for idx, (img, caption) in enumerate(shown):
+        px = (idx % 2) * (size + gap)
+        py = header_h + label_h + (idx // 2) * (size + label_h + gap)
+        tile = img.convert("RGB")
+        tile.thumbnail((size, size))
+        canvas.paste(tile, (px + (size - tile.width) // 2, py + (size - tile.height) // 2))
+        draw.text(
+            (px + size // 2, py - 4), caption, fill="#444444", font=_get_font(14), anchor="mb"
+        )
+    if legend:
+        draw.text(
+            (w // 2, h - 8), "   ".join(legend), fill="#333333", font=_get_font(13), anchor="mb"
+        )
+    canvas.save(path)
+    return path
+
+
+def side_by_side(left, right):
+    """Two square images as one image of twice the width (feature view + its section)."""
+    out = Image.new("RGB", (left.width + right.width, max(left.height, right.height)), "white")
+    out.paste(left, (0, 0))
+    out.paste(right, (left.width, 0))
+    return out
 
 
 def render_multi_view(
