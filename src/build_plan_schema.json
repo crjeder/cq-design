@@ -443,6 +443,7 @@
               "properties": {
                 "member": {"type": "string", "description": "One of the block's declared `emits` ids"},
                 "part": {"type": "string", "description": "Id of the part whose script fuses this member in"},
+                "union": {"type": "string", "description": "Id of the union of `part` this member fuses into. Optional when the part has a single union; required when it declares more than one."},
                 "dock": {
                   "allOf": [{"$ref": "#/definitions/placement"}],
                   "description": "This member's pose WITHIN its host part's own build pose (not the assembly pose). Omit for identity."

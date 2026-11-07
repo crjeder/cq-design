@@ -597,9 +597,25 @@ def _check_joints(plan: dict[str, Any], inventory_path: str) -> list[str]:
     edge_joints: list[dict[str, Any]] = []
     graph_parts: set[str] = set()
 
+    from units import member_union, part_union_ids
+
     for joint in joints:
         edge, joint_errors = _check_single_joint(joint, part_ids, inventory_path)
         errors.extend(joint_errors)
+        for m in joint["members"]:
+            part = parts_by_id.get(m["part"])
+            if part is None:
+                continue
+            if m.get("union") and m["union"] not in part_union_ids(part):
+                errors.append(
+                    f"Joint '{joint['joint_id']}': union '{m['union']}' is not a union of "
+                    f"part '{m['part']}'"
+                )
+            elif member_union(part, m) is None:
+                errors.append(
+                    f"Joint '{joint['joint_id']}': part '{m['part']}' has several unions; "
+                    "the member must name one with 'union'"
+                )
         if edge is not None:
             edges.append(edge)
             edge_joints.append(joint)
