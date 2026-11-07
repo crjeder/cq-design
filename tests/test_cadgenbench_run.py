@@ -7,11 +7,10 @@ from pathlib import Path
 
 import cadquery as cq
 import numpy as np
-import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "evals"))
 
-import cadgenbench_run  # noqa: E402  # pyright: ignore[reportMissingImports]
+import cadgenbench_run  # type: ignore[import-not-found]  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 
 def _extents(shape):
@@ -70,7 +69,7 @@ def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch):
 
     def fake_run(cmd, **kwargs):
         calls.append(kwargs["cwd"])
-        out = {"is_error": True, "result": f"You've hit your {kind} limit · resets 1pm"}
+        out = {"is_error": True, "result": "You've hit your session limit · resets 1pm"}
         return subprocess.CompletedProcess(cmd, 1, stdout=json.dumps(out), stderr="")
 
     monkeypatch.setattr(cadgenbench_run.subprocess, "run", fake_run)

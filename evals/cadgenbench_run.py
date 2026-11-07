@@ -236,6 +236,11 @@ def pose_step_text(src: Path, out_path: Path) -> None:
     out_path.write_text(text[:end] + new + text[end:], encoding="utf-8", errors="surrogateescape")
 
 
+def step_is_valid(path: Path) -> bool:
+    """True when the STEP file re-imports as a valid B-rep."""
+    return cq.importers.importStep(str(path)).findSolid().isValid()
+
+
 def write_candidate(steps: list[Path], out_path: Path) -> None:
     """Pose the delivered STEP canonically (fusing several first) and write output.step."""
     out_path.parent.mkdir(parents=True, exist_ok=True)

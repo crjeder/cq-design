@@ -102,6 +102,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     cases/<case>/        # request.md, golden BUILD_PLAN.json, golden/*.stl, case.json
     run_evals.py         # Scorecard runner (score-only by default; --generate opt-in; --tags filter)
     generate_goldens.py  # Regenerates the golden STLs
+    audit_eval.py        # Auditor eval: seeded L-bracket defects; --run MODEL (opt-in) scores the verdict
     import_external_corpus.py # Manual: imports a filtered/sampled slice of a local external
                           # text->CadQuery corpus snapshot into evals/cases/
     cadprompt_bench.py   # External benchmark: delivers cadprompt/parts/*.py, scores vs local CADPrompt
