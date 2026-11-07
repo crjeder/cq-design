@@ -50,9 +50,44 @@ def test_stages_follow_review_policy_and_override():
     ]
 
 
-def test_section_cuts_rank_clarification_then_correction_then_plan_order():
+def _names(plan, part):
+    return [i["name"] for i in rp.ranked_interfaces(plan, part)]
+
+
+def test_ranking_prompt_then_clarification_then_correction_then_mention_then_size():
     plan, part = _plan()
-    assert rp.section_cuts(plan, part) == ["z=1", "z=3", "y=-25"]
+    for itf, size in zip(part["interfaces"], (None, 9, None, None, None), strict=False):
+        if size:
+            itf["diameter_mm"] = size
+    # newest entry names c; clarification/correction/initial hits follow; b (unmentioned) last
+    assert _names(plan, part) == ["c", "d", "a", "b"]
+
+
+def test_ranking_user_changed_small_feature_beats_larger_one():
+    plan, part = _plan(
+        request_log=[
+            {"ts": "t", "kind": "initial", "text": "a lid"},
+            {"ts": "t", "kind": "correction", "text": "shrink", "targets": ["lid.d"]},
+            {"ts": "t", "kind": "initial", "text": "unrelated"},
+        ]
+    )
+    part["interfaces"][1]["diameter_mm"] = 20  # b: big, untouched
+    part["interfaces"][3]["diameter_mm"] = 2  # d: small, corrected
+    names = _names(plan, part)
+    assert names.index("d") < names.index("b")
+
+
+def test_ranking_unmentioned_sorted_by_size():
+    plan, part = _plan(request_log=[{"ts": "t", "kind": "initial", "text": "nothing"}])
+    part["interfaces"][2]["size_mm"] = [4, 12]  # c
+    part["interfaces"][1]["diameter_mm"] = 6  # b
+    assert _names(plan, part) == ["c", "b", "a", "d"]
+
+
+def test_fallback_cut_uses_wall_axis_else_largest_component():
+    _, part = _plan()
+    assert rp.fallback_cut(part["interfaces"][0]) == "y=-25"  # south wall -> y
+    assert rp.fallback_cut(part["interfaces"][1]) == "x=30"  # largest component
 
 
 def test_validate_args_callouts_and_unlocated():
@@ -62,6 +97,23 @@ def test_validate_args_callouts_and_unlocated():
     assert "--unlocated-name e" in args
     assert "--expected-dims 80,50,4" in args
     assert "--attempts-log build/attempts.jsonl --model " in args
+
+
+def test_validate_args_emits_ranked_features_and_sheet():
+    plan, part = _plan()
+    part["interfaces"][0]["diameter_mm"] = 5
+    args = rp.validate_args(plan, part)
+    feats = [a for a in args.split(" --") if a.startswith("feature ")]
+    assert [f.split("name=")[1].split(";")[0] for f in feats] == ["c", "d", "a", "b"]
+    assert '--feature "name=a;center=10,-25,2;diameter=5;section=y=-25"' in args
+    assert args.endswith("--sheet") and "--extra-section" not in args
+
+
+def test_validate_args_sheet_without_positioned_interfaces():
+    plan, part = _plan()
+    part["interfaces"] = [{"type": "port_cutout", "name": "e"}]
+    args = rp.validate_args(plan, part)
+    assert "--feature" not in args and args.endswith("--sheet")
 
 
 def test_validate_args_expected_dims_only_when_final():

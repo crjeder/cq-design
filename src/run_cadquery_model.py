@@ -591,9 +591,8 @@ def _render_preview(
     legend line. `unlocated_names` is a list of raw feature-name strings,
     forwarded as repeated --unlocated-name flags: unbadged legend entries for
     named features with no known position. `features` is a list of raw
-    "name=...;center=x,y,z[;diameter=d|size=w,h]" specs in relevance order, forwarded
-    as repeated --feature flags (per-feature views); `sheet` forwards --sheet (one
-    2 x 2 sheet, listed first among the extra previews). render_preview.py parses and
+    "name=...;center=x,y,z[;diameter=..|size=..]" specs forwarded as --feature
+    flags, and `sheet` forwards --sheet. render_preview.py parses and
     validates all of these.
 
     `preview_dir` is where the preview PNG(s) are written; omit it to write
@@ -868,6 +867,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "separate feature-named files. Repeatable. Use for a feature added or "
             "changed at the user's request that would be imperceptible in the "
             "default overview tile."
+        ),
+    )
+    parser.add_argument(
+        "--feature",
+        action="append",
+        default=[],
+        metavar="SPEC",
+        help=(
+            "Per-feature preview (requires --preview): "
+            "'name=<feature>;center=x,y,z[;diameter=<mm>|;size=<w>,<h>]'. Renders a "
+            "marked view along the feature normal and, for features with depth, a "
+            "section through their axis. Repeatable; supply order is relevance order."
+        ),
+    )
+    parser.add_argument(
+        "--sheet",
+        action="store_true",
+        help=(
+            "Forward --sheet to render_preview.py (requires --preview): a 2 x 2 sheet of at "
+            "most 4 tiles (--feature tiles, then whole-part sections)"
         ),
     )
     parser.add_argument(

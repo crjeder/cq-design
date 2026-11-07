@@ -25,8 +25,8 @@ fix: let the program own the pipeline not the llm. exeption for edits.
 - [x] `session_cost.py` misreports cost: counts each API call once per transcript line (159 vs 96 calls), never reads `<session>/subagents/*.jsonl`, prices `claude-opus-5-5` / `claude-sonnet-5-5` at the $15/$15 default ([details](#siebtragerhalter-session-2026-11-04))
 - [x] session cost driven by context re-reads: main session relays every checkpoint at 84k-198k tokens of context, each of 6 sub-agents starts at 61k tokens, all but the builder run Opus ([details](#siebtragerhalter-session-2026-11-04)) -- change `reduce-session-cost`: named agents (minimal tools, Sonnet for sourcing/research/builder/audit), journal side effects, partial rebuild; auditor-on-Sonnet eval (task 2.5) still to run
 - [x] `parameters.py` is never imported: plan params are hand-copied derived numbers (71 = 70 + 1, 62.5, 33.5), so editing a sourced measurement changes nothing ([details](#siebtragerhalter-session-2026-11-04))
-- [ ] cross-section previews are uninformative: the section cap gets the same flat shade as every parallel face behind it, and the cut positions come from the interface centre along the wall normal, not across the feature ([details](#siebtragerhalter-session-2026-11-04))
-- [ ] feature callouts sit only on the orthographic panels, which have no edge lines, so the features they point at are invisible there; the isometric panel, where they can be seen, gets no labels ([details](#siebtragerhalter-session-2026-11-04))
+- [x] cross-section previews are uninformative: the section cap gets the same flat shade as every parallel face behind it, and the cut positions come from the interface centre along the wall normal, not across the feature ([details](#siebtragerhalter-session-2026-11-04))
+- [x] feature callouts sit only on the orthographic panels, which have no edge lines, so the features they point at are invisible there; the isometric panel, where they can be seen, gets no labels ([details](#siebtragerhalter-session-2026-11-04))
 
 ## Backlog
 
@@ -61,7 +61,7 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d models
-- [ ] optimization: https://github.com/yeicor-3d/dl4to4ocp
+- [x] optimization: https://github.com/yeicor-3d/dl4to4ocp -- rejected not relevant for FDM
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] the skill should have a way to distinguish between geometry which is fixed and one that is flexible and can be changed by the skill any time e. g. during optimization
@@ -93,7 +93,6 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 ### Import / Export / View
 
 - [ ] Export: 3MF print-plate structure (slicer-specific extension) -- [details](#export-print-plate-structure)
-- [ ] Preview: render feature-detail previews more proactively -- [details](#preview-proactive-detail-renders)
 - [ ] Reverse-engineer a 3D mesh / point cloud into primitives; import STL -- [details](#reverse-engineer-mesh)
 - [ ] Import/integrate B-Rep files (STEP/STP, FCStd, BRep, IGES)
 - [ ] Read back parameters on any user-initiated planning/authoring round

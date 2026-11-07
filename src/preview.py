@@ -15,9 +15,8 @@ Public API:
     render_section(workplane, output_path, axis, position, view_size)
     render_detail_view(workplane, output_path, focus_center, focus_size)
     render_detail_section(workplane, output_path, axis, position, focus_center, focus_size)
-    render_feature_view(workplane, output_path, frame, number)
-    render_feature_section(workplane, output_path, frame, number)
-    render_sheet(tiles, output_path, notes=None, title=None)
+    render_feature_view / render_feature_section(workplane, output_path, frame, anchor)
+    render_sheet(tiles, output_path, title, not_shown, not_located)
 
 All functions accept a CadQuery Workplane or Shape as the first argument.
 `render_detail_view`/`render_detail_section` are standalone, high-resolution,
@@ -33,7 +32,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 import zbuffer
-from feature_frame import section_plane
+from feature_frame import FLAT_DEPTH_MM
 
 # Cycled leader-line offsets (pixels at the default view size) so badges near the same projected
 # area don't stack directly on top of each other.
@@ -320,6 +319,12 @@ def _visible(center, project, depth):
     return bool(z >= depth[iy, ix] - tol)
 
 
+def _draw_marker(img, project, depth, anchor):
+    """Badge `anchor` (build-pose xyz) on `img` when it is inside the frame and unoccluded."""
+    if anchor is not None and project is not None and _visible(anchor, project, depth):
+        _draw_callouts(img, [(1, tuple(project(anchor)[:2]))])
+
+
 def _place_callouts(callouts, panels, view_size):
     """Assign each callout to the first panel where it is visible, merging near badges.
 
@@ -466,13 +471,13 @@ def render_detail_view(
     the span (mm) of the cubic window to frame -- use roughly 2-4x the feature's
     own size so it's centered with some surrounding context, not the whole part's
     extent. Standalone file, not part of a tile: pair with a descriptive,
-    feature-named `output_path` (see `run_cadquery_model.py --detail`).
-    `marker=(number, xyz)` badges that point when it is unoccluded.
+    feature-named `output_path` (see `run_cadquery_model.py --detail`). `marker`, an
+    `(x, y, z)` anchor, gets the callout badge when the z-buffer shows it unoccluded.
     """
     img, project, depth, _ = _render_panel(
         wp, elev, azim, view_size, view_size, focus=(tuple(focus_center), focus_size)
     )
-    _draw_marker(img, marker, project, depth)
+    _draw_marker(img, project, depth, marker)
     img.save(output_path)
     return output_path
 
@@ -494,7 +499,7 @@ def render_detail_section(
     (see `render_detail_view`). Returns `output_path` on success, `None` if the
     cut fails (OCC failure on a degenerate cut plane) -- the caller should skip
     writing that file and warn rather than save a meaningless blank image under a
-    feature-specific name.
+    feature-specific name. `marker` is as in `render_detail_view`.
     """
     shape = _get_shape(wp)
     sec = _cut_half(shape, axis, position, remove_positive=_SECTION_REMOVE_POSITIVE[axis])
@@ -511,7 +516,10 @@ def render_detail_section(
         cap=(axis, position),
         uncut=shape,
     )
-    _draw_marker(img, marker, project, depth)
+    if marker is not None:  # sit the anchor on the cap so the occlusion test sees it
+        on_cap = list(marker)
+        on_cap["xyz".index(axis)] = position
+        _draw_marker(img, project, depth, on_cap)
     img.save(output_path)
     return SectionPath(output_path, informative)
 
@@ -538,119 +546,76 @@ def render_section(wp, output_path, axis, position, view_size=DEFAULT_VIEW_SIZE)
     return SectionPath(output_path, informative)
 
 
-# Camera (elev, azim) looking at a face whose outward normal is `sign` x `axis`.
-_FEATURE_CAMERA = {
-    ("x", 1): (0, 0),
-    ("x", -1): (0, 180),
-    ("y", 1): (0, 90),
-    ("y", -1): (0, -90),
-    ("z", 1): (90, -90),
-    ("z", -1): (-90, -90),
+# (elev, azim) of a camera looking at a face whose outward normal is the key.
+_NORMAL_CAMERA = {
+    (1, 0, 0): (0, 0),
+    (-1, 0, 0): (0, 180),
+    (0, 1, 0): (0, 90),
+    (0, -1, 0): (0, -90),
+    (0, 0, 1): (90, -90),
+    (0, 0, -1): (-90, -90),
 }
 _ISO_CAMERA = (25, -60)
-MIN_FEATURE_DEPTH_MM = 0.5
-MIN_FEATURE_WINDOW_MM = 8.0
-SHEET_MAX_TILES = 4
+_PROBE_SIZE = 300
 
 
-def _frame_axes(frame):
-    """(normal index, in-plane indices ordered shorter -> longer extent, extents) of a frame."""
-    n = "xyz".index(frame["axis"])
-    ext = [hi - lo for lo, hi in zip(frame["bbox_min"], frame["bbox_max"], strict=True)]
-    return n, sorted((i for i in range(3) if i != n), key=lambda i: ext[i]), ext
+def _feature_focus(frame):
+    """(center, size_mm) framing a feature bbox with some surrounding context."""
+    lo, hi = frame["bbox"]["min"], frame["bbox"]["max"]
+    return tuple(frame["center"]), max(max(h - lo_ for lo_, h in zip(lo, hi, strict=True)) * 2, 6.0)
 
 
-def _frame_window(frame):
-    """Detail window span (mm): 3x the feature's larger in-plane extent, at least 8 mm."""
-    _, inplane, ext = _frame_axes(frame)
-    return max(3 * ext[inplane[-1]], MIN_FEATURE_WINDOW_MM)
-
-
-def _frame_anchor(frame, sign):
-    """Frame centre moved to the bbox face toward a camera on the `sign` side of the normal."""
-    n = _frame_axes(frame)[0]
-    c = list(frame["center"])
-    c[n] = frame["bbox_max"][n] if sign > 0 else frame["bbox_min"][n]
-    return tuple(c)
-
-
-def render_feature_view(wp, output_path, frame, number, view_size=DETAIL_VIEW_SIZE):
-    """Render a feature along its normal, framed on its bbox, with marker `number`.
-
-    Looks at the frame's `sign` side, then the opposite side, then isometric, taking the
-    first camera from which the feature's camera-facing anchor passes the z-buffer
-    visibility test (the isometric fallback is used regardless, marked only if visible).
-    Returns `(output_path, view)` with `view` one of "+x" ... "-z" or "iso".
-    """
-    shape = _get_shape(wp)
-    focus = (tuple(frame["center"]), _frame_window(frame))
-    cams = [(s, *_FEATURE_CAMERA[(frame["axis"], s)]) for s in (frame["sign"], -frame["sign"])]
-    for sign, elev, azim in [*cams, (0, *_ISO_CAMERA)]:
-        img, project, depth, _ = _render_panel(shape, elev, azim, view_size, view_size, focus)
-        anchor = _frame_anchor(frame, sign or frame["sign"])
-        if sign == 0 or (project is not None and _visible(anchor, project, depth)):
-            _draw_marker(img, (number, anchor), project, depth)
-            img.save(output_path)
-            return output_path, "iso" if sign == 0 else f"{'+' if sign > 0 else '-'}{frame['axis']}"
-    raise AssertionError("unreachable")
-
-
-def render_feature_section(wp, output_path, frame, number, view_size=DETAIL_VIEW_SIZE):
-    """Section through a feature's axis (plane contains the normal and its longer in-plane axis).
-
-    Returns a SectionPath, or None for a flat feature (depth < MIN_FEATURE_DEPTH_MM) or a
-    failed cut. The plane's axis and position are exposed as `SectionPath.cut`.
-    """
-    if frame["depth_mm"] < MIN_FEATURE_DEPTH_MM:
-        return None
-    axis, pos = section_plane(frame)
-    written = render_detail_section(
-        wp,
-        output_path,
-        axis,
-        pos,
-        frame["center"],
-        _frame_window(frame),
-        view_size,
-        marker=(number, tuple(frame["center"])),
-    )
-    if written is not None:
-        written.cut = (axis, pos)
-    return written
-
-
-def render_sheet(tiles, output_path, notes=None, title=None, tile_size=DEFAULT_VIEW_SIZE):
-    """Compose at most SHEET_MAX_TILES `(image_or_path, caption)` tiles into one 2 x 2 PNG.
-
-    `notes` are footer entries such as "usb (not shown)" or "vent (not located)".
-    Returns `output_path`. Raises ValueError for more than SHEET_MAX_TILES tiles.
-    """
-    if len(tiles) > SHEET_MAX_TILES:
-        raise ValueError(f"sheet holds at most {SHEET_MAX_TILES} tiles, got {len(tiles)}")
-    cols, gap, label_h = 2, 4, 24
-    rows = max((len(tiles) + cols - 1) // cols, 1)
-    header_h = 40 if title else 8
-    foot = "   ".join(notes or [])
-    footer_h = 30 if foot else 8
-    w = tile_size * cols + gap * (cols - 1)
-    h = header_h + footer_h + (tile_size + label_h + gap) * rows
-    canvas = Image.new("RGB", (w, h), "white")
-    draw = ImageDraw.Draw(canvas)
-    if title:
-        draw.text((w // 2, 12), title, fill="black", font=_get_font(20), anchor="mt")
-    for idx, (src, caption) in enumerate(tiles):
-        img = Image.open(src) if isinstance(src, (str, os.PathLike)) else src
-        img = img.convert("RGB").resize((tile_size, tile_size))
-        px = (idx % cols) * (tile_size + gap)
-        py = header_h + label_h + (idx // cols) * (tile_size + label_h + gap)
-        canvas.paste(img, (px, py))
-        draw.text(
-            (px + tile_size // 2, py - 4), caption, fill="#444", font=_get_font(14), anchor="mb"
+def _feature_camera(wp, frame, anchor):
+    """(elev, azim): along the normal, else the opposite side, else isometric, by visibility."""
+    center, size = _feature_focus(frame)
+    normal = tuple(frame["normal"])
+    flipped = tuple(-v for v in normal)
+    for key in (normal, flipped):
+        elev, azim = _NORMAL_CAMERA[key]
+        _, project, depth, _ = _render_panel(
+            wp, elev, azim, _PROBE_SIZE, _PROBE_SIZE, focus=(center, size)
         )
-    if foot:
-        draw.text((w // 2, h - 8), foot, fill="#333333", font=_get_font(13), anchor="mb")
-    canvas.save(output_path)
-    return output_path
+        if project is not None and _visible(anchor, project, depth):
+            return elev, azim
+    return _ISO_CAMERA
+
+
+def render_feature_view(wp, output_path, frame, anchor, view_size=DETAIL_VIEW_SIZE):
+    """Render a feature (see `feature_frame.feature_frame`) from along its normal.
+
+    Framed on the feature bbox with the marker badge at `anchor`; the camera falls back
+    to the opposite side, then to isometric, when the anchor is occluded. Returns the
+    output path.
+    """
+    elev, azim = _feature_camera(wp, frame, anchor)
+    center, size = _feature_focus(frame)
+    return render_detail_view(wp, output_path, center, size, elev, azim, view_size, marker=anchor)
+
+
+def feature_section_plane(frame):
+    """(axis, position) of the section through a feature's axis, or None when it is flat.
+
+    The plane contains the normal and the feature's longer in-plane axis, so its own
+    normal is the shorter in-plane axis, at the bbox centre.
+    """
+    if frame["depth_mm"] < FLAT_DEPTH_MM:
+        return None
+    lo, hi = frame["bbox"]["min"], frame["bbox"]["max"]
+    n = frame["axis"]
+    inplane = [i for i, a in enumerate("xyz") if a != n]
+    short = min(inplane, key=lambda i: hi[i] - lo[i])
+    return "xyz"[short], frame["center"][short]
+
+
+def render_feature_section(wp, output_path, frame, anchor, view_size=DETAIL_VIEW_SIZE):
+    """Section through a feature's axis with the marker; None for a flat feature or a failed cut."""
+    plane = feature_section_plane(frame)
+    if plane is None:
+        return None
+    center, size = _feature_focus(frame)
+    return render_detail_section(
+        wp, output_path, plane[0], plane[1], center, size, view_size, marker=anchor
+    )
 
 
 def _legend_line(callouts, unlocated_names, hidden_names=None):
@@ -661,6 +626,60 @@ def _legend_line(callouts, unlocated_names, hidden_names=None):
     parts += [f"{name} (hidden)" for name in (hidden_names or [])]
     parts += [f"{name} (not located)" for name in (unlocated_names or [])]
     return "   ".join(parts)
+
+
+SHEET_MAX_TILES = 4
+
+
+def sheet_legend(tiles, not_shown=(), not_located=()):
+    """Footer entries: "NAME (not shown)" for dropped tiles/features, "NAME (not located)"."""
+    dropped = [caption for _, caption in list(tiles)[SHEET_MAX_TILES:]]
+    return [f"{n} (not shown)" for n in [*not_shown, *dropped]] + [
+        f"{n} (not located)" for n in not_located
+    ]
+
+
+def render_sheet(tiles, path, title="Preview sheet", not_shown=(), not_located=()):
+    """Compose at most SHEET_MAX_TILES `(PIL image, caption)` tiles into a 2 x 2 PNG.
+
+    Tiles beyond the cap are dropped and their captions listed, with `not_shown`, as
+    "NAME (not shown)" in the footer legend; `not_located` names get "(not located)".
+    Each tile is scaled to fit a DEFAULT_VIEW_SIZE square, aspect kept. Returns `path`.
+    """
+    tiles = list(tiles)
+    shown = tiles[:SHEET_MAX_TILES]
+    legend = sheet_legend(tiles, not_shown, not_located)
+    size, gap, label_h, header_h = DEFAULT_VIEW_SIZE, 4, 24, 40
+    footer_h = 30 if legend else 10
+    w = size * 2 + gap
+    rows = max(1, (len(shown) + 1) // 2)
+    h = header_h + rows * (size + label_h) + (rows - 1) * gap + footer_h
+    canvas = Image.new("RGB", (w, h), "white")
+    draw = ImageDraw.Draw(canvas)
+    draw.text((w // 2, 12), title, fill="black", font=_get_font(20), anchor="mt")
+    for idx, (img, caption) in enumerate(shown):
+        px = (idx % 2) * (size + gap)
+        py = header_h + label_h + (idx // 2) * (size + label_h + gap)
+        tile = img.convert("RGB")
+        tile.thumbnail((size, size))
+        canvas.paste(tile, (px + (size - tile.width) // 2, py + (size - tile.height) // 2))
+        draw.text(
+            (px + size // 2, py - 4), caption, fill="#444444", font=_get_font(14), anchor="mb"
+        )
+    if legend:
+        draw.text(
+            (w // 2, h - 8), "   ".join(legend), fill="#333333", font=_get_font(13), anchor="mb"
+        )
+    canvas.save(path)
+    return path
+
+
+def side_by_side(left, right):
+    """Two square images as one image of twice the width (feature view + its section)."""
+    out = Image.new("RGB", (left.width + right.width, max(left.height, right.height)), "white")
+    out.paste(left, (0, 0))
+    out.paste(right, (left.width, 0))
+    return out
 
 
 def render_multi_view(
