@@ -869,6 +869,27 @@ def _run_keep_out_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) 
     return _run_stl_dir_stage(run_keep_out_check, plan, stl_dir, parts_dir)
 
 
+def _run_assembly_interference_stage(
+    plan: dict, stl_dir: str | None, parts_dir: str | None, prior_issues: list[dict]
+) -> list[dict]:
+    """Check every pair of unions for rest-pose overlap (once, outside the fix loop).
+
+    This stage covers every union, so it re-reports a stale union an earlier whole-model
+    stage already flagged as `stale_artifact`; those duplicates are dropped here.
+    """
+    from assembly_interference_check import run_assembly_interference_check
+
+    already_stale = {
+        i.get("union") for i in prior_issues if i.get("type") == "stale_artifact" and i.get("union")
+    }
+    issues = _run_stl_dir_stage(run_assembly_interference_check, plan, stl_dir, parts_dir)
+    return [
+        i
+        for i in issues
+        if not (i.get("type") == "stale_artifact" and i.get("union") in already_stale)
+    ]
+
+
 def _read_orientations(script_path: str, orientation: dict | None) -> dict:
     """Per-union print orientations for the edge-treatment rule (classified in print pose).
 
@@ -979,17 +1000,20 @@ def _run_toolpath_speed_stage(
 
 def _is_hinge_associated_union(plan: dict, union_id: str) -> bool:
     """True when `union_id` is the moving_union of a revolute kinematics entry, or is
-    named in a `pin_hinge` joints entry's members[].part (see hinge-guard-lint spec)."""
-    from units import iter_kinematics_entries
+    the union of a `pin_hinge` joints entry's member (see hinge-guard-lint spec)."""
+    from units import iter_kinematics_entries, member_union
 
     for entry in iter_kinematics_entries(plan.get("kinematics", [])):
         if entry.get("type") == "revolute" and entry.get("moving_union") == union_id:
             return True
+    parts_by_id = {p["id"]: p for p in plan.get("parts", [])}
     for joint in plan.get("joints", []):
         if joint.get("block") != "pin_hinge":
             continue
-        if any(m.get("part") == union_id for m in joint.get("members", [])):
-            return True
+        for m in joint.get("members", []):
+            part = parts_by_id.get(m.get("part"))
+            if part is not None and member_union(part, m) == union_id:
+                return True
     return False
 
 
@@ -1350,6 +1374,8 @@ def run_gate(
         all_issues += _run_plate_clearance_stage(plan, stl_dir, parts_dir)
         # ---- keep-out zone check (once, outside the fix loop) ----
         all_issues += _run_keep_out_stage(plan, stl_dir, parts_dir)
+        # ---- all-pairs rest-pose interference (once, outside the fix loop) ----
+        all_issues += _run_assembly_interference_stage(plan, stl_dir, parts_dir, all_issues)
         # ---- edge-treatment (chamfer/fillet) + feature-presence (declared interfaces built):
         # one shared script execution, both once outside the fix loop ----
         edge_issues, feature_issues = _run_hooked_stages(plan, script_path, orientation)

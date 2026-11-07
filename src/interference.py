@@ -27,6 +27,9 @@ Penetration semantics are a caller choice, not a fork:
   volume exceeds the tolerance (designed surface contact at a joint is not
   interference). This is the kinematic semantics.
 
+`assembly_interference_check` is a further caller: it measures every touching pair of
+union STLs with `_intersection_volume` (volume semantics, fixed epsilon).
+
 Next intended caller: an assembly-clearance placeholder volume -- a declared PSEUDO
 volume, posed like a keep-out zone, checked via `check_interference` with its own issue
 `type`/`hint`. It plugs in here with no change to this module.
