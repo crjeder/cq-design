@@ -60,3 +60,10 @@ def test_wrapper_forwards_flag(tmp_path):
     assert rc == 0, data.get("stderr")
     names = [os.path.basename(p) for p in data["previews"][1:]]
     assert names == ["holed_preview_section_x_10mm.png"]
+
+
+def test_slice_scorer_fills_when_no_bores():
+    from test_section_select import open_enclosure_with_posts
+
+    cuts = _section_cuts(cq.Workplane("XY").add(open_enclosure_with_posts()), [], False, True)
+    assert 1 <= len(cuts) <= 2 and not any(c[2] for c in cuts)

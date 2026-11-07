@@ -911,6 +911,22 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--feature",
+        action="append",
+        default=[],
+        metavar="SPEC",
+        help=(
+            "Per-feature preview (requires --preview), in relevance order: "
+            "'name=<feature>;center=x,y,z[;diameter=<d>|;size=<w>,<h>]'. Forwarded to "
+            "render_preview.py --feature. Repeatable."
+        ),
+    )
+    parser.add_argument(
+        "--sheet",
+        action="store_true",
+        help="Forward --sheet to render_preview.py (requires --preview): one 2 x 2 sheet",
+    )
+    parser.add_argument(
         "--preview-dir",
         default=None,
         help="Directory for preview PNG(s) (requires --preview; default: alongside the script)",
