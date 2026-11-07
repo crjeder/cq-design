@@ -213,6 +213,22 @@ def is_copy(part: dict) -> bool:
     return bool(part.get("copy_of"))
 
 
+def part_union_ids(part: dict) -> list[str]:
+    """Union ids of a part: its declared `unions`, else the single implicit union (its id)."""
+    return [u["id"] for u in part.get("unions") or []] or [part["id"]]
+
+
+def member_union(part: dict, member: dict) -> str | None:
+    """Union a `joints[].members[]` entry fuses into: its `union`, else the part's only union.
+
+    None when `union` is omitted on a multi-union part (plan validation rejects that).
+    """
+    if member.get("union"):
+        return member["union"]
+    ids = part_union_ids(part)
+    return ids[0] if len(ids) == 1 else None
+
+
 def iter_unions(plan: dict) -> list[tuple[dict, str, str]]:
     """Expand every part into its unions: ``(part, union_id, plate)`` in plan order.
 

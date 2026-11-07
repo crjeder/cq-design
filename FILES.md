@@ -45,6 +45,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     minimal_cutout_search.py # Bisects a part-script parameter to the minimal value clearing a kinematics entry
     plate_clearance_check.py # Whole-model co-plated union clearance check (trimesh + fcl)
     keep_out_check.py        # Whole-model keep-out-zone check (trimesh + fcl)
+    assembly_interference_check.py # Whole-model all-pairs rest-pose overlap check (trimesh + fcl)
     interference.py          # Shared static interference primitive (trimesh + fcl + manifold3d)
     edge_treatment_check.py  # Per-part chamfer/fillet rule check (apply-time hook + print-pose classify)
     gridfinity_check.py      # Per-part Gridfinity conformance check (grid/height/foot profile/mating; auto-scoped gate stage)
