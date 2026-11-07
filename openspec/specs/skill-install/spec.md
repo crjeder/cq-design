@@ -13,16 +13,19 @@ skills directory so Claude Code can discover it. The default destination SHALL
 be `~/.claude/skills/cq-design/`, overridable via a destination flag or the
 `CLAUDE_SKILLS_DIR` environment variable. A copy install SHALL contain only an
 explicit allowlist of repository entries: `SKILL.md`, `.claude-plugin/`,
-`commands/`, `skill/`, `prompts/`, `reference/`, `src/`, `templates/`,
+`agents/`, `commands/`, `skill/`, `prompts/`, `reference/`, `src/`, `templates/`,
 `pyproject.toml`, `uv.lock`, `.python-version`, and `LICENSE`. Within the copied
 entries, `__pycache__/`, `*.egg-info/`, and `.fossil/` directories SHALL be
-pruned. `install.sh` and `install.ps1` SHALL carry the same allowlist.
+pruned. `install.sh` and `install.ps1` SHALL carry the same allowlist. The
+installer SHALL NOT require network access to any marketplace. If Claude Code
+does not load `agents/` from the destination, the installer SHALL also copy the
+agent files to the personal agents directory and `--uninstall` SHALL remove them.
 
 #### Scenario: Fresh install to default location
 
 - **WHEN** a user runs the installer with no existing install present
-- **THEN** the skill's `SKILL.md`, `skill/`, `src/`, `prompts/`, and `reference/`
-  are placed under `~/.claude/skills/cq-design/`
+- **THEN** the skill's `SKILL.md`, `skill/`, `src/`, `prompts/`, `reference/`, and
+  `agents/` are placed under `~/.claude/skills/cq-design/`
 - **AND** the installer reports the destination path on success
 
 #### Scenario: Custom destination
@@ -51,6 +54,11 @@ pruned. `install.sh` and `install.ps1` SHALL carry the same allowlist.
 - **WHEN** the test suite compares the allowlists in `install.sh` and
   `install.ps1`
 - **THEN** they name the same entries
+
+#### Scenario: Uninstall removes agent copies
+
+- **WHEN** the installer ran with the agents-directory copy and `--uninstall` runs
+- **THEN** the copied agent files are removed along with the skill directory
 
 ### Requirement: Environment provisioning
 
