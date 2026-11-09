@@ -1,8 +1,8 @@
-# Agent Definitions
+# agent-definitions
 
 ## Purpose
 
-TBD
+TBD - Per-role agent definitions with minimal tool lists and model defaults, shipped with every install mode.
 
 ## Requirements
 
