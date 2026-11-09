@@ -11,17 +11,12 @@ import argparse
 import json
 import math
 import sys
-import time
 from typing import cast
 
 AXES = "xyz"
 MIN_RADIUS_MM = 0.5
 MIN_COVERAGE = 0.5  # face area / full-cylinder area; drops fillets, keeps seam-split halves
 DEDUPE_MM = 0.5
-SLICES_PER_AXIS = 15
-SLICE_BUDGET_S = 5.0
-MIN_SLICE_SCORE = 0.5  # below this a slice shows nothing a bbox-centre cut would not
-MAX_LOOPS_SCORED = 6
 
 
 def _axis_index(direction, tol=1e-3):
