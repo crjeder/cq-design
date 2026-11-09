@@ -1,8 +1,8 @@
-# Parameters Single Source
+# parameters-single-source
 
 ## Purpose
 
-TBD
+TBD - Every dimension lives as a commented constant in parameters.py; plan params may be safe expressions over them, enabling targeted rebuilds.
 
 ## Requirements
 

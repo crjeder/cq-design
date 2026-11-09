@@ -1,8 +1,8 @@
-# Svg Illustrations
+# svg-illustrations
 
 ## Purpose
 
-TBD
+TBD - Diagrams in shipped prose are SVG files rather than ASCII art.
 
 ## Requirements
 

@@ -1,8 +1,8 @@
-# Concept Sketch
+# concept-sketch
 
 ## Purpose
 
-TBD
+TBD - A deterministic SVG concept sketch shown at the Phase 1 exit checkpoint for user approval.
 
 ## Requirements
 
