@@ -7,6 +7,7 @@ from pathlib import Path
 
 import cadquery as cq
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "evals"))
 
@@ -61,7 +62,22 @@ def test_build_prompt_generation_fixture(tmp_path):
     assert "build/build.py --formats step" in prompt and "/cq-design:edit" not in prompt
 
 
-def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch):
+def test_write_candidate_falls_back_to_unposed_when_pose_breaks_it(tmp_path, monkeypatch):
+    srcs = []
+    for i, x in enumerate((7, 17)):
+        src = tmp_path / f"in{i}.step"
+        cq.Workplane().box(10, 20, 30).translate((x, 0, 0)).findSolid().exportStep(str(src))
+        srcs.append(src)
+    out = tmp_path / "101" / "output.step"
+    monkeypatch.setattr(cadgenbench_run, "step_is_valid", lambda p: False)
+    cadgenbench_run.write_candidate(srcs, out)
+    extents, center = _extents(cq.importers.importStep(str(out)).findSolid())
+    assert [round(e, 3) for e in extents] == [20, 20, 30]
+    assert round(center[0], 3) == 12
+
+
+@pytest.mark.parametrize("kind", ["session", "weekly"])
+def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch, kind):
     data = tmp_path / "data"
     for fid in ("101", "102"):
         (data / fid).mkdir(parents=True)
@@ -69,7 +85,7 @@ def test_generate_stops_at_first_usage_limit(tmp_path, monkeypatch):
 
     def fake_run(cmd, **kwargs):
         calls.append(kwargs["cwd"])
-        out = {"is_error": True, "result": "You've hit your session limit · resets 1pm"}
+        out = {"is_error": True, "result": f"You've hit your {kind} limit · resets 1pm"}
         return subprocess.CompletedProcess(cmd, 1, stdout=json.dumps(out), stderr="")
 
     monkeypatch.setattr(cadgenbench_run.subprocess, "run", fake_run)
