@@ -218,12 +218,10 @@ class SectionPath(str):
     hole, notch or void (advisory, not a gate)."""
 
     informative: bool | None
-    cut: tuple[str, float] | None
 
     def __new__(cls, path, informative):
         obj = super().__new__(cls, path)
         obj.informative = informative
-        obj.cut = None
         return obj
 
 
@@ -445,14 +443,6 @@ def render_single(
 
 _SECTION_CAMERA = {"x": (5, 0), "y": (5, -90), "z": (90, -90)}
 _SECTION_REMOVE_POSITIVE = {"x": True, "y": False, "z": True}
-
-
-def _draw_marker(img, marker, project, depth):
-    """Badge `marker=(number, xyz)` at its projected position when it is visible."""
-    if marker and project is not None:
-        number, xyz = marker
-        if _visible(xyz, project, depth):
-            _draw_callouts(img, [(number, tuple(project(xyz)[:2]))])
 
 
 def render_detail_view(
