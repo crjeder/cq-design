@@ -43,6 +43,18 @@ def test_r_eff_matches_known_90deg_value():
     assert r == pytest.approx(0.1207, rel=1e-3)
 
 
+def test_chamfer_corners_all_score_45_degrees():
+    # Half the wire's edges are reversed; each corner must still read as a 45 deg turn.
+    wp = cq.Workplane("XY").box(20, 10, 10).edges("|Z").chamfer(2)
+    (wire,) = ts._outer_wires_at(wp, 5.0)
+    parsed = ts._wire_corners_and_walls(wire, 0.05)
+    assert parsed is not None
+    corners, _ = parsed
+    expected = ts._r_eff_sharp(math.radians(45.0), 0.05)
+    assert len(corners) == 8
+    assert all(c.r_eff_mm == pytest.approx(expected) for c in corners)
+
+
 def test_v_corner_agrees_at_boundary():
     # A sharp corner's R_eff and a fillet of that same radius must score identically --
     # the two cases are one continuous formula, not a rule with exceptions.

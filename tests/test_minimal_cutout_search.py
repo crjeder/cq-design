@@ -118,6 +118,7 @@ def test_only_searched_union_stl_is_rewritten(fixture_dir):
 def test_search_converges_between_known_bounds(fixture_dir):
     tmp_path, plan, stl_dir = fixture_dir
     arm_script = str(tmp_path / "arm.py")
+    stls_before = {p.name: p.read_bytes() for p in stl_dir.iterdir()}
 
     converged = mcs.search(
         arm_script,
@@ -137,6 +138,8 @@ def test_search_converges_between_known_bounds(fixture_dir):
     # the expected neighborhood, not the theoretical edge)
     # search() must not have modified the original script
     assert mcs.read_parameter_value(arm_script, "CLEARANCE_MM") == 0.0
+    # nor left a candidate STL in the real --stl-dir
+    assert {p.name: p.read_bytes() for p in stl_dir.iterdir()} == stls_before
 
 
 def test_search_rejects_lo_that_already_clears(fixture_dir):

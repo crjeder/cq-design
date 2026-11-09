@@ -15,7 +15,8 @@ for the kinematic check (placement applied), with no new export and no print-ori
 bookkeeping.
 
 The threshold is one layer height, derived the same way the gate derives `layer_height_mm`
-for its print recipe (`nozzle_mm * 0.5`). A pair passes only when its gap is strictly
+for its print recipe (`units.layer_height_mm`: profile.json `motion.layer_height_mm`, else
+`nozzle_mm * 0.5`). A pair passes only when its gap is strictly
 greater than the threshold; a gap at or below it is flagged as a `plate_clearance` error.
 Findings use the shared quality-gate issue contract: `{source, severity, type, message,
 hint, ...}`.
@@ -30,7 +31,14 @@ from typing import Any, cast
 
 from freshness import read_manifest, script_stem, stale_ids
 from interference import _intersection_volume
-from units import iter_unions, make_issue, object_groups, run_stl_dir_check_cli, stl_path
+from units import (
+    iter_unions,
+    layer_height_mm,
+    make_issue,
+    object_groups,
+    run_stl_dir_check_cli,
+    stl_path,
+)
 
 # Same default as kinematic_check's penetration_tol_mm3: tessellation noise on a shared face.
 _OVERLAP_TOL_MM3 = 0.1
@@ -201,7 +209,11 @@ def _check_plate(
 
 
 def run_plate_clearance_check(
-    plan: dict, stl_dir: str, *, parts_dir: str | None = None
+    plan: dict,
+    stl_dir: str,
+    *,
+    parts_dir: str | None = None,
+    plan_path: str | None = None,
 ) -> list[dict]:
     """Check that every pair of co-plated unions keeps a gap above one layer height.
 
@@ -221,8 +233,7 @@ def run_plate_clearance_check(
     if backend_issue:
         return [backend_issue]
 
-    nozzle = plan.get("nozzle_mm", 0.4)
-    threshold = round(nozzle * 0.5, 2)  # one layer height, as in the print recipe
+    threshold = layer_height_mm(plan, plan_path)  # one layer height, as in the print recipe
 
     issues: list[dict] = []
 
@@ -246,6 +257,7 @@ def main() -> None:
         "Plate-clearance validation",
         "Directory holding exported assembled <part_id>.stl files",
         run_plate_clearance_check,
+        pass_plan_path=True,
     )
 
 

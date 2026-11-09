@@ -149,15 +149,9 @@ def _resolve_shell_thicknesses(plan: dict, plan_path: str | None = None) -> tupl
     wall_mm = constraints.get("wall_min_mm", 1.2)
     top_bottom_layers = constraints.get("top_bottom_layers", 4)
 
-    layer_height_mm = plan.get("nozzle_mm", 0.4) * 0.5
-    if plan_path is not None:
-        profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
-        if os.path.isfile(profile_path):
-            motion = _load_json(profile_path).get("motion")
-            if motion:
-                layer_height_mm = motion["layer_height_mm"]
+    from units import layer_height_mm
 
-    topbot_mm = top_bottom_layers * layer_height_mm
+    topbot_mm = top_bottom_layers * layer_height_mm(plan, plan_path)
     return wall_mm, topbot_mm
 
 

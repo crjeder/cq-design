@@ -257,7 +257,8 @@ def teardrop_post(
             stacklevel=2,
         )
     profile = _drop_profile(r, angle, apex="down", flat=eff_flat)
-    return _face_xz(profile.extrude(length), print_up, (0.0, -1.0))
+    # The XZ workplane normal is -Y; extrude negative so the axis runs along +Y.
+    return _face_xz(profile.extrude(-length), print_up, (0.0, -1.0))
 
 
 def teardrop_post_probes(
@@ -267,4 +268,4 @@ def teardrop_post_probes(
     flat: float = 1.2,
     print_up: tuple[float, float, float] | None = None,
 ) -> list:
-    return [solid_at((0, -y, 0), "axis") for y in (min(0.2, length / 4), length / 2, length - 0.2)]
+    return [solid_at((0, y, 0), "axis") for y in (min(0.2, length / 4), length / 2, length - 0.2)]

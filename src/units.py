@@ -59,6 +59,17 @@ def load_plan(path: str) -> dict:
     return read_json(path, "BUILD_PLAN.json")
 
 
+def layer_height_mm(plan: dict, plan_path: str | None) -> float:
+    """profile.json `motion.layer_height_mm` next to `plan_path`, else `nozzle_mm * 0.5`."""
+    if plan_path is not None:
+        profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
+        if os.path.isfile(profile_path):
+            motion = read_json(profile_path, "profile.json").get("motion")
+            if motion:
+                return motion["layer_height_mm"]
+    return round(plan.get("nozzle_mm", 0.4) * 0.5, 2)
+
+
 def add_plan_argument(parser: argparse.ArgumentParser) -> None:
     """Add the `--plan` argument shared by every check-stage CLI entry point."""
     parser.add_argument("--plan", required=True, help="Path to BUILD_PLAN.json")
@@ -95,11 +106,16 @@ def emit_issues(issues: list[dict], *, fail_on_error: bool = True) -> None:
 
 
 def run_stl_dir_check_cli(
-    description: str, stl_dir_help: str, check_fn: Callable[..., list[dict]]
+    description: str,
+    stl_dir_help: str,
+    check_fn: Callable[..., list[dict]],
+    *,
+    pass_plan_path: bool = False,
 ) -> None:
     """Shared CLI entry point for a check stage taking `--plan`/`--stl-dir`/`--parts-dir` and
     calling `check_fn(plan, stl_dir, parts_dir=parts_dir)` -- the common shape of
-    `keep_out_check.main` and `plate_clearance_check.main`."""
+    `keep_out_check.main` and `plate_clearance_check.main`. `pass_plan_path` also passes
+    `plan_path=` (for a check that reads profile.json next to the plan)."""
     parser = argparse.ArgumentParser(description=description)
     add_plan_argument(parser)
     add_stl_dir_argument(parser, stl_dir_help)
@@ -107,7 +123,8 @@ def run_stl_dir_check_cli(
     args = parser.parse_args()
 
     plan = load_plan(args.plan)
-    issues = check_fn(plan, args.stl_dir, parts_dir=args.parts_dir)
+    extra = {"plan_path": args.plan} if pass_plan_path else {}
+    issues = check_fn(plan, args.stl_dir, parts_dir=args.parts_dir, **extra)
     emit_issues(issues)
 
 

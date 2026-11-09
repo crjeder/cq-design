@@ -308,13 +308,16 @@ def _kill(info: dict | None) -> None:
 
 
 def _cold(request: dict) -> dict:
-    proc = subprocess.run(
-        [sys.executable, str(Path(__file__).resolve()), "cold", json.dumps(request)],
-        env={**os.environ, "PYTHONPATH": str(SRC)},
-        capture_output=True,
-        text=True,
-        timeout=RUN_TIMEOUT_S,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve()), "cold", json.dumps(request)],
+            env={**os.environ, "PYTHONPATH": str(SRC)},
+            capture_output=True,
+            text=True,
+            timeout=RUN_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "timeout", "worker": "fallback"}
     try:
         report = json.loads(proc.stdout)
     except ValueError:

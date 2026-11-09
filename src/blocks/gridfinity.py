@@ -638,7 +638,8 @@ def gridfinity_bin_probes(
     lip_fillet: float = LIP_FILLET_MM,
     solid: bool = False,
 ) -> list:
-    dims = gridfinity_dimensions(cols, rows, height_u, stacking_lip, lip_fillet)
+    # A solid blank skips the rim fillet, so its lip stands at full height.
+    dims = gridfinity_dimensions(cols, rows, height_u, stacking_lip, 0.0 if solid else lip_fillet)
     half_x, half_y = dims["width"] / 2, dims["depth"] / 2
     body_top = height_u * HEIGHT_UNIT_MM
     probes = [

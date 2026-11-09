@@ -25,6 +25,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 import types
 from typing import Any
 
@@ -197,6 +198,9 @@ def search(
     Raises `BoundsError` if either bound violates the pass/fail precondition.
     """
     tmp_script = _temp_copy(script_path)
+    # Candidates write the part's STL; work on a copy so the real assembly STLs stay intact.
+    real_stl_dir, stl_dir = stl_dir, tempfile.mkdtemp()
+    shutil.copytree(real_stl_dir, stl_dir, dirs_exist_ok=True)
     try:
         if evaluate_candidate(tmp_script, part_id, plan, stl_dir, joint_id, param, lo):
             raise BoundsError(
@@ -217,6 +221,7 @@ def search(
         return hi
     finally:
         os.remove(tmp_script)
+        shutil.rmtree(stl_dir, ignore_errors=True)
 
 
 def main() -> None:

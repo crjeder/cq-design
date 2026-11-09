@@ -102,6 +102,14 @@ def test_pair_above_threshold_passes(tmp_path):
     assert not [i for i in issues if i["severity"] == "error"]
 
 
+def test_profile_layer_height_sets_threshold(tmp_path):
+    plan = _two_on_one_plate(tmp_path, cx=10.25)  # gap 0.25: above 0.2, below 0.28
+    (tmp_path / "profile.json").write_text(json.dumps({"motion": {"layer_height_mm": 0.28}}))
+    plan_path = str(tmp_path / "BUILD_PLAN.json")
+    issues = _clearance_issues(run_plate_clearance_check(plan, str(tmp_path), plan_path=plan_path))
+    assert len(issues) == 1 and issues[0]["threshold_mm"] == 0.28
+
+
 # ---- 3.3 gap exactly at threshold flagged (at-or-below boundary) -------------
 
 
