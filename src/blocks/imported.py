@@ -9,9 +9,11 @@ each rung working on the previous one's output:
 2. defeature the faces BRepCheck flags
 3. replace each flagged face with a filling patch over its outer wire, sew
 
-Tolerance-only fixes are deliberately absent: STEP export drops per-edge tolerances,
-so such a "repair" is invalid again on reload. A repair whose volume differs from the
-import by more than ``max_volume_deviation`` is rejected; an unrepairable file raises a
+A repair must also pass ``mesh_gate.mesh_gate_error`` (the grader's mesh stage); a valid
+import skips that check. Tolerance-only fixes are deliberately absent: STEP export drops
+per-edge tolerances, so such a "repair" is invalid again on reload. A repair whose volume
+differs from the import by more than ``max_volume_deviation`` is rejected; an unrepairable
+file raises a
 ``[cq-verify:step_unrepairable:<name>]`` RuntimeError the wrapper maps to a typed error.
 """
 
@@ -32,6 +34,14 @@ from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_SHELL, TopAbs_SOLID, Top
 from OCP.TopExp import TopExp
 from OCP.TopoDS import TopoDS
 from OCP.TopTools import TopTools_IndexedMapOfShape
+
+try:
+    from mesh_gate import mesh_gate_error
+except ImportError:  # lib/ bundles and standalone exports don't ship mesh_gate
+
+    def mesh_gate_error(shape) -> str | None:
+        return None
+
 
 SLIVER_AREA_MM2 = 1e-3
 SEW_TOL_MM = 1e-2  # 1e-3 left CADGenBench 250's shell open after sliver removal
@@ -144,9 +154,9 @@ def _defeature(shape):
     for f in faces:
         algo.AddFaceToRemove(f)
     algo.Build()
-    if not algo.IsDone():
-        return shape, 0
-    return algo.Shape(), len(faces)
+    removed = sum(algo.IsDeleted(f) for f in faces) if algo.IsDone() else 0
+    # IsDone() with nothing deleted is a no-op (CADGenBench 202); don't report it as a rung
+    return (algo.Shape(), removed) if removed else (shape, 0)
 
 
 def _patch(shape):
@@ -203,6 +213,12 @@ def import_solid(path, max_volume_deviation: float = 0.01) -> cq.Workplane:
             break
         problems = _problems(shape)
         if not problems:
+            # a BRep-valid repair can still fail the grader mesh gate (CADGenBench 202's
+            # filling patch); every edit of it would then be blocked as invalid_mesh
+            reason = mesh_gate_error(shape)
+            if reason:
+                problems = [f"repair fails the mesh gate: {reason}"]
+                continue
             info = {
                 "file": path.name,
                 "strategy": strategy,
