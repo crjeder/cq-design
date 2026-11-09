@@ -65,7 +65,9 @@ _BG_COLOR = "#E8E8EC"
 def _get_shape(wp):
     """Return a CadQuery Shape from a Workplane, Assembly, or pass-through."""
     if isinstance(wp, cq.Workplane):
-        return wp.val()
+        # A multi-union result is combined with .add(); .val() would keep only the first.
+        shapes = [v for v in wp.vals() if isinstance(v, cq.Shape)]
+        return shapes[0] if len(shapes) == 1 else cq.Compound.makeCompound(shapes)
     if hasattr(wp, "toCompound"):  # cq.Assembly
         return wp.toCompound()
     return wp

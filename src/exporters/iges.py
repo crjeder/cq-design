@@ -8,6 +8,7 @@ def export(result: cq.Workplane, path: str) -> None:
     from OCP.IGESControl import IGESControl_Writer  # type: ignore[import-not-found]
 
     writer = IGESControl_Writer()
-    shape = result.val()
-    writer.AddShape(shape.wrapped)  # type: ignore[union-attr]
+    shapes = [v for v in result.vals() if isinstance(v, cq.Shape)]
+    shape = shapes[0] if len(shapes) == 1 else cq.Compound.makeCompound(shapes)
+    writer.AddShape(shape.wrapped)
     writer.Write(path)

@@ -203,7 +203,8 @@ def _translate_stderr(stderr: str) -> list[dict]:
             and not stripped.startswith("File ")
         ):
             parts = stripped.split(":", 1)
-            candidate = parts[0].strip()
+            # OCP prints the module path ("OCP.OCP.StdFail.StdFail_NotDone"); keep the class.
+            candidate = parts[0].strip().rsplit(".", 1)[-1]
             # Must look like an exception class, not just any "Capitalized: ..." line a
             # model prints to stderr. Real Python exceptions end in Error/Exception/etc.;
             # OCC kernel classes carry a known prefix. A bare uppercase first letter is
@@ -446,6 +447,7 @@ def _check_dimensions(geo: dict, expected_dims: list[float], tolerance: float = 
             errors.append(
                 {
                     "type": "dimension_mismatch",
+                    "message": f"{axis} is {actual} mm, expected {expected} mm",
                     "axis": axis,
                     "actual_mm": actual,
                     "expected_mm": expected,
@@ -578,6 +580,7 @@ def _render_preview(
     auto_sections: bool = False,
     features: list[str] | None = None,
     sheet: bool = False,
+    timeout: int | None = None,
 ) -> tuple[list[str], str | None]:
     """Invoke render_preview.py as a subprocess.
 
@@ -603,7 +606,8 @@ def _render_preview(
     Returns (preview_png_paths, error_message): the first path is the main
     overview preview, followed by any detail-view/detail-section paths, in the
     order render_preview.py reported them via its final `extra_previews` JSON
-    line. On success: (paths, None). On failure: ([], error_text).
+    line. On success: (paths, None). On failure: ([], error_text). Raises
+    `subprocess.TimeoutExpired` past `timeout` seconds.
     """
     script_dir = preview_dir or os.path.dirname(script_path)
     os.makedirs(script_dir, exist_ok=True)
@@ -647,6 +651,7 @@ def _render_preview(
         capture_output=True,
         text=True,
         env=env,
+        timeout=timeout,
     )
 
     if proc.returncode != 0:
@@ -781,6 +786,7 @@ def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: 
         args.auto_sections,
         args.feature,
         args.sheet,
+        args.timeout,
     )
     if render_err:
         _append_stderr(result, render_err)
@@ -791,11 +797,22 @@ def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: 
     return False
 
 
-def _handle_deliver(args, script_path: str, result: dict, manifest_path: str | None = None) -> None:
+_EXPORT_SNIPPET = (
+    "import json, sys\n"
+    "from exporters import run_exporters\n"
+    "paths = run_exporters(sys.argv[1], sys.argv[2].split(','), sys.argv[3])\n"
+    "print(json.dumps(paths))\n"
+)
+
+
+def _handle_deliver(
+    args, script_path: str, result: dict, env: dict, manifest_path: str | None = None
+) -> None:
     """Populate stl/stls/threemf paths in `result` from the delivered files.
 
     Reads the shim's delivery manifest when it wrote one (no second script import);
-    otherwise runs the modular exporter, which re-imports the script.
+    otherwise runs the modular exporter in a subprocess bounded by `--timeout`, which
+    re-imports the script in the build pose. Raises `subprocess.TimeoutExpired`.
     """
     try:
         if manifest_path and os.path.isfile(manifest_path):
@@ -805,16 +822,27 @@ def _handle_deliver(args, script_path: str, result: dict, manifest_path: str | N
                 raise RuntimeError(manifest["error"])
             delivered = manifest["paths"]
         else:
-            from exporters import run_exporters
-
             out_dir = args.output_dir or os.path.dirname(script_path)
             os.makedirs(out_dir, exist_ok=True)
-            formats = [f.strip() for f in args.formats.split(",") if f.strip()]
-            delivered = run_exporters(script_path, formats, out_dir)
+            formats = ",".join(f.strip() for f in args.formats.split(",") if f.strip())
+            build_env = {k: v for k, v in env.items() if k != "CQ_PRINT_ROTATE"}
+            proc = subprocess.run(
+                [sys.executable, "-c", _EXPORT_SNIPPET, script_path, formats, out_dir],
+                capture_output=True,
+                text=True,
+                env=build_env,
+                timeout=args.timeout,
+            )
+            if proc.returncode != 0:
+                raise RuntimeError((proc.stderr or "exporter subprocess failed").strip()[-500:])
+            # The script may print; the exporter's JSON is the last stdout line.
+            delivered = json.loads(proc.stdout.strip().splitlines()[-1])
         result["stls"] = [p for p in delivered if p.endswith(".stl")]
         result["threemfs"] = [p for p in delivered if p.endswith(".3mf")]
         result["stl"] = result["stls"][0] if result["stls"] else None
         result["threemf"] = result["threemfs"][0] if result["threemfs"] else None
+    except subprocess.TimeoutExpired:
+        raise
     except Exception as e:
         _append_stderr(result, f"Exporter failed: {e}")
         result["success"] = False
@@ -1145,18 +1173,24 @@ def main():
             _emit(args, result)
             sys.exit(1)
 
-        # Preview rendering via render_preview.py subprocess (CQ-native, no OpenGL)
-        if (
-            args.preview
-            and stls_in_temp
-            and _handle_preview(args, script_path, skill_root, env, result)
-        ):
-            _emit(args, result)
-            sys.exit(1)
+        try:
+            # Preview rendering via render_preview.py subprocess (CQ-native, no OpenGL)
+            if (
+                args.preview
+                and stls_in_temp
+                and _handle_preview(args, script_path, skill_root, env, result)
+            ):
+                _emit(args, result)
+                sys.exit(1)
 
-        # --deliver: run modular exporter and expose output paths
-        if args.deliver and stls_in_temp:
-            _handle_deliver(args, script_path, result, deliver_manifest)
+            # --deliver: run modular exporter and expose output paths
+            if args.deliver and stls_in_temp:
+                _handle_deliver(args, script_path, result, env, deliver_manifest)
+        except subprocess.TimeoutExpired as e:
+            _append_stderr(result, f"Timeout after {args.timeout}s: {e}")
+            result["success"] = False
+            _emit(args, result)
+            sys.exit(3)
 
         # Mark success=False if any error-severity issues were found
         error_types = {e["type"] for e in result["errors"]}

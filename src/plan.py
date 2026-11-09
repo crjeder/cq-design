@@ -1510,7 +1510,8 @@ def run(script_path: str, part_id: str, plan_path: str, write: bool) -> dict[str
 
     updated_plan = _apply_changes(plan, part_id, diff["changed"])
 
-    fd, tmp_path = tempfile.mkstemp(suffix=".json")
+    # Same dir as the plan so validate_plan finds the sibling parameters.py.
+    fd, tmp_path = tempfile.mkstemp(suffix=".json", dir=Path(plan_path).resolve().parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(updated_plan, f)

@@ -5,7 +5,7 @@
 import numpy as np
 import trimesh
 
-from measure_stl import _flat_faces, _union_find
+from measure_stl import _cylinders, _flat_faces, _union_find
 from print_orientation import AREA_CUMULATION_TOP_N, _area_cumulation_normals, _unit
 
 
@@ -116,3 +116,15 @@ def test_area_cumulation_matches_reference():
 def test_flat_faces_matches_reference():
     for mesh in _meshes():
         assert _flat_faces(mesh, 1.0) == _flat_faces_ref(mesh, 1.0)
+
+
+def test_columns_are_classified_by_side_count():
+    cases = [
+        (trimesh.creation.box([40, 20, 10]), "cuboid", 4),
+        (trimesh.creation.cylinder(5, 10, sections=3), "triangle", 3),
+        (trimesh.creation.cylinder(5, 10, sections=6), "polygon", 6),
+        (trimesh.creation.cylinder(5, 10, sections=64), "cylinder", 64),
+    ]
+    for mesh, shape, sides in cases:
+        (col,) = _cylinders(mesh, 0.5, 1.0)
+        assert (col["shape"], col["sides"]) == (shape, sides)

@@ -192,14 +192,14 @@ def _clearance_opening_zones(plan: dict, part: dict, rotate: list[dict] | None) 
     """Print-pose `{center, radius_mm}` for each of `part`'s `clearance_opening`
     interfaces (see [Hitstertower oversupport](TODO.md#hitstertower-oversupport)).
 
-    `position_mm` is the interface's center in the part's build pose; mapped
-    through the part's `placement` (assembly pose, matching the exported STL) and
-    then the chosen print orientation's `rotate` (matching `_analyze_stl`'s posed
-    mesh), so it lands in the same frame as `overhang_metrics`' `worst_location_xyz_mm`.
+    `position_mm` is the interface's center in the part's build pose, the frame of the
+    wrapper's STL (no `placement`); it gets the same print orientation `rotate` as
+    `_analyze_stl`'s posed mesh, so it lands in the same frame as `overhang_metrics`'
+    `worst_location_xyz_mm`.
     `radius_mm` is the opening's half-diagonal (from `size_mm`) plus a small margin
     for tessellation/rounding slop; unsized openings fall back to a fixed radius.
     """
-    from placement import transform_direction, transform_point
+    from placement import transform_direction
 
     zones = []
     for interface in part.get("interfaces", []):
@@ -208,7 +208,7 @@ def _clearance_opening_zones(plan: dict, part: dict, rotate: list[dict] | None) 
         position = interface.get("position_mm")
         if position is None:
             continue
-        center = transform_point(position, part.get("placement"))
+        center = tuple(position)
         if rotate:
             center = transform_direction(center, {"rotate": rotate})
         size = interface.get("size_mm")
@@ -444,16 +444,9 @@ def _analyze_stl(
 
 
 def _layer_height_mm(plan: dict, plan_path: str | None) -> float:
-    """profile.json `motion.layer_height_mm` next to `plan_path`, else `nozzle_mm * 0.5`."""
-    if plan_path is not None:
-        profile_path = os.path.join(os.path.dirname(os.path.abspath(plan_path)), "profile.json")
-        if os.path.isfile(profile_path):
-            from units import read_json
+    from units import layer_height_mm
 
-            motion = read_json(profile_path, "profile.json").get("motion")
-            if motion:
-                return motion["layer_height_mm"]
-    return round(plan.get("nozzle_mm", 0.4) * 0.5, 2)
+    return layer_height_mm(plan, plan_path)
 
 
 def _emit_print_recipe(
@@ -848,7 +841,7 @@ def _run_stl_dir_stage(
 
 
 def _run_plate_clearance_stage(
-    plan: dict, stl_dir: str | None, parts_dir: str | None
+    plan: dict, stl_dir: str | None, parts_dir: str | None, plan_path: str
 ) -> list[dict]:
     """Check co-plated unions keep a gap above one layer height (once, outside the fix loop).
 
@@ -857,7 +850,7 @@ def _run_plate_clearance_stage(
     """
     from plate_clearance_check import run_plate_clearance_check
 
-    return _run_stl_dir_stage(run_plate_clearance_check, plan, stl_dir, parts_dir)
+    return run_plate_clearance_check(plan, stl_dir or ".", parts_dir=parts_dir, plan_path=plan_path)
 
 
 def _run_keep_out_stage(plan: dict, stl_dir: str | None, parts_dir: str | None) -> list[dict]:
@@ -1286,14 +1279,17 @@ def run_gate(
 
         # ---- geometry + overhang ----
         if effective_stls:
-            rotate = (orientation or {}).get("rotate")
             stem = os.path.splitext(os.path.basename(script_path))[0]
             part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
-            clearance_zones = _clearance_opening_zones(plan, part, rotate) if part else []
             multi = len(effective_stls) > 1
+            # Each union prints in its own pose: a multi-union part takes every union's
+            # rotate from orientations.json; --orientation alone can't say which union it is.
+            orients = _read_orientations(script_path, None) if multi else {}
             geo_issues = []
             for stl in effective_stls:
                 uid = os.path.splitext(os.path.basename(stl))[0]
+                rotate = ((orients.get(uid) if multi else orientation) or {}).get("rotate")
+                clearance_zones = _clearance_opening_zones(plan, part, rotate) if part else []
                 stl_issues = _analyze_stl(
                     stl, overhang_deg, rotate, clearance_zones, bridge_max_mm, layer_height
                 )
@@ -1371,7 +1367,7 @@ def run_gate(
         # ---- kinematic range check (once, outside the fix loop) ----
         all_issues += _run_kinematic_stage(plan, stl_dir, parts_dir)
         # ---- plate clearance check (once, outside the fix loop) ----
-        all_issues += _run_plate_clearance_stage(plan, stl_dir, parts_dir)
+        all_issues += _run_plate_clearance_stage(plan, stl_dir, parts_dir, plan_path)
         # ---- keep-out zone check (once, outside the fix loop) ----
         all_issues += _run_keep_out_stage(plan, stl_dir, parts_dir)
         # ---- all-pairs rest-pose interference (once, outside the fix loop) ----
