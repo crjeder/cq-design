@@ -57,6 +57,18 @@ def test_sliver_faces_repaired_and_reported(tmp_path, capsys):
     assert info["strategy"] == ["drop_slivers"] and info["faces_removed"] == 4
 
 
+def test_repair_failing_mesh_gate_is_unrepairable(tmp_path, monkeypatch):
+    import blocks.imported
+
+    monkeypatch.setattr(
+        blocks.imported, "mesh_gate_error", lambda s: "mesh not closed: 3 open edges"
+    )
+    with pytest.raises(
+        RuntimeError, match=r"step_unrepairable:slab\.brep\] repair fails the mesh gate"
+    ):
+        import_solid(_slab_brep(tmp_path))
+
+
 def test_volume_limit_rejects_repair(tmp_path):
     with pytest.raises(RuntimeError, match=r"\[cq-verify:step_unrepairable:slab\.brep\] volume"):
         import_solid(_slab_brep(tmp_path), max_volume_deviation=0.0)
