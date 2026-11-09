@@ -411,6 +411,7 @@ def lateral_area(mesh):
     frame.
     """
     nz = mesh.face_normals[:, 2]
-    up = float(mesh.area_faces[nz > 0].sum())
-    down = float(mesh.area_faces[nz < 0].sum())
+    # Tolerance: a rotated wall carries nz ~1e-16 noise and must still count as a wall.
+    up = float(mesh.area_faces[nz > 1e-6].sum())
+    down = float(mesh.area_faces[nz < -1e-6].sum())
     return round(float(mesh.area_faces.sum()) - up - down, 3)

@@ -202,6 +202,10 @@ def _names(tree: ast.AST) -> tuple[set[str], set[str]]:
             stores.add((n.asname or n.name).split(".")[0])
         elif isinstance(n, (ast.FunctionDef, ast.ClassDef)):
             stores.add(n.name)
+        elif isinstance(n, ast.arg):
+            stores.add(n.arg)
+        elif isinstance(n, ast.ExceptHandler) and n.name:
+            stores.add(n.name)
     return stores, loads
 
 

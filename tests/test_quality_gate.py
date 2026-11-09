@@ -186,15 +186,16 @@ def test_overhang_outside_clearance_opening_stays_warning(multi_overhang_stl):
     assert issues[0]["severity"] == "warning"
 
 
-def test_clearance_opening_zones_maps_position_through_placement_and_rotate():
+def test_clearance_opening_zones_ignore_placement_and_apply_rotate():
     plan: dict = {}
     part = {
-        "placement": {"translate_mm": [10.0, 0.0, 0.0]},
+        # The gate's STLs are in build pose, so placement must not move the zone.
+        "placement": {"translate_mm": [50.0, 0.0, 0.0]},
         "interfaces": [
             {
                 "type": "clearance_opening",
                 "name": "finger_access",
-                "position_mm": [0, 0, 0],
+                "position_mm": [10, 0, 0],
                 "size_mm": [10, 6],
             },
             {"type": "screw_mount", "position_mm": [1, 1, 1]},
@@ -205,7 +206,7 @@ def test_clearance_opening_zones_maps_position_through_placement_and_rotate():
     )
     assert len(zones) == 1
     assert zones[0]["name"] == "finger_access"
-    # placement translate then Z+90 rotate: (10,0,0) -> (0,10,0)
+    # Z+90 rotate only: (10,0,0) -> (0,10,0)
     assert zones[0]["center"] == pytest.approx((0.0, 10.0, 0.0), abs=1e-6)
     assert zones[0]["radius_mm"] == pytest.approx(math.hypot(5, 3) + 1.0)
 
@@ -228,6 +229,34 @@ def test_run_gate_threads_orientation_rotate_into_overhang(
         str(script), str(plan), orientation={"rotate": [{"axis": "X", "angle_deg": 90.0}]}
     )
     assert _issues_of(report["issues"], "overhang_exceeded") == []
+
+
+def test_run_gate_poses_each_union_with_its_own_rotate(monkeypatch, tmp_path):
+    plan = tmp_path / "BUILD_PLAN.json"
+    plan.write_text(json.dumps({"constraints": {"overhang_max_deg": OVERHANG_DEG}}))
+    script = tmp_path / "part.py"
+    script.write_text("result = None\n")
+    rot_a = [{"axis": "X", "angle_deg": 90.0}]
+    rot_b = [{"axis": "Y", "angle_deg": 180.0}]
+    (tmp_path / "orientations.json").write_text(
+        json.dumps({"a": {"rotate": rot_a}, "b": {"rotate": rot_b}})
+    )
+    stls = []
+    for uid in ("a", "b"):
+        p = tmp_path / f"{uid}.stl"
+        p.write_text("solid x\nendsolid x\n")
+        stls.append(str(p))
+    monkeypatch.setattr(quality_gate, "_run_wrapper_check", lambda *a, **k: ([], stls[0], {}, stls))
+    seen: dict[str, list] = {}
+
+    def fake_analyze(stl, _deg, rotate, *a, **k):
+        seen[Path(stl).stem] = rotate
+        return []
+
+    monkeypatch.setattr(quality_gate, "_analyze_stl", fake_analyze)
+    monkeypatch.setattr(quality_gate, "_run_plan_validation_stage", lambda *a, **k: [])
+    quality_gate.run_gate(str(script), str(plan), orientation={"rotate": rot_a})
+    assert seen == {"a": rot_a, "b": rot_b}
 
 
 def _run_gate_with_geo_issues(monkeypatch, tmp_path, geo_issues, plan_data=None):

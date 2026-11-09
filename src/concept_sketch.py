@@ -121,11 +121,13 @@ def render(spec: dict) -> str:
         )
         out.append(
             f'<text x="{(ax + bx) / 2:.1f}" y="{(ay + by) / 2 - 4:.1f}" text-anchor="middle" '
-            f'fill="#c0392b">{escape(str(d["text"]))}</text>'
+            f'fill="#c0392b">{escape(str(d.get("text", "")))}</text>'
         )
     for lab in spec.get("labels", []):
         x, y = at(lab["view"], lab["x"], lab["y"])
-        out.append(f'<text x="{x:.1f}" y="{y:.1f}" fill="#222">{escape(str(lab["text"]))}</text>')
+        out.append(
+            f'<text x="{x:.1f}" y="{y:.1f}" fill="#222">{escape(str(lab.get("text", "")))}</text>'
+        )
     out.append("</svg>")
     return "\n".join(out) + "\n"
 

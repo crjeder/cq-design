@@ -117,6 +117,15 @@ def test_solid_bin_is_a_blank():
     assert blank > hollow * 2
 
 
+def test_solid_bin_passes_its_probes():
+    import probes as pr
+    from blocks.gridfinity import gridfinity_bin_probes
+
+    shape = gridfinity_bin(1, 1, 3, solid=True).val()
+    failed = [p for p in gridfinity_bin_probes(1, 1, 3, solid=True) if not pr.evaluate(p, shape)[0]]
+    assert not failed
+
+
 def test_dividers_and_features_add_material():
     plain = gridfinity_bin(2, 1, 3).val().Volume()
     for kwargs in ({"divisions_x": 3}, {"label_tab": True}, {"scoop": True}):
@@ -248,6 +257,16 @@ def test_check_passes_a_standard_bin(tmp_path):
     assert (det["cols"], det["rows"]) == (2, 1)
     assert det["height_units"] == 4.0
     assert det["stacking_lip"] is True
+
+
+def test_check_flags_a_bin_smaller_than_the_requested_cells(tmp_path):
+    script = _write(
+        tmp_path,
+        "small_bin.py",
+        "from blocks import gridfinity_bin\nresult = gridfinity_bin(2, 2, 3)\n",
+    )
+    issues, _ = run_gridfinity_check(str(script), kind="bin", cells=(3, 2))
+    assert "gridfinity_footprint" in {i["type"] for i in issues}
 
 
 def test_check_passes_a_standard_baseplate(tmp_path):

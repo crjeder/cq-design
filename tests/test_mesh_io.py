@@ -197,6 +197,12 @@ def test_lateral_area_matches_prismatic_box_perimeter():
     assert mean_perimeter == pytest.approx(4 * 30.0, rel=1e-6)
 
 
+def test_lateral_area_survives_rotation_noise():
+    box = trimesh.creation.box([10.0, 20.0, 30.0])
+    box.apply_transform(trimesh.transformations.rotation_matrix(np.pi, [1, 0, 0]))
+    assert mesh_io.lateral_area(box) == pytest.approx(2 * (10 + 20) * 30, rel=1e-6)
+
+
 def test_lateral_area_excludes_flat_top_and_bottom():
     box = trimesh.creation.box([10.0, 10.0, 10.0])
     total = float(box.area_faces.sum())
