@@ -153,6 +153,15 @@ def test_removing_a_group_a_later_one_depends_on_is_refused(build, capsys):
     assert _refused(script, capsys, "remove", script, "plate") == "undefined_local"
 
 
+def test_function_args_and_except_names_count_as_assigned():
+    import ast
+
+    stores, loads = so._names(
+        ast.parse("def f(a):\n    return a\ntry:\n    pass\nexcept Exception as e:\n    print(e)\n")
+    )
+    assert not {"a", "e"} & (loads - stores)
+
+
 def test_raw_cadquery_in_a_step_group_is_refused(build, capsys):
     script = _script(build)
     code = _code(

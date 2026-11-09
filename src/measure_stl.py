@@ -16,6 +16,7 @@ Usage:
 
 import argparse
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -137,12 +138,30 @@ def _union_find(nodes: list[int], edges: np.ndarray) -> list[list[int]]:
     return [groups[g].tolist() for g in np.argsort(first)]
 
 
-def _cylinders(mesh: trimesh.Trimesh, min_radius_mm: float, min_area_mm2: float) -> list[dict]:
-    """Detect vertical cylindrical features grouped by face adjacency.
+def _side_count(normals_xy: np.ndarray, tol_rad: float = math.radians(1.0)) -> int:
+    """Number of distinct planar sides: XY normal directions clustered around the circle."""
+    angles = np.sort(np.arctan2(normals_xy[:, 1], normals_xy[:, 0]))
+    gaps = np.diff(np.append(angles, angles[0] + 2 * math.pi))
+    return max(1, int(np.count_nonzero(gaps > tol_rad)))
 
-    Classifies each group as boss (outward-pointing normals) or hole
-    (inward-pointing normals) by comparing face normals against the
-    radial direction from the fitted axis center.
+
+def _column_shape(sides: int) -> str:
+    """3 sides -> triangle, 4 -> cuboid, 5..12 -> polygon, more -> tessellated cylinder."""
+    if sides == 3:
+        return "triangle"
+    if sides == 4:
+        return "cuboid"
+    return "polygon" if sides <= 12 else "cylinder"
+
+
+def _cylinders(mesh: trimesh.Trimesh, min_radius_mm: float, min_area_mm2: float) -> list[dict]:
+    """Detect vertical column features (cylinders and prisms) grouped by face adjacency.
+
+    `shape` classifies each group by its number of distinct planar sides (`sides`):
+    triangle, cuboid, polygon (5-12) or cylinder (>12); a group with fewer than 3 sides
+    is a plain wall, not a column, and is skipped. Classifies each group as boss
+    (outward-pointing normals) or hole (inward-pointing normals) by comparing face
+    normals against the radial direction from the fitted axis center.
     """
     # Side faces: normal mostly horizontal and well-defined
     z_abs = np.abs(mesh.face_normals[:, 2])
@@ -168,6 +187,9 @@ def _cylinders(mesh: trimesh.Trimesh, min_radius_mm: float, min_area_mm2: float)
         total_area = float(mesh.area_faces[comp_arr].sum())
         if total_area < min_area_mm2:
             continue
+        sides = _side_count(mesh.face_normals[comp_arr, :2])
+        if sides < 3:
+            continue
 
         # Fit center and radius from vertices
         verts = mesh.vertices[mesh.faces[comp_arr].flatten()]
@@ -191,6 +213,8 @@ def _cylinders(mesh: trimesh.Trimesh, min_radius_mm: float, min_area_mm2: float)
         results.append(
             {
                 "type": feat_type,
+                "shape": _column_shape(sides),
+                "sides": sides,
                 "axis": "z",
                 "center_xy_mm": [
                     round(float(center[0]), 2),

@@ -250,6 +250,7 @@ def test_teardrop_post_dimensions():
     bb = _bb(r)
     assert abs(bb.xlen - 8.0) < 1e-3  # circular portion diameter
     assert abs(bb.ylen - 6.0) < 1e-3  # extrusion length along the axis
+    assert abs(bb.ymin) < 1e-3  # axis runs along +Y from the origin
 
 
 def test_teardrop_post_flat_bottom_at_min_z():

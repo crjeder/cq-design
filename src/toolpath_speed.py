@@ -255,7 +255,7 @@ def _wire_corners_and_walls(
     or contain a curve type this model does not represent (degenerate section).
     """
     try:
-        edges = list(wire.Edges())
+        edges = _ordered_edges(wire)
     except Exception:
         return None
     if len(edges) < 2:
@@ -296,7 +296,7 @@ def _wire_corners_and_walls(
                 d_prev = _direction(edges[i])
                 d_cur = _direction(edges[(i + 1) % n])
                 phi = _turn_angle(d_prev, d_cur)
-                loc = [round(c, 2) for c in edges[(i + 1) % n].startPoint().toTuple()]
+                loc = [round(c, 2) for c in _ends(edges[(i + 1) % n])[0]]
             except Exception:
                 return None
             r_eff = _r_eff_sharp(phi, junction_deviation_mm)
@@ -320,9 +320,30 @@ def _wire_corners_and_walls(
     return out_corners, out_walls
 
 
+def _ordered_edges(wire: Any) -> list[Any]:
+    """The wire's edges in traversal order, each keeping its in-wire orientation."""
+    import cadquery as cq
+    from OCP.BRepTools import BRepTools_WireExplorer
+
+    explorer = BRepTools_WireExplorer(wire.wrapped)
+    edges = []
+    while explorer.More():
+        edges.append(cq.Edge(explorer.Current()))
+        explorer.Next()
+    return edges
+
+
+def _ends(edge: Any) -> tuple[tuple, tuple]:
+    """(start, end) in traversal order; startPoint()/endPoint() follow the curve's own
+    parameter and ignore an edge reversed in its wire."""
+    from OCP.TopAbs import TopAbs_REVERSED
+
+    p0, p1 = edge.startPoint().toTuple(), edge.endPoint().toTuple()
+    return (p1, p0) if edge.wrapped.Orientation() == TopAbs_REVERSED else (p0, p1)
+
+
 def _direction(edge: Any):
-    p0 = edge.startPoint().toTuple()
-    p1 = edge.endPoint().toTuple()
+    p0, p1 = _ends(edge)
     d = [p1[k] - p0[k] for k in range(3)]
     norm = math.sqrt(sum(v * v for v in d))
     return [v / norm for v in d] if norm > 1e-9 else [0.0, 0.0, 0.0]

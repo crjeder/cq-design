@@ -112,15 +112,15 @@ def _classify(solid: Any, kind: str, cells: tuple[int, int] | None) -> dict:
 
     if kind == "baseplate":
         cols, rows = cells or (plate_cols, plate_rows)
-        err = (plate_err_x, plate_err_y)
         nominal = (cols * GRID_PITCH_MM, rows * GRID_PITCH_MM)
+        err = (bb.xlen - nominal[0], bb.ylen - nominal[1])
     else:
         cols, rows = cells or (bin_cols, bin_rows)
-        err = (bin_err_x, bin_err_y)
         nominal = (
             cols * GRID_PITCH_MM - GRID_CLEARANCE_MM,
             rows * GRID_PITCH_MM - GRID_CLEARANCE_MM,
         )
+        err = (bb.xlen - nominal[0], bb.ylen - nominal[1])
 
     # A lipped bin measures 7 x units plus the lip; a lipless one measures 7 x units.
     # Whichever reading lands closest to the height module is what the part is.

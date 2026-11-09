@@ -117,6 +117,43 @@ def test_timeout(tmp_path):
     assert result.returncode == 3
 
 
+def test_preview_timeout_exits_3(tmp_path):
+    # The model run is fast; only the preview re-import (render_preview.py) hangs.
+    script = tmp_path / "slow_preview.py"
+    script.write_text(
+        "import sys, time\nimport cadquery as cq\n"
+        "if 'render_preview' in getattr(sys.modules['__main__'], '__file__', ''):\n"
+        "    time.sleep(120)\n"
+        "result = cq.Workplane('XY').box(5, 5, 5)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, WRAPPER, str(script), "--preview", "--timeout", "30"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 3
+
+
+def test_deliver_with_print_rotate_uses_subprocess_exporter(tmp_path):
+    script = tmp_path / "box.py"
+    script.write_text("import cadquery as cq\nresult = cq.Workplane('XY').box(5, 5, 5)\n")
+    rot = tmp_path / "rot.json"
+    rot.write_text(json.dumps({"rotate": [{"axis": "X", "angle_deg": 90.0}]}))
+    out = tmp_path / "out"
+    rc, data = run(
+        script,
+        "--deliver",
+        "--formats",
+        "stl",
+        "--output-dir",
+        str(out),
+        "--print-rotate",
+        str(rot),
+    )
+    assert rc == 0, data["stderr"]
+    assert data["stl"] and os.path.isfile(data["stl"])
+
+
 # ---- JSON shape: new fields always present ----
 
 
@@ -278,6 +315,15 @@ def test_translate_stderr_maps_known_occ_classes_to_typed_errors():
         assert errs[0]["type"] == expected_type
         assert errs[0]["occ_class"] == occ_class
         assert errs[0]["hint"]
+
+
+def test_translate_stderr_strips_ocp_module_path():
+    """OCP prints the class with its module path; it must still map to a typed error."""
+    from run_cadquery_model import _translate_stderr
+
+    errs = _translate_stderr("OCP.OCP.StdFail.StdFail_NotDone: BRep_API: command not done")
+    assert len(errs) == 1
+    assert errs[0]["type"] == "fillet_failure"
 
 
 def test_translate_stderr_unmapped_occ_class_falls_back():
