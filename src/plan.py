@@ -162,7 +162,7 @@ def validate_plan(
 
 def _check_instances(plan: dict[str, Any], inventory_path: str) -> list[str]:
     """Check each `blocks_needed` instance's `id`, `params` and `edges` against its
-    inventory entry, and that every interface `instance` names a planned id."""
+    inventory entry, and that every interface or probe `instance` names a planned id."""
     from blocks.validate import load_inventory
 
     entries = {e["name"]: e for e in load_inventory(inventory_path)}
@@ -199,6 +199,13 @@ def _check_instances(plan: dict[str, Any], inventory_path: str) -> list[str]:
                 errors.append(
                     f"Part '{pid}': interface '{itf.get('name', itf['type'])}' instance "
                     f"'{itf['instance']}' is not a blocks_needed id ({sorted(i for i in ids if i)})"
+                )
+        for probe in part.get("probes", []):
+            if "instance" in probe and probe["instance"] not in ids:
+                errors.append(
+                    f"Part '{pid}': probe '{probe.get('label', probe['kind'])}' instance "
+                    f"'{probe['instance']}' is not a blocks_needed id "
+                    f"({sorted(i for i in ids if i)})"
                 )
     return errors
 

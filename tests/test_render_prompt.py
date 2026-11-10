@@ -223,6 +223,8 @@ def test_render_planning_fresh_plan_lists_inventory_and_archetypes(tmp_path):
     assert "{{" not in text
     assert "## Print Orientation" in text
     assert "## Vase Mode" not in text
+    assert "Every unprobed request dimension becomes an authored probe" in text
+    assert '"kind": "solid_at"' in text and '"kind": "empty_at"' in text
 
 
 def test_render_planning_replan_includes_block_tagged_fdm_section():
