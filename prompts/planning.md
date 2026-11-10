@@ -237,6 +237,18 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
     omit it when the log holds only the `initial` entry. On a re-plan carry it forward
     unchanged.
 
+17. **Every unprobed request dimension becomes an authored probe.** A request number that
+    locates or sizes a feature, and that no `interfaces[]` entry with `position_mm` plus
+    `diameter_mm`/`size_mm` already covers (a wall or floor thickness, a lip or step
+    height, "hole 6 mm from both edges", a region that must stay solid), goes in the
+    part's `probes[]` in build pose (same frame as `position_mm`), with a `label` quoting
+    the request. Kinds: `solid_at`/`empty_at` (`p`), `ray` (`p`, `dir`, `hits`, optional
+    `length`), `bbox` (`lo`+`hi` or `size`). Express a wall or step height as a bracket: a
+    `solid_at` point just inside the surface and an `empty_at` point just past it. Keep
+    every point at least 0.1 mm off any surface. Add `instance` only when that
+    instance's place step builds the feature; otherwise the probe is checked on the
+    finished part.
+
 ## Block inventory (name, use, params, edge sets)
 
 {{BLOCK_INVENTORY}}
@@ -257,7 +269,7 @@ states a different value: then use the stated value and note the deviation in
 
 ## Required output schema
 
-Optional fields: `intent_ts` (rule 16), `coordinate_frame`, `archetype`, `plate`, `material`/`color` (per part or union, rule 6b), `pose_intent`, `show_face`,
+Optional fields: `intent_ts` (rule 16), `probes` (rule 17), `coordinate_frame`, `archetype`, `plate`, `material`/`color` (per part or union, rule 6b), `pose_intent`, `show_face`,
 per-part `optimize_for`, `part_notes` (needed when `blocks_needed` is empty or geometry is
 non-standard), `unions`, `joints`, `root_part`, `kinematics` (only for a declared range of
 motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always set `load`
@@ -294,6 +306,10 @@ motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always s
           "clearance_mm": 0.25,
           "instance": "usb"
         }
+      ],
+      "probes": [
+        {"kind": "solid_at", "p": [25.0, 17.5, 0.6], "label": "1.2 mm floor: solid just inside"},
+        {"kind": "empty_at", "p": [25.0, 17.5, 1.4], "label": "1.2 mm floor: open just above"}
       ],
       "blocks_needed": [
         {"name": "hollow_box", "id": "shell", "params": {"w": 50, "d": 35, "h": 20, "wall": 1.2, "floor_t": 1.2},

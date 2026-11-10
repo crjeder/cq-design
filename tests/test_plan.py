@@ -2063,3 +2063,40 @@ def test_validate_journals_plan_written_once(plan_file, tmp_path, capsys):
     journal.write_text("", encoding="utf-8")
     assert main(["validate", plan_file(bad)]) == 1
     assert journal.read_text(encoding="utf-8") == ""
+
+
+HOLE_PROBE = {"kind": "empty_at", "p": [6, 6, 2], "label": "M3 hole 6 mm from both edges"}
+RAY_PROBE = {"kind": "ray", "p": [6, 6, 2], "dir": [0, 0, 1], "hits": 0, "label": "through"}
+
+
+def _probe_plan(*probes):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["probes"] = list(probes)
+    return plan
+
+
+def test_authored_probes_validate(plan_file):
+    assert validate_plan(plan_file(_probe_plan(HOLE_PROBE, RAY_PROBE))) == []
+
+
+@pytest.mark.parametrize(
+    "probe",
+    [
+        {k: v for k, v in HOLE_PROBE.items() if k != "label"},
+        {k: v for k, v in RAY_PROBE.items() if k != "hits"},
+        {"kind": "delta", "sign": -1, "label": "cut removes material"},
+        {**HOLE_PROBE, "radius": 1.5},
+    ],
+    ids=["no_label", "ray_no_hits", "delta", "unknown_field"],
+)
+def test_malformed_authored_probe_rejected(plan_file, probe):
+    assert validate_plan(plan_file(_probe_plan(probe)))
+
+
+def test_authored_probe_instance_must_be_planned(plan_file):
+    plan = _probe_plan({**HOLE_PROBE, "instance": "lid_hinge"})
+    plan["parts"][0]["blocks_needed"] = [
+        {"name": "box", "id": "b", "params": {"w": 10, "d": 10, "h": 2}}
+    ]
+    errors = validate_plan(plan_file(plan))
+    assert any("'body'" in e and "'lid_hinge'" in e for e in errors)
