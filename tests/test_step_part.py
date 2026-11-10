@@ -17,21 +17,24 @@ PLATE = {"name": "box", "id": "plate", "params": {"w": 40, "d": 30, "h": 4}}
 BOSS = {"name": "screw_boss", "id": "boss", "params": {"d_screw": 3.2, "d_outer": 8, "h": 6}}
 
 
-def _part(blocks, interfaces=(), dims=(40, 30, 10)):
-    return {
+def _part(blocks, interfaces=(), dims=(40, 30, 10), probes=None):
+    part = {
         "id": "plate",
         "description": "Plate with a screw boss",
         "dimensions": dict(zip(("w_mm", "d_mm", "h_mm"), dims, strict=True)),
         "interfaces": list(interfaces),
         "blocks_needed": list(blocks),
     }
+    if probes is not None:
+        part["probes"] = list(probes)
+    return part
 
 
 @pytest.fixture
 def plan(tmp_path, monkeypatch):
-    def _write(blocks=(PLATE, BOSS), interfaces=(), dims=(40, 30, 10)):
+    def _write(blocks=(PLATE, BOSS), interfaces=(), dims=(40, 30, 10), probes=None):
         path = tmp_path / "BUILD_PLAN.json"
-        path.write_text(json.dumps(minimal_plan([_part(blocks, interfaces, dims)])))
+        path.write_text(json.dumps(minimal_plan([_part(blocks, interfaces, dims, probes)])))
         monkeypatch.setenv("CQ_PLAN", str(path))
         return path
 
@@ -112,6 +115,21 @@ def test_plan_probes_from_interfaces():
     assert ("empty_at", "bore") in kinds and ("ray", "bore") in kinds
     assert ("solid_at", "post") in kinds
     assert unprobed == ["seat", "loose"]
+
+
+def test_authored_probes_seed_the_registry():
+    hole = {"kind": "empty_at", "p": [0, 0, 2], "label": "M3 hole at center"}
+    rib = {"kind": "solid_at", "p": [15, 10, 2], "label": "rib", "instance": "rib"}
+    probes, _ = pr.plan_probes(_part([], dims=(40, 30, 4), probes=[hole, rib]))
+    assert probes[-2].p == (0, 0, 2) and probes[-2].label == "M3 hole at center"
+    reg = pr.Registry()
+    reg.add(probes, "plan")
+    box = cq.Workplane("XY").box(40, 30, 4, centered=(True, True, False))
+    _, failed = reg.check(box.val(), final=True)
+    assert [f["label"] for f in failed] == ["M3 hole at center"]
+    assert reg.check(box.faces(">Z").hole(5).val(), final=True) == (3, [])
+    assert reg.check(box.val())[0] == 1
+    assert reg.check(box.val(), armed={"rib"})[0] == 2
 
 
 # --- Part: plan binding --------------------------------------------------------------
@@ -209,6 +227,24 @@ def test_plan_probe_without_instance_is_checked_at_result(plan):
     part.place(plate, op="base")
     with pytest.raises(RuntimeError, match="probe_failed.*m1"):
         part.result()
+
+
+def test_authored_probe_fails_at_result(plan):
+    plan(blocks=[PLATE], probes=[{"kind": "empty_at", "p": [0, 0, 2], "label": "M3 hole"}])
+    part = Part("plate")
+    plate = part.select("box", id="plate")
+    part.resize(plate)
+    part.place(plate, op="base")
+    with pytest.raises(RuntimeError, match="probe_failed.*M3 hole"):
+        part.result()
+
+
+def test_authored_probe_point_changes_step_key(plan):
+    probe = {"kind": "empty_at", "p": [0, 0, 2], "label": "M3 hole"}
+    plan(probes=[probe])
+    key = Part("plate").key
+    plan(probes=[{**probe, "p": [0, 0, 3]}])
+    assert Part("plate").key != key
 
 
 def test_cut_retires_overlapped_block_probe(plan):
@@ -371,7 +407,7 @@ def test_pair_block_members_place_into_their_unions(plan):
     part.place(h, op="base", member="leaf_a", into="leaf_a")
     part.place(h, op="base", member="leaf_b", into="leaf_b")
     result = part.result()
-    assert sorted(result) == ["leaf_a", "leaf_b"]
+    assert isinstance(result, dict) and sorted(result) == ["leaf_a", "leaf_b"]
     assert {p.label for p in part.registry.probes if p.owner != "plan"} == {
         "leaf_a",
         "leaf_b",
