@@ -148,6 +148,55 @@
               "additionalProperties": false
             }
           },
+          "probes": {
+            "type": "array",
+            "description": "Authored intent checks in the part's build pose (same frame as interfaces[].position_mm), seeded into a step script's probe registry as plan-owned probes. Use for request dimensions no positioned, sized interface covers; bracket a wall or step height with a solid_at/empty_at pair. Keep points at least 0.1 mm off any surface.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": ["kind", "p", "label"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {"enum": ["solid_at", "empty_at"]},
+                    "p": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "label": {"type": "string", "minLength": 1, "description": "The request or plan fact this probe checks"},
+                    "instance": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "blocks_needed instance id whose place step arms this probe; omit to check only at the final check"}
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "p", "dir", "hits", "label"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {"const": "ray"},
+                    "p": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "dir": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "hits": {"type": "integer", "minimum": 0},
+                    "length": {"type": "number", "exclusiveMinimum": 0},
+                    "label": {"type": "string", "minLength": 1},
+                    "instance": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "label"],
+                  "anyOf": [{"required": ["lo", "hi"]}, {"required": ["size"]}],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {"const": "bbox"},
+                    "lo": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "hi": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "size": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "tol": {"type": "number", "minimum": 0},
+                    "mode": {"enum": ["exact", "within"]},
+                    "label": {"type": "string", "minLength": 1},
+                    "instance": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+                  }
+                }
+              ]
+            }
+          },
           "blocks_needed": {
             "type": "array",
             "description": "Blocks from inventory.json required for this part. Each item is either a block name string, or an object carrying the block name plus its instance extents (enables the script-level thin-block DFM check before any code is generated).",

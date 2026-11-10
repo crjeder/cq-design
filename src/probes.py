@@ -12,7 +12,9 @@ Kinds (all points in the frame of the body they are checked against):
 - ``delta(sign)`` -- volume change of a ``place`` step (checked by the step itself).
 
 A ``Registry`` accumulates probes with an owner (``"plan"`` or a step index) and
-re-checks all of them after every step. A block-owned point probe that lies inside a
+re-checks all of them after every step. Plan-owned probes come from the plan part entry:
+the envelope, the interface-type table below, and the part's authored ``probes[]``
+entries (same field names as ``Probe``). A block-owned point probe that lies inside a
 later step's tool is retired by that step; plan-owned probes never retire.
 
 Usage:
@@ -283,6 +285,11 @@ def plan_probes(part: dict) -> tuple[list[Probe], list[str]]:
         if t in THROUGH_TYPES and axis:
             found.append(ray(pos, axis, hits=0, length=2 * width, label=name))
         probes.extend(replace(p, instance=itf.get("instance")) for p in found)
+    for entry in part.get("probes", []):
+        fields: dict[str, Any] = {
+            k: tuple(v) if isinstance(v, list) else v for k, v in entry.items()
+        }
+        probes.append(Probe(**fields))
     return probes, unprobed
 
 
