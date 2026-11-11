@@ -162,9 +162,9 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" sourcing 
     --request-file build/sourcing_request.md
 ```
 
-It writes `build/sourcing_prompt.txt` and prints `{"out", "chars", "model"}`. Spawn the `cq-design-sourcing` agent with
-the prompt `Read <out> in full and follow it. Working directory: <absolute cwd>.` on the
-returned `model`. It returns a candidate table (source, platform, kind, license,
+It writes `build/sourcing_prompt.txt` and prints `{"out", "chars", "model", "agent_model"}`. Spawn the `cq-design-sourcing` agent with
+the prompt `Read <out> in full and follow it. Working directory: <absolute cwd>.` passing the
+returned `agent_model` as the Agent tool's `model`. It returns a candidate table (source, platform, kind, license,
 reusable, rung, notes) with each candidate already assigned a rung — take the best
 (lowest-numbered) fitting rung per the ladder above.
 

@@ -156,6 +156,23 @@ def test_builder_cli_prints_default_model_without_config(tmp_path, monkeypatch, 
     assert out["model"] == "claude-sonnet-5-5"
 
 
+def test_agent_model_alias():
+    assert rp.agent_model_alias("claude-sonnet-5-5") == "sonnet"
+    assert rp.agent_model_alias("claude-opus-5-5") == "opus"
+    assert rp.agent_model_alias("claude-haiku-4-5-20251001") == "haiku"
+    assert rp.agent_model_alias("claude-fable-5-1") == "fable"
+    assert rp.agent_model_alias("mystery-model") == "mystery-model"
+
+
+def test_builder_cli_prints_agent_model(tmp_path, monkeypatch, capsys):
+    plan, _ = _plan()
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert rp.main(["builder", "--plan", "BUILD_PLAN.json", "--part", "lid"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["model"], out["agent_model"]) == ("claude-sonnet-5-5", "sonnet")
+
+
 def test_every_eval_case_renders_without_placeholders(tmp_path):
     for case in sorted(p for p in CASES.iterdir() if p.is_dir()):
         plan = json.loads((case / "BUILD_PLAN.json").read_text(encoding="utf-8"))
