@@ -63,7 +63,7 @@ Taken once a candidate's agent-assigned `Rung` is `2` (STEP/BREP/IGES file for t
 or a mating component, with no parametric source available).
 
 - Import STEP/BREP with `from blocks import import_solid` / `import_solid(path)`, which
-  checks the solid and repairs an invalid one (IGES: `cq.importers`). A
+  checks the solid and heals one that fails the grader's validity check (IGES: `cq.importers`). A
   `step_unrepairable` error means the file is a broken solid: drop the candidate and
   continue with the next rung.
 - Scope it as **exactly** a dumb solid: a mating reference to measure against, or a

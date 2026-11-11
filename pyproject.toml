@@ -56,6 +56,7 @@ fem = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: needs the CADGenBench dataset (evals/runs/cadgenbench-data)"]
 
 # Quality tooling targets py310 (the project's minimum), NOT py313: CadQuery's OCC
 # kernel has no wheels for 3.13+, so requires-python is >=3.10,<3.13. Targeting the

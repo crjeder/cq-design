@@ -65,7 +65,7 @@ When the check fails, `import_solid` SHALL heal the shape in up to three stages.
 2. `small_edges`: `ShapeFix_Wireframe` at precision `heal_tol` with `ModeDropSmallEdges`, then `FixSmallEdges` and `FixWireGaps`.
 3. `small_faces`: `ShapeFix_FixSmallFace` at precision and max tolerance `heal_tol`.
 
-`heal_tol` SHALL be `max(0.1 mm, the shape's largest edge tolerance)`. After each stage, the stage output SHALL be written to STEP and read back, and the check SHALL run on the reloaded shape. The grader only ever sees the reloaded shape, and in-memory BRepCheck can disagree with it in both directions. `import_solid` SHALL return the reloaded shape of the first stage that passes the check and is within the volume limit. An OCC exception in a stage SHALL end the heal with `step_unrepairable`.
+`heal_tol` SHALL be `max(0.1 mm, the shape's largest edge tolerance)`. After each stage, the stage output SHALL be written to STEP and read back, and the check SHALL run on the reloaded shape. The grader only ever sees the reloaded shape, and in-memory BRepCheck can disagree with it in both directions. Stages SHALL chain on the in-memory output. `import_solid` SHALL return the in-memory shape of the first stage whose reload passes the check and is within the volume limit (re-exporting the reload is not guaranteed valid). An OCC exception in a stage SHALL end the heal with `step_unrepairable`.
 
 #### Scenario: Wire spike
 - **WHEN** a face's outer wire has a zero-width tail and BRepCheck reports `UnorientableShape` (CADGenBench 202)
