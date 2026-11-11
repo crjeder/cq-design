@@ -28,7 +28,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/scrip
    result = import_solid(r"<absolute path of the input>")
    ```
 
-   Run step 3's command on it once. A `[cq-design:step-repair]` line in `stdout` means the input was invalid and was repaired: quote it in the report. A `step_unrepairable` error means the input cannot be repaired within the volume limit: stop, deliver nothing, and report the error.
+   Run step 3's command on it once. A `[cq-design:step-repair]` line in `stdout` means the input failed the grader's validity check and was healed: quote it in the report. A `step_unrepairable` error means the input cannot be healed within the volume limit: stop, deliver nothing, and report the error.
 
 2. Create `build/<stem>_edited.py` with `script_ops.py new --code` (`<stem>` is the input file name without extension, so delivery is named `out/<stem>_edited.step`): the same `# step: import` section (never `cq.importers` directly), then the change as operations on that imported body only, each in its own `# step: <feature>` section -- `cut`/`union` with authored features (`from blocks import ...` where a block fits), or face/edge operations on it (a hole is resized by filling it and re-cutting). Never rebuild the part from scratch, and never translate, rotate or re-centre the import. Measure positions from the imported body (`result.val().BoundingBox()`, `.faces(">Z")`), not from guesses.
 
