@@ -57,3 +57,5 @@ def test_spawn_prose_passes_agent_model():
         assert hits, role
     prose = "\n".join(f.read_text(encoding="utf-8") for f in (ROOT / "skill").glob("phase*.md"))
     assert prose.count("agent_model") >= 5
+    for role in ROLES:
+        assert f"`cq-design:{role}`" in prose, role

@@ -110,6 +110,34 @@ def seed_default_files(working_dir: str) -> list[str]:
     return created
 
 
+_AGENTS_DIR = os.path.join(_SKILL_DIR, "agents")
+
+
+def install_agents(working_dir: str) -> list[str]:
+    """Copy agents/<role>.md to .claude/agents/cq-design-<role>.md when absent or different.
+
+    Only those five names are touched. Returns the copied file names.
+    """
+    dest_dir = os.path.join(working_dir, ".claude", "agents")
+    copied = []
+    for src_name in sorted(os.listdir(_AGENTS_DIR)):
+        if not src_name.endswith(".md"):
+            continue
+        name = f"cq-design-{src_name}"
+        src, dest = os.path.join(_AGENTS_DIR, src_name), os.path.join(dest_dir, name)
+        with open(src, "rb") as f:
+            data = f.read()
+        if os.path.exists(dest):
+            with open(dest, "rb") as f:
+                if f.read() == data:
+                    continue
+        os.makedirs(dest_dir, exist_ok=True)
+        with open(dest, "wb") as f:
+            f.write(data)
+        copied.append(name)
+    return copied
+
+
 def _resolve_command(command: str) -> str:
     """Substitute the `{session_cost_path}`/`{log_path}` placeholders."""
     return command.replace("{session_cost_path}", _SESSION_COST_PATH).replace(
@@ -304,6 +332,9 @@ def main() -> int:
     if created:
         noun = "directory" if len(created) == 1 else "directories"
         print(f"Created {len(created)} {noun}: {', '.join(created)}")
+
+    for name in install_agents(args.dir):
+        print(f"Installed agent .claude/agents/{name}")
 
     for name in seed_default_files(args.dir):
         print(f"Seeded {name} with defaults -- edit it to match your printer / model routing.")
