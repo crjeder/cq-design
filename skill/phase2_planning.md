@@ -19,7 +19,7 @@ user for printer, material, nozzle, and constraints; do not open `profile.json`
 yourself.
 
 Spawn the `cq-design-planner` agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
-on the render output's `model` (`models.planner`; a topology error here costs a rebuild of
+passing the render output's `agent_model` as the Agent tool's `model` (`models.planner`; a topology error here costs a rebuild of
 every part). It has no user channel. It writes
 `BUILD_PLAN.json` (indent 2) itself, runs `plan.py validate` itself, and retries against
 its own validator errors internally (up to 3 attempts, same convention as the builder

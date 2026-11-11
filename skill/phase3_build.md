@@ -60,7 +60,7 @@ reference from the user, restate it with the plan name and its callout badge num
   `skill_config.json` yourself for this. Value `"inline"`: do not spawn; follow the
   rendered builder prompt yourself, returning the same contract to yourself. Builders
   spawn as `cq-design-builder`. Auditors always run as fresh `cq-design-auditor` agents
-  (on the render output's `model`).
+  (pass the render output's `agent_model` as the Agent tool's `model`).
 - **Stages** come from the plan's `review_policy` (default `every_stage`): `every_stage`
   stages every part; `checkpoints` stages parts with an interface or 3+ blocks;
   `minimal` stages nothing and skips the profile stub. A user request for "show me each
@@ -83,7 +83,7 @@ For each part in `plan["parts"]`, in order (skip any part with `copy_of`: it has
        --plan BUILD_PLAN.json --part <part_id> --attempts build/attempts.jsonl [--override staged|autonomous]
    ```
    It writes `build/<part_id>_prompt.txt` and prints `{"out", "chars", "stages"}`.
-2. **Spawn** the `cq-design-builder` agent (model per Routing) with exactly this prompt:
+2. **Spawn** the `cq-design-builder` agent (`model` = `agent_model` per Routing) with exactly this prompt:
    `Read <out> in full and follow it. Working directory: <absolute cwd>.`
 3. **Handle each return** (the builder's JSON contract):
    - `stage_ready` -> **stage checkpoint**: tell the user the stage and `summary`, list
