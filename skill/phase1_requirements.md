@@ -64,7 +64,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" research 
 ```
 
 Spawn the `cq-design-research` agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
-on the render output's `model`. It returns a dimension table (status `confirmed`,
+passing the render output's `agent_model` as the Agent tool's `model`. It returns a dimension table (status `confirmed`,
 `single-source`, `conflict`, `missing`) and sources.
 
 ## Exit checkpoint

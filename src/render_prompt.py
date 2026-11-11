@@ -556,6 +556,11 @@ def render_sourcing(request: str) -> str:
     )
 
 
+def agent_model_alias(model_id: str) -> str:
+    """Agent-tool alias for a model id (first family name it contains), else the id."""
+    return next((a for a in ("fable", "opus", "sonnet", "haiku") if a in model_id), model_id)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -643,6 +648,9 @@ def main(argv: list[str] | None = None) -> int:
         "model",
         role_model({"audit": "auditor", "planning": "planner"}.get(args.kind, args.kind)),
     )
+    model = extra["model"]
+    assert isinstance(model, str)
+    extra["agent_model"] = agent_model_alias(model)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     print(json.dumps({"out": out.as_posix(), "chars": len(text), **extra}))
