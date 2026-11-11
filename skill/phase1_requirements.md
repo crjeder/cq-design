@@ -63,7 +63,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" research 
     --targets-file build/lookup_targets.md [--known-file build/known_context.md]
 ```
 
-Spawn the `cq-design-research` agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
+Spawn the `cq-design-research` agent (fall back to `cq-design:research` if the project agent is not offered) with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
 passing the render output's `agent_model` as the Agent tool's `model`. It returns a dimension table (status `confirmed`,
 `single-source`, `conflict`, `missing`) and sources.
 

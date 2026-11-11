@@ -126,6 +126,9 @@ Remarks:
   agent's prompt to a file and prints the configured `model`; main spawns the
   named agent with "read this file and follow it". The installers ship `agents/`
   (local install, no marketplace); the skill is not usable without them.
+  `/cq-design:init` also copies them to the project's `.claude/agents/cq-design-<role>.md`,
+  since the desktop app ignores `tools:`/`model:` on plugin-loaded agents; spawns prefer
+  the project copy and fall back to `cq-design:<role>`.
 
 ## Known tensions (measured, not assumed)
 

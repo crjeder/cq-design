@@ -1,6 +1,7 @@
 """Tests for src/init_permissions.py permission bootstrap."""
 
 import json
+from pathlib import Path
 
 import init_permissions
 
@@ -241,3 +242,21 @@ def test_merge_hooks_replaces_stale_install_path(tmp_path):
     assert old not in commands
     assert len(commands) == 1 and commands[0].endswith('session_cost.py" --hook')
     assert init_permissions.merge_hooks(str(tmp_path)) is False
+
+
+def test_install_agents(tmp_path):
+    names = [f"cq-design-{r}.md" for r in ("auditor", "builder", "planner", "research", "sourcing")]
+    other = tmp_path / ".claude" / "agents" / "my-reviewer.md"
+    other.parent.mkdir(parents=True)
+    other.write_text("mine", encoding="utf-8")
+
+    assert init_permissions.install_agents(str(tmp_path)) == names
+    agents = tmp_path / ".claude" / "agents"
+    for name in names:
+        src = Path(init_permissions._AGENTS_DIR) / name.removeprefix("cq-design-")
+        assert (agents / name).read_bytes() == src.read_bytes()
+
+    (agents / names[1]).write_text("stale", encoding="utf-8")
+    assert init_permissions.install_agents(str(tmp_path)) == [names[1]]
+    assert init_permissions.install_agents(str(tmp_path)) == []
+    assert other.read_text(encoding="utf-8") == "mine"
