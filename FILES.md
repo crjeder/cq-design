@@ -89,7 +89,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
       hardware.py            # cq_warehouse-backed fastener geometry
       joints.py              # dovetail_groove / dovetail_tongue sliding joints
       gridfinity.py          # Gridfinity bins, baseplates, feet, socket cutters (42 mm grid standard)
-      imported.py            # import_solid: checked STEP/BREP import with topological repair
+      imported.py            # import_solid: grader-criterion STEP/BREP import with staged ShapeFix heal
       inventory.json         # Machine-readable block descriptors
       inventory_schema.json  # JSON Schema for inventory.json
       validate.py            # Inventory loader + validator
@@ -158,7 +158,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_cadprompt_bench.py          # CADPrompt scoring (normalize/ICP/Chamfer/IoU) -- no CadQuery
     test_cadgenbench_run.py          # CADGenBench prompts, canonical pose + zip packaging (CadQuery)
     test_edit_command.py             # /cq-design:edit import -> diff -> STEP sequence, frame kept (CadQuery)
-    test_import_solid.py             # import_solid repair ladder + wrapper invalid_brep/step_unrepairable (CadQuery)
+    test_import_solid.py             # import_solid staged heal + wrapper invalid_brep/step_unrepairable (CadQuery)
     test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # profile.json schema + write-back -- fast, no CadQuery

@@ -148,7 +148,9 @@ def _tessellate(shape, deflection: float) -> tuple[np.ndarray, np.ndarray]:
         far = float(np.abs(pts[nodes] - np.array([vp.X(), vp.Y(), vp.Z()])).max())
         if far > deflection:
             raise MeshGateError(
-                f"vertex #{vi}: an edge endpoint node is {far:.3e} mm from the vertex"
+                f"vertex #{vi}: an edge endpoint node is {far:.3e} mm from the vertex "
+                f"(> deflection {deflection} mm); edge polygon orientation is "
+                "inconsistent with FirstVertex/LastVertex"
             )
         for n in nodes[1:]:
             union(nodes[0], n)
@@ -228,8 +230,8 @@ def _pinch_vertices(tris: np.ndarray, n_v: int) -> int:
     return int((cycles > 1).sum())
 
 
-def mesh_gate_error(shape) -> str | None:
-    """None if `shape` passes the grader's mesh gate after a STEP round trip, else the reason."""
+def step_roundtrip(shape):
+    """`shape` written to STEP and read back as one compound (what the grader sees)."""
     import cadquery as cq
 
     fd, path = tempfile.mkstemp(suffix=".step")
@@ -237,11 +239,16 @@ def mesh_gate_error(shape) -> str | None:
     try:
         cq.Shape.cast(shape).exportStep(path)
         loaded = cq.importers.importStep(path)
-        wrapped = cq.Compound.makeCompound(
+        return cq.Compound.makeCompound(
             [v for v in loaded.vals() if isinstance(v, cq.Shape)]
         ).wrapped
     finally:
         os.remove(path)
+
+
+def mesh_gate_error(shape) -> str | None:
+    """None if `shape` passes the grader's mesh gate after a STEP round trip, else the reason."""
+    wrapped = step_roundtrip(shape)
     from OCP.Bnd import Bnd_Box
     from OCP.BRepBndLib import BRepBndLib
 
