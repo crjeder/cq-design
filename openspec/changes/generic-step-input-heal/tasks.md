@@ -28,5 +28,5 @@
 ## 5. Benchmark verification
 
 - [x] 5.1 Export the healed inputs for 202, 217, 240 and 250 through `import_solid` and run the dataset's `sanity_check_submission.py` on each (all PASS)
-- [ ] 5.2 Re-run the cadgenbench edit fixtures 202 and 240 with `evals/cadgenbench_run.py --fixtures 202,240` and record the sanity results
+- [x] 5.2 Re-run the cadgenbench edit fixtures 202 and 240 with `evals/cadgenbench_run.py --fixtures 202,240` and record the sanity results (2026-11-11, reinstalled plugin: 202 PASS, 240 PASS)
 - [x] 5.3 Run the new mesh gate over the cgb-merged edit outputs that currently pass and confirm there are no new `invalid_mesh` reasons
