@@ -59,7 +59,7 @@ reference from the user, restate it with the plan name and its callout badge num
   `models.part_author` in `skill_config.json`; absent: Sonnet-class). Do not read
   `skill_config.json` yourself for this. Value `"inline"`: do not spawn; follow the
   rendered builder prompt yourself, returning the same contract to yourself. Builders
-  spawn as `cq-design-builder`. Auditors always run as fresh `cq-design-auditor` agents
+  spawn as `cq-design-builder` (fall back to `cq-design:builder` if the project agent is not offered). Auditors always run as fresh `cq-design-auditor` agent (fall back to `cq-design:auditor` if not offered)s
   (pass the render output's `agent_model` as the Agent tool's `model`).
 - **Stages** come from the plan's `review_policy` (default `every_stage`): `every_stage`
   stages every part; `checkpoints` stages parts with an interface or 3+ blocks;

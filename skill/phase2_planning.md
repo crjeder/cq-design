@@ -18,7 +18,7 @@ Pass `--plan` only on a re-plan. It writes `build/planning_prompt.txt` and print
 user for printer, material, nozzle, and constraints; do not open `profile.json`
 yourself.
 
-Spawn the `cq-design-planner` agent with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
+Spawn the `cq-design-planner` agent (fall back to `cq-design:planner` if the project agent is not offered) with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
 passing the render output's `agent_model` as the Agent tool's `model` (`models.planner`; a topology error here costs a rebuild of
 every part). It has no user channel. It writes
 `BUILD_PLAN.json` (indent 2) itself, runs `plan.py validate` itself, and retries against
