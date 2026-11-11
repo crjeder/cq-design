@@ -44,3 +44,16 @@ def test_no_general_purpose_spawn_in_prose():
     files = [ROOT / "SKILL.md", *(ROOT / "skill").glob("*.md"), *(ROOT / "commands").glob("*.md")]
     for f in files:
         assert "general-purpose" not in f.read_text(encoding="utf-8"), f
+
+
+def test_spawn_prose_passes_agent_model():
+    for role in ROLES:
+        hits = [
+            line
+            for f in (ROOT / "skill").glob("phase*.md")
+            for line in f.read_text(encoding="utf-8").splitlines()
+            if f"cq-design-{role}" in line and "spawn" in line.lower()
+        ]
+        assert hits, role
+    prose = "\n".join(f.read_text(encoding="utf-8") for f in (ROOT / "skill").glob("phase*.md"))
+    assert prose.count("agent_model") >= 5
