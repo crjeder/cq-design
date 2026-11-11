@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by syncing change preview-feature-frames. Update Purpose after archive.
+TBD - per-feature frames, views and a relevance-ranked preview sheet.
 
 ## Requirements
 
