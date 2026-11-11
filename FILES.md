@@ -6,7 +6,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
 ```
 .
   .claude-plugin/        # plugin.json (skills: ["."]) + marketplace.json; repo root is the plugin root
-  agents/                # Role agents (sourcing research planner builder auditor): minimal tools + model; installers ship them
+  agents/                # Role agents (sourcing research planner builder auditor): minimal tools + model; installers ship them; init copies to .claude/agents/cq-design-<role>.md
   commands/              # /cq-design:design plan edit init update build render status
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)

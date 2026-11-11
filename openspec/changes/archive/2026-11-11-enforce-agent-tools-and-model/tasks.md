@@ -14,15 +14,15 @@
 
 ## 3. Project-level agent copies (only if 1.3 passed)
 
-- [ ] 3.1 `src/init_permissions.py`: copy `agents/<role>.md` to `.claude/agents/cq-design-<role>.md` when absent or different, print each copied file, and touch nothing else in `.claude/agents/`
-- [ ] 3.2 Rename each `agents/*.md` frontmatter `name` if needed so it equals `cq-design-<role>` (it already does; assert it in `tests/test_agents.py`)
-- [ ] 3.3 `tests/test_init_permissions.py`: fresh dir gets five identical copies, a stale copy is refreshed, an unrelated agent file is untouched, and a second run reports no changes
-- [ ] 3.4 Spawn prose: name `cq-design-<role>`, with `cq-design:<role>` as the fallback when the project agent is not offered
-- [ ] 3.5 `commands/init.md`: mention the agent copies in the report step
-- [ ] 3.6 `ARCHITECTURE.md` agent roster and `FILES.md`: note the project copies
+- [x] 3.1 `src/init_permissions.py`: copy `agents/<role>.md` to `.claude/agents/cq-design-<role>.md` when absent or different, print each copied file, and touch nothing else in `.claude/agents/`
+- [x] 3.2 Rename each `agents/*.md` frontmatter `name` if needed so it equals `cq-design-<role>` (it already does; assert it in `tests/test_agents.py`)
+- [x] 3.3 `tests/test_init_permissions.py`: fresh dir gets five identical copies, a stale copy is refreshed, an unrelated agent file is untouched, and a second run reports no changes
+- [x] 3.4 Spawn prose: name `cq-design-<role>`, with `cq-design:<role>` as the fallback when the project agent is not offered
+- [x] 3.5 `commands/init.md`: mention the agent copies in the report step
+- [x] 3.6 `ARCHITECTURE.md` agent roster and `FILES.md`: note the project copies
 
 ## 4. Verify
 
-- [ ] 4.1 `uv run pytest tests/test_render_prompt.py tests/test_init_permissions.py tests/test_agents.py`
-- [ ] 4.2 Prose test: each role's spawn instruction names `agent_model`, and `cq-design-<role>` if group 3 landed (extend `tests/test_agents.py`)
+- [x] 4.1 `uv run pytest tests/test_render_prompt.py tests/test_init_permissions.py tests/test_agents.py`
+- [x] 4.2 Prose test: each role's spawn instruction names `agent_model`, and `cq-design-<role>` if group 3 landed (extend `tests/test_agents.py`)
 - [ ] 4.3 After init in a fresh desktop session, spawn the builder from the skill flow and confirm Sonnet with the 6 tools in its `.prefix.json`
