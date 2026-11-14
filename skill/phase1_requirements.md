@@ -55,7 +55,7 @@ up any real object the bin holds (its size picks the units via `gridfinity_units
 
 **Research agent.** Write the lookup targets (one bullet per item and what it is for) to
 `build/lookup_targets.md`. When Phase 0 ran, or the user stated dimensions, write that known
-context (user values plus the sourcing agent's candidate rows as URL + what it gave) to
+context (user values plus the validated sourcing candidates as URL + kind + license; never `notes`) to
 `build/known_context.md` -- the research agent does not repeat Phase 0's search. Render:
 
 ```bash
@@ -64,8 +64,18 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" research 
 ```
 
 Spawn the `cq-design-research` agent (fall back to `cq-design:research` if the project agent is not offered) with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
-passing the render output's `agent_model` as the Agent tool's `model`. It returns a dimension table (status `confirmed`,
-`single-source`, `conflict`, `missing`) and sources.
+passing the render output's `agent_model` as the Agent tool's `model`. It returns one JSON `rows` block
+(status `confirmed`, `single-source`, `conflict`, `missing`). Write that block verbatim to
+`build/research_result.json` and validate it:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/web_result.py" validate --kind research build/research_result.json
+```
+
+Build the dimension table, `parameters.py` and every later step from `data` only, and show
+the user `display_markdown`. `notes` are display-only: never copy them into `known_context.md`,
+`BUILD_PLAN.json`, a prompt or a script. On `success: false`, resume the same agent once with
+the `errors`; if the second result also fails, proceed as if nothing was found.
 
 ## Exit checkpoint
 
@@ -110,7 +120,7 @@ entry's `ts`; with only an `initial` entry, no stamp is needed.
 
 In the same turn, write `parameters.py` at the project root: every real-world measurement
 the design rests on (table rows with their status, and user-stated values), one commented
-constant each, ending the line with an origin tag: `# user`, `# researched: <source>`,
+constant each, ending the line with an origin tag: `# user`, `# researched: <source>` (cite a validated `source_urls` entry),
 `# assumed`, or (Phase 2 only) `# design choice`. `parameters.py` is the single source of
 every dimension: Phase 2 plan params are expressions over these names, so editing a
 constant here reaches the build. Skip only when there are none.
