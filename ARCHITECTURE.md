@@ -31,8 +31,8 @@ flowchart TB
         FINISH["Deterministic finish - programs, no LLM:<br>print orientation, model export +<br>whole-model checks (kinematic, plate<br>clearance, keep-out), quality gate, deliver"]
     end
 
-    SOURCING["SOURCING AGENT<br>web search, Thingiverse/Printables/MakerWorld,<br>reads descriptions/comments/license.<br>Returns a candidate table only -<br>page snapshots die here."]
-    RESEARCH["RESEARCH AGENT<br>web search, spec pages, community models,<br>measure_stl reverse-engineering.<br>Returns the validation table only -<br>page snapshots die here."]
+    SOURCING["SOURCING AGENT<br>web search, Thingiverse/Printables/MakerWorld,<br>reads descriptions/comments/license.<br>Returns validated JSON only (web_result.py) -<br>page snapshots die here."]
+    RESEARCH["RESEARCH AGENT<br>web search, spec pages, community models,<br>measure_stl reverse-engineering.<br>Returns validated JSON only (web_result.py) -<br>page snapshots die here."]
     PLANNER["PLANNER AGENT - strong model (Fable/Opus)<br>rendered prompts/planning.md in,<br>BUILD_PLAN.json out.<br>Topology errors cost a full rebuild,<br>so this is where model strength pays."]
     PV["plan.py validate<br>(program)"]
     BUILDER["PART BUILDER AGENT x N - cheaper model (Sonnet),<br>parallelizable. One agent per part.<br>Internal loop, max 3 attempts:<br>write - lint - validate - render - self-check.<br>Draft and refine are ONE agent: retries keep<br>memory of what already failed.<br>Images and retry noise die here."]

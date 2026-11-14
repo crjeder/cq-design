@@ -67,6 +67,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
     model_prices.json        # Editable USD-per-MTok table (session_cost.py, evals/run_evals.py)
     regen_prompt.py          # BUILD_PLAN.json + parameters.py + sketches/ -> REGENERATE.md (Phase 4)
     measure_stl.py           # Geometry feature extractor (trimesh + numpy)
+    fetch_stl.py             # Bounded reference-STL download into build/refs/
+    web_result.py            # Validates sourcing/research agent JSON; typed data + display table
     diff_models.py           # Two-STL diff: volume summary JSON + gray/red/green diff PNG (trimesh + manifold3d)
     preview.py               # CadQuery tessellation + z-buffered preview renderer
     zbuffer.py               # numpy z-buffer rasterizer + orthographic camera (no OpenGL)
