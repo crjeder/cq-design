@@ -18,15 +18,8 @@ V1.0 is released. Completed tasks are in `documentation/DONE.md`.
 
 ## Defects
 
-- [ ] every feature which is named in prose has to be shown and named in preview.
-- [x] always write the files in print position
 - [ ] LLM didn’t follow the full cq-design pipeline. Its working folder has no BUILD_PLAN.json and no build/: just a part.py and two STEP files in out/ (model.step and part.step). The editing run seems to have taken a shortcut. It may need a prompt change if you want editing tasks to go through the real skill.
 fix: let the program own the pipeline not the llm. exeption for edits.
-- [x] `session_cost.py` misreports cost: counts each API call once per transcript line (159 vs 96 calls), never reads `<session>/subagents/*.jsonl`, prices `claude-opus-5-5` / `claude-sonnet-5-5` at the $15/$15 default ([details](#siebtragerhalter-session-2026-11-04))
-- [x] session cost driven by context re-reads: main session relays every checkpoint at 84k-198k tokens of context, each of 6 sub-agents starts at 61k tokens, all but the builder run Opus ([details](#siebtragerhalter-session-2026-11-04)) -- change `reduce-session-cost`: named agents (minimal tools, Sonnet for sourcing/research/builder/audit), journal side effects, partial rebuild; auditor-on-Sonnet eval (task 2.5) still to run
-- [x] `parameters.py` is never imported: plan params are hand-copied derived numbers (71 = 70 + 1, 62.5, 33.5), so editing a sourced measurement changes nothing ([details](#siebtragerhalter-session-2026-11-04))
-- [x] cross-section previews are uninformative: the section cap gets the same flat shade as every parallel face behind it, and the cut positions come from the interface centre along the wall normal, not across the feature ([details](#siebtragerhalter-session-2026-11-04))
-- [x] feature callouts sit only on the orthographic panels, which have no edge lines, so the features they point at are invisible there; the isometric panel, where they can be seen, gets no labels ([details](#siebtragerhalter-session-2026-11-04))
 
 ## Backlog
 
@@ -39,16 +32,6 @@ fix: let the program own the pipeline not the llm. exeption for edits.
 - [ ] tool to produce cable traces where cables are held press fit
 - [ ] [step.parts](https://www.step.parts) integration like: https://github.com/earthtojake/text-to-cad/blob/main/skills/step-parts/SKILL.md
 - [ ] change rules into advisories: make holes drop shaped --> hole found. consider drop shape like [DfAM Check](https://github.com/earthtojake/text-to-cad/blob/main/skills/dfam-check/SKILL.md)
-- [x] edit mode (import step) and apply changes -- `/cq-design:edit`
-- [x] review [burr](https://crates.io/crates/burr)
-- [ ] Interference check across all parts at rest (a real gap)
-Varen: its assembly export checks every pair of parts for overlap, with a quick bounding-box pass first. A table of expected overlaps lets intended ones through, such as gear mesh or press fits, each with a volume limit and a reason.
-cq-design today: only three overlap checks exist, and none tests every pair of parts:
-kinematic_check.py checks parts that move, but only for declared kinematics entries.
-plate_clearance_check.py only compares unions on the same plate.
-keep_out_check.py only checks declared zones.
-Result: a lid sitting 1 mm inside its box, with no joint declared, passes the gate. The src/interference.py docstring already lists this as its “next intended caller”.
-Fix: the overlap primitive exists (check_interference, which measures intersection volume). What’s needed is a new check that runs every pair of write_assembly.py STLs through it, plus an optional plan field listing allowed overlaps (a, b, max_volume_mm3, reason).
 - [ ] Hole checks against the solid geometry, never passing an ambiguous match
 Varen: it measures the cylindrical faces on the final solid (diameter, axis, span). A hole’s position is where the cylinder axis meets the host surface, not the cylinder’s own reported centre. A planned hole is checked only when exactly one cylinder matches it. The outcomes are MATCHED, AMBIGUOUS, NOT_FOUND and UNAVAILABLE, and AMBIGUOUS never passes.
 cq-design today: feature_presence_check.py:24 says plainly that holes made with .hole/.cboreHole are “out of first scope”. measure_stl.py finds cylinders from the mesh only.
@@ -61,12 +44,10 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 
 - [ ] generic parametric SCAD importer -> build blocks on the fly
 - [ ] search tool for specific parametric cadquery / SCAD / build123d models
-- [x] optimization: https://github.com/yeicor-3d/dl4to4ocp -- rejected not relevant for FDM
 - [ ] Restructure to combat context creep -- [details](#context-creep-restructure)
 - [ ] "Activate" all necessary knowledge domains in the LLM -- [details](#knowledge-domain-activation-audit)
 - [ ] the skill should have a way to distinguish between geometry which is fixed and one that is flexible and can be changed by the skill any time e. g. during optimization
 - [ ] generate testable statements from user intent (different agent then planer)
-- [x] replace ascii-art with SVG illustrations
 
 ### Kinematic, Joints and Simulation
 
@@ -101,14 +82,11 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Add textures capability
-- [x] Multi color support (same material): union `object` + `filament` -> one slicer object with per-body extruder (change `multi-color-3mf-export`)
-- [x] Multi material support: per-part/union `material` + `color`, automatic filament slots, `max_materials` warning (change `multi-material-planning`) -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties -- boundaries are treated as non-sticky (no adhesion assumed, touching is silent); still open: multi-material FEM, per-union density within one part
 - [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible) -- layer height and infill already exported via `--formats estampo`; walls/support/brim remain
 
 ### Optimisation
 
-- [ ] 3. `quality_gate.py` runs once per union and re-runs the whole-model stages (kinematic, plate clearance, keep-out) each time, reloading every STL. Fix: run them once per model, or cache on manifest + plan hash. Gain: high on multi-part plans
 - [ ] 4. `kinematic_check.py` sweep: per-pose `mesh.copy()` + `apply_transform`, full-resolution manifold booleans, 8 bisect steps x azimuths, STL reload and `CollisionManager` rebuild per entry. Fix: load/build once, set the fcl transform instead of copying, decimate or bbox-gate the boolean. Gain: high on plans with joints
 - [ ] 7. Repeated tessellation per union (3MF at 0.01, STL, shim default, preview per view) and a 0.01 mesh feeding all trimesh analysis. Fix: tessellate once for STL + 3MF, coarser tolerance (~0.02-0.05) for analysis STLs. Gain: medium, compounds with 1, 4, 5, 6
 - [ ] 9. `preview.py`: per-triangle Python shading, per-triangle `verts[list(f)]`, re-tessellation per panel/section. Fix: vectorized `np.cross` shading, `verts[faces]`, tessellate once. Gain: medium
@@ -168,24 +146,6 @@ Order matters: 1 produces the evidence 4 needs, 2 and 3 cut fix-loop failures,
   - Done when: a scorecard row shows wall time and render count, and a log written
     before this change still scores.
 
-- [x] **2. Pre-kernel parameter predicates** (source: harnesscad, rated High)
-  - Why: `script_lint.py` is AST-only (cannot relate a fillet radius to an edge length)
-    and `cq_verify.py` fires after the boolean. A bad fillet/chamfer reaches OCC and
-    returns `Standard_ConstructionError`/`StdFail_NotDone`, a vague error.
-  - Do: add `check_fillet(body, radius, selector=None, label="")`,
-    `check_chamfer(...)` and `check_ligament(wall_mm, hole_d_mm, min_mm, label="")` to
-    `src/cq_verify.py`. They measure the selected edges/faces with CadQuery and raise
-    the module's marked `RuntimeError` (`_fail(kind, label, detail)`) with new kinds
-    `fillet_radius`, `chamfer_size`, `thin_ligament`. Use the radius-vs-edge rule that
-    `prompts/part.md` already states in its fillet/chamfer safety line; do not invent a
-    new threshold. Register the kinds in `_VERIFY_HINTS` in `src/run_cadquery_model.py`
-    (that dict is what turns a marker into a typed error with a hint). Document the
-    helpers in the "Construction-time verification" section of `prompts/part.md`.
-  - Test: `tests/test_cq_verify.py`: radius too large raises with the kind and label;
-    valid radius returns the body unchanged; `tests/test_run_wrapper.py`: marker maps to
-    the typed error.
-  - Done when: an over-large fillet in a fixture script yields `errors[0].type ==
-    "fillet_radius"` with a hint, not an OCC exception.
 
 - [ ] **3. Scoped repair patches + attempt history in the fix loop** (source: MLYengineering/Text2CAD, rated Medium-High)
   - Why: `quality_gate._render_fix_prompt` asks `claude -p` to output the whole script
@@ -270,24 +230,6 @@ Order matters: 1 produces the evidence 4 needs, 2 and 3 cut fix-loop failures,
   - Done when: editing a part to remove a large feature produces one warning naming
     the old and new volume.
 
-- [x] **8. Multi-color / multi-material 3MF export** (done by changes `multi-color-3mf-export` (`object`/`filament` on unions, Bambu component layout) and `multi-material-planning` (per-union `material`/`color`, automatic slots from distinct material+color, `max_materials`); no `basematerials`) (source: OzAILabs/Claude-To-Print, rated High; backlog item "Multi color / material support")
-  - Why: `exporters/threemf_multi.py` writes one named object per union plus Bambu/Orca
-    plate metadata (`_model_settings_config`), but no per-object color or filament.
-  - Do: (a) schema: optional `color` (`#RRGGBB`) and `filament` (1-based slot) on a
-    part and on a `unions[]` entry (resolution like `units.plate_of`: union, then
-    part, else none). (b) `write_named_3mf` takes an optional per-object
-    `{color, filament}`; write `<basematerials>` + `pid`/`pindex` in
-    `3D/3dmodel.model` for the color and the slicer's extruder metadata in
-    `Metadata/model_settings.config`. Verify the exact Bambu/Orca key names against
-    BambuStudio's `bbs_3mf.cpp` first, as the existing plate code did; do not guess
-    them. (c) `deliverables._write_3mf` passes the values; `plan.py summary` shows a
-    color column; `prompts/planning.md` rule: split by union, one color per union (a
-    color boundary inside one solid is out of scope). (d) STL/STEP exports unchanged.
-  - Test: `tests/test_assembly_and_deliverables.py`: two unions with different filament
-    produce two distinct extruder entries; zero-color plan output is byte-identical to
-    today's.
-  - Done when: a two-color fixture opens in OrcaSlicer with two filaments assigned
-    (manual check, noted in the change).
 
 - [ ] **9. Per-project design-rule file + assertions** (source: cad-khana / FreeCAD-AI, rated Medium-High)
   - Why: DFM limits live in `plan.constraints` and `profile.json`; there is no way to
