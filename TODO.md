@@ -104,7 +104,7 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 - [x] Multi color support (same material): union `object` + `filament` -> one slicer object with per-body extruder (change `multi-color-3mf-export`)
 - [x] Multi material support: per-part/union `material` + `color`, automatic filament slots, `max_materials` warning (change `multi-material-planning`) -- [details](#multi-color-material-support-claude-to-print)
 - [ ] Engineering of multi-material interfaces and properties -- boundaries are treated as non-sticky (no adhesion assumed, touching is silent); still open: multi-material FEM, per-union density within one part
-- [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible) -- layer height and infill already exported via `--formats estampo`; walls/support/brim remain
+- [x] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible) -- layer height and infill already exported via `--formats estampo`; walls/support/brim remain
 
 ### Optimisation
 
