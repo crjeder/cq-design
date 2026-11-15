@@ -156,7 +156,16 @@ def bed_contact_mask(mesh, centroids_z=None):
     min_z = float(mesh.vertices[:, 2].min())
     if centroids_z is None:
         centroids_z = mesh.triangles_center[:, 2]  # cached: shared by every call on this pose
-    return (mesh.face_normals[:, 2] < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
+    return bed_mask_from(mesh.face_normals[:, 2], centroids_z, min_z)
+
+
+def bed_mask_from(normals_z, centroids_z, min_z):
+    """Bed-contact mask from per-face normal z, centroid z and the pose's floor height.
+
+    The single definition of bed contact: `bed_contact_mask` applies it to a posed mesh and
+    the orientation search applies it to rotated normals without posing the mesh.
+    """
+    return (normals_z < -0.5) & (centroids_z <= min_z + FIRST_LAYER_BAND_MM)
 
 
 # Lift-risk heuristic (after augura): a brim is advised when the bed contact is small or
