@@ -139,3 +139,22 @@ def test_pose_stability_finding_reports_shift_and_keeps_none_when_stable():
     assert stable is None
     assert shifted is not None
     assert shifted["type"] == "pose_shift" and shifted["union"] == "slab"
+
+
+def test_orientation_for_coarser_tolerance_scores_a_smaller_mesh(monkeypatch):
+    import print_finishing
+
+    seen = []
+
+    def record(mesh, *args, **kwargs):
+        seen.append(len(mesh.faces))
+        return {}
+
+    monkeypatch.setattr(print_finishing, "optimize_orientation", record)
+    # A fresh solid per call: OCC keeps a shape's triangulation and will not re-mesh it coarser.
+    print_finishing.orientation_for(cq.Workplane("XY").sphere(15), {}, 45.0, "strength")
+    print_finishing.orientation_for(
+        cq.Workplane("XY").sphere(15), {}, 45.0, "strength", tolerance=0.2, angular_tolerance=0.5
+    )
+    default_faces, coarse_faces = seen
+    assert coarse_faces < default_faces

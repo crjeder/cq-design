@@ -22,10 +22,17 @@ def test_agent_frontmatter_and_minimal_tools():
         fm = _front(role)
         assert fm["name"] == f"cq-design-{role}"
         tools = json.loads(fm["tools"])
-        assert "Bash" in tools and "Read" in tools
+        assert "Read" in tools
+        if role not in ("sourcing", "research"):
+            assert "Bash" in tools
         assert not any(h in t for t in tools for h in HEAVY)
         web = {"WebSearch", "WebFetch"} & set(tools)
         assert bool(web) == (role in ("sourcing", "research"))
+
+
+def test_web_agents_minimal_tools():
+    assert json.loads(_front("sourcing")["tools"]) == ["Read", "WebSearch", "WebFetch"]
+    assert json.loads(_front("research")["tools"]) == ["Read", "Bash", "WebSearch", "WebFetch"]
 
 
 def test_models_cheap_roles_sonnet_planner_opus():
@@ -57,3 +64,5 @@ def test_spawn_prose_passes_agent_model():
         assert hits, role
     prose = "\n".join(f.read_text(encoding="utf-8") for f in (ROOT / "skill").glob("phase*.md"))
     assert prose.count("agent_model") >= 5
+    for role in ROLES:
+        assert f"`cq-design:{role}`" in prose, role

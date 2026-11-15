@@ -612,14 +612,13 @@ def test_shared_bed_mask_leaves_metrics_unchanged():
 
 def test_optimize_orientation_evaluates_bed_mask_once_per_pose(monkeypatch):
     calls = [0]
-    real = print_orientation.bed_contact_mask
+    real = print_orientation.bed_mask_from
 
-    def counted(mesh, *args):
+    def counted(*args):
         calls[0] += 1
-        return real(mesh, *args)
+        return real(*args)
 
-    monkeypatch.setattr(print_orientation, "bed_contact_mask", counted)
-    monkeypatch.setattr(print_orientation, "_bed_contact_mask", counted)
+    monkeypatch.setattr(print_orientation, "bed_mask_from", counted)
     box = trimesh.creation.box([30.0, 20.0, 10.0])
     optimize_orientation(box, overhang_deg=45.0)
     assert calls[0] == len(enumerate_candidate_normals(box))
@@ -633,3 +632,146 @@ def test_base_face_areas_equal_posed_face_areas():
     posed.apply_transform(rotation)
     fresh = trimesh.Trimesh(posed.vertices, posed.faces, process=False).area_faces
     assert np.allclose(mesh.area_faces, fresh)
+
+
+def _equivalence_meshes():
+    cone = trimesh.creation.cone(radius=10.0, height=25.0)
+    cyl = trimesh.creation.cylinder(radius=8.0, height=30.0, sections=24)
+    ball = trimesh.creation.icosphere(subdivisions=2)
+    ball.apply_scale([10.0, 14.0, 20.0])
+    tee = trimesh.util.concatenate(
+        [
+            trimesh.creation.box([40.0, 10.0, 6.0]),
+            trimesh.creation.box([8.0, 8.0, 30.0]).apply_translation([0.0, 0.0, 18.0]),
+        ]
+    )
+    slab = trimesh.creation.box([60.0, 40.0, 5.0])
+    return {"cone": cone, "cylinder": cyl, "ellipsoid": ball, "tee": tee, "slab": slab}
+
+
+@pytest.mark.parametrize("mode", print_orientation.OPTIMIZE_MODES)
+@pytest.mark.parametrize("name", ["cone", "cylinder", "ellipsoid", "tee", "slab"])
+@pytest.mark.parametrize("load", [None, [1.0, 0.0, 0.0]])
+def test_pruned_search_equals_exhaustive(name, mode, load):
+    mesh = _equivalence_meshes()[name]
+    kwargs = {"overhang_deg": 45.0, "load_dir": load, "optimize_for": mode}
+    full = optimize_orientation(mesh, prune=False, **kwargs)
+    fast = optimize_orientation(mesh, prune=True, **kwargs)
+    assert fast == full
+
+
+def test_pruning_scores_fewer_candidates_exactly(monkeypatch):
+    calls = {"n": 0}
+    real = print_orientation._support_metrics
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(print_orientation, "_support_metrics", counted)
+    cyl = trimesh.creation.cylinder(radius=8.0, height=30.0, sections=48)
+    optimize_orientation(cyl, overhang_deg=45.0, optimize_for="min_support", prune=True)
+    pruned = calls["n"]
+    calls["n"] = 0
+    optimize_orientation(cyl, overhang_deg=45.0, optimize_for="min_support", prune=False)
+    assert pruned < calls["n"] == len(enumerate_candidate_normals(cyl))
+
+
+def test_prune_lower_bound_never_exceeds_exact_support():
+    mesh = _equivalence_meshes()["tee"]
+    base = mesh.copy()
+    hull = np.asarray(mesh.convex_hull.vertices)
+    for normal in enumerate_candidate_normals(mesh):
+        rotation = _rotation_to_bed(normal)
+        nz, _, bed, _ = print_orientation._pose_arrays(
+            rotation, np.asarray(base.face_normals), np.asarray(base.triangles_center), hull
+        )
+        raw = print_orientation._raw_support_cost(nz, np.asarray(base.area_faces), bed, 45.0)
+        posed = base.copy()
+        posed.apply_transform(rotation)
+        exact, _ = _support_metrics(posed, 45.0)
+        lb = print_orientation.BRIDGE_COST_FACTOR * raw - print_orientation.SUPPORT_ROUNDING_SLACK
+        assert lb <= exact <= raw + print_orientation.SUPPORT_ROUNDING_SLACK
+
+
+def test_progress_lines_reported_with_callback(monkeypatch):
+    monkeypatch.setattr(print_orientation, "PROGRESS_INTERVAL_S", 0.0)
+    lines = []
+    cyl = trimesh.creation.cylinder(radius=8.0, height=30.0, sections=48)
+    optimize_orientation(cyl, overhang_deg=45.0, progress=lines.append)
+    assert lines
+    assert any("scan candidate" in line for line in lines)
+    assert all("elapsed" in line and "left" in line for line in lines)
+
+
+def test_no_progress_callback_prints_nothing(capsys):
+    optimize_orientation(trimesh.creation.box([20.0, 20.0, 20.0]), overhang_deg=45.0)
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err == ""
+
+
+def test_pose_arrays_match_posed_mesh():
+    mesh = _equivalence_meshes()["ellipsoid"]
+    hull = np.asarray(mesh.convex_hull.vertices)
+    for normal in enumerate_candidate_normals(mesh):
+        rotation = _rotation_to_bed(normal)
+        nz, cz, bed, height = print_orientation._pose_arrays(
+            rotation, np.asarray(mesh.face_normals), np.asarray(mesh.triangles_center), hull
+        )
+        posed = mesh.copy()
+        posed.apply_transform(rotation)
+        assert np.allclose(nz, posed.face_normals[:, 2])
+        assert np.allclose(cz, posed.triangles_center[:, 2])
+        assert np.array_equal(bed, print_orientation.bed_contact_mask(posed))
+        assert height == round(float(posed.extents[2]), 3)
+
+
+def _fake(idx, lb, support, bed_contact=1.0, stable=True):
+    return {
+        "idx": idx,
+        "support_lb": lb,
+        "true_support": support,
+        "strength": 1.0,
+        "bed_contact": bed_contact,
+        "stable": stable,
+    }
+
+
+def test_candidate_whose_bound_equals_incumbent_is_still_scored():
+    # Both candidates cost exactly 10; the second has the larger bed contact, so it must
+    # win the tiebreak -- which only happens if its lower bound (10, not above the
+    # incumbent's 10) does not get it pruned.
+    cands = [_fake(0, 10.0, 10.0, bed_contact=1.0), _fake(1, 10.0, 10.0, bed_contact=5.0)]
+    scored_ids = []
+
+    def score(c):
+        c["support"] = c["true_support"]
+        scored_ids.append(c["idx"])
+
+    scored = print_orientation._search_support(cands, "strength", 0.02, True, score)
+    assert scored_ids == [0, 1]
+    assert _select(scored, "strength")["idx"] == 1
+
+
+def test_candidate_with_bound_above_incumbent_is_skipped():
+    cands = [_fake(0, 1.0, 5.0), _fake(1, 6.0, 9.0), _fake(2, 5.0, 5.0)]
+    scored_ids = []
+
+    def score(c):
+        c["support"] = c["true_support"]
+        scored_ids.append(c["idx"])
+
+    print_orientation._search_support(cands, "strength", 0.02, True, score)
+    assert scored_ids == [0, 2]  # idx 1: lower bound 6 > best exact 5
+
+
+def test_min_support_scores_candidates_inside_the_support_band():
+    cands = [_fake(0, 0.0, 3.0), _fake(1, 3.5, 3.5), _fake(2, 4.5, 9.0)]
+    scored_ids = []
+
+    def score(c):
+        c["support"] = c["true_support"]
+        scored_ids.append(c["idx"])
+
+    print_orientation._search_support(cands, "min_support", 0.02, True, score)
+    assert scored_ids == [0, 1]  # bound 4.5 > best 3.0 + SUPPORT_BAND

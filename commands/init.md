@@ -10,6 +10,6 @@ python "${CLAUDE_PLUGIN_ROOT}/src/init_permissions.py" . --venv "${CLAUDE_PLUGIN
 uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/printer_profile_validate.py" profile.json
 ```
 
-The `--venv` flag records `UV_PROJECT_ENVIRONMENT` in `.claude/settings.local.json` so later `uv run --project` calls reuse that venv. Report any file the helper seeded (tell the user to edit it) and any profile validation errors. Do not overwrite existing files.
+The `--venv` flag records `UV_PROJECT_ENVIRONMENT` in `.claude/settings.local.json` so later `uv run --project` calls reuse that venv. Report each `.claude/agents/cq-design-*.md` it installed or refreshed (plugin-owned; init overwrites them) and any file the helper seeded (tell the user to edit it) and any profile validation errors. Do not overwrite existing files.
 
 Then recommend the user start a fresh session before `/cq-design:design`: this session already carries the init output on top of every loaded tool, and each later call re-reads that context.

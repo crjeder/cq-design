@@ -125,6 +125,8 @@ ignore_missing_imports = true
 
 [tool.basedpyright]
 pythonVersion = "3.10"
+venvPath = "."
+venv = ".venv"
 extraPaths = ["src"]
 exclude = ["tests"]  # tests are ruff-linted but not type-checked (see mypy note above)
 typeCheckingMode = "standard"
