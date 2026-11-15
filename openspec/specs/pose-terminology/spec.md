@@ -16,7 +16,7 @@ The skill SHALL name its three coordinate states **build pose** (the frame a par
 - **THEN** the frame definitions and the `placement` instruction use "build pose", "assembly pose" and "print pose"
 
 ### Requirement: Retired frame terms are not used
-The phrases "part frame", "authored frame", "assembled frame", "print frame" and "build frame" (also hyphenated forms) SHALL NOT appear in documentation, prompts, schema or inventory descriptions, source comments or docstrings, tool output, or `openspec/specs/`. Archived changes, `documentation/DONE.md` and `TODO.md` history entries are exempt. Identifier and file names (for example `src/blocks/print_frame.py`, `print_up()`) and the unrelated `coordinate_frame` plan field are exempt.
+The phrases "part frame", "authored frame", "assembled frame", "print frame" and "build frame" (also hyphenated forms) SHALL NOT appear in documentation, prompts, schema or inventory descriptions, source comments or docstrings, tool output, or `openspec/specs/`. Archived changes, `documentation/DONE.md`, `TODO.md` and `documentation/todo-*.md` history entries are exempt. Identifier and file names (for example `src/blocks/print_frame.py`, `print_up()`) and the unrelated `coordinate_frame` plan field are exempt.
 
 #### Scenario: Scan finds no retired term
 - **WHEN** a scan runs over tracked docs, prompts, `src/`, `reference/`, `skill/`, `commands/` and `openspec/specs/` excluding the exempt paths

@@ -362,21 +362,21 @@
 ## Closed at V1.0 release (from TODO.md)
 
 - [x] Implement typed `request_log` entries -- [details](related_projects.md#typed-request_log-entries)
-- [x] Compass-language mixup in orientation reasoning -- FIXED 2026-09-11: `coordinate_frame` schema field + `plan_validate.check_coordinate_frame_usage` advisory -- [details](../TODO.md#c5-compass-language)
-- [x] Hinge ear: primitive placed center-aligned to another part's edge -- FIXED 2026-09-11: `quality_gate._run_hinge_guard_stage` flags a hinge-associated union missing `verify_seated`/`verify_backed`/`pin_hinge` -- [details](../TODO.md#c5-hinge-ear-center-vs-edge)
-- [x] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- FIXED 2026-09-11: `check_shared_interfaces` broadened to flag coincident unnamed interfaces (positional match), plus `check_hinge_intent_without_joints` -- [details](../TODO.md#c5-knuckle-pivot-ping-pong)
-- [x] Quality-gate overhang check judged the authored-frame STL, not the print pose -- false-positive `overhang_exceeded` whenever the optimizer rotates the part -- FIXED 2026-09-08 -- [details](../TODO.md#c5-quality-gate-overhang-authored-frame)
-- [x] LLM claimed "no support needed" despite a nonzero support score -- FIXED 2026-09-15: `print_recipe.supports` was hardcoded `False`; now derived from any non-advisory `overhang_exceeded` finding -- [details](../TODO.md#silica-tray-support-claim)
-- [x] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- ANSWERED + FIXED 2026-09-15: it was coincidence (no rule required it); `skill/phase3_build.md` now has a "Post-delivery corrections" section requiring re-orientation/export/gate before re-reporting delivery -- [details](../TODO.md#silica-tray-re-export-coincidence)
-- [x] Missed the intent of the bottom finger-access opening; over-supported the south wall -- FIXED 2026-09-15: `clearance_opening` interfaces now suppress the overhang finding over the declared void -- [details](../TODO.md#hitstertower-oversupport)
+- [x] Compass-language mixup in orientation reasoning -- FIXED 2026-09-11: `coordinate_frame` schema field + `plan_validate.check_coordinate_frame_usage` advisory -- [details](todo-case-history.md#c5-compass-language)
+- [x] Hinge ear: primitive placed center-aligned to another part's edge -- FIXED 2026-09-11: `quality_gate._run_hinge_guard_stage` flags a hinge-associated union missing `verify_seated`/`verify_backed`/`pin_hinge` -- [details](todo-case-history.md#c5-hinge-ear-center-vs-edge)
+- [x] Cradle knuckle Z ping-ponged because a shared pivot literal was hand-duplicated across part scripts -- FIXED 2026-09-11: `check_shared_interfaces` broadened to flag coincident unnamed interfaces (positional match), plus `check_hinge_intent_without_joints` -- [details](todo-case-history.md#c5-knuckle-pivot-ping-pong)
+- [x] Quality-gate overhang check judged the authored-frame STL, not the print pose -- false-positive `overhang_exceeded` whenever the optimizer rotates the part -- FIXED 2026-09-08 -- [details](todo-case-history.md#c5-quality-gate-overhang-authored-frame)
+- [x] LLM claimed "no support needed" despite a nonzero support score -- FIXED 2026-09-15: `print_recipe.supports` was hardcoded `False`; now derived from any non-advisory `overhang_exceeded` finding -- [details](todo-case-history.md#silica-tray-support-claim)
+- [x] Re-derived print orientation/export after a hand-edit -- correct by design or coincidence? -- ANSWERED + FIXED 2026-09-15: it was coincidence (no rule required it); `skill/phase3_build.md` now has a "Post-delivery corrections" section requiring re-orientation/export/gate before re-reporting delivery -- [details](todo-case-history.md#silica-tray-re-export-coincidence)
+- [x] Missed the intent of the bottom finger-access opening; over-supported the south wall -- FIXED 2026-09-15: `clearance_opening` interfaces now suppress the overhang finding over the declared void -- [details](todo-case-history.md#hitstertower-oversupport)
 - [x] split `info` directory
-- [x] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- DONE: rationale now lives in `parts[].engineering_rationale`, written back in Phase 3 and checked by `plan_validate.py --require-rationale` (`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`) -- [details](../TODO.md#engineering-rationale-consolidation)
+- [x] Consolidate scattered ENGINEERING RATIONALE into `BUILD_PLAN.json` -- DONE: rationale now lives in `parts[].engineering_rationale`, written back in Phase 3 and checked by `plan_validate.py --require-rationale` (`openspec/changes/archive/2026-09-08-consolidate-engineering-rationale/`) -- [details](todo-case-history.md#engineering-rationale-consolidation)
 - [x] sbom: add credit for projects where code came from -- DONE: `documentation/SBOM.md`, linked from `README.md`
-- [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](../TODO.md#intent-based-prompt-reformulation)
-- [x] Export a project-regeneration prompt for a fresh LLM session -- DONE: `src/regen_prompt.py` writes `REGENERATE.md` at Phase 4 delivery -- [details](../TODO.md#project-regeneration-prompt)
+- [x] Intent-based prompt reformulation -- DONE: `BUILD_PLAN.json`'s `intent` is the user-approved reformulation written at the Phase 1 exit checkpoint (`openspec/changes/approved-intent-reformulation/`) -- [details](todo-case-history.md#intent-based-prompt-reformulation)
+- [x] Export a project-regeneration prompt for a fresh LLM session -- DONE: `src/regen_prompt.py` writes `REGENERATE.md` at Phase 4 delivery -- [details](todo-case-history.md#project-regeneration-prompt)
 - [x] Tool to create gridfinity objects -- DONE: `src/blocks/gridfinity.py` (bins, baseplates, feet, socket cutters), `templates/gridfinity_{bin,baseplate}.py`, `src/gridfinity_check.py` (conformance check, auto-scoped quality-gate stage), `reference/gridfinity.md`
 - [x] Intent-based prompt reformulation -- DONE, merged into item 4 below and shipped
-      as `REQUIREMENTS.md` -- [details](../TODO.md#intent-based-prompt-reformulation)
+      as `REQUIREMENTS.md` -- [details](todo-case-history.md#intent-based-prompt-reformulation)
 - [x] Gear geometry (lwidm/cq_gears) -- DONE -- [details](related_projects.md#gear-geometry)
 - [x] `cq-gridfinity` -- DONE (reimplemented as `blocks/gridfinity.py`; see the gridfinity tool item above) -- [details](related_projects.md#cq-gridfinity)
 - [x] BRep-vs-CSG mindset + selector cheat sheet + anti-patterns + grep-friendly local doc snapshot -- DONE -- [details](related_projects.md#cadquery-authoring-guidance)
@@ -396,23 +396,23 @@
 - [x] cross section selection tool. important features should show up in the cross section
 - [x] evaluate [CQ-Kit](https://github.com/michaelgale/cq-kit) -- **REJECTED** (no reusable gap: exporters/ already covers STEP/IGES/STL/3MF/OBJ/SCAD, no history of boolean-fuse failures here so fuzzy booleans solve a problem we don't have, and selectors/XSection/Ribbon don't map to blocks/'s interface-aware primitive library; stale API surface too)
 - [x] evaluate bernhard-42/jupyter-cadquery **REJECTED** -> not relevant
-- [x] evaluate cq's assembly system and https://github.com/bernhard-42/cadquery-massembly -- **REJECTED** (already covered by `placement.py` / `mate_chain.py`); one optional spin-off: assembled multi-component STEP export -- [details](../TODO.md#cq-assembly-and-massembly)
+- [x] evaluate cq's assembly system and https://github.com/bernhard-42/cadquery-massembly -- **REJECTED** (already covered by `placement.py` / `mate_chain.py`); one optional spin-off: assembled multi-component STEP export -- [details](todo-case-history.md#cq-assembly-and-massembly)
 - [x] show differences: https://github.com/bdlucas1/diff3d -- `src/diff_models.py` (boolean diff, JSON + PNG; no alignment, no diff3d dependency)
 - [x] for selectors: evaluate https://github.com/voneiden/cq-filter and https://github.com/jmwright/selector_synthesis -- **REJECTED** (cq-filter's filter/sort/[] are native since CQ 2.4 and already in reference/; its only extras, group/last, need a Workplane subclass for little gain; selector_synthesis is a GUI click-to-selector research stub, and there is no picking step here)
-- [x] Deduplicate pairwise-mirrored parts into one script/STL -- `copy_of` on a part (`dedupe-identical-parts` change) -- [details](../TODO.md#mirrored-parts-dedup)
+- [x] Deduplicate pairwise-mirrored parts into one script/STL -- `copy_of` on a part (`dedupe-identical-parts` change) -- [details](todo-case-history.md#mirrored-parts-dedup)
 - [x] A minimal deliverable for a parametric part -- `src/export_standalone.py` -> `standalone/` (`minimal-part-deliverable` change)
 - [x] integrate a FEM-simulation for strength optimisation -- `src/fem_check.py` (`fem-stress-advisor`
       change): advisory only (never gates, never gets a quality_gate.py stage -- BC quality
       doesn't earn that yet), replaces `src/FEM.py`'s bounding-box-guessed stub
-- [x] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](../TODO.md#export-plate-nesting)
-- [x] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](../TODO.md#bill-of-non-printed-materials)
+- [x] Export: automated 2D plate packing / bed nesting -- **REJECTED** (belongs in a slicer) -- [details](todo-case-history.md#export-plate-nesting)
+- [x] Bill of non-printed materials (BOM: screws, inserts, magnets, pins, adhesives) -- [details](todo-case-history.md#bill-of-non-printed-materials)
 - [x] since orca slicer now supports STEP default to export this format
 - [x] optimization for print speed
 - [x] User intent as an invariant over generation loops -- DONE (capture via
       `REQUIREMENTS.md`/`intent`, `intent`/`request_log` kept in sync by the `intent_ts`
       reconciliation gate, and every review now checks its render against `intent`/
       `request_log` as a second bar). The `parameter`-level routing rule is now a gate
-      warning (`parameter-entry-routing-check`); remaining gaps in [details](../TODO.md#intent-as-invariant)
+      warning (`parameter-entry-routing-check`); remaining gaps in [details](todo-intent.md#intent-as-invariant)
 - [x] 1. `measure_stl.py` `_thin_regions`: up to 3000 brute-force ray-vs-all-triangles casts in a Python loop, per union per wrapper run. Fix: batched `trimesh.ray` (embree/rtree) or chunked rays plus a bbox prefilter. Gain: very high
 - [x] 2. Part script runs ~6x per gate (shim, `--deliver`, edge-treatment, feature-presence, toolpath-speed x2, Gridfinity) plus extra Python/`import cadquery` startups. Fix: memoize `_load_result` per (path, hash, rotate), merge the edge-treatment and feature-presence hooks into one load, let `--deliver` reuse the shim result. Gain: high
 - [x] 5. `print_orientation.py` candidate loop (~0.5 s/candidate; 205 candidates = 107 s of a 129 s build). Topology caches and near-duplicate normal merging (5 deg) are already done, so the cost is per-pose. Profile: `_is_bridge` 52 s (about 754 regions/candidate; only ~10% pass the 80 deg gate but they pay a qhull `ConvexHull` with a `mkstemp` per call plus two `np.unique`, one with `axis=0`); `triangles_center`/`triangles.mean` recomputed per pose 3x/candidate, ~20 s plus a 6.5 s `triangles` gather (also behind `bed_contact_mask`, 17 s); `_overhang_angles` 4.6 s; `_build_height` 5.8 s. Fix: (a) base-mesh centroids once, per-pose centroid z = `centroids @ R[2] + tz`, shared by `bed_contact_mask` and `_is_bridge`; build the adjacency `keys`/`pairs` once per mesh, not per candidate; (b) in `_is_bridge`, gate all regions at once with `bincount` over component labels and loop only over survivors; replace `np.unique(edges, axis=0)` with 1-D edge keys; skip qhull for tiny regions (closed-form or numpy rectangle); (c) only if the profile shows support cost dominating and `_select` is monotone in it, prune candidates with a lower bound (true cost >= `BRIDGE_COST_FACTOR` x no-bridge cost). Before (b): histogram region face counts and line-profile one candidate. Gain: high (done in 2026-10-08-speed-up-print-orientation-candidates: all of (a), and (b) except the tiny-region qhull skip; (c) candidate pruning deferred, revisit only if a profile shows support cost still dominates)
@@ -432,11 +432,11 @@
 
 - [x] every feature which is named in prose has to be shown and named in preview.
 - [x] always write the files in print position
-- [x] `session_cost.py` misreports cost: counts each API call once per transcript line (159 vs 96 calls), never reads `<session>/subagents/*.jsonl`, prices `claude-opus-5-5` / `claude-sonnet-5-5` at the $15/$15 default ([details](#siebtragerhalter-session-2026-11-04))
-- [x] session cost driven by context re-reads: main session relays every checkpoint at 84k-198k tokens of context, each of 6 sub-agents starts at 61k tokens, all but the builder run Opus ([details](#siebtragerhalter-session-2026-11-04)) -- change `reduce-session-cost`: named agents (minimal tools, Sonnet for sourcing/research/builder/audit), journal side effects, partial rebuild; auditor-on-Sonnet eval (task 2.5) still to run
-- [x] `parameters.py` is never imported: plan params are hand-copied derived numbers (71 = 70 + 1, 62.5, 33.5), so editing a sourced measurement changes nothing ([details](#siebtragerhalter-session-2026-11-04))
-- [x] cross-section previews are uninformative: the section cap gets the same flat shade as every parallel face behind it, and the cut positions come from the interface centre along the wall normal, not across the feature ([details](#siebtragerhalter-session-2026-11-04))
-- [x] feature callouts sit only on the orthographic panels, which have no edge lines, so the features they point at are invisible there; the isometric panel, where they can be seen, gets no labels ([details](#siebtragerhalter-session-2026-11-04))
+- [x] `session_cost.py` misreports cost: counts each API call once per transcript line (159 vs 96 calls), never reads `<session>/subagents/*.jsonl`, prices `claude-opus-5-5` / `claude-sonnet-5-5` at the $15/$15 default ([details](todo-case-history.md#siebtragerhalter-session-2026-11-04))
+- [x] session cost driven by context re-reads: main session relays every checkpoint at 84k-198k tokens of context, each of 6 sub-agents starts at 61k tokens, all but the builder run Opus ([details](todo-case-history.md#siebtragerhalter-session-2026-11-04)) -- change `reduce-session-cost`: named agents (minimal tools, Sonnet for sourcing/research/builder/audit), journal side effects, partial rebuild; auditor-on-Sonnet eval (task 2.5) still to run
+- [x] `parameters.py` is never imported: plan params are hand-copied derived numbers (71 = 70 + 1, 62.5, 33.5), so editing a sourced measurement changes nothing ([details](todo-case-history.md#siebtragerhalter-session-2026-11-04))
+- [x] cross-section previews are uninformative: the section cap gets the same flat shade as every parallel face behind it, and the cut positions come from the interface centre along the wall normal, not across the feature ([details](todo-case-history.md#siebtragerhalter-session-2026-11-04))
+- [x] feature callouts sit only on the orthographic panels, which have no edge lines, so the features they point at are invisible there; the isometric panel, where they can be seen, gets no labels ([details](todo-case-history.md#siebtragerhalter-session-2026-11-04))
 - [x] edit mode (import step) and apply changes -- `/cq-design:edit`
 - [x] review [burr](https://crates.io/crates/burr)
 - [x] Interference check across all parts at rest (a real gap)
@@ -450,7 +450,7 @@ Fix: the overlap primitive exists (check_interference, which measures intersecti
 - [x] optimization: https://github.com/yeicor-3d/dl4to4ocp -- rejected not relevant for FDM
 - [x] replace ascii-art with SVG illustrations
 - [x] Multi color support (same material): union `object` + `filament` -> one slicer object with per-body extruder (change `multi-color-3mf-export`)
-- [x] Multi material support: per-part/union `material` + `color`, automatic filament slots, `max_materials` warning (change `multi-material-planning`) -- [details](#multi-color-material-support-claude-to-print)
+- [x] Multi material support: per-part/union `material` + `color`, automatic filament slots, `max_materials` warning (change `multi-material-planning`) -- [details](todo-import-export.md#multi-color-material-support-claude-to-print)
 - [x] 3. `quality_gate.py` runs once per union and re-runs the whole-model stages (kinematic, plate clearance, keep-out) each time, reloading every STL. Fix: run them once per model, or cache on manifest + plan hash. Gain: high on multi-part plans
 - [x] **2. Pre-kernel parameter predicates** (source: harnesscad, rated High)
   - Why: `script_lint.py` is AST-only (cannot relate a fillet radius to an edge length)
