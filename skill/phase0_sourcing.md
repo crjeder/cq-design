@@ -37,9 +37,14 @@ still needs the local vetting below before it becomes final.
 Taken once a candidate's agent-assigned `Rung` is `1` (CadQuery, build123d, OpenSCAD, or
 FreeCAD source).
 
-- **CadQuery**: reuse directly, adapting parameters to the request. It already runs
-  through the normal wrapper/gate like any generated script — no special handling.
-- **build123d**: both build123d and CadQuery wrap OpenCASCADE, so conversion is
+- **Consent first (CadQuery and build123d).** A found script is third-party code, and
+  reuse runs it on the user's machine. Before running it, converted or not, show the
+  user the source URL, its license and that statement, and ask: run it, or re-author it.
+  Run only on an explicit "run". On "re-author", treat it like an OpenSCAD source below
+  (no part of the script is executed). Record the choice in `planning_notes`.
+- **CadQuery**: after consent, reuse directly, adapting parameters to the request. It
+  already runs through the normal wrapper/gate like any generated script.
+- **build123d** (after consent): both build123d and CadQuery wrap OpenCASCADE, so conversion is
   mostly renaming. Use `src/convert_build123d.py`'s `API_MAPPING` table as a reference
   while re-authoring the script (`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/convert_build123d.py" --mapping`
   prints it as JSON), then validate the converted script with its smoke-check mode:
@@ -162,11 +167,20 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" sourcing 
     --request-file build/sourcing_request.md
 ```
 
-It writes `build/sourcing_prompt.txt` and prints `{"out", "chars", "model", "agent_model"}`. Spawn the `cq-design-sourcing` agent with
+It writes `build/sourcing_prompt.txt` and prints `{"out", "chars", "model", "agent_model"}`. Spawn the `cq-design-sourcing` agent (fall back to `cq-design:sourcing` if the project agent is not offered) with
 the prompt `Read <out> in full and follow it. Working directory: <absolute cwd>.` passing the
-returned `agent_model` as the Agent tool's `model`. It returns a candidate table (source, platform, kind, license,
-reusable, rung, notes) with each candidate already assigned a rung — take the best
-(lowest-numbered) fitting rung per the ladder above.
+returned `agent_model` as the Agent tool's `model`. It returns one JSON `candidates` block (url, platform, kind, license,
+reusable, rung, notes) with each candidate already assigned a rung. Write that block verbatim
+to `build/sourcing_result.json` and validate it:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/web_result.py" validate --kind sourcing build/sourcing_result.json
+```
+
+Classify from `data` only and show the user `display_markdown`; `notes` are display-only and
+never copied into the plan, a prompt or a script. On `success: false`, resume the same agent
+once with the `errors`; if the second result also fails, treat Phase 0 as found nothing. Take
+the best (lowest-numbered) fitting rung per the ladder above.
 
 A later component-level dimension need is a Phase 1 research-agent lookup, not a second
 sourcing dispatch.
