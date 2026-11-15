@@ -149,6 +149,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_plan.py                     # Schema validation, Phase 2 summary rendering, parameter
                                      # round-trip -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
+    test_sbom.py                     # documentation/SBOM.md vs pyproject deps + section-2 paths -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
     test_script_history.py           # Script history recording, restore targets, marks -- fast, no CadQuery
     test_script_ops.py               # Group layout, commands, preflight refusals, unmanaged edits -- fast, no CadQuery
