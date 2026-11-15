@@ -8,7 +8,13 @@ ROOT = Path(__file__).resolve().parent.parent
 RETIRED = re.compile(
     r"part[- ]frame|authored[- ]frame|assembled[- ]frame|print[- ]frame|build[- ]frame", re.I
 )
-EXEMPT = ("openspec/changes/", "documentation/DONE.md", "TODO.md", "tests/test_pose_terminology.py")
+EXEMPT = (
+    "openspec/changes/",
+    "documentation/DONE.md",
+    "TODO.md",
+    "documentation/todo-",
+    "tests/test_pose_terminology.py",
+)
 
 
 def test_no_retired_frame_terms():

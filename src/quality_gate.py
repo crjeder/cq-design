@@ -190,7 +190,7 @@ def _run_wrapper_check(
 
 def _clearance_opening_zones(plan: dict, part: dict, rotate: list[dict] | None) -> list[dict]:
     """Print-pose `{center, radius_mm}` for each of `part`'s `clearance_opening`
-    interfaces (see [Hitstertower oversupport](TODO.md#hitstertower-oversupport)).
+    interfaces (see documentation/todo-case-history.md#hitstertower-oversupport).
 
     `position_mm` is the interface's center in the part's build pose, the frame of the
     wrapper's STL (no `placement`); it gets the same print orientation `rotate` as
@@ -464,7 +464,7 @@ def _emit_print_recipe(
 
     `needs_support` SHALL be derived from whether the geometry analysis emitted a
     (non-advisory) `overhang_exceeded` finding at the chosen pose, not guessed --
-    see [Silica Tray support claim](TODO.md#silica-tray-support-claim): this field
+    see documentation/todo-case-history.md#silica-tray-support-claim: this field
     used to be hardcoded `False` regardless of `orientation["support_score"]` or
     any overhang finding, so the delivered recipe always claimed no support was
     needed even when the gate had just flagged one.
