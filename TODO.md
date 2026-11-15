@@ -21,7 +21,7 @@ V1.0 is released.
 ## 1. Pipeline enforcement and process hygiene
 Rating: **High** (build123d-mcp comparison ranked the state machine #1 by impact; the open defect is the same idea).
 
-- [ ] Defect: the LLM did not follow the full cq-design pipeline on an edit run (no `BUILD_PLAN.json`, no `build/`). Fix: the program owns the pipeline, not the LLM; edits are the exception -- [details](documentation/todo-pipeline.md#llm-skipped-the-pipeline-on-an-edit-run)
+- [ ] Defect (low priority, superseded by the state machine; `cq-design:edit` is a legitimate plan-less route): the LLM did not follow the full cq-design pipeline on an edit run. Fix: the program owns the pipeline, not the LLM; edits are the exception -- [details](documentation/todo-pipeline.md#llm-skipped-the-pipeline-on-an-edit-run)
 - [ ] Pipeline state machine: move phase transitions from skill prose into a program that owns the build state and refuses invalid steps -- [details](documentation/todo-pipeline.md#pipeline-state-machine)
 - [ ] Process hygiene: every test file reached by CI, flaky tests fixed or deleted never retried, no one-off helper scripts in `src/` -- [details](documentation/todo-pipeline.md#process-hygiene-and-install-checks)
 - [ ] `init` / `status`: detect plugin + standalone skill both installed (duplicates every skill) -- [details](documentation/todo-pipeline.md#process-hygiene-and-install-checks)
