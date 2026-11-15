@@ -4,15 +4,22 @@ Pure text, no estampo dependency. Keys target estampo 0.4.x (docs/config.md).
 """
 
 import json
+import math
 import os
 
 from mesh_io import brim_metrics, load_mesh, overhang_metrics
 
 
-def estampo_toml(stl_files: list[str], profile: dict, flags: dict | None = None) -> str:
+def estampo_toml(
+    stl_files: list[str],
+    profile: dict,
+    flags: dict | None = None,
+    wall_min_mm: float | None = None,
+) -> str:
     """Return estampo.toml text for `stl_files` (names, already in print pose).
 
     `flags` maps a name to its `{"enable_support": bool, "brim_type": str}` entry.
+    `wall_min_mm` with `motion.line_width_mm` gives `wall_loops`.
     """
     motion = profile.get("motion") or {}
     names = (profile.get("slicer") or {}).get("estampo") or {}
@@ -34,6 +41,11 @@ def estampo_toml(stl_files: list[str], profile: dict, flags: dict | None = None)
         overrides.append(f"layer_height = {motion['layer_height_mm']}")
     if "infill_density" in motion:
         overrides.append(f'sparse_infill_density = "{round(motion["infill_density"] * 100)}%"')
+    if wall_min_mm and "line_width_mm" in motion:
+        # round first so 0.9 / 0.45 is 2 loops, not 3
+        overrides.append(
+            f"wall_loops = {math.ceil(round(wall_min_mm / motion['line_width_mm'], 6))}"
+        )
     if overrides:
         lines += ["", "[slicer.orca.overrides]", *overrides]
     for name in stl_files:
@@ -60,11 +72,12 @@ def write_estampo_toml(
     out_dir: str,
     overhang_deg: float = 45.0,
     bridge_max_mm: float = 10.0,
+    wall_min_mm: float | None = None,
 ) -> str:
     """Write `estampo.toml` into `out_dir` for `stl_paths` (siblings of it); return its path."""
     names = [os.path.basename(p) for p in stl_paths]
     flags = {os.path.basename(p): part_flags(p, overhang_deg, bridge_max_mm) for p in stl_paths}
     path = os.path.join(out_dir, "estampo.toml")
     with open(path, "w", encoding="utf-8") as f:
-        f.write(estampo_toml(names, profile, flags))
+        f.write(estampo_toml(names, profile, flags, wall_min_mm))
     return path

@@ -33,6 +33,14 @@ def test_absent_values_are_omitted():
     assert "[slicer.orca.overrides]" not in estampo_toml(["a.stl"], {})
 
 
+def test_wall_loops_from_wall_min_and_line_width():
+    prof = lambda w: {"motion": {"line_width_mm": w}}  # noqa: E731
+    assert "wall_loops = 3" in estampo_toml(["a.stl"], prof(0.45), None, 1.2)
+    assert "wall_loops = 2" in estampo_toml(["a.stl"], prof(0.45), None, 0.9)
+    assert "wall_loops" not in estampo_toml(["a.stl"], prof(0.45))
+    assert "wall_loops" not in estampo_toml(["a.stl"], PROFILE, None, 1.2)
+
+
 def test_profile_names_are_commented_placeholders_by_default():
     text = estampo_toml(["a.stl"], PROFILE)
     live = [ln for ln in text.splitlines() if not ln.startswith("#")]
