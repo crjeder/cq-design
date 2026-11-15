@@ -287,7 +287,7 @@ def test_render_sourcing_includes_request_and_corpus():
     assert "a wall mount for an iPhone 15" in text
     assert "Adafruit_CAD_Parts" in text
     assert "{{" not in text
-    assert "| Reusable |" in text
+    assert '"candidates"' in text
     assert "rung-3-only (ND, redistribution permitted)" in text
 
 
