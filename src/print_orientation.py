@@ -53,6 +53,8 @@ Usage:
 import argparse
 import json
 import sys
+import time
+from collections.abc import Callable
 
 import numpy as np
 import trimesh
@@ -61,8 +63,10 @@ from trimesh.transformations import euler_from_matrix
 
 from freshness import script_hash
 from mesh_io import (
+    BRIDGE_COST_FACTOR,
     BRIDGE_MAX_MM,
     bed_contact_mask,
+    bed_mask_from,
     edge_lookup,
     load_mesh,
     support_cost,
@@ -78,6 +82,11 @@ SUPPORT_BAND = 1.0
 VISUAL_BAND = 0.02
 # Build-height tie band (mm) used when minimizing build height.
 BUILD_HEIGHT_BAND_MM = 0.5
+# Minimum seconds between progress lines from the candidate loop.
+PROGRESS_INTERVAL_S = 2.0
+# The exact support cost is rounded to 3 decimals (twice); lower bounds are widened by this
+# so rounding can never push a candidate that could tie the incumbent past the prune test.
+SUPPORT_ROUNDING_SLACK = 0.002
 # Two bed-down normals within this angle are the same resting face.
 NORMAL_MERGE_DEG = 5.0
 # Severity exponent (OV_H) for the weighted support cost: > 1 so near-horizontal
@@ -296,18 +305,17 @@ def _gentle_incline_fraction(posed: trimesh.Trimesh, on_bed: np.ndarray | None =
     (not visible; `on_bed` is the bed-contact mask when the caller already has it).
     Returns the bad-zone area over the total area (lower is better).
     """
-    total = float(posed.area)
+    bed = on_bed if on_bed is not None else bed_contact_mask(posed)
+    return _incline_fraction(posed.face_normals[:, 2], posed.area_faces, bed, float(posed.area))
+
+
+def _incline_fraction(nz: np.ndarray, areas: np.ndarray, bed: np.ndarray, total: float) -> float:
+    """Gentle-incline (stair-stepping) area over `total` from per-face normal z, bed excluded."""
     if total <= 0.0:
         return 0.0
-
-    nz = posed.face_normals[:, 2]
     slope = np.degrees(np.arccos(np.clip(np.abs(nz), 0.0, 1.0)))
     gentle = (slope > FLAT_EPS_DEG) & (slope < GENTLE_INCLINE_MAX_DEG)
-
-    bed = on_bed if on_bed is not None else bed_contact_mask(posed)
-
-    bad_area = float(posed.area_faces[gentle & ~bed].sum())
-    return round(bad_area / total, 6)
+    return round(float(areas[gentle & ~bed].sum()) / total, 6)
 
 
 def _stability_metrics(
@@ -328,14 +336,19 @@ def _stability_metrics(
     """
     if contact_mask is None:
         contact_mask = _bed_contact_mask(posed)
-    footprint = np.unique(np.round(posed.triangles[contact_mask].reshape(-1, 3)[:, :2], 6), axis=0)
+    com = posed.center_mass if center_mass is None else center_mass
+    return _resting_stable(posed.triangles[contact_mask].reshape(-1, 3)[:, :2], com[:2])
+
+
+def _resting_stable(contact_xy: np.ndarray, com_xy: np.ndarray) -> bool:
+    """True when `com_xy` lies inside the convex hull of the bed-contact footprint points."""
+    footprint = np.unique(np.round(contact_xy, 6), axis=0)
     if len(footprint) < 3:
         return False
     try:
         hull = ConvexHull(footprint)
     except Exception:
         return False
-    com_xy = (posed.center_mass if center_mass is None else center_mass)[:2]
     eqs = hull.equations
     return bool(np.all(eqs[:, :2] @ com_xy + eqs[:, 2] <= 1e-7))
 
@@ -353,9 +366,16 @@ def _visual_metrics(
     The visual score rewards that and discounts the gentle-incline area; higher is
     a more visually favorable orientation.
     """
+    incline = _gentle_incline_fraction(posed, contact_mask)
+    return _visual_from(rotation, show_face_dir, incline)
+
+
+def _visual_from(
+    rotation: np.ndarray, show_face_dir: np.ndarray, incline: float
+) -> tuple[float, float, float]:
+    """(visual, cosmetic_down, incline) from the rotation and the pose's gentle-incline fraction."""
     cosmetic_after = rotation[:3, :3] @ _unit(show_face_dir)
     cosmetic_down = max(0.0, float(np.dot(cosmetic_after, _DOWN)))
-    incline = _gentle_incline_fraction(posed, contact_mask)
     visual = cosmetic_down - VISUAL_INCLINE_WEIGHT * incline
     return round(visual, 6), round(cosmetic_down, 6), incline
 
@@ -410,29 +430,128 @@ def _select(
         best = min(c["support"] for c in candidates)
         contenders = [c for c in candidates if c["support"] - best <= SUPPORT_BAND]
         return min(contenders, key=lambda c: (-c["strength"], -c["bed_contact"], c["idx"]))
+    contenders = _band_contenders(candidates, optimize_for, strength_band)
+    if optimize_for == "strength":
+        return min(contenders, key=lambda c: (c["support"], -c["bed_contact"], c["idx"]))
+    return min(contenders, key=lambda c: (-c["strength"], c["support"], c["idx"]))
+
+
+def _band_contenders(candidates: list[dict], optimize_for: str, strength_band: float) -> list[dict]:
+    """Candidates within the primary-score tolerance band, for every mode but `min_support`.
+
+    The primary key of these modes never reads `support`, so the band can be taken before
+    any support is scored (the pruned search relies on that).
+    """
     if optimize_for == "visual_quality":
         best = max(c["visual"] for c in candidates)
-        contenders = [c for c in candidates if best - c["visual"] <= VISUAL_BAND]
-        return min(contenders, key=lambda c: (-c["strength"], c["support"], c["idx"]))
-    if optimize_for == "min_build_height":
-        best = min(c["build_height"] for c in candidates)
-        contenders = [c for c in candidates if c["build_height"] - best <= BUILD_HEIGHT_BAND_MM]
-        return min(contenders, key=lambda c: (-c["strength"], c["support"], c["idx"]))
-    if optimize_for == "min_print_time":
-        if any(c.get("total_time_s") is not None for c in candidates):
-            timed = [c for c in candidates if c.get("total_time_s") is not None]
-            best = min(c["total_time_s"] for c in timed)
-            contenders = [c for c in timed if c["total_time_s"] - best <= PRINT_TIME_BAND_S]
-            return min(contenders, key=lambda c: (-c["strength"], c["support"], c["idx"]))
-        # No speed model supplied: build height is the only print-time-correlated
-        # quantity available, so fall back to min_build_height's exact ordering.
-        best = min(c["build_height"] for c in candidates)
-        contenders = [c for c in candidates if c["build_height"] - best <= BUILD_HEIGHT_BAND_MM]
-        return min(contenders, key=lambda c: (-c["strength"], c["support"], c["idx"]))
-
+        return [c for c in candidates if best - c["visual"] <= VISUAL_BAND]
+    if optimize_for in ("min_build_height", "min_print_time"):
+        pool, key, band = candidates, "build_height", BUILD_HEIGHT_BAND_MM
+        timed = [c for c in candidates if c.get("total_time_s") is not None]
+        if optimize_for == "min_print_time" and timed:
+            pool, key, band = timed, "total_time_s", PRINT_TIME_BAND_S
+        # Without a speed model, build height is the only print-time-correlated quantity,
+        # so min_print_time falls back to min_build_height's exact ordering.
+        best = min(c[key] for c in pool)
+        return [c for c in pool if c[key] - best <= band]
     best = max(c["strength"] for c in candidates)
-    contenders = [c for c in candidates if best - c["strength"] <= strength_band]
-    return min(contenders, key=lambda c: (c["support"], -c["bed_contact"], c["idx"]))
+    return [c for c in candidates if best - c["strength"] <= strength_band]
+
+
+def _pose_arrays(
+    rotation: np.ndarray, normals: np.ndarray, centroids: np.ndarray, hull_verts: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    """(normals_z, centroids_z, bed_mask, build_height) at a pose, without posing the mesh.
+
+    A pose is a rotation, so every pose quantity is one row of it (`rotation[2]`) dotted
+    with pose-independent arrays; the floor and the height come from the convex-hull
+    vertices (a convex set has the same z extent as the mesh it bounds).
+    """
+    rz, tz = rotation[2, :3], rotation[2, 3]
+    nz = normals @ rz
+    centroids_z = centroids @ rz + tz
+    hz = hull_verts @ rz + tz
+    bed = bed_mask_from(nz, centroids_z, float(hz.min()))
+    return nz, centroids_z, bed, round(float(np.ptp(hz)), 3)
+
+
+def _raw_support_cost(
+    nz: np.ndarray, areas: np.ndarray, bed: np.ndarray, overhang_deg: float
+) -> float:
+    """`support_cost` with every region counted as a non-bridge: an upper bound on it.
+
+    Bridge detection only multiplies a region's cost by BRIDGE_COST_FACTOR, so the exact
+    cost lies in [BRIDGE_COST_FACTOR x raw, raw]. Needs only face normals, not topology.
+    """
+    angles = np.degrees(np.arcsin(np.clip(-nz, 0.0, 1.0)))
+    sel = (nz < 0) & (angles > overhang_deg) & ~bed
+    lean = (angles[sel] - overhang_deg) / (90.0 - overhang_deg)
+    return float((areas[sel] * np.power(lean, OV_H)).sum())
+
+
+def _ticker(
+    progress: Callable[[str], None] | None, label: str, total: int
+) -> Callable[[int], None]:
+    """Return `tick(done)`, which reports "<label> done/total, elapsed, ETA" at most every
+    `PROGRESS_INTERVAL_S`; a no-op without a `progress` callback."""
+    started = last = time.monotonic()
+
+    def tick(done: int) -> None:
+        nonlocal last
+        now = time.monotonic()
+        if progress and done and now - last >= PROGRESS_INTERVAL_S:
+            last = now
+            elapsed = now - started
+            eta = elapsed / done * (total - done)
+            progress(
+                f"  orientation {label} {done}/{total} ({elapsed:.0f}s elapsed, ~{eta:.0f}s left)"
+            )
+
+    return tick
+
+
+def _search_support(
+    candidates: list[dict],
+    optimize_for: str,
+    strength_band: float,
+    prune: bool,
+    score_support: Callable[[dict], None],
+    progress: Callable[[str], None] | None = None,
+) -> list[dict]:
+    """Exact-score support (via `score_support`) for the candidates that can still be selected.
+
+    `candidates` carry every cheap score plus `support_lb`, a lower bound on the exact
+    support cost. The pool is the stable candidates (all of them when none is stable),
+    narrowed by the mode's primary band for every mode but `min_support`, and for
+    `visual_quality`/`min_build_height`/`min_print_time` to the best strength (their next
+    key). Pool members are scored in ascending lower-bound order and scoring stops once the
+    next lower bound exceeds what the incumbent allows (best support, plus `SUPPORT_BAND`
+    for `min_support`), so a candidate that could still tie or win is always scored. The
+    scored list is a subset of the candidates `_select` would consider, containing its winner.
+    With `prune=False` every candidate is scored.
+    """
+    if not prune:
+        pool = candidates
+    else:
+        pool = [c for c in candidates if c["stable"]] or candidates
+        if optimize_for != "min_support":
+            pool = _band_contenders(pool, optimize_for, strength_band)
+            if optimize_for != "strength":
+                top = max(c["strength"] for c in pool)
+                pool = [c for c in pool if c["strength"] == top]
+    pool = sorted(pool, key=lambda c: (c["support_lb"], c["idx"]))
+    slack = SUPPORT_BAND if optimize_for == "min_support" else 0.0
+    tick = _ticker(progress, "exact candidate", len(pool))
+    best = float("inf")
+    scored = []
+    for done, c in enumerate(pool):
+        if prune and c["support_lb"] > best + slack:
+            break
+        tick(done)
+        score_support(c)
+        best = min(best, c["support"])
+        scored.append(c)
+    return sorted(scored, key=lambda c: c["idx"])
 
 
 def optimize_orientation(
@@ -446,8 +565,16 @@ def optimize_orientation(
     bridge_max_mm: float = BRIDGE_MAX_MM,
     fem_stress: dict | None = None,
     speed_model: dict | None = None,
+    progress: Callable[[str], None] | None = None,
+    prune: bool = True,
 ) -> dict:
     """Choose the print orientation for a union mesh under the requested mode.
+
+    `progress`, when given, receives status lines (candidate i/N, elapsed, ETA) at most
+    every `PROGRESS_INTERVAL_S` seconds, first over the cheap scan of all candidates, then
+    over the exact support scoring (its N is the pool that may need scoring; the stage can
+    end earlier, see `_search_support`). `prune=False` scores every candidate's support
+    exactly instead; the selected result is the same either way.
 
     `optimize_for` is one of `strength` (default), `min_support`,
     `visual_quality`, `min_build_height`, or `min_print_time`. `load_dir` is the
@@ -494,48 +621,76 @@ def optimize_orientation(
     base_centroids = np.asarray(base.triangles_center)  # per-pose z is one dot product
     base_keys, base_pairs = edge_lookup(base)  # connectivity: rotation-invariant
 
+    normals = enumerate_candidate_normals(mesh)
+    base_normals = np.asarray(base.face_normals)
+    base_verts = np.asarray(base.vertices)
+    base_faces = np.asarray(base.faces)
+    try:
+        hull_verts = np.asarray(mesh.convex_hull.vertices)
+    except Exception:
+        hull_verts = base_verts
+    total_area = float(base_areas.sum())
+
+    # Pre-pass: everything except the exact (bridge-aware) support cost, for every candidate,
+    # straight from rotated normals. The raw support cost bounds the exact one from both sides.
+    scan_tick = _ticker(progress, "scan candidate", len(normals))
     candidates = []
-    for idx, normal in enumerate(enumerate_candidate_normals(mesh)):
+    for idx, normal in enumerate(normals):
+        scan_tick(idx)
         rotation = _rotation_to_bed(normal)
-        posed = base.copy(include_cache=True)
-        posed.apply_transform(rotation)
-        posed._cache["area_faces"] = base_areas
-        centroids_z = base_centroids @ rotation[2, :3] + rotation[2, 3]
-        contact_mask = _bed_contact_mask(posed, centroids_z)
-        ctx = {"keys": base_keys, "pairs": base_pairs, "centroids_z": centroids_z}
+        nz, _, bed, build_height = _pose_arrays(rotation, base_normals, base_centroids, hull_verts)
+        incline = _incline_fraction(nz, base_areas, bed, total_area)
+        visual, cosmetic_down, incline = _visual_from(rotation, show_vec, incline)
         fem_strength = _fem_strength_lookup(fem_stress, normal)
         if fem_strength is not None:
             strength, strength_source = fem_strength, "fem"
         else:
             strength = _strength_score(rotation, load_vec, load_type)
             strength_source = "declared_load" if load_declared else "neutral"
-        support, bed_contact = _support_metrics(
-            posed, overhang_deg, bridge_max_mm, contact_mask, ctx
-        )
-        visual, cosmetic_down, incline = _visual_metrics(posed, rotation, show_vec, contact_mask)
-        stable = _stability_metrics(posed, (rotation @ com0)[:3], contact_mask)
+        bed_faces = np.flatnonzero(bed)
+        footprint = base_verts[base_faces[bed_faces]].reshape(-1, 3) @ rotation[:3, :3].T
+        stable = _resting_stable(footprint[:, :2] + rotation[:2, 3], (rotation @ com0)[:2])
         speed_entry = _speed_lookup(speed_model, normal)
-        candidate = {
-            "idx": idx,
-            "rotation": rotation,
-            "strength": strength,
-            "strength_source": strength_source,
-            "support": support,
-            "bed_contact": bed_contact,
-            "visual": visual,
-            "cosmetic_down": cosmetic_down,
-            "gentle_incline_fraction": incline,
-            "build_height": _build_height(posed),
-            "stable": stable,
-            "total_time_s": speed_entry.get("total_time_s") if speed_entry else None,
-            "speed_efficiency": speed_entry.get("speed_efficiency") if speed_entry else None,
-            "stalled": speed_entry.get("stalled") if speed_entry else None,
-        }
-        candidates.append(candidate)
+        raw = _raw_support_cost(nz, base_areas, bed, overhang_deg)
+        candidates.append(
+            {
+                "idx": idx,
+                "rotation": rotation,
+                "strength": strength,
+                "strength_source": strength_source,
+                "bed_contact": round(float(base_areas[bed_faces].sum()), 3),
+                "visual": visual,
+                "cosmetic_down": cosmetic_down,
+                "gentle_incline_fraction": incline,
+                "build_height": build_height,
+                "stable": stable,
+                "total_time_s": speed_entry.get("total_time_s") if speed_entry else None,
+                "speed_efficiency": speed_entry.get("speed_efficiency") if speed_entry else None,
+                "stalled": speed_entry.get("stalled") if speed_entry else None,
+                "support_lb": BRIDGE_COST_FACTOR * raw - SUPPORT_ROUNDING_SLACK,
+                "_bed_faces": bed_faces,
+            }
+        )
 
+    def score_support(c: dict) -> None:
+        """Exact bridge-aware support cost of one candidate (poses a copy of the mesh)."""
+        posed = base.copy(include_cache=True)
+        posed.apply_transform(c["rotation"])
+        posed._cache["area_faces"] = base_areas
+        centroids_z = base_centroids @ c["rotation"][2, :3] + c["rotation"][2, 3]
+        contact_mask = np.zeros(len(base_faces), dtype=bool)
+        contact_mask[c["_bed_faces"]] = True
+        ctx = {"keys": base_keys, "pairs": base_pairs, "centroids_z": centroids_z}
+        c["support"], _ = _support_metrics(posed, overhang_deg, bridge_max_mm, contact_mask, ctx)
+
+    scored = _search_support(
+        candidates, optimize_for, strength_band, prune, score_support, progress
+    )
+    n_candidates = len(candidates)
     unstable_excluded = any(c["stable"] for c in candidates) and any(
         not c["stable"] for c in candidates
     )
+    candidates = scored
     chosen = _select(candidates, optimize_for, strength_band)
 
     # Cosmetic stair-step area at the chosen pose: up-facing faces in the gentle-incline
@@ -551,7 +706,7 @@ def optimize_orientation(
         chosen,
         optimize_for,
         overhang_deg,
-        len(candidates),
+        n_candidates,
         load_type,
         load_declared,
         unstable_excluded,
@@ -741,6 +896,7 @@ def main() -> None:
         bridge_max_mm=args.bridge_max_mm,
         fem_stress=fem_stress,
         speed_model=speed_model,
+        progress=lambda line: print(line, file=sys.stderr, flush=True),
     )
     if args.source_script:
         result["source_script_hash"] = script_hash(args.source_script)

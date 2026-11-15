@@ -134,7 +134,12 @@ def resolve_orientations(
                     if wp_by_uid is None:
                         wp_by_uid = dict(load_part_unions(part, parts_by_id, parts_dir)[2])
                     chosen = orientation_for(
-                        wp_by_uid[uid], part, overhang_deg, optimize_for, bridge_max_mm
+                        wp_by_uid[uid],
+                        part,
+                        overhang_deg,
+                        optimize_for,
+                        bridge_max_mm,
+                        progress=lambda line: print(line, flush=True),
                     )
                 except Exception as exc:
                     raise RuntimeError(f"union {uid!r}: {exc}") from exc

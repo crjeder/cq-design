@@ -8,6 +8,8 @@ on the finished solid and reports when the optimizer would now pick a different 
 
 import os
 import tempfile
+from collections.abc import Callable
+from typing import Any
 
 import cadquery as cq
 import numpy as np
@@ -23,8 +25,16 @@ def orientation_for(
     overhang_deg: float,
     optimize_for: str,
     bridge_max_mm: float = 10.0,
+    progress: Callable[[str], None] | None = None,
+    tolerance: float | None = None,
+    angular_tolerance: float | None = None,
 ) -> dict:
     """Recommended print orientation for one union's authored geometry.
+
+    `tolerance` / `angular_tolerance` set the linear (mm) and angular (rad) deflection of
+    the throwaway scoring mesh; None keeps CadQuery's export defaults (0.1 mm, 0.1 rad).
+    Coarser values mean fewer faces to score, but shift curved-face normals, which can move
+    a face across the overhang limit.
 
     `optimize_orientation` scores a mesh in its build pose, so the result is
     exported to a throwaway STL and reloaded. Uses the part's declared `load.dir` /
@@ -39,7 +49,12 @@ def orientation_for(
     show_dir = show_face["dir"] if show_face else None
     with tempfile.TemporaryDirectory() as tmp:
         stl = os.path.join(tmp, "authored.stl")
-        cq.exporters.export(result, stl)
+        tess: dict[str, Any] = {}
+        if tolerance is not None:
+            tess["tolerance"] = tolerance
+        if angular_tolerance is not None:
+            tess["angularTolerance"] = angular_tolerance
+        cq.exporters.export(result, stl, **tess)
         mesh = load_mesh(stl)
     return optimize_orientation(
         mesh,
@@ -49,6 +64,7 @@ def orientation_for(
         show_face=show_dir,
         load_type=load_type,
         bridge_max_mm=bridge_max_mm,
+        progress=progress,
     )
 
 
