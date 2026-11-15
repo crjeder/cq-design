@@ -83,7 +83,7 @@ cq-design today: I found no edge overlay in preview.py, render_preview.py or zbu
 - [ ] Accept Markdown / formatted UTF-8 text input
 - [ ] Add textures capability
 - [ ] Engineering of multi-material interfaces and properties -- boundaries are treated as non-sticky (no adhesion assumed, touching is silent); still open: multi-material FEM, per-union density within one part
-- [ ] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible) -- layer height and infill already exported via `--formats estampo`; walls/support/brim remain
+- [x] calculate and export slicer parameters such as: wall loops, infill, support, brim (auto brim in orca is terrible) -- layer height and infill already exported via `--formats estampo`; walls/support/brim remain
 
 ### Optimisation
 

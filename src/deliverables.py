@@ -157,6 +157,7 @@ def write_deliverables(
                 out_dir,
                 constraints.get("overhang_max_deg", 45.0),
                 constraints.get("bridge_max_mm", 10.0),
+                constraints.get("wall_min_mm"),
             )
             files["estampo"] = {"estampo.toml": toml}
 
