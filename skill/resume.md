@@ -39,13 +39,14 @@ line; the format below is what that command writes.
 | Phase | Milestone key | Written when |
 |-------|---------------|--------------|
 | 0 | `restart` | The user declines to resume and starts over (marks where the new attempt begins) |
-| 0 | `rung_decision` | The sourcing ladder resolves — records the chosen rung, source, and license verdict |
+| 0 | `sourcing_skipped` | Sourcing triage is skipped (user asked to design from scratch, or the request is custom) |
+| 0 | `rung_decision` | The sourcing ladder resolves — text starts `rung <n>`, then source and license verdict. Rung 3 (mesh delivered as-is) skips phases 1-3 |
 | 1 | `topology_confirmed` | The user confirms a topology reading at the clarification step |
 | 1 | `dimensions_approved` | The user approves/corrects the Phase 1 exit checkpoint — always written, even when nothing was looked up (`parameters.py` is written in the same turn when there are measurements — see `skill/phase1_requirements.md`) |
 | 2 | `plan_written` | `BUILD_PLAN.json` passes `plan.py validate` (the script writes the line) |
 | 2 | `plan_approved` | The user approves the Phase 2 plan summary |
 | 3 | `stub_approved:<part_id>` | The user approves a part's `profile_stub` stage |
-| 3 | `part_accepted:<part_id>` | A part passes the Implementation audit (or is accepted as-is at escalation) |
+| 3 | `part_accepted:<part_id>` | A part passes the Implementation audit (or is accepted as-is at escalation); text ends `sha=<script hash>` (`pipeline.py advance` adds it) |
 | 3 | `escalation:<part_id>` | The user resolves a blocked-builder escalation — records the outcome (hint verbatim / accepted as-is / skipped) |
 | 3 | `design_approved` | The user approves the Design approval checkpoint (all parts done) |
 | 3 | `orientation_chosen` | Print-orientation optimization completes for every union |
@@ -55,7 +56,7 @@ line; the format below is what that command writes.
 
 ## Resume procedure
 
-1. Read `build/journal.md` in full. Only the lines after the last `- phase0/restart:`
+1. Run `pipeline.py status`, then read `build/journal.md` in full. Only the lines after the last `- phase0/restart:`
    line (or all lines, if there is none) belong to the current attempt; steps 2-4 use
    only those.
 2. Cross-check the on-disk artifacts the journal's milestones point to
@@ -68,8 +69,9 @@ line; the format below is what that command writes.
 3. Present a short summary: what phase and milestone the journal last recorded, which
    parts (if any) are accepted, and where the run will resume. Ask the user to confirm
    resuming or start over — never resume silently.
-4. **Confirmed:** continue the pipeline at the first phase/step whose milestone is not
-   yet in the current attempt's lines. Do not re-run a phase whose milestone is already recorded — e.g.
+4. **Confirmed:** run `pipeline.py status` and continue at `allowed_next[0]` (it applies the
+   restart cut and the order rules for you). Name any `void` milestone or `stale_parts` entry
+   in the summary: a void line is not trusted, a stale part goes back to its part loop. Do not re-run a phase whose milestone is `done` — e.g.
    `dimensions_approved` present means skip straight past the checkpoint into Phase 2;
    absent with `build/reformulation.md` written but no valid `acceptance.json`, resume at
    the oracle step of the Phase 1 exit checkpoint (spawn a new oracle; the old one is gone);

@@ -105,6 +105,6 @@ Wait for approval or edits. If the user edited `BUILD_PLAN.json` on disk directl
 `plan.py validate` on it yourself before proceeding (no agent involved for a user's own
 edit). On approval:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase2/plan_approved "<n> parts, review_policy <policy>"
 ```

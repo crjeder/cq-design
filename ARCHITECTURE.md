@@ -83,6 +83,10 @@ flowchart TB
 Legend: indigo = LLM sub-agent, purple = deterministic program, red diamond =
 gate, orange = main-session user interaction.
 
+## Pipeline order
+
+`src/pipeline.py` owns the order of the steps (decision A in `documentation/pipeline.md`): it derives the state from `build/journal.md` and the artifacts, reports the allowed next steps and refuses invalid milestones. Claude still authors parts and runs the user checkpoints; resume and the builder's scope read the same `status`.
+
 ## Agent roster
 
 | Agent | Model | Input | Output | Why it is an agent |

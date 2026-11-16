@@ -5,6 +5,8 @@ return contract below as your final message, nothing after it.
 
 Stages for this part: **{{STAGES}}**
 
+{{SCOPE}}
+
 - `profile_stub`: the part's characteristic 2D profile (from dimensions, part notes,
   interfaces) extruded to a nominal thickness, written to `build/{{PART_ID}}_stub.py`
   and rendered with `--preview --preview-dir preview` only. Disposable: never reused as a
