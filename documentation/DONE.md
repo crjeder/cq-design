@@ -492,3 +492,4 @@ Fix: the overlap primitive exists (check_interference, which measures intersecti
 ## V1.1
 
 - [x] Pipeline state machine: `src/pipeline.py` derives the build state from the journal and artifacts, reports allowed next steps, refuses invalid milestones; sourcing has its own status; `edit` is an explicit plan-less route; a `plan` run continues as `design` on the same journal. Also closes the "LLM skipped the pipeline on an edit run" defect for the skill side (the benchmark harness question stays open). Openspec change `pipeline-state-machine`.
+- [x] `init` / `status`: detect plugin + standalone skill both installed -- `src/install_check.py`, openspec change `detect-duplicate-skill-install`; detection only, never removes a copy.

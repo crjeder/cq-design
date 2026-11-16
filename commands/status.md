@@ -11,3 +11,5 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/print
 ```
 
 If the bundle is `behind`, suggest `/cq-design:update`. If `profile.json` is missing or invalid, suggest `/cq-design:init` or list the errors. A non-zero exit from a step is a result to report, not a failure to retry.
+
+Also run `python "${CLAUDE_PLUGIN_ROOT}/src/install_check.py"` and, if it reports a duplicate install, show both paths and the removal hint (and say so when the copies are at different commits).

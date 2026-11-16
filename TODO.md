@@ -22,7 +22,6 @@ V1.0 is released.
 Rating: **High** (build123d-mcp comparison ranked the state machine #1 by impact; the open defect is the same idea).
 
 - [ ] Process hygiene: every test file reached by CI, flaky tests fixed or deleted never retried, no one-off helper scripts in `src/` -- [details](documentation/todo-pipeline.md#process-hygiene-and-install-checks)
-- [ ] `init` / `status`: detect plugin + standalone skill both installed (duplicates every skill) -- [details](documentation/todo-pipeline.md#process-hygiene-and-install-checks)
 - [ ] `/retrofit` for projects already in flight: run the absence lints, report what the plan/scripts lack, offer to add the missing `coordinate_frame` / `joints` / `verify_*` before a correction round -- [details](documentation/todo-case-history.md#c5-fixes-did-not-take-2026-09-08)
 
 ## 2. Evals, telemetry and failure mining

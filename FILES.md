@@ -28,6 +28,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
                               # planner/research agent prompts (Phase 1/2)
     skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
+    install_check.py         # Reports whether the plugin and the standalone skill are both installed (read-only)
     print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost.
                               # `--speed-model` (toolpath_speed.py) adds a min_print_time mode.
     fem_check.py              # FEM stress advisor (optional `fem` dep group): solves a declared load case,
@@ -159,6 +160,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_script_ops.py               # Group layout, commands, preflight refusals, unmanaged edits -- fast, no CadQuery
     test_render_prompt.py            # Builder/audit/planning/research prompt rendering -- fast, no CadQuery
     test_skill_version.py            # Version stamping/detection/compare -- fast, no CadQuery
+    test_install_check.py            # Duplicate plugin + standalone install detection -- fast, no CadQuery
     test_oracle.py                   # acceptance.json validate/check/verify/rounds -- fast, no CadQuery
     test_quality_gate_oracle.py      # Gate oracle stage on a built body (CadQuery)
     test_log.py                      # Journal/attempt/request_log helpers + CLI -- fast, no CadQuery
