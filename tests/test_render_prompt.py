@@ -401,3 +401,9 @@ def test_audit_cli_adds_bound_visual_statements(tmp_path, monkeypatch, capsys):
     text = Path(json.loads(capsys.readouterr().out)["out"]).read_text(encoding="utf-8")
     assert "- S2: rounded, friendly look" in text and "unbound look" not in text
     assert "result = None" not in text
+
+
+def test_render_builder_scope_line():
+    plan, part = _plan()
+    text, _ = rp.render_builder(plan, part, None, None)
+    assert f"Your scope is part `{part['id']}`" in text

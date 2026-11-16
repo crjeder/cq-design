@@ -16,7 +16,7 @@ Source: `img/pipeline-timeline.vg.json` (Vega). Re-render with
 
 | Id | Question | Decision | Rejected |
 |---|---|---|---|
-| A | Who controls the order of the steps | State machine program (`src/pipeline.py`, **new**): owns the build state, reports the allowed next step, rejects invalid transitions; `edit` is an explicit plan-less route | Skill prose only (today) |
+| A | Who controls the order of the steps | State machine program (`src/pipeline.py`, implemented 2026-11-16): owns the build state, reports the allowed next step, rejects invalid transitions; `edit` is an explicit plan-less route | Skill prose only (today) |
 | B | When sourcing triage runs | LLM decides per request: run it for parts likely to exist (standard enclosures, mounts for known products), skip it for custom parts | Always; only on request |
 | C | Slicer | estampo driving the OrcaSlicer CLI (pinned profiles and Docker image) | PrusaSlicer CLI, CuraEngine, no slicing |
 | D | G-code danger check | GcodeGuard `scan` with a per-printer profile, blocking; pin a commit | gcode-lint, GcodeGuard + gcode-inspector, none |
@@ -30,7 +30,7 @@ Source: `img/pipeline-timeline.vg.json` (Vega). Re-render with
 | # | Step | Owner | In | Out | Status |
 |---|---|---|---|---|---|
 | 0 | Setup | program (`init_permissions.py`) | working directory | `.claude/settings.local.json`, `profile.json`, `skill_config.json`, `build/` | exists |
-| 1 | Route the request: design / plan-only / edit; resume if `build/journal.md` exists | program (`pipeline.py`, decision A) + main | request, build state | route, next allowed step | **new** (today: LLM reads `SKILL.md`) |
+| 1 | Route the request: design / plan-only / edit; resume if `build/journal.md` exists | program (`pipeline.py`, decision A) + main | request, build state | route, next allowed step | exists |
 | 2 | Sourcing triage, five-rung ladder | main decides whether to run (decision B); sourcing agent searches; main classifies | request | rung; rungs 1-3 skip steps 3-5 | exists, gating **new** |
 | 3 | Requirements: topology Q&A, dimension research, acceptance statements; checkpoint 1 | main + research agent + oracle agent | request | dimension table, `parameters.py`, `acceptance.json` | exists |
 | 4 | Planning; checkpoint 2 | planner agent + program (`plan.py validate`) | approved requirements | `BUILD_PLAN.json` | exists |

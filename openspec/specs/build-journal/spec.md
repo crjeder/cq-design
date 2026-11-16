@@ -96,10 +96,10 @@ wherever a phase document currently describes appending a journal line by hand.
 ### Requirement: An interrupted run resumes from the journal
 
 When the skill is invoked in a working directory where `build/journal.md` already
-exists, the skill SHALL read the journal and the on-disk artifacts before doing any
-other pipeline work, present a short summary of what is already done and where it will
-resume, and ask the user to confirm resuming or start over. The skill SHALL NOT re-run
-a phase whose milestone the journal already records.
+exists, the skill SHALL run `pipeline.py status` (which reads the journal and the on-disk artifacts) before doing any
+other pipeline work, present a short summary of what is already done, what is void or stale, and where it will
+resume (`allowed_next`), and ask the user to confirm resuming or start over. The skill SHALL NOT re-run
+a phase whose milestone `status` reports as done, and SHALL NOT count a milestone line `status` reports as void.
 
 #### Scenario: Resume after interruption during the part loop
 
@@ -120,6 +120,11 @@ a phase whose milestone the journal already records.
 - **WHEN** no `build/journal.md` exists in the working directory
 - **THEN** the skill starts at Phase 0 as usual and creates the journal on its first
   milestone
+
+#### Scenario: Void or stale milestone on resume
+
+- **WHEN** `status` reports a recorded milestone as void or a part as stale
+- **THEN** the summary names it, and the run resumes at the earliest step `allowed_next` lists rather than trusting the line
 
 ### Requirement: Milestone-completing scripts append their own journal line
 
