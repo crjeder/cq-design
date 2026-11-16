@@ -249,6 +249,28 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
     instance's place step builds the feature; otherwise the probe is checked on the
     finished part.
 
+18. **Bind every acceptance statement.** The statements below were written from the
+    approved intent by a separate agent and approved by the user; they are fixed -- never
+    reinterpret, weaken or drop one. For each statement except `part_count`, add an
+    `acceptance_bindings` entry `{"statement": "S3", "part": "<id>", "interfaces": [...],
+    "probes": [...]}` naming the plan entities that realize it, adding interfaces or probes
+    if the plan lacks them:
+    - `feature`: exactly `count` interfaces (by `name`) of a matching type with the
+      statement's size; `fit`: the one interface the object passes into, sized at least
+      the object plus `clearance_min_mm`; `spacing`: the two interfaces, `position_mm`
+      the stated distance apart; `extent`: the part whose `dimensions` it bounds.
+    - `probe`: author one or more `probes[]` entries on the part that check the relation in
+      build pose, each `label` starting with the statement id (`"S6: lip above cradle"`),
+      and list those labels in `probes`.
+    - `visual`: the part it describes, or `"*"` for the whole model; review checks it.
+    One statement may need one entry per part. `plan.py validate` reports every unbound
+    or contradicted statement by id; fix the plan, not the statement. If a statement
+    cannot be met, leave it failing so you return `blocked` with it in `error_summary`.
+    When acceptance statements exist, also set `acceptance_ts` exactly as `intent_ts`
+    (rule 16).
+
+    {{ACCEPTANCE}}
+
 ## Block inventory (name, use, params, edge sets)
 
 {{BLOCK_INVENTORY}}
@@ -269,7 +291,8 @@ states a different value: then use the stated value and note the deviation in
 
 ## Required output schema
 
-Optional fields: `intent_ts` (rule 16), `probes` (rule 17), `coordinate_frame`, `archetype`, `plate`, `material`/`color` (per part or union, rule 6b), `pose_intent`, `show_face`,
+Optional fields: `intent_ts` (rule 16), `probes` (rule 17), `acceptance_bindings` and
+`acceptance_ts` (rule 18; required when acceptance statements are listed), `coordinate_frame`, `archetype`, `plate`, `material`/`color` (per part or union, rule 6b), `pose_intent`, `show_face`,
 per-part `optimize_for`, `part_notes` (needed when `blocks_needed` is empty or geometry is
 non-standard), `unions`, `joints`, `root_part`, `kinematics` (only for a declared range of
 motion), `bom` (rule 3b; omit only when nothing non-printed is needed). Always set `load`

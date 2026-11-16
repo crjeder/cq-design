@@ -38,6 +38,14 @@ A correction that changes nothing leaves `intent` unchanged. Either way, advance
 `intent_ts` in the same turn -- pass `--reconciled` to the `add` above (after rewriting
 `intent`); without it `plan.py validate` and the gate fail with `intent not reconciled`.
 
+**Acceptance statements.** When `acceptance.json` exists, every correction also goes to
+the oracle: resume the same oracle agent (or render and spawn it as in Phase 1, with the
+rewritten `intent` as the reformulation) with the correction, show the user any statement
+it added, changed or removed, then pass `--acceptance-reconciled` to the `add` (both flags
+when both are reconciled in the same turn). The stamp advances even when no statement
+changed. Changed statements need re-binding: resume the planner with them. Without the
+stamp, validation fails with `acceptance.json not reconciled`.
+
 **Sketches.** An image attached to a clarification or correction is copied to
 `sketches/<slug>-<ts>.<ext>` (`:` in `ts` replaced by `-`) and referenced from the entry's
 `images` array. Pass sketch paths to the builder in the resume message that acts on them.
@@ -164,7 +172,11 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
    ```
    Resume the builder with `fix:` listing each failed question, its view, discrepancy, and
    any `missing_views`, then re-audit its new contract with a fresh auditor. One such
-   round; a second fail goes to **Escalation**.
+   round; a second fail goes to **Escalation**. A failed question that names an acceptance
+   statement (`S<n>`, a user-approved `visual` statement) gets up to 3 rounds; still
+   failing after the third, escalate it with the `oracle_unmet` choices (Quality gate).
+   The progressive self-review answers the same `S<n>` questions, listed in the audit
+   prompt.
 
 ## Write-backs on acceptance
 
@@ -395,6 +407,12 @@ finding by its own `action` field, not by its `type`:
   At most 2 rounds per part; then summarize the remaining findings to the user. If the
   last round was reverted, first re-export and re-run the gate from the restored script,
   so the delivered files come from `accepted`.
+- **`oracle_unmet`** (`source: "oracle"`) is an acceptance statement the built part does
+  not meet. It routes as `fix` like the rest, but its rounds are counted by the gate, not
+  by the 2-round cap above: each issue carries `round` (from `--previous`), and the gate
+  sets its action to `ask_user` at round 3. Quote the statement in the `fix:` resume.
+  At `ask_user`, offer: amend the intent (a correction; re-runs the oracle), accept as-is,
+  or skip the part.
 - **`re_export`** -> the STL predates an edit: re-run the model export, then the gate. No
   builder involved.
 - **`ask_user`** -> surface the finding's `message` and `hint` and ask before doing

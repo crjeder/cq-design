@@ -23,6 +23,25 @@
       "type": "string",
       "description": "ISO-8601 UTC `ts` of the newest request_log entry that `intent` has been reconciled against. Records acknowledgement, not edit: advanced on every clarification/correction, including one that leaves `intent` unchanged. Optional; required by plan_validate.py only when the request_log holds a clarification/correction entry (see the approved-intent spec)."
     },
+    "acceptance_ts": {
+      "type": "string",
+      "description": "ISO-8601 UTC `ts` of the newest request_log entry that acceptance.json (the oracle's statements) has been reconciled against. Same acknowledgement rule as intent_ts; required by plan validation only when acceptance.json exists and the request_log holds a clarification/correction entry (see the oracle-acceptance spec)."
+    },
+    "acceptance_bindings": {
+      "type": "array",
+      "description": "Planner's binding of every acceptance.json statement to plan entities. One entry per (statement, part); `part` is \"*\" only for a visual statement about the whole model. Checked by oracle.py against the statement (counts, sizes, spacing, extents, probe labels).",
+      "items": {
+        "type": "object",
+        "required": ["statement", "part"],
+        "additionalProperties": false,
+        "properties": {
+          "statement": {"type": "string", "pattern": "^S[1-9][0-9]*$"},
+          "part": {"type": "string", "minLength": 1},
+          "interfaces": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "interfaces[].name values on that part"},
+          "probes": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "probes[].label values on that part; a probe statement's label starts with its id"}
+        }
+      }
+    },
     "intent": {
       "type": "string",
       "minLength": 120,
