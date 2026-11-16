@@ -7,6 +7,11 @@ current skill (`SKILL.md`, `skill/phase*.md`, `ARCHITECTURE.md`).
 Owners: **program** = deterministic script in `src/` (or an external CLI), **agent** =
 LLM sub-agent, **main** = main session (owns every user checkpoint).
 
+![Pipeline timeline: steps 0-16, blue = exists, orange = new](img/pipeline-timeline.svg)
+
+Source: `img/pipeline-timeline.vg.json` (Vega). Re-render with
+`npx -p vega -p vega-cli vg2svg documentation/img/pipeline-timeline.vg.json documentation/img/pipeline-timeline.svg`.
+
 ## Decisions
 
 | Id | Question | Decision | Rejected |
