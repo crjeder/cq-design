@@ -718,3 +718,13 @@ def test_append_once(tmp_path):
     assert log.append_once(j, "phase2/plan_written", "ok") is True
     assert log.append_once(j, "phase2/plan_written", "ok") is False
     assert j.read_text(encoding="utf-8").count("plan_written") == 1
+
+
+def test_add_acceptance_reconciled_stamps_acceptance_ts(tmp_path):
+    plan = _add(tmp_path, "--acceptance-reconciled")
+    assert plan["acceptance_ts"] == plan["request_log"][-1]["ts"]
+    assert "intent_ts" not in plan
+
+
+def test_add_without_acceptance_reconciled_leaves_acceptance_ts(tmp_path):
+    assert "acceptance_ts" not in _add(tmp_path, "--reconciled")

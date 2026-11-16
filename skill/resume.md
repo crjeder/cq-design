@@ -71,6 +71,8 @@ line; the format below is what that command writes.
 4. **Confirmed:** continue the pipeline at the first phase/step whose milestone is not
    yet in the current attempt's lines. Do not re-run a phase whose milestone is already recorded — e.g.
    `dimensions_approved` present means skip straight past the checkpoint into Phase 2;
+   absent with `build/reformulation.md` written but no valid `acceptance.json`, resume at
+   the oracle step of the Phase 1 exit checkpoint (spawn a new oracle; the old one is gone);
    `part_accepted:<id>` present for a part means skip its part loop and move to the
    next part. A part that was mid-build has no live builder agent after an interruption:
    spawn a new one; it starts from the script already in `build/<id>.py`.

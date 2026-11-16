@@ -89,6 +89,7 @@ gate, orange = main-session user interaction.
 |---|---|---|---|---|
 | Sourcing (`cq-design-sourcing`) | `models.sourcing` (Sonnet) | rendered `prompts/sourcing.md` by `src/render_prompt.py` | candidate table (source, platform, kind, license, notes) | page snapshots across Thingiverse/Printables/MakerWorld/GitHub are huge; main gets a table and classifies it against the five-rung ladder |
 | Research (`cq-design-research`) | `models.research` (Sonnet) | rendered `prompts/research.md` by `src/render_prompt.py` | dimension validation table + sources, `parameters.py` values | page snapshots are huge; main gets a table |
+| Oracle (`cq-design-oracle`) | `models.oracle` (Sonnet; a different model than the planner, so misreads are less correlated) | rendered `prompts/oracle.md` by `src/render_prompt.py`: original request, draft reformulation, dimension table; NOT the plan | `acceptance.json` (frame-free statements, each citing the intent), shown at the Phase 1 checkpoint | the planner otherwise writes both the design and its own checks; an independent reading makes a dropped requirement a validation error (`plan.py` binding check, gate `oracle` stage) |
 | Planner (`cq-design-planner`) | `models.planner` (strong, Opus) | rendered `prompts/planning.md` by `src/render_prompt.py` | `BUILD_PLAN.json` | topology reasoning is the highest-leverage LLM step; a wrong topology is a full rebuild |
 | Part builder (x N) (`cq-design-builder`) | `models.part_author` (Sonnet; `"inline"` skips the spawn) | `build/<id>_prompt.txt` = `prompts/builder.md` + `prompts/part.md`, rendered by `src/render_prompt.py` | passing `build/<id>.py`, bbox, preview paths, `attempts.jsonl` rows | contains the render images and retry noise; clean state between parts |
 | Implementation auditor (`cq-design-auditor`) | `models.auditor` (Sonnet, vision) | `prompts/audit.md` rendered by `src/render_prompt.py`: plan entry, scoped request text, preview/section PNGs, PARAMETERS values for load-bearing parts, NOT the geometry code | per-question pass/fail with cited views | kills self-review bias - the author never grades its own homework |
@@ -152,7 +153,7 @@ Remarks:
 
 ## Sequencing
 
-Agent instructions live in `prompts/sourcing.md`, `prompts/research.md`, `prompts/planning.md`,
+Agent instructions live in `prompts/sourcing.md`, `prompts/research.md`, `prompts/oracle.md`, `prompts/planning.md`,
 `prompts/builder.md` + `prompts/part.md`, and `prompts/audit.md`; the
 `skill/phase*.md` files hold only main-session orchestration.
 

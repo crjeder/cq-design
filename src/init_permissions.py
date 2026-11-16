@@ -116,7 +116,7 @@ _AGENTS_DIR = os.path.join(_SKILL_DIR, "agents")
 def install_agents(working_dir: str) -> list[str]:
     """Copy agents/<role>.md to .claude/agents/cq-design-<role>.md when absent or different.
 
-    Only those five names are touched. Returns the copied file names.
+    Only the agents/ names are touched. Returns the copied file names.
     """
     dest_dir = os.path.join(working_dir, ".claude", "agents")
     copied = []
