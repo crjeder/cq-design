@@ -1,0 +1,917 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v6.json",
+  "description": "Pipeline from request to reviewed G-code. Blue = exists, orange = new.",
+  "padding": 15,
+  "autosize": {
+    "type": "pad",
+    "contains": "padding"
+  },
+  "width": {
+    "signal": "width"
+  },
+  "height": {
+    "signal": "height"
+  },
+  "signals": [
+    {
+      "name": "width",
+      "value": 700
+    },
+    {
+      "name": "sH",
+      "description": "serpentine: diameter of arcs",
+      "value": 125
+    },
+    {
+      "name": "sN",
+      "description": "serpentine: number of arcs",
+      "value": 2
+    },
+    {
+      "name": "tC",
+      "description": "ticks: number of axis ticks to display on the timeline",
+      "value": 17
+    },
+    {
+      "name": "tLO",
+      "description": "ticks: the offset for the tick labels",
+      "value": 8
+    },
+    {
+      "name": "mO",
+      "description": "milestone: the offset for the milestone markers",
+      "value": 35
+    },
+    {
+      "name": "sR0P",
+      "description": "serpentine: percentage of width of canvas for the start of the timeline",
+      "value": 0
+    },
+    {
+      "name": "sLP",
+      "description": "serpentine: percentage of total length of canvas for the end of the timeline",
+      "value": 1
+    },
+    {
+      "name": "annotationStart",
+      "value": "Request"
+    },
+    {
+      "name": "annotationEnd",
+      "value": "Reviewed G-code"
+    },
+    {
+      "name": "includeArrows",
+      "value": true
+    },
+    {
+      "name": "sT",
+      "description": "serpentine: thicknes of the line",
+      "value": 5
+    },
+    {
+      "name": "domain",
+      "description": "serpentine: manually set the domain extent for the timeline, otherwise set to null to have the domain calculated for you",
+      "value": [
+        0,
+        16
+      ]
+    },
+    {
+      "name": "sRange",
+      "description": "serpentine: range for the serpentine scale",
+      "update": "[sR0P*width, sL*sLP]"
+    },
+    {
+      "name": "annotations",
+      "description": "serpentine: annotations that appear at the start and end of the timeline",
+      "update": "{start: (isValid(annotationStart) ? annotationStart : ''), end: (isValid(annotationEnd) ? annotationEnd : '')}"
+    },
+    {
+      "name": "sD",
+      "update": "[2, 2]",
+      "description": "serpentine: dash array for the serpentine line"
+    },
+    {
+      "name": "reverse",
+      "description": "serpentine: boolean to indicate whether the scale for the timeline should be reversed",
+      "value": false
+    },
+    {
+      "name": "sPct",
+      "description": "serpentine: percentage of width for the straight portions of the timeline",
+      "value": 1,
+      "update": "sPct < 0.25 ? 0 : sPct < 0.75 ? 0.5 : 1"
+    },
+    {
+      "name": "sW",
+      "description": "serpentine: horizontal length of straight segments",
+      "update": "sPct*width"
+    },
+    {
+      "name": "sL",
+      "description": "serpentine: total length of line",
+      "update": "(sN+1)*sW+(sN)*sH*PI/2"
+    },
+    {
+      "name": "sA",
+      "description": "serpentine: length of an arc segment",
+      "update": "(sH*PI/2)"
+    },
+    {
+      "name": "sWsA",
+      "description": "serpentine: length of a line + arc segment",
+      "update": "(sW + sH*PI/2)"
+    },
+    {
+      "name": "sDomain",
+      "description": "serpentine: domain for the serpentine scale",
+      "init": "domain ? domain : [+extent(pluck(data('dataset'), 'domain'))[0], +extent(pluck(data('dataset'), 'domain'))[1]]"
+    },
+    {
+      "name": "height",
+      "description": "calculated height",
+      "update": "extent(pluck(data('serpentine'), 'y'))[1]"
+    },
+    {
+      "name": "milestoneColor",
+      "value": "#009DEC"
+    },
+    {
+      "name": "milestoneLabelColor",
+      "value": "#001130"
+    },
+    {
+      "name": "newColor",
+      "value": "#E8590C"
+    }
+  ],
+  "scales": [
+    {
+      "name": "sS1",
+      "type": "linear",
+      "zero": false,
+      "reverse": {
+        "signal": "reverse"
+      },
+      "domain": {
+        "signal": "sDomain"
+      },
+      "range": {
+        "signal": "sRange"
+      }
+    }
+  ],
+  "marks": [
+    {
+      "name": "axis_group",
+      "description": "group containing all the axis marks - annotations, domain, arrow indicators, tick lines, tick labels on straightaways, tick labels on arcs",
+      "type": "group",
+      "marks": [
+        {
+          "name": "annotations",
+          "description": "Text marks that appear at the start and end of the timeline. Configured using the 'annotations' signal",
+          "from": {
+            "data": "domain_extent"
+          },
+          "type": "text",
+          "encode": {
+            "update": {
+              "x": {
+                "field": "x"
+              },
+              "y": {
+                "field": "y"
+              },
+              "text": {
+                "signal": "datum['category'] === 'start' ? annotations['start'] : annotations['end']"
+              },
+              "fontSize": {
+                "value": 10
+              },
+              "baseline": {
+                "value": "middle"
+              },
+              "align": {
+                "field": "align"
+              },
+              "angle": {
+                "field": "angle"
+              },
+              "dx": {
+                "field": "dx"
+              },
+              "dy": {
+                "value": 1
+              },
+              "fill": {
+                "value": "gray"
+              }
+            }
+          }
+        },
+        {
+          "name": "serpentine_line",
+          "description": "The serpentine-shaped line that acts as the axis domain line",
+          "type": "line",
+          "from": {
+            "data": "serpentine"
+          },
+          "interactive": false,
+          "encode": {
+            "update": {
+              "x": {
+                "field": "x"
+              },
+              "y": {
+                "field": "y"
+              },
+              "strokeDash": {
+                "signal": "sD"
+              },
+              "stroke": {
+                "value": "#888"
+              },
+              "strokeWidth": {
+                "signal": "sT"
+              }
+            }
+          }
+        },
+        {
+          "name": "arrow_marks",
+          "description": "The arrows to indicate direction that appear at the beginning and end of each arc+straightaway combination",
+          "type": "text",
+          "from": {
+            "data": "segment_ends"
+          },
+          "interactive": false,
+          "encode": {
+            "update": {
+              "x": {
+                "field": "x"
+              },
+              "y": {
+                "field": "y"
+              },
+              "dy": {
+                "value": 1
+              },
+              "text": {
+                "value": "→"
+              },
+              "fontSize": {
+                "value": 18
+              },
+              "fill": {
+                "value": "#000"
+              },
+              "angle": {
+                "signal": "datum['direction'] === '→' ? 0 : 180"
+              },
+              "align": {
+                "value": "center"
+              },
+              "baseline": {
+                "value": "middle"
+              }
+            }
+          }
+        },
+        {
+          "name": "tick_marks",
+          "description": "The line (text mark) designated to each tick",
+          "from": {
+            "data": "ticks"
+          },
+          "type": "text",
+          "interactive": false,
+          "encode": {
+            "update": {
+              "x": {
+                "field": "x"
+              },
+              "y": {
+                "field": "y"
+              },
+              "dy": {
+                "signal": "2.5*( datum['type'] === 'straight' ? 1 : datum['side'] === 'right' ? (round(datum['alpha']*(180/PI)) >= 90 ? -1 : 4) : (round(datum['alpha']*(180/PI)) > 89 ? -1 : 4))"
+              },
+              "text": {
+                "signal": "'|'"
+              },
+              "fontSize": {
+                "value": 7
+              },
+              "fill": {
+                "value": "#000"
+              },
+              "angle": {
+                "field": "labelAngle"
+              },
+              "align": {
+                "value": "center"
+              },
+              "baseline": {
+                "signal": "datum['type'] === 'straight' ? 'top' : 'bottom'"
+              }
+            }
+          }
+        },
+        {
+          "name": "tick_labels_straight",
+          "description": "The straightaway tick labels",
+          "from": {
+            "data": "ticks"
+          },
+          "type": "text",
+          "interactive": false,
+          "encode": {
+            "update": {
+              "x": {
+                "field": "x"
+              },
+              "y": {
+                "field": "y"
+              },
+              "dy": {
+                "field": "dy"
+              },
+              "text": {
+                "field": "domain"
+              },
+              "fontSize": {
+                "value": 10
+              },
+              "fill": {
+                "value": "#000"
+              },
+              "align": {
+                "value": "center"
+              },
+              "angle": {
+                "field": "labelAngle"
+              },
+              "baseline": {
+                "signal": "datum['type'] === 'straight' ? 'top' : 'bottom'"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "milestone_connecting_lines",
+      "description": "The milestone lines that connect the markers to labels",
+      "from": {
+        "data": "milestones"
+      },
+      "type": "text",
+      "interactive": false,
+      "encode": {
+        "update": {
+          "text": {
+            "signal": "'|'"
+          },
+          "x": {
+            "field": "x"
+          },
+          "y": {
+            "field": "y"
+          },
+          "fontSize": {
+            "value": 15
+          },
+          "fontWeight": {
+            "value": 100
+          },
+          "dy": {
+            "signal": "datum['type'] === 'arc' && (round(datum['alpha']*(180/PI)) > 89) ? 0.35 * (mO+3.5) : datum['dy']/2"
+          },
+          "align": {
+            "value": "center"
+          },
+          "baseline": {
+            "value": "middle"
+          },
+          "angle": {
+            "field": "labelAngle"
+          },
+          "fillOpacity": {
+            "value": 0.35
+          }
+        }
+      }
+    },
+    {
+      "name": "milestone_markers",
+      "description": "The milestone timeline markers",
+      "from": {
+        "data": "milestones"
+      },
+      "type": "symbol",
+      "interactive": false,
+      "encode": {
+        "update": {
+          "x": {
+            "field": "x"
+          },
+          "y": {
+            "field": "y"
+          },
+          "size": {
+            "value": 100
+          },
+          "fill": {
+            "field": "color"
+          },
+          "stroke": {
+            "field": "color"
+          },
+          "strokeWidth": {
+            "value": 2
+          },
+          "cursor": {
+            "signal": "'default'"
+          }
+        }
+      }
+    },
+    {
+      "name": "milestone_label_backgrounds",
+      "description": "The white backgrounds for milestone labels",
+      "from": {
+        "data": "milestones"
+      },
+      "type": "text",
+      "interactive": false,
+      "encode": {
+        "update": {
+          "x": {
+            "field": "x"
+          },
+          "y": {
+            "field": "y"
+          },
+          "dy": {
+            "field": "dy"
+          },
+          "text": {
+            "signal": "datum['domain'] + ' - ' + datum['label']"
+          },
+          "fontSize": {
+            "value": 10
+          },
+          "fill": {
+            "value": "#fff"
+          },
+          "stroke": {
+            "value": "#fff"
+          },
+          "strokeWidth": {
+            "value": 7
+          },
+          "angle": {
+            "field": "labelAngle"
+          },
+          "align": {
+            "value": "center"
+          },
+          "baseline": {
+            "signal": "datum['type'] === 'straight' ? 'top' : 'bottom'"
+          }
+        }
+      }
+    },
+    {
+      "name": "milestone_labels",
+      "description": "The milestone labels",
+      "from": {
+        "data": "milestones"
+      },
+      "type": "text",
+      "interactive": false,
+      "encode": {
+        "update": {
+          "x": {
+            "field": "x"
+          },
+          "y": {
+            "field": "y"
+          },
+          "dy": {
+            "field": "dy"
+          },
+          "text": {
+            "signal": "datum['domain'] + ' - ' + datum['label']"
+          },
+          "fontSize": {
+            "value": 10
+          },
+          "fill": {
+            "signal": "milestoneLabelColor"
+          },
+          "angle": {
+            "field": "labelAngle"
+          },
+          "align": {
+            "value": "center"
+          },
+          "baseline": {
+            "signal": "datum['type'] === 'straight' ? 'top' : 'bottom'"
+          }
+        }
+      }
+    }
+  ],
+  "data": [
+    {
+      "name": "dataset",
+      "values": [
+        {
+          "domain": 0,
+          "label": "Setup",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 1,
+          "label": "Route",
+          "color": "#E8590C"
+        },
+        {
+          "domain": 2,
+          "label": "Sourcing",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 3,
+          "label": "Requirements",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 4,
+          "label": "Planning",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 5,
+          "label": "Part loop",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 6,
+          "label": "Design approval",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 7,
+          "label": "Advisors",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 8,
+          "label": "Orientation",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 9,
+          "label": "Quality gate",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 10,
+          "label": "Export",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 11,
+          "label": "Slicing",
+          "color": "#E8590C"
+        },
+        {
+          "domain": 12,
+          "label": "G-code check",
+          "color": "#E8590C"
+        },
+        {
+          "domain": 13,
+          "label": "G-code review",
+          "color": "#E8590C"
+        },
+        {
+          "domain": 14,
+          "label": "Print stats",
+          "color": "#E8590C"
+        },
+        {
+          "domain": 15,
+          "label": "Deliver",
+          "color": "#009DEC"
+        },
+        {
+          "domain": 16,
+          "label": "Corrections",
+          "color": "#009DEC"
+        }
+      ]
+    },
+    {
+      "name": "serpentineDomain",
+      "values": [
+        {}
+      ],
+      "transform": [
+        {
+          "type": "formula",
+          "expr": "sequence(sDomain[0], sDomain[1], 0.1 )",
+          "as": "domain"
+        },
+        {
+          "type": "flatten",
+          "fields": [
+            "domain"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "milestoneDomain",
+      "source": "dataset",
+      "transform": [
+        {
+          "type": "project",
+          "fields": [
+            "domain"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tickDomain",
+      "values": [
+        {}
+      ],
+      "transform": [
+        {
+          "type": "formula",
+          "expr": "sequence(1, tC+1, 1)",
+          "as": "id"
+        },
+        {
+          "type": "flatten",
+          "fields": [
+            "id"
+          ]
+        },
+        {
+          "type": "formula",
+          "expr": "datum['id'] === 1 ? sDomain[0] : datum['id'] === tC ? sDomain[1] : null",
+          "as": "domain"
+        },
+        {
+          "type": "formula",
+          "expr": "round(isValid(datum['domain']) ? datum['domain'] : (sDomain[0] + (sDomain[1]-sDomain[0])*((datum['id']-1)/(tC-1))))",
+          "as": "domain"
+        },
+        {
+          "type": "project",
+          "fields": [
+            "domain"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "componentEncodings",
+      "values": [
+        {
+          "category": "start"
+        },
+        {
+          "category": "serpentine"
+        },
+        {
+          "category": "milestone"
+        },
+        {
+          "category": "tick"
+        },
+        {
+          "category": "end"
+        }
+      ],
+      "transform": [
+        {
+          "type": "formula",
+          "expr": "now()",
+          "as": "timestamp"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['category'] === 'start' ? [sDomain[reverse ? 1 : 0]] : datum['category'] === 'serpentine' ? pluck(data('serpentineDomain'), 'domain') : datum['category'] === 'milestone' ? pluck(data('dataset'), 'domain') : datum['category']==='tick' ? pluck(data('tickDomain'), 'domain') : datum['category'] === 'end' ? [sDomain[reverse ? 0 : 1]] : null",
+          "as": "domain"
+        },
+        {
+          "type": "flatten",
+          "fields": [
+            "domain"
+          ]
+        },
+        {
+          "type": "formula",
+          "expr": "+datum['domain']",
+          "as": "domain"
+        },
+        {
+          "type": "window",
+          "ops": [
+            "row_number"
+          ],
+          "sort": {
+            "field": "domain"
+          },
+          "groupby": [
+            "category"
+          ],
+          "as": [
+            "id"
+          ]
+        },
+        {
+          "type": "formula",
+          "expr": "scale('sS1', datum['domain'])",
+          "as": "sK"
+        },
+        {
+          "type": "formula",
+          "expr": "floor(datum['sK'] / (sW + sH*PI/2))",
+          "as": "i"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['sK'] % (sW + sH*PI/2)",
+          "as": "r"
+        },
+        {
+          "type": "formula",
+          "expr": "(datum['r'] - sW)/(sH/2)",
+          "as": "alpha"
+        },
+        {
+          "type": "formula",
+          "expr": "(((datum['i']+1)*sWsA)-sA) >= datum['sK'] ? 'straight' : 'arc'",
+          "as": "type"
+        },
+        {
+          "type": "formula",
+          "expr": "(datum['i']%2 == 0) ? min(datum['r'], sW) : max(sW-datum['r'], 0)",
+          "as": "xStraight"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['type'] === 'straight' ? datum['xStraight'] : datum['xStraight'] + (datum['i']%2 == 0 ? sin(datum['alpha'])*sH/2 : -sin(datum['alpha'])*sH/2)",
+          "as": "x"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['type'] === 'straight' ? datum['i']*sH : (datum['i']*sH) + (1 - cos(datum['alpha']))*sH/2",
+          "as": "y"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['type'] === 'straight' ? null : datum['i']%2===0?'right':'left'",
+          "as": "side"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['type'] === 'straight' ? null : datum['alpha']<PI/2?'top':'bottom'",
+          "as": "hemisphere"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['type'] === 'straight' ? 0 : (datum['side'] === 'left' ? -1 : 1) *datum['alpha']*(180/PI)+(datum['alpha'] < PI/2 ? 0 : 180)",
+          "as": "labelAngle"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['i']%2===0 ?'→':'←'",
+          "as": "direction"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['type'] === 'straight' ? datum['direction'] : datum['side'] === 'left' ? (datum['hemisphere'] === 'top'? '←' : '→') :  (datum['hemisphere'] === 'top'? '→' : '←')",
+          "as": "direction"
+        }
+      ]
+    },
+    {
+      "name": "serpentine",
+      "source": "componentEncodings",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "datum['category'] === 'serpentine'"
+        }
+      ]
+    },
+    {
+      "name": "ticks",
+      "source": "componentEncodings",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "datum['category'] === 'tick'"
+        },
+        {
+          "type": "formula",
+          "expr": "!isValid(datum['side']) ? (tLO+3.5) : datum['side'] === 'right' ? (round(datum['alpha']*(180/PI)) >= 90 ? -1 : 1.75) * (tLO+3.5) : (round(datum['alpha']*(180/PI)) > 89 ? -1 : 1.75) * (tLO+3.5)",
+          "as": "dy"
+        }
+      ]
+    },
+    {
+      "name": "domain_extent",
+      "source": "componentEncodings",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "datum['category'] === 'start' || datum['category'] === 'end'"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['category'] === 'start' ? 'right' : datum['direction'] === '←' && datum['type'] === 'straight' ? 'right' : datum['side'] === 'left' ? 'right' : 'left'",
+          "as": "align"
+        },
+        {
+          "type": "formula",
+          "expr": "datum['category'] === 'start' ? -tLO-5 :  datum['direction'] === '←'  && datum['type'] === 'straight' ? -tLO-5 : datum['side'] === 'left' ? -tLO-5 : tLO+5",
+          "as": "dx"
+        }
+      ]
+    },
+    {
+      "name": "segment_ends",
+      "source": "componentEncodings",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "includeArrows && datum['category'] === 'serpentine'"
+        },
+        {
+          "type": "joinaggregate",
+          "fields": [
+            "id",
+            "id"
+          ],
+          "ops": [
+            "min",
+            "max"
+          ],
+          "groupby": [
+            "i"
+          ],
+          "as": [
+            "minId",
+            "maxId"
+          ]
+        },
+        {
+          "type": "filter",
+          "expr": "datum['id'] === (reverse ? datum['maxId'] : datum['minId'])"
+        }
+      ]
+    },
+    {
+      "name": "milestones",
+      "source": "componentEncodings",
+      "transform": [
+        {
+          "type": "filter",
+          "expr": "datum['category'] === 'milestone'"
+        },
+        {
+          "type": "lookup",
+          "key": "domain",
+          "from": "dataset",
+          "fields": [
+            "domain"
+          ],
+          "values": [
+            "label",
+            "color"
+          ]
+        },
+        {
+          "type": "formula",
+          "expr": "!isValid(datum['side']) ? -(mO) : datum['side'] === 'right' ? (round(datum['alpha']*(180/PI)) >= 90 ? 1 : -0.5) * (mO+3.5) : (round(datum['alpha']*(180/PI)) > 89 ? 1 : -0.5) * (mO+3.5)",
+          "as": "dy"
+        },
+        {
+          "type": "formula",
+          "expr": "1",
+          "as": "fillOpacity"
+        }
+      ]
+    }
+  ]
+}
