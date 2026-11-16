@@ -88,6 +88,6 @@ Once delivery is reported and `README.md` / `REGENERATE.md` are written, append 
 `build/journal.md` (see `skill/resume.md`):
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase4/delivered "README.md + REGENERATE.md written"
 ```

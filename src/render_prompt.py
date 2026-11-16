@@ -29,6 +29,7 @@ from pathlib import Path
 
 import oracle
 from log import _read_records, fold_attempts, part_author_model, role_model, search_request_log
+from pipeline import part_scope
 from plan import _is_load_bearing, is_step_script
 from printer_profile_validate import validate_profile
 
@@ -354,6 +355,7 @@ def render_builder(
             "PART_ID": part["id"],
             "SKILL_DIR": SKILL_DIR.as_posix(),
             "STAGES": " -> ".join(part_stages),
+            "SCOPE": part_scope(part["id"], part_stages),
             "VALIDATE_ARGS": validate_commands,
             "START_POINT": start_point(part),
             "PITFALLS": pitfalls(attempts),

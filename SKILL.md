@@ -31,6 +31,15 @@ Run scripts as `uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/<script>.py
 
 **If `build/journal.md` already exists, read `skill/resume.md` in full before Phase 0.**
 
+## Pipeline state
+
+`src/pipeline.py` owns the order of the steps. `status` reports the allowed next steps,
+`can <milestone>` checks one, and `advance <milestone> "<text>"` validates and appends the
+journal line (a refused call writes nothing: read its `errors`). Run it as
+`uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" <status|can|advance> [--route design|plan|edit]`.
+The route defaults to `design`; `/cq-design:plan` passes `--route plan`, `/cq-design:edit`
+uses `--route edit` (no plan, no journal, no print orientation or gate). Never infer the route.
+
 ## Phases
 
 Each phase's detail file is mandatory reading before the phase starts; the phase is not

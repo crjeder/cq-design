@@ -10,7 +10,8 @@ token and iteration cost and inherits already-verified topology.
   trigger) unless skipped below.
 - **Skip entirely** if the user explicitly asks to design from scratch (e.g. "design
   this from scratch", "don't look anything up, just build it"). Jump straight to
-  Phase 1.
+  Phase 1, after recording it:
+  `pipeline.py advance phase0/sourcing_skipped "<why>"`.
 - **Quick-pass heuristic:** if the request is dominated by user-specific dimensions or
   interfaces (the core cq-design case — a custom bracket sized to the user's own
   measurements, a one-off enclosure for a project the user is building), tell the
@@ -134,7 +135,7 @@ Once the ladder resolves (any rung, including rung 5), append one line to
 `build/journal.md` (see `skill/resume.md` for the contract):
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase0/rung_decision "rung <n>, source <url or \"none\">, license <verdict or \"n/a\">"
 ```
 

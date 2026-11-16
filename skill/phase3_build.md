@@ -100,7 +100,7 @@ For each part in `plan["parts"]`, in order (skip any part with `copy_of`: it has
      without checkpoints. Resume the builder with `approve`, `change: <verbatim feedback>`,
      or `finish`. After the stub is approved:
      ```bash
-     uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+     uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
          phase3/stub_approved:<part_id> "<summary>"
      ```
    - `passed` -> **Implementation audit** below.
@@ -135,13 +135,13 @@ the inventory lacks):
 5. **Skip** -> move on without this part; say so at design approval.
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase3/escalation:<part_id> "<hint verbatim | accepted as-is | skipped>"
 ```
 
 On **accept as-is**, also append (resume keys on it):
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase3/part_accepted:<part_id> "accepted as-is at escalation"
 ```
 
@@ -160,7 +160,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append buil
    Prompt: `Read build/<part_id>_audit_prompt.txt in full and follow it. Working directory: <absolute cwd>.`
 2. **`verdict: pass`** -> accepted. Do the write-backs, then:
    ```bash
-   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
        phase3/part_accepted:<part_id> "audit passed"
    ```
    and report any `findings` to the user under their own "Advisory" heading.
@@ -211,7 +211,7 @@ message, plus the builders' `decisions` and any unresolved advisories, and ask:
 Skip the wait only when the user asked for a fully autonomous run (still list the
 previews). Then:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase3/design_approved "<n> parts"
 ```
 
@@ -331,7 +331,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/toolpath_speed.py" \
 Write the accepted results to `build/orientations.json` (`{"<union_id>": {...result}}`)
 and one `build/<union_id>.orientation.json` per union, then:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase3/orientation_chosen "<n> unions, see build/orientations.json"
 ```
 
@@ -422,7 +422,7 @@ finding by its own `action` field, not by its `type`:
 - **`warn_only`** -> never triggers a fix round; show it with the print recipe.
 
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase3/gate_result "<pass|escalated>, <n> remaining findings"
 ```
 Then proceed to Phase 4.
