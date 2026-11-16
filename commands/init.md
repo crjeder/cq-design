@@ -13,3 +13,5 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/print
 The `--venv` flag records `UV_PROJECT_ENVIRONMENT` in `.claude/settings.local.json` so later `uv run --project` calls reuse that venv. Report each `.claude/agents/cq-design-*.md` it installed or refreshed (plugin-owned; init overwrites them) and any file the helper seeded (tell the user to edit it) and any profile validation errors. Do not overwrite existing files.
 
 Then recommend the user start a fresh session before `/cq-design:design`: this session already carries the init output on top of every loaded tool, and each later call re-reads that context.
+
+Finally run `python "${CLAUDE_PLUGIN_ROOT}/src/install_check.py"`; if it reports a duplicate install (plugin and standalone skill both present), show its hint as a warning. Remove nothing and do not fail on it.
