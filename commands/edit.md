@@ -7,7 +7,7 @@ Edit an existing solid: $ARGUMENTS
 
 The first argument is the file, the rest is the change. Stop with one line, writing nothing, if the file does not exist, its extension is not `.step`/`.stp`/`.brep` (CadQuery has no IGES importer), or the change is empty (then ask for it).
 
-`SKILL_DIR` is `${CLAUDE_PLUGIN_ROOT}`. First run `python "${CLAUDE_PLUGIN_ROOT}/src/init_permissions.py" . --check`. If it reports `uninitialized`, do what `/cq-design:init` does (venv in `${CLAUDE_PLUGIN_DATA}/venv`) first. Do not run phases 0-2, do not write `BUILD_PLAN.json`, do not run `print_orientation.py` or `quality_gate.py`.
+`SKILL_DIR` is `${CLAUDE_PLUGIN_ROOT}`. First run `python "${CLAUDE_PLUGIN_ROOT}/src/init_permissions.py" . --check`. If it reports `uninitialized`, do what `/cq-design:init` does (venv in `${CLAUDE_PLUGIN_DATA}/venv`) first. This route is `--route edit` (`pipeline.py status --route edit` lists the steps; it needs no plan or `build/`). Do not run phases 0-2, do not write `BUILD_PLAN.json`, do not run `print_orientation.py` or `quality_gate.py`.
 
 Read `SKILL.md`'s Coordinate system section. Directions in the change ("top", "left", "front") are in the input's own frame: +Z up, +Y north, +X east.
 

@@ -23,7 +23,7 @@ top of vs. inside another), resolve it before any dimension lookup: draw a small
 cross-section (render it with `concept_sketch.py`, see the exit checkpoint; never ASCII art) and ask a direct either/or
 question naming both readings. Wait for the answer, then:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase1/topology_confirmed "<confirmed reading>"
 ```
 
@@ -160,6 +160,6 @@ HANDLE_DIAMETER_MM = 24.0  # assumed
 Then always append the milestone, even when nothing was looked up (resume keys on it).
 When `parameters.py` was skipped, use the text `"nothing sourced, no parameters.py"`:
 ```bash
-uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/log.py" journal append build/journal.md \
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
     phase1/dimensions_approved "parameters.py written, <n> dimensions recorded"
 ```

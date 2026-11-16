@@ -54,6 +54,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     placement.py             # Assembly-pose placement helper (cq + trimesh)
     mate_chain.py            # Derived pose along a `joints` mate chain from root_part
     units.py                 # Part->unions / keep-out-zone expansion (resolve_unions / resolve_keep_out)
+    pipeline.py               # Pipeline state machine: derive build state from journal + artifacts, status / can / advance, routes design/plan/edit
     freshness.py              # Provenance stamp: hash a part script, compare/write the export manifest
     write_assembly.py        # Assembly writer: assembled-pose per-union + keep-out-zone STLs + manifest (the checks' input); assemble() poses unions
     deliverables.py          # User-facing files, all in print pose: named 3MF, per-union/plate STL, STEP/OBJ/IGES/SCAD (called by build.py)
@@ -150,6 +151,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_agents.py                   # Agent frontmatter, minimal tools, no general-purpose spawns
     test_plan.py                     # Schema validation, Phase 2 summary rendering, parameter
                                      # round-trip -- fast, no CadQuery
+    test_pipeline.py                 # State machine: validity order, stale parts, routes, sourcing status -- fast, no CadQuery
     test_freshness.py                # Provenance stamp hash/compare/manifest -- fast, no CadQuery
     test_sbom.py                     # documentation/SBOM.md vs pyproject deps + section-2 paths -- fast, no CadQuery
     test_script_lint.py              # AST pre-flight lint findings + CLI -- fast, no CadQuery
