@@ -943,6 +943,38 @@ def _run_hooked_stages(
     return edge, feature
 
 
+def _run_oracle_stage(
+    plan: dict, plan_path: str, script_path: str, feature_issues: list[dict]
+) -> list[dict]:
+    """`oracle_unmet` findings for the part's bound acceptance statements (build pose)."""
+    import oracle
+    import plan_params
+
+    doc = oracle.load(oracle.acceptance_for(plan_path))
+    if doc is None:
+        return []
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
+    if part is None:
+        return []
+    consts = plan_params.load_constants(oracle.acceptance_for(plan_path).parent / "parameters.py")
+    kinds = {s["id"]: s["kind"] for s in doc.get("statements", [])}
+    needs_body = any(
+        b["part"] == stem and kinds.get(b["statement"]) in ("extent", "probe")
+        for b in plan.get("acceptance_bindings") or []
+    )
+    body = None
+    if needs_body:
+        import cadquery as cq
+
+        from exporters import _load_result
+        from units import resolve_unions
+
+        unions = resolve_unions(part, _load_result(script_path))
+        body = cq.Compound.makeCompound([v for _, wp in unions for v in wp.vals()])
+    return oracle.verify(plan, doc, stem, body, feature_issues, consts)
+
+
 def _run_toolpath_speed_stage(
     plan: dict, plan_path: str, script_path: str, stl_dir: str
 ) -> list[dict]:
@@ -1379,6 +1411,8 @@ def run_gate(
         # ---- toolpath-speed advisor (corner/crowding print-time; once, outside the fix loop) ----
         all_issues += _run_toolpath_speed_stage(plan, plan_path, script_path, stl_dir)
         all_issues += feature_issues
+        # ---- oracle acceptance statements (only when acceptance.json exists) ----
+        all_issues += _run_oracle_stage(plan, plan_path, script_path, feature_issues)
         # ---- hinge-guard-lint (revolute-hinge script missing its seating guard; advisory) ----
         all_issues += _run_hinge_guard_stage(plan, script_path)
         # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
@@ -1486,6 +1520,9 @@ def main():
             orientation=orientation,
             attempts_log=args.attempts_log,
         )
+        import oracle
+
+        oracle.apply_rounds(report["issues"], previous)
         if previous is not None:
             report["delta"] = gate_delta(previous, report)
     except InputFileError as e:

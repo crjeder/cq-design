@@ -31,6 +31,7 @@ from typing import Any
 import jsonschema
 
 import log
+import oracle
 import plan_params
 
 _SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "build_plan_schema.json")
@@ -138,9 +139,8 @@ def validate_plan(
                     f"(not in inventory). Available: {sorted(valid_blocks)}"
                 )
 
-    _, param_errors = plan_params.resolve_plan(
-        plan, plan_params.load_constants(Path(plan_path).resolve().parent / "parameters.py")
-    )
+    consts = plan_params.load_constants(Path(plan_path).resolve().parent / "parameters.py")
+    _, param_errors = plan_params.resolve_plan(plan, consts)
     errors.extend(param_errors)
     errors.extend(_check_instances(plan, inventory_path))
     errors.extend(_check_archetypes(plan, archetypes_path))
@@ -156,8 +156,26 @@ def validate_plan(
     errors.extend(_check_request_log(plan))
     errors.extend(_check_intent_reconciled(plan))
     errors.extend(_check_bom_parts(plan))
+    errors.extend(_check_acceptance(plan, plan_path, consts))
 
     return errors
+
+
+def _check_acceptance(plan: dict[str, Any], plan_path: str, consts: dict[str, float]) -> list[str]:
+    """Oracle binding + acceptance_ts staleness; nothing when no acceptance.json exists."""
+    try:
+        doc = oracle.load(oracle.acceptance_for(plan_path))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"Cannot load acceptance.json: {exc}"]
+    if doc is None:
+        return []
+    return oracle.check(plan, doc, consts) + _check_reconciled(
+        plan,
+        "acceptance_ts",
+        "acceptance.json",
+        "resume the oracle with the entry, show changed statements to the user, then set "
+        "`acceptance_ts` (log.py request add ... --acceptance-reconciled)",
+    )
 
 
 def _check_instances(plan: dict[str, Any], inventory_path: str) -> list[str]:
@@ -753,18 +771,25 @@ def _parse_ts(value: str) -> datetime:
 def _check_intent_reconciled(plan: dict[str, Any]) -> list[str]:
     """Fail when a clarification/correction entry is newer than `intent_ts` (or the stamp
     is absent while such entries exist): `intent` was not reconciled against the log."""
+    return _check_reconciled(
+        plan,
+        "intent_ts",
+        "intent",
+        "rewrite `intent` if the design changed, then set `intent_ts` "
+        "(log.py request add ... --reconciled)",
+    )
+
+
+def _check_reconciled(plan: dict[str, Any], field: str, what: str, fix: str) -> list[str]:
+    """Fail when a clarification/correction entry is newer than the `field` stamp."""
     entries = [e for e in plan.get("request_log") or [] if e.get("kind") != "initial"]
     if not entries:
         return []
-    fix = (
-        "rewrite `intent` if the design changed, then set `intent_ts` "
-        "(log.py request add ... --reconciled)"
-    )
-    stamp = plan.get("intent_ts")
+    stamp = plan.get(field)
     try:
         cutoff = _parse_ts(stamp) if stamp is not None else None
     except ValueError:
-        return [f"intent_ts {stamp!r} is not an ISO-8601 timestamp"]
+        return [f"{field} {stamp!r} is not an ISO-8601 timestamp"]
     errors = []
     stale = []
     for e in entries:
@@ -777,8 +802,8 @@ def _check_intent_reconciled(plan: dict[str, Any]) -> list[str]:
             stale.append(f"[{e['kind']} {e['ts']}] {e['text'][:60]}")
     if stale:
         errors.append(
-            f"intent not reconciled with request_log ({len(stale)} entr"
-            f"{'y' if len(stale) == 1 else 'ies'} newer than intent_ts={stamp}): "
+            f"{what} not reconciled with request_log ({len(stale)} entr"
+            f"{'y' if len(stale) == 1 else 'ies'} newer than {field}={stamp}): "
             + "; ".join(stale)
             + f" -- {fix}"
         )
@@ -1255,6 +1280,27 @@ def _materials_block(plan: dict, max_materials: int) -> list[str]:
     return out
 
 
+def _acceptance_rows(plan: dict, plan_path: Path) -> list[list]:
+    """One row per oracle statement with its binding; empty without acceptance.json."""
+    doc = oracle.load(oracle.acceptance_for(plan_path))
+    if doc is None:
+        return []
+    bindings: dict[str, list[str]] = {}
+    for b in plan.get("acceptance_bindings") or []:
+        names = (b.get("interfaces") or []) + (b.get("probes") or [])
+        where = b["part"] + (": " + ", ".join(names) if names else "")
+        bindings.setdefault(b["statement"], []).append(where)
+    rows = []
+    for s in doc.get("statements", []):
+        bound = "; ".join(bindings.get(s["id"], [])) or (
+            "(plan part count)" if s["kind"] == "part_count" else "UNBOUND"
+        )
+        if s["kind"] == "visual":
+            bound += " (checked by review)"
+        rows.append([s["id"], s["text"], bound])
+    return rows
+
+
 def summarize(plan: dict, plan_path: Path, max_materials: int = 1) -> str:
     """Markdown checkpoint tables for a validated plan."""
     parts = plan["parts"]
@@ -1357,6 +1403,10 @@ def summarize(plan: dict, plan_path: Path, max_materials: int = 1) -> str:
     open_questions = _open_questions(plan)
     if open_questions:
         out += ["**Open questions**", "", *[f"- {q}" for q in open_questions], ""]
+
+    acceptance = _acceptance_rows(plan, plan_path)
+    if acceptance:
+        out += ["**Acceptance**", "", _table(["#", "Statement", "Bound to"], acceptance), ""]
 
     cons = plan["constraints"]
     out += [

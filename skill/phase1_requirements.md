@@ -80,7 +80,7 @@ the `errors`; if the second result also fails, proceed as if nothing was found.
 ## Exit checkpoint
 
 One message, one approval, covering (the `dimensions_approved` milestone is written only
-after all three are approved):
+after all four are approved):
 
 1. **Dimension table** -- the research rows (omit when nothing was looked up), with every
    `conflict`/`missing` row resolved with the user or converted to `assumed` (a concrete
@@ -109,12 +109,36 @@ after all three are approved):
    communicates; nothing is derived from it. A rejected sketch is a correction: amend
    `concept.json`, re-render, and log it with `log.py request add --kind correction`.
 
-Do not start Phase 2 until the user approves or corrects all three. Corrections replace the
+4. **Acceptance statements** -- what the finished parts will be checked against, written
+   by the oracle agent from the reformulation alone (it never sees the plan). Before the
+   checkpoint, write the draft reformulation to `build/reformulation.md`, and write
+   `build/oracle_request.md`: the user's original request, the draft reformulation
+   (labelled as such), and the dimension table with the `parameters.py` constant name each
+   row will get. Render:
+   ```bash
+   uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/render_prompt.py" oracle \
+       --request-file build/oracle_request.md
+   ```
+   Spawn the `cq-design-oracle` agent (fall back to `cq-design:oracle` if the project agent is not offered) with `Read <out> in full and follow it. Working directory: <absolute cwd>.`
+   passing the render output's `agent_model` as the Agent tool's `model`. It writes
+   `acceptance.json`, validates it itself (3 attempts), and returns `status`. On
+   `blocked`, show its `error_summary` to the user and resume the same agent with the
+   decision. Show the statements as a numbered list of `id` and `text` (never JSON),
+   marking `visual` ones "checked by review".
+
+   A statement the user rejects is a correction of the reformulation, never of
+   `acceptance.json`: amend `build/reformulation.md` (and the request file), log the
+   correction, resume the same oracle agent with the amended reformulation, and show the
+   updated statements before approval. Never edit `acceptance.json` by hand.
+
+Do not start Phase 2 until the user approves or corrects all four, and `acceptance.json`
+validates. Corrections replace the
 looked-up values; a corrected reading becomes the approved text. The approved reformulation
 is copied verbatim into `BUILD_PLAN.json`'s `intent` by the planner; `request_log`'s
 `initial` entry keeps the user's original wording. If the log already holds
-clarification entries at that point, the planner also sets `intent_ts` to the newest
-entry's `ts`; with only an `initial` entry, no stamp is needed.
+clarification entries at that point, the planner also sets `intent_ts` and
+`acceptance_ts` to the newest entry's `ts`; with only an `initial` entry, no stamp is
+needed.
 
 ## At approval
 

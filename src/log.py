@@ -359,6 +359,7 @@ def add_request_log_entry(
     targets: list[str] | None = None,
     reconciled: bool = False,
     snapshot_dir: str | Path | None = None,
+    acceptance_reconciled: bool = False,
 ) -> dict:
     """Return a new plan dict with one entry appended to request_log.
 
@@ -389,6 +390,8 @@ def add_request_log_entry(
     new_plan["request_log"] = [*(plan.get("request_log") or []), entry]
     if reconciled:
         new_plan["intent_ts"] = entry["ts"]
+    if acceptance_reconciled:
+        new_plan["acceptance_ts"] = entry["ts"]
 
     import jsonschema
 
@@ -443,6 +446,7 @@ def _cmd_add(args: argparse.Namespace) -> int:
             targets=args.target,
             reconciled=args.reconciled,
             snapshot_dir=args.snapshot_scripts,
+            acceptance_reconciled=args.acceptance_reconciled,
         )
     except ValueError as exc:
         print(f"request: {exc}", file=sys.stderr)
@@ -574,6 +578,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="set intent_ts to this entry's ts; pass only after rewriting `intent` (or "
         "deciding no rewrite is needed). Without it the plan fails validation",
+    )
+    ra.add_argument(
+        "--acceptance-reconciled",
+        action="store_true",
+        help="set acceptance_ts to this entry's ts; pass only after the oracle has been "
+        "resumed with the entry and its statements shown to the user",
     )
     ra.add_argument(
         "--snapshot-scripts",

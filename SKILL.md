@@ -39,7 +39,7 @@ runnable from this summary.
 | Phase | Read first | Does |
 |-------|-----------|------|
 | 0 Sourcing triage | `skill/phase0_sourcing.md` | Search for a usable existing model; rungs 1-3 skip phases 1-3 |
-| 1 Requirements | `skill/phase1_requirements.md` | Function, topology, dimensions (research agent), fits; one approval checkpoint |
+| 1 Requirements | `skill/phase1_requirements.md` | Function, topology, dimensions (research agent), fits, acceptance statements (oracle agent); one approval checkpoint |
 | 2 Planning | `skill/phase2_planning.md` | Planner agent writes `BUILD_PLAN.json`; validate; user approves the summary |
 | 3 Build | `skill/phase3_build.md` | Builder + auditor agents per part, design approval, print orientation, export, quality gate |
 | 4 Deliver | `skill/phase4_deliver.md` | Report, `README.md`, `REGENERATE.md` |

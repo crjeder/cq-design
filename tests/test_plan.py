@@ -2100,3 +2100,98 @@ def test_authored_probe_instance_must_be_planned(plan_file):
     ]
     errors = validate_plan(plan_file(plan))
     assert any("'body'" in e and "'lid_hinge'" in e for e in errors)
+
+
+# ---- oracle acceptance -----------------------------------------------------
+
+_ACCEPTANCE = {
+    "schema_version": 1,
+    "statements": [
+        {
+            "id": "S1",
+            "kind": "part_count",
+            "n": 1,
+            "cites": ["single body"],
+            "text": "One printed part",
+        },
+        {
+            "id": "S2",
+            "kind": "extent",
+            "which": "largest",
+            "max_mm": 60,
+            "cites": ["Arduino Nano"],
+            "text": "Fits in 60 mm",
+        },
+        {
+            "id": "S3",
+            "kind": "visual",
+            "cites": ["USB-C pass-through on the front wall"],
+            "text": "USB-C opening on the front wall",
+        },
+    ],
+}
+
+
+def _oracle_plan(tmp_path, plan, acceptance=_ACCEPTANCE):
+    (tmp_path / "acceptance.json").write_text(json.dumps(acceptance))
+    p = tmp_path / "BUILD_PLAN.json"
+    p.write_text(json.dumps(plan))
+    return str(p)
+
+
+def _bound_plan():
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["acceptance_bindings"] = [
+        {"statement": "S2", "part": "body"},
+        {"statement": "S3", "part": "body"},
+    ]
+    return plan
+
+
+def test_oracle_bound_plan_validates(tmp_path):
+    assert validate_plan(_oracle_plan(tmp_path, _bound_plan())) == []
+
+
+def test_oracle_dropped_binding_fails(tmp_path):
+    plan = _bound_plan()
+    plan["acceptance_bindings"] = plan["acceptance_bindings"][1:]
+    errors = validate_plan(_oracle_plan(tmp_path, plan))
+    assert len(errors) == 1 and "S2" in errors[0] and "unbound" in errors[0]
+
+
+def test_oracle_contradiction_fails(tmp_path):
+    plan = _bound_plan()
+    plan["parts"][0]["dimensions"]["w_mm"] = 75
+    errors = validate_plan(_oracle_plan(tmp_path, plan))
+    assert len(errors) == 1 and "S2" in errors[0] and "exceeds" in errors[0]
+
+
+def test_oracle_no_acceptance_file_skips(plan_file):
+    assert validate_plan(plan_file(VALID_PLAN)) == []
+
+
+def test_oracle_acceptance_ts_staleness(tmp_path):
+    plan = _bound_plan()
+    plan["request_log"] = [
+        {"ts": "2026-07-19T10:00:00Z", "kind": "initial", "text": "Make an enclosure"},
+        {"ts": "2026-07-19T11:00:00Z", "kind": "correction", "text": "Make it taller"},
+    ]
+    plan["intent_ts"] = "2026-07-19T11:00:00Z"
+    errors = validate_plan(_oracle_plan(tmp_path, plan))
+    assert len(errors) == 1 and "acceptance.json not reconciled" in errors[0]
+    plan["acceptance_ts"] = "2026-07-19T11:00:00Z"
+    assert validate_plan(_oracle_plan(tmp_path, plan)) == []
+    plan["acceptance_ts"] = "yesterday"
+    assert validate_plan(_oracle_plan(tmp_path, plan)) == [
+        "acceptance_ts 'yesterday' is not an ISO-8601 timestamp"
+    ]
+
+
+def test_summary_acceptance_section(tmp_path):
+    path = _oracle_plan(tmp_path, _bound_plan())
+    plan = json.loads(Path(path).read_text())
+    out = summarize(plan, Path(path))
+    assert "**Acceptance**" in out
+    assert "| S2 | Fits in 60 mm | body |" in out
+    assert "(checked by review)" in out
+    assert "(plan part count)" in out

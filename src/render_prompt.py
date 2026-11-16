@@ -27,6 +27,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+import oracle
 from log import _read_records, fold_attempts, part_author_model, role_model, search_request_log
 from plan import _is_load_bearing, is_step_script
 from printer_profile_validate import validate_profile
@@ -404,8 +405,20 @@ def _probed_note(part: dict, report: dict | None) -> str:
     )
 
 
+def _visual_questions(visual: list[dict]) -> str:
+    """Audit group 2b: the oracle's `visual` statements bound to this part, one per line."""
+    if not visual:
+        return "(none)"
+    return "\n".join(f"   - {s['id']}: {s['text']}" for s in visual)
+
+
 def render_audit(
-    plan: dict, part: dict, script: Path, previews: list[str], report: dict | None = None
+    plan: dict,
+    part: dict,
+    script: Path,
+    previews: list[str],
+    report: dict | None = None,
+    visual: list[dict] | None = None,
 ) -> str:
     settled = bool(report and report.get("success"))
     if _is_load_bearing(part):
@@ -435,6 +448,7 @@ def render_audit(
             "PREVIEW_PATHS": "\n".join(f"- {p}" for p in previews),
             "CONNECTEDNESS": CONNECTEDNESS_SETTLED if settled else CONNECTEDNESS_ASKED,
             "PROBED_INTERFACES": _probed_note(part, report),
+            "ACCEPTANCE_VISUAL": _visual_questions(visual or []),
         },
     )
 
@@ -523,9 +537,18 @@ def render_planning(
             "ENGINEERING_RULES": tagged_sections(_read(REF / "Engineering Design Rules.md"), set()),
             "PRINTER_PROFILE": profile_text,
             "SKILL_DIR": SKILL_DIR.as_posix(),
+            "ACCEPTANCE": acceptance_block(Path(oracle.ACCEPTANCE_FILE)),
         },
     )
     return text, status, profile_errors
+
+
+def acceptance_block(path: Path) -> str:
+    """Planning listing of acceptance.json statements, or a note that there are none."""
+    doc = oracle.load(path)
+    if not doc:
+        return "Acceptance statements: (none -- omit `acceptance_bindings` and `acceptance_ts`)"
+    return "Acceptance statements:\n\n```json\n" + json.dumps(doc["statements"], indent=2) + "\n```"
 
 
 def render_research(targets: str, known: str | None) -> str:
@@ -553,6 +576,14 @@ def render_sourcing(request: str) -> str:
             "REQUEST_TEXT": request,
             "SOURCING_CORPUS": sourcing_corpus(),
         },
+    )
+
+
+def render_oracle(request: str) -> str:
+    """Oracle prompt: the Phase 1 request only, never plan content."""
+    return fill(
+        _read(SKILL_DIR / "prompts/oracle.md"),
+        {"ORACLE_REQUEST": request, "SKILL_DIR": SKILL_DIR.as_posix()},
     )
 
 
@@ -594,6 +625,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--request-file", required=True, type=Path)
     p.add_argument("--out")
 
+    p = sub.add_parser("oracle")
+    p.add_argument("--request-file", required=True, type=Path)
+    p.add_argument("--out")
+
     args = parser.parse_args(argv)
     extra: dict[str, str | list[str]] = {}
 
@@ -611,7 +646,9 @@ def main(argv: list[str] | None = None) -> int:
                 extra["model"] = part_author_model()
             else:
                 report = json.loads(_read(args.step_report)) if args.step_report else None
-                text = render_audit(plan, part, args.script, args.previews, report)
+                doc = oracle.load(oracle.acceptance_for(args.plan))
+                visual = oracle.visual_statements(doc, plan, part["id"])
+                text = render_audit(plan, part, args.script, args.previews, report, visual)
                 out = Path(args.out or f"build/{part['id']}_audit_prompt.txt")
         except ValueError as exc:
             print(f"render_prompt: {exc}", file=sys.stderr)
@@ -636,6 +673,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"render_prompt: {exc}", file=sys.stderr)
             return 1
         out = Path(args.out or "build/research_prompt.txt")
+    elif args.kind == "oracle":
+        try:
+            text = render_oracle(_read(args.request_file))
+        except ValueError as exc:
+            print(f"render_prompt: {exc}", file=sys.stderr)
+            return 1
+        out = Path(args.out or "build/oracle_prompt.txt")
     else:
         try:
             text = render_sourcing(_read(args.request_file))

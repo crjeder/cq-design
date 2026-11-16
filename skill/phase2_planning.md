@@ -30,7 +30,13 @@ agent in Phase 3) before returning its status contract (`status`, `parts`, `atte
   already journaled `phase2/plan_written`; do not append it.)
 - `status: "blocked"` -> the agent exhausted its retries with validator errors remaining
   (`error_summary`). Summarize the errors to the user, get a decision, and resume the same
-  planner agent with it -- never spawn a second planner.
+  planner agent with it -- never spawn a second planner. An `oracle: S<n> ...` error is an
+  acceptance statement the plan could not bind or satisfy: quote the statement's `text`
+  and ask whether to change the plan (resume the planner with the answer) or the intent
+  (a correction: re-run the oracle as in Phase 1, then resume the planner).
+
+The planning prompt lists `acceptance.json`'s statements (rule 18); the planner binds each
+one in `acceptance_bindings`, and `plan.py validate` checks the bindings.
 
 Read `BUILD_PLAN.json` from disk only if you need to inspect it yourself; the plan summary
 checkpoint below reads it through `plan.py summary`, not through this session parsing the
@@ -70,7 +76,8 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/plan.py" summary BUILD_PLAN
 
 Show its Markdown output (never raw JSON) -- it already includes **Names I chose** (every
 part id / interface name not found in `request_log`), **Open questions** (every
-`OPEN:` item in `planning_notes`), and **Load cases** (every part whose `load` declares
+`OPEN:` item in `planning_notes`), **Acceptance** (each oracle statement and the plan
+entities bound to it), and **Load cases** (every part whose `load` declares
 `magnitude_n`, with the source mass, safety factor, and resulting force -- see below) when
 applicable. Then add:
 

@@ -18,6 +18,7 @@ PROMPTS = ROOT / "prompts"
 RENDERERS: dict[str, list[Callable]] = {
     "audit.md": [rp.render_audit],
     "builder.md": [rp.render_builder],
+    "oracle.md": [rp.render_oracle],
     "part.md": [rp.part_spec],
     "planning.md": [rp.render_planning],
     "research.md": [rp.render_research],
