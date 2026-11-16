@@ -31,4 +31,3 @@ From the text-to-cad survey (2026-10-16; scripts and limit tables not read -- ch
 
 Process hygiene (from their `AGENTS.md`): every test file reached by CI, flaky tests fixed or deleted never retried, no one-off helper scripts in `src/`
 
-`init` / `status`: detect plugin + standalone skill both installed (duplicates every skill)
