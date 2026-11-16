@@ -356,3 +356,48 @@ def test_planning_inventory_lists_params_and_edge_sets():
         ]
     )
     assert "Params: w, h; edges: vertical" in lines and "Params: r, angle?" in lines
+
+
+def test_oracle_prompt_has_request_and_no_plan(tmp_path, monkeypatch, capsys):
+    plan, _ = _plan(intent="PLAN_ONLY_MARKER")
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+    req = tmp_path / "oracle_request.md"
+    req.write_text("Broom hook, handle assumed 24 mm (HANDLE_DIAMETER_MM)", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert rp.main(["oracle", "--request-file", str(req)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["model"], out["agent_model"]) == ("claude-sonnet-5-5", "sonnet")
+    text = Path(out["out"]).read_text(encoding="utf-8")
+    assert "handle assumed 24 mm" in text and "PLAN_ONLY_MARKER" not in text
+    assert "{{" not in text
+
+
+def test_audit_cli_adds_bound_visual_statements(tmp_path, monkeypatch, capsys):
+    script = tmp_path / "lid.py"
+    script.write_text("result = None\n")
+    plan, _ = _plan(acceptance_bindings=[{"statement": "S2", "part": "lid"}])
+    (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+    doc = {
+        "schema_version": 1,
+        "statements": [
+            {"id": "S1", "kind": "visual", "cites": ["x"], "text": "unbound look"},
+            {"id": "S2", "kind": "visual", "cites": ["x"], "text": "rounded, friendly look"},
+        ],
+    }
+    (tmp_path / "acceptance.json").write_text(json.dumps(doc), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    argv = [
+        "audit",
+        "--plan",
+        "BUILD_PLAN.json",
+        "--part",
+        "lid",
+        "--script",
+        str(script),
+        "--previews",
+        "preview/lid_preview.png",
+    ]
+    assert rp.main(argv) == 0
+    text = Path(json.loads(capsys.readouterr().out)["out"]).read_text(encoding="utf-8")
+    assert "- S2: rounded, friendly look" in text and "unbound look" not in text
+    assert "result = None" not in text

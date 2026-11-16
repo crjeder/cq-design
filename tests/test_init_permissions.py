@@ -245,7 +245,10 @@ def test_merge_hooks_replaces_stale_install_path(tmp_path):
 
 
 def test_install_agents(tmp_path):
-    names = [f"cq-design-{r}.md" for r in ("auditor", "builder", "planner", "research", "sourcing")]
+    names = [
+        f"cq-design-{r}.md"
+        for r in ("auditor", "builder", "oracle", "planner", "research", "sourcing")
+    ]
     other = tmp_path / ".claude" / "agents" / "my-reviewer.md"
     other.parent.mkdir(parents=True)
     other.write_text("mine", encoding="utf-8")

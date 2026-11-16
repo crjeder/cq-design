@@ -6,7 +6,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
 ```
 .
   .claude-plugin/        # plugin.json (skills: ["."]) + marketplace.json; repo root is the plugin root
-  agents/                # Role agents (sourcing research planner builder auditor): minimal tools + model; installers ship them; init copies to .claude/agents/cq-design-<role>.md
+  agents/                # Role agents (sourcing research planner builder auditor oracle): minimal tools + model; installers ship them; init copies to .claude/agents/cq-design-<role>.md
   commands/              # /cq-design:design plan edit init update build render status
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
@@ -22,6 +22,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     script_ops.py            # Group commands (new/replace/insert/remove/move) over part and edit scripts, preflighted (stdlib only)
     plan_params.py           # Evaluate BUILD_PLAN.json string params as expressions over parameters.py constants; resolved-param hashes
     concept_sketch.py        # Phase 1 concept sketch: JSON -> SVG (no CadQuery)
+    oracle.py                # acceptance.json (oracle statements): `validate`, plan-binding `check`, gate `verify`, round counting
     probes.py                # Probe kinds on BRep (solid_at/empty_at/ray/bbox), registry, plan-derived probes
     step_worker.py           # Warm step worker: prefix-cached step runs, per-step probe checks, snapshots, stuck rule
     render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
@@ -115,6 +116,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
 
   prompts/
     research.md          # Research agent prompt (dimension lookup table)
+    oracle.md            # Oracle agent prompt (acceptance statements from the intent, no plan)
     planning.md          # Planner agent prompt (outputs BUILD_PLAN.json)
     builder.md           # Builder agent operating instructions + return contract
     part.md              # Per-part specification appended to builder.md
@@ -155,6 +157,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_script_ops.py               # Group layout, commands, preflight refusals, unmanaged edits -- fast, no CadQuery
     test_render_prompt.py            # Builder/audit/planning/research prompt rendering -- fast, no CadQuery
     test_skill_version.py            # Version stamping/detection/compare -- fast, no CadQuery
+    test_oracle.py                   # acceptance.json validate/check/verify/rounds -- fast, no CadQuery
+    test_quality_gate_oracle.py      # Gate oracle stage on a built body (CadQuery)
     test_log.py                      # Journal/attempt/request_log helpers + CLI -- fast, no CadQuery
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery

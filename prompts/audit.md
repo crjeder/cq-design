@@ -45,6 +45,9 @@ then asked to render the missing section or detail.
    - each `unions[]` id: single connected body (section);
    - each internal feature (blind hole, nut pocket, internal boss): at planned depth and
      position (section through it).
+   - each **acceptance statement** below (user-approved requirements only a picture can
+     check), named by its id, e.g. "S7 rounded, friendly look":
+{{ACCEPTANCE_VISUAL}}
 3. **Request conformance** (skip when request text is `(none)`): one question per
    concrete placement, form, or reference-frame claim, quoting the phrase. Fault only
    what the render visibly contradicts.

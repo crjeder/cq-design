@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ROLES = ["sourcing", "research", "planner", "builder", "auditor"]
+ROLES = ["sourcing", "research", "planner", "builder", "auditor", "oracle"]
 HEAVY = ("mcp__", "Artifact", "browser", "Terminal", "visualize")
 
 
@@ -33,6 +33,7 @@ def test_agent_frontmatter_and_minimal_tools():
 def test_web_agents_minimal_tools():
     assert json.loads(_front("sourcing")["tools"]) == ["Read", "WebSearch", "WebFetch"]
     assert json.loads(_front("research")["tools"]) == ["Read", "Bash", "WebSearch", "WebFetch"]
+    assert json.loads(_front("oracle")["tools"]) == ["Read", "Write", "Bash"]
 
 
 def test_models_cheap_roles_sonnet_planner_opus():
@@ -43,7 +44,7 @@ def test_models_cheap_roles_sonnet_planner_opus():
 
 def test_default_config_has_all_roles():
     cfg = json.loads((ROOT / "src/skill_config.default.json").read_text(encoding="utf-8"))
-    for key in ("planner", "part_author", "fix_loop", "sourcing", "research", "auditor"):
+    for key in ("planner", "part_author", "fix_loop", "sourcing", "research", "auditor", "oracle"):
         assert cfg["models"][key]
 
 
@@ -63,6 +64,6 @@ def test_spawn_prose_passes_agent_model():
         ]
         assert hits, role
     prose = "\n".join(f.read_text(encoding="utf-8") for f in (ROOT / "skill").glob("phase*.md"))
-    assert prose.count("agent_model") >= 5
+    assert prose.count("agent_model") >= 6
     for role in ROLES:
         assert f"`cq-design:{role}`" in prose, role

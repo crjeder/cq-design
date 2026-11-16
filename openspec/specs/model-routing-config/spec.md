@@ -11,12 +11,12 @@ seeded, and how a missing config or key falls back rather than failing.
 ### Requirement: A working-directory config names the model for each LLM role
 
 A `skill_config.json` file in the working directory SHALL carry a `models` object with
-the keys `planner`, `part_author`, `fix_loop`, `sourcing`, `research`, and `auditor`.
-Each value SHALL be either a model id or the literal `"inline"`. A model id is passed to
-`claude -p --model` verbatim. `"inline"` means the role runs in the calling session,
-with no spawn and no `--model` flag. When a key is absent, the role SHALL use the value
-in the shipped `src/skill_config.default.json`. The agent file's `model:` SHALL NOT be
-relied on, because hosts may ignore it.
+the keys `planner`, `part_author`, `fix_loop`, `sourcing`, `research`, `auditor`, and
+`oracle`. Each value SHALL be either a model id or the literal `"inline"`. A model id is
+passed to `claude -p --model` verbatim. `"inline"` means the role runs in the calling
+session, with no spawn and no `--model` flag. When a key is absent, the role SHALL use the
+value in the shipped `src/skill_config.default.json`. The agent file's `model:` SHALL NOT
+be relied on, because hosts may ignore it.
 
 #### Scenario: Role model is read from the config
 
@@ -42,6 +42,12 @@ relied on, because hosts may ignore it.
 - **WHEN** a builder attempt is logged
 - **THEN** the `model` field holds the id the builder actually ran on, not a stale default
 
+#### Scenario: Oracle default
+
+- **WHEN** `render_prompt.py oracle` runs with no `skill_config.json`
+- **THEN** the output's `model` is `models.oracle` from `src/skill_config.default.json`,
+  a Sonnet id, and `agent_model` is `sonnet`
+
 ### Requirement: Every spawn passes the model explicitly
 
 `src/render_prompt.py` SHALL include `agent_model` in its JSON output for every prompt
@@ -59,7 +65,7 @@ Agent tool's `model` parameter.
 - **THEN** `agent_model` equals the id
 
 #### Scenario: Spawn prose passes the alias
-- **WHEN** a test reads the spawn instruction for each of the five roles
+- **WHEN** a test reads the spawn instruction for each of the six roles
 - **THEN** it says to pass the render output's `agent_model` as the Agent tool's `model`
 
 ### Requirement: The config is seeded, never overwritten
