@@ -36,14 +36,10 @@ Arguments (all optional):
 
 Outputs (all in --out, only for the formats requested):
     3mf:  model.3mf        one named object per union, with plate metadata
-    stl:  <union-id>.stl   one assembled-pose STL per union
+    stl:  <union-id>.stl   one print-pose STL per union
           plate_<n>.stl    one fused print-pose STL per multi-union plate
-    step/obj/iges/scad:  <union-id>.<ext>  assembled pose, one per union
+    step/obj/iges/scad:  <union-id>.<ext>  print pose, one per union
     estampo:  estampo.toml  slicer config for the STLs (also written)
-
-The per-union STLs are copied from `stl/` (written by the skill's write_assembly step)
-when that output is still current for the part scripts and accepted orientations;
-otherwise they are exported again.
 
 When `orientations.json` (the skill's accepted per-union orientations) sits next to
 the part scripts, build.py reuses it so the plates match what the skill delivered;
