@@ -10,13 +10,19 @@ Once installed, the skill activates in two ways inside Claude Code:
 - **Auto-trigger.** Describe a part you want to print ("design a wall mount for an Arduino Uno", "I need a snap-fit lid for this box") and Claude picks up the skill from its trigger keywords (3D print, STL, CadQuery, enclosure, bracket, and so on).
 - **Explicit slash command.** Type `/cq-design` to invoke it directly, useful when your request does not contain the obvious keywords.
 
-Claude will then walk you through requirements, build the model in phases (base shape, features, finish), and deliver an STL plus a rendered preview.
+Claude then runs the pipeline: sourcing triage (is there an existing model to reuse?),
+requirements and planning (`BUILD_PLAN.json`, approved by you), a per-part build loop with
+previews, model export in your slicer's format, and a quality gate (DFM, overhang, fit and
+interference checks). See [`documentation/pipeline.md`](documentation/pipeline.md) for the
+target pipeline and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the agent roster.
 
 The first time the skill runs in a working directory it seeds that directory's
-`.claude/settings.local.json` with the permission patterns its pipeline commands need
-(the `uv run`/`python`/`uv sync` calls, build-file copies, and dimension-lookup web
-searches), so you are not prompted for each step. The merge is additive and only happens
-once per directory; ask Claude to "init permissions" to re-seed after updating the skill.
+`.claude/settings.local.json` with the permission patterns and hooks its pipeline needs
+(the `uv run`/`python`/`uv sync` calls, build-file copies, dimension-lookup web
+searches, attempt and session-cost logging), creates `build/`, `stl/` and `preview/`, and
+writes a default `profile.json` and `skill_config.json` when absent (never overwriting
+them). The merge is additive and only happens once per directory; ask Claude to "init
+permissions" to re-seed after updating the skill.
 
 For more usage instructions see [`USE.md`](USE.md)
 
@@ -122,9 +128,9 @@ read the error and edit that part script.
 
 When the skill finishes it turns your working directory into a self-contained
 [uv](https://docs.astral.sh/uv/) project: a `pyproject.toml`, `.python-version`, and
-committed `uv.lock` at the root, plus a `build/` directory holding the per-part scripts,
-`build.py`, `BUILD_PLAN.json`, and `orientations.json` (when orientations were accepted),
-and a `lib/` directory with the bundled build tooling (`exporters/`, `blocks/`,
+committed `uv.lock` at the root, alongside `BUILD_PLAN.json` and `profile.json`, plus a
+`build/` directory holding the per-part scripts, `build.py`, and `orientations.json` (when
+orientations were accepted), and a `lib/` directory with the bundled build tooling (`exporters/`, `blocks/`,
 `write_assembly.py`, `deliverables.py`, and friends).
 Everything needed to rebuild the model lives here -- the skill does not have to be
 installed.
@@ -142,17 +148,22 @@ uv run python build/build.py
 (CadQuery, trimesh, ...); later runs reuse the synced `.venv`. With no arguments the
 build writes only the format your slicer prefers (`slicer.preferred_format` in
 `profile.json`); pick others with `--formats` (`3mf`, `stl`, `step`, `obj`, `iges`,
-`scad`, comma-separated). Everything goes to `out/`, with each object in its print
+`scad`, `estampo`, comma-separated). Everything goes to `out/`, with each object in its print
 orientation where the format has one:
 
 - `3mf`: `model.3mf` -- one named object per union, with plate metadata
-- `stl`: `<union-id>.stl` -- one assembled-pose STL per union; `plate_<n>.stl` -- one
+- `stl`: `<union-id>.stl` -- one print-pose STL per union; `plate_<n>.stl` -- one
   fused STL per multi-union plate
-- `step` / `obj` / `iges` / `scad`: `<union-id>.<ext>` per union, assembled pose
+- `step` / `obj` / `iges` / `scad`: `<union-id>.<ext>` per union, print pose
+- `estampo`: `estampo.toml` -- a slicer config for estampo (keys target 0.4.x) with one `[[parts]]` entry per STL (plate members are listed through
+  their fused `plate_<n>.stl`), per-part `enable_support` / `brim_type` from the overhang and
+  brim checks, and `layer_height`, `sparse_infill_density` and `wall_loops` overrides from
+  `profile.json`. Also writes the STLs it references. Set the Orca profile names under
+  `slicer.estampo` (`printer`, `process`, `filaments`) in `profile.json`; omitted names
+  become commented placeholders. It cannot be the `preferred_format`.
 
-The per-union STLs are copied from `stl/` (the assembled-pose STLs the skill's
-`write_assembly.py` step writes for its checks) when those are still current for your
-part scripts; otherwise they are exported again.
+The assembled-pose STLs in `stl/` are inputs to the skill's checks only and are never
+delivered.
 
 ```bash
 uv run python build/build.py --formats 3mf,step
@@ -219,6 +230,9 @@ Required options are marked **(req)**. Exit codes and JSON output shapes are in
 | `--preview-dir DIR` | next to script | Preview output directory (needs `--preview`) |
 | `--cross-sections` | off | Render cross-sections as separate files (needs `--preview`) |
 | `--extra-section AXIS=MM` | none | Extra cross-section, e.g. `x=50`; repeatable |
+| `--auto-sections` | off | Fill remaining section slots (up to 3) with planes through bore/boss axes (needs `--preview`) |
+| `--feature SPEC` | none | Per-feature view along the feature normal plus an axis section, `name=<feature>;center=x,y,z[;diameter=<mm>\|;size=<w>,<h>]`; repeatable (needs `--preview`) |
+| `--sheet` | off | Compose a 2 x 2 `<stem>_sheet.png` from at most 4 tiles (`--feature` tiles, then sections; needs `--preview`) |
 | `--detail SPEC` | none | High-resolution detail view, `name=<feature>;center=x,y,z;size=<mm>[;section=<axis>=<pos>]`; repeatable |
 | `--callout SPEC` | none | Numbered badge for a feature, `name=<feature>;center=x,y,z`; repeatable |
 | `--unlocated-name NAME` | none | Legend entry for a feature with no known position; repeatable |
@@ -248,24 +262,26 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 - STEP is the exact B-rep (not a mesh), meant for editing in Fusion 360, FreeCAD and similar CAD tools. It is written as `<name>.step`.
 - `<name>` is the script stem, or the union id for each union of a multi-union part (one file per union; keep-out zones are never exported).
 - Files go to `--output-dir` (default: next to the script) and the JSON lists only the STL (`stls`) and 3MF (`threemfs`) paths; STEP files are on disk but not reported there.
-- `build.py --formats step` (also `3mf`, `stl`, `obj`, `iges`, `scad`) writes `<union-id>.step` per union, in the assembled pose, into `out/`; with no `--formats` it writes only the profile's `preferred_format`.
+- `build.py --formats step` (also `3mf`, `stl`, `obj`, `iges`, `scad`, `estampo`) writes `<union-id>.step` per union, in the print pose, into `out/`; `run_cadquery_model.py --deliver` does not accept `estampo`; with no `--formats` it writes only the profile's `preferred_format`.
 - `fem_check.py` takes a part's exported STEP file as its positional input.
 
-**`render_preview.py`** (preview subprocess) takes `--script` **(req)**, `--output` **(req)**, `--views`, `--title`, `--subtitle`, `--density`, `--material`, `--cross-sections`, `--extra-section`, `--detail`, `--callout`, `--unlocated-name` with the same meaning as above. `preview.py --help-note` prints a usage note.
+**`render_preview.py`** (preview subprocess) takes `--script` **(req)**, `--output` **(req)**, `--views`, `--title`, `--subtitle`, `--density`, `--material`, `--cross-sections`, `--auto-sections`, `--extra-section`, `--detail`, `--feature`, `--sheet`, `--callout`, `--unlocated-name` with the same meaning as above. `preview.py --help-note` prints a usage note.
 
 **`section_select.py <script>`** picks section planes through bore/boss axes: `--max N` (default 3), `--reserve AXIS=MM` (repeatable).
 
-**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default `<root>/out`), `--orientations` (default `orientations.json` in `--parts-dir`), `--profile` (default `<root>/profile.json`), `--formats` (comma-separated: `3mf`, `stl`, `step`, `obj`, `iges`, `scad`; default the profile's `preferred_format`).
+**`build_template.py`** (copied to `build/build.py`): `--plan` (default `<root>/BUILD_PLAN.json`), `--parts-dir` (default script dir), `--out` (default `<root>/out`), `--orientations` (default `orientations.json` in `--parts-dir`), `--profile` (default `<root>/profile.json`), `--formats` (comma-separated: `3mf`, `stl`, `step`, `obj`, `iges`, `scad`, `estampo`; default the profile's `preferred_format`).
 
 **`write_assembly.py`**: `--plan` **(req)**, `--parts-dir` **(req)**, `--out` **(req**, the STL directory, normally `stl`**)**, `--orientations FILE` (part id to orientation JSON; part scripts see it as their finishing pose). Writes assembled-pose STLs, keep-out STLs and `export_manifest.json`; no user-facing files.
 
 **`export_standalone.py`**: `--parts-dir` (default `build`), `--out` (default `standalone`), `--parameters` (default `parameters.py`).
 
-**`bundle_project.py [dir]`** and **`init_permissions.py [dir]`**: `dir` defaults to the current directory. `init_permissions.py --check` exits 0 if init already ran, 1 otherwise, and changes nothing.
+**`bundle_project.py [dir]`** and **`init_permissions.py [dir]`**: `dir` defaults to the current directory. `bundle_project.py --check` reports `current` / `behind` / `unknown` (exit 0 only if current) and changes nothing. `init_permissions.py --check` exits 0 if init already ran, 1 otherwise, and changes nothing; `--venv DIR` also sets `UV_PROJECT_ENVIRONMENT` to `DIR` (plugin install).
+
+**`script_ops.py`** is the only way part and edit scripts are created or changed: `list|show|new|replace|insert|remove|move <script> ...`, each write preflighted (a refused command leaves the file unchanged). **`script_history.py restore|mark <target> <script>`** restores a script to a recorded run (`@last_ok`, `@prev`, `@<hash>`, or a mark name). **`oracle.py validate|check|verify`** handles `acceptance.json`, the intent-derived acceptance statements. Usage for all three is in the module docstrings and [`reference/scripts.md`](reference/scripts.md).
 
 ### Quality gate and checks
 
-**`quality_gate.py`**: `--script` **(req)**, `--plan` **(req)**, `--stl FILE`, `--model-3mf FILE`, `--stl-dir DIR` (default: next to `--script`), `--orientation FILE` (a `print_orientation.py` result), `--attempts-log FILE` (default `attempts.jsonl` next to `--script`), `--fix` (invoke `claude` to fix errors; default is report-only).
+**`quality_gate.py`**: `--script` **(req)**, `--plan` **(req)**, `--stl FILE`, `--model-3mf FILE`, `--stl-dir DIR` (default: next to `--script`), `--orientation FILE` (a `print_orientation.py` result), `--attempts-log FILE` (default `attempts.jsonl` next to `--script`), `--previous FILE` (the previous round's gate report; adds a `delta`), `--fix` (invoke `claude` to fix errors; default is report-only).
 
 **`plan.py`** subcommands:
 
@@ -323,6 +339,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 | `planning` | `--request-file` **(req)**, `--plan`, `--profile` (default `profile.json`), `--out` |
 | `research` | `--targets-file` **(req)**, `--known-file`, `--out` |
 | `sourcing` | `--request-file` **(req)**, `--out` |
+| `oracle` | `--request-file` **(req)**, `--out` |
 
 **`log.py`**:
 
@@ -364,7 +381,7 @@ This skill stands on the work of others. Thank you to:
 Projects whose ideas were reimplemented (no code copied) are credited in
 [`SBOM.md`](documentation/SBOM.md).
 
-Projects surveyed for ideas -- see [`info/related_projects.md`](documentation/related_projects.md).
+Projects surveyed for ideas -- see [`documentation/related_projects.md`](documentation/related_projects.md).
 Adoption status/tracking lives in `TODO.md`.
 
 ## Part Libraries
