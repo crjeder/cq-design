@@ -1877,5 +1877,50 @@
       "wall_min"
     ],
     "defaults": {}
+  },
+  {
+    "name": "breakaway_fin",
+    "kind": "block",
+    "module": "blocks.supports",
+    "function": "breakaway_fin",
+    "probes": "breakaway_fin_probes",
+    "edge_sets": {},
+    "use": "Designed-in breakaway support fin: a thin wall standing 0.2 mm off an overhanging face with horizontal one-layer tines that bridge the gap and fuse into the part, so the support lives in the STL and prints on any slicer. Build in the fin's local frame, then place_fin(fin, anchor, outward, up=print_up()) from quality_gate's fin_hint / fin_placement.py output and export as its own sacrificial union (never fuse it into the part). Not a substitute for fixing a design overhang with chamfers or teardrop blocks.",
+    "params": {
+      "height": "mm fin height from bed end to top",
+      "length": "mm wall length along the overhang edge",
+      "layer_h": "mm layer height; tine height (profile motion.layer_height_mm, default 0.2)",
+      "tine_w": "mm tine width, 0.4-0.8 (default 0.4)",
+      "wall_t": "mm wall thickness (default 0.8)",
+      "standoff": "mm gap between wall and part face (default 0.2)",
+      "tine_overlap": "mm tines reach into the part (default 0.2)",
+      "pad": "bool add a 1 mm bed-adhesion ellipse (default False)",
+      "body": "part solid in the same frame; enables fin_collision check (default None)"
+    },
+    "dimensions": null,
+    "interfaces": [
+      {
+        "type": "axis",
+        "orientation": "+Y",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "optional": [
+      "layer_h",
+      "tine_w",
+      "wall_t",
+      "standoff",
+      "tine_overlap",
+      "pad",
+      "body"
+    ],
+    "defaults": {
+      "height": 10,
+      "length": 12
+    }
   }
 ]

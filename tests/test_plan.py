@@ -2195,3 +2195,16 @@ def test_summary_acceptance_section(tmp_path):
     assert "| S2 | Fits in 60 mm | body |" in out
     assert "(checked by review)" in out
     assert "(plan part count)" in out
+
+
+def test_fin_hints_and_sacrificial_flags_validate(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["constraints"]["fin_hints"] = False
+    plan["parts"][0]["unions"] = [{"id": "body"}, {"id": "fins", "sacrificial": True}]
+    assert validate_plan(plan_file(plan)) == []
+
+
+def test_fin_hints_must_be_boolean(plan_file):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["constraints"]["fin_hints"] = "no"
+    assert validate_plan(plan_file(plan)) != []

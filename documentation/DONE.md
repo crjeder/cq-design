@@ -1,5 +1,7 @@
 # Completed tasks for V1.0
 
+- [x] Custom support: designed-in breakaway fins (`blocks.breakaway_fin` / `place_fin`, `src/fin_placement.py`, gate `fin_hint` with `constraints.fin_hints` opt-out, `sacrificial` unions, estampo `enable_support = false`; openspec change `custom-support-fins`, see `reference/support_fins.md`). Not print-tested; resin pins, sway braces and gussets from support-fins are not ported.
+
 - [x] Process hygiene: `tests/test_process_hygiene.py` fails when a test file is excluded from the run, a retry plugin/flaky mark/retry loop appears, a skip lacks a reason or an xfail is not strict, or a `src/*.py` lacks a `FILES.md` line, `reference/scripts.md` entry or referencing test (openspec change `process-hygiene-checks`, spec `process-hygiene`). No CI workflow exists yet; the CI-subset clause activates when one is added.
 
 - [x] OCC deepcopy crash on print-orientation rotation -- fixed via openspec changes

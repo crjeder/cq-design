@@ -73,10 +73,18 @@ def write_estampo_toml(
     overhang_deg: float = 45.0,
     bridge_max_mm: float = 10.0,
     wall_min_mm: float | None = None,
+    designed_support: set[str] | None = None,
 ) -> str:
-    """Write `estampo.toml` into `out_dir` for `stl_paths` (siblings of it); return its path."""
+    """Write `estampo.toml` into `out_dir` for `stl_paths` (siblings of it); return its path.
+
+    STL stems in `designed_support` (union ids of a part that carries a sacrificial fin union)
+    get `enable_support = false`: the support is part of the STL.
+    """
     names = [os.path.basename(p) for p in stl_paths]
     flags = {os.path.basename(p): part_flags(p, overhang_deg, bridge_max_mm) for p in stl_paths}
+    for p in stl_paths:
+        if os.path.splitext(os.path.basename(p))[0] in (designed_support or ()):
+            flags[os.path.basename(p)]["enable_support"] = False
     path = os.path.join(out_dir, "estampo.toml")
     with open(path, "w", encoding="utf-8") as f:
         f.write(estampo_toml(names, profile, flags, wall_min_mm))
