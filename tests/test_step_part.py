@@ -427,3 +427,71 @@ def test_auto_print_up_resolves_to_the_pose(plan, monkeypatch):
     handle = part.resize(part.select("teardrop_bore", id="bore"))
     assert handle.params is not None
     assert handle.params["print_up"] == pytest.approx((0, 0, -1), abs=1e-9)
+
+
+# --- interface area of union steps ----------------------------------------------------
+
+
+def _union_step(part):
+    return next(st for st in part.steps if st["kind"] == "place" and st["op"] == "union")
+
+
+def test_union_records_interface_area(plan):
+    plan()
+    part, _ = _build()
+    step = _union_step(part)
+    assert step["interface"]["area_mm2"] > 4.0
+    assert step["interface"]["location_xyz_mm"][2] == pytest.approx(4, abs=0.5)
+
+
+def test_small_interface_fails_the_step(plan):
+    thin = {**BOSS, "params": {"d_screw": 0.5, "d_outer": 1.5, "h": 6}}
+    plan(blocks=[PLATE, thin])
+    with pytest.raises(RuntimeError, match=r"small_interface.*interface_min_area_mm2 4\.0") as e:
+        _build()
+    assert "build plate" in str(e.value)
+    assert Part.last is not None
+    err = Part.last.steps[-1]["error"]
+    assert err["type"] == "small_interface"
+    assert err["area_mm2"] < 4.0 and err["threshold_mm2"] == 4.0 and err["instance"] == "boss"
+
+
+def test_interface_constraint_comes_from_the_plan(plan, tmp_path):
+    thin = {**BOSS, "params": {"d_screw": 0.5, "d_outer": 1.5, "h": 6}}
+    path = plan(blocks=[PLATE, thin])
+    data = json.loads(path.read_text())
+    data["constraints"]["interface_min_area_mm2"] = 0.5
+    path.write_text(json.dumps(data))
+    assert _union_step(_build()[0])["interface"]["area_mm2"] > 0.5
+
+
+def test_each_copy_is_measured_on_its_own(plan):
+    plan()
+    part = Part("plate")
+    plate = part.select("box", id="plate")
+    part.resize(plate)
+    part.place(plate, op="base")
+    boss = part.select("screw_boss", id="boss")
+    part.resize(boss)
+    part.place(boss, at=[(10, 5, 4), (-10, -5, 4)], op="union")
+    copies = part.steps[-1]["interface"]["copies_mm2"]
+    assert len(copies) == 2 and min(copies) > 4.0
+
+
+def test_cut_and_base_steps_have_no_interface(plan):
+    plan()
+    part, _ = _build()
+    base = next(st for st in part.steps if st["kind"] == "place" and st["op"] == "base")
+    assert "interface" not in base
+
+
+def test_cached_union_step_keeps_its_interface(plan):
+    plan()
+    Part.cache = {}
+    try:
+        first = _union_step(_build()[0])["interface"]
+        second_part = _build()[0]
+    finally:
+        Part.cache = None
+    again = _union_step(second_part)
+    assert again.get("cached") and again["interface"] == first

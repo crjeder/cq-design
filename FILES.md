@@ -23,6 +23,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     plan_params.py           # Evaluate BUILD_PLAN.json string params as expressions over parameters.py constants; resolved-param hashes
     concept_sketch.py        # Phase 1 concept sketch: JSON -> SVG (no CadQuery)
     oracle.py                # acceptance.json (oracle statements): `validate`, plan-binding `check`, gate `verify`, round counting
+    interface_area.py        # Join area between a placed tool and the body so far (BRep face-in-solid areas); used by Part.place
     probes.py                # Probe kinds on BRep (solid_at/empty_at/ray/bbox), registry, plan-derived probes
     step_worker.py           # Warm step worker: prefix-cached step runs, per-step probe checks, snapshots, stuck rule
     render_prompt.py         # Renders builder/auditor prompts for one part (Phase 3), and the
@@ -180,6 +181,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_sliver_fin.py               # Fin detection on a real part (fixtures/rim_fillet_fins.py.txt) with four zero-thickness fins (CadQuery)
     test_templates.py                # Archetype index validation + per-template lint/geometry/pre-conversion volume
     test_step_part.py                # Probes, registry, plan probes, Part steps, finishing edges (CadQuery)
+    test_interface_area.py           # interface_area on cone/cube, slivers, column, through-pin (CadQuery)
     test_inventory_probes.py         # Every inventory entry's probes pass on its default build (CadQuery)
     test_step_worker.py              # Step worker cache, reports, snapshots, stuck rule, warm/fallback (CadQuery)
     test_pose_terminology.py         # Retired frame-term guard -- fast, no CadQuery
