@@ -64,6 +64,29 @@
     "interfaces": []
   },
   {
+    "name": "fillet_box",
+    "kind": "block",
+    "module": "blocks.primitives",
+    "function": "fillet_box",
+    "probes": "fillet_box_probes",
+    "edge_sets": {},
+    "use": "Rectangular box w x d x h with its 4 vertical edges filleted to radius r. Centered in XY with bottom at Z=0 by default. Use for plates and slabs with rounded corners.",
+    "params": {
+      "w": "mm outer width",
+      "d": "mm outer depth",
+      "h": "mm height",
+      "r": "mm vertical-edge fillet radius (< min(w, d) / 2)"
+    },
+    "defaults": {
+      "w": 40,
+      "d": 30,
+      "h": 5,
+      "r": 3
+    },
+    "dimensions": null,
+    "interfaces": []
+  },
+  {
     "name": "cylinder",
     "kind": "primitive",
     "module": "blocks.primitives",
