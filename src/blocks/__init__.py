@@ -12,6 +12,7 @@ Legacy direct calls:
     from blocks import keeper_lock_eye, keeper_lock_hook
     from blocks import gridfinity_bin, gridfinity_baseplate, gridfinity_feet
     from blocks import import_solid  # checked STEP/BREP import with repair
+    from blocks import breakaway_fin, place_fin  # designed-in breakaway support fins
 """
 
 from blocks.connectors import (
@@ -78,6 +79,7 @@ from blocks.primitives import (
     torus,
 )
 from blocks.print_frame import print_up
+from blocks.supports import breakaway_fin, place_fin
 
 __all__ = [
     "Part",
@@ -109,6 +111,8 @@ __all__ = [
     "teardrop_bore",
     "teardrop_post",
     "print_up",
+    "breakaway_fin",
+    "place_fin",
     "heat_set_boss",
     "socket_head_cap_screw",
     "hex_head_screw",

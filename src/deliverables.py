@@ -27,6 +27,16 @@ EXTRA_FORMATS = tuple(k for k in _REGISTRY if k not in ("stl", "3mf"))
 FORMATS = ("3mf", "stl", *EXTRA_FORMATS, "estampo")
 
 
+def _designed_support_stems(plan: dict) -> set[str]:
+    """Union ids of every part that carries a `sacrificial` (fin) union, fins included."""
+    stems: set[str] = set()
+    for part in plan.get("parts", []):
+        unions = part.get("unions") or []
+        if any(u.get("sacrificial") for u in unions):
+            stems.update(u["id"] for u in unions)
+    return stems
+
+
 def _object_name(description: str, fallback: str) -> str:
     """Readable 3MF object name from a part description.
 
@@ -158,6 +168,7 @@ def write_deliverables(
                 constraints.get("overhang_max_deg", 45.0),
                 constraints.get("bridge_max_mm", 10.0),
                 constraints.get("wall_min_mm"),
+                _designed_support_stems(plan),
             )
             files["estampo"] = {"estampo.toml": toml}
 
