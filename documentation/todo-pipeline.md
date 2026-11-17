@@ -29,5 +29,5 @@ Low priority, superseded by the [pipeline state machine](#pipeline-state-machine
 
 From the text-to-cad survey (2026-10-16; scripts and limit tables not read -- check the source before adopting).
 
-Process hygiene (from their `AGENTS.md`): every test file reached by CI, flaky tests fixed or deleted never retried, no one-off helper scripts in `src/`
+Process hygiene (from their `AGENTS.md`): done, see `tests/test_process_hygiene.py` and [DONE.md](DONE.md). Install checks remain open.
 

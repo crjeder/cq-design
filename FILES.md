@@ -31,6 +31,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
     install_check.py         # Reports whether the plugin and the standalone skill are both installed (read-only)
     print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost.
+    print_finishing.py       # Print-pose helpers: orientation scoring on the finished solid, pose-stability guard
                               # `--speed-model` (toolpath_speed.py) adds a min_print_time mode.
     fem_check.py              # FEM stress advisor (optional `fem` dep group): solves a declared load case,
                               # reports a per-orientation failure index + geometry hint. Never a gate.
@@ -185,6 +186,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_inventory_probes.py         # Every inventory entry's probes pass on its default build (CadQuery)
     test_step_worker.py              # Step worker cache, reports, snapshots, stuck rule, warm/fallback (CadQuery)
     test_pose_terminology.py         # Retired frame-term guard -- fast, no CadQuery
+    test_process_hygiene.py          # Repo hygiene: every test reached, no retries/bare skips, src/ scripts registered -- fast, no CadQuery
     test_prompt_examples.py          # Prompt fenced examples validate/run; reference/ paths resolve (CadQuery)
     fixtures/
 ```
