@@ -1,5 +1,7 @@
 # Completed tasks for V1.0
 
+- [x] Process hygiene: `tests/test_process_hygiene.py` fails when a test file is excluded from the run, a retry plugin/flaky mark/retry loop appears, a skip lacks a reason or an xfail is not strict, or a `src/*.py` lacks a `FILES.md` line, `reference/scripts.md` entry or referencing test (openspec change `process-hygiene-checks`, spec `process-hygiene`). No CI workflow exists yet; the CI-subset clause activates when one is added.
+
 - [x] OCC deepcopy crash on print-orientation rotation -- fixed via openspec changes
       `bypass-cq-warehouse-copy-patch` (`src/cq_compat.py` restores native `Shape.copy`) and
       `fix-orientation-bintools-deepcopy` (`placement.apply_cq` uses `BRepBuilderAPI_Transform`);
