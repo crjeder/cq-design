@@ -206,3 +206,17 @@ def test_slicer_unknown_format_rejected(tmp_path):
 def test_slicer_block_requires_preferred_format(tmp_path):
     errors = validate_profile(_with_slicer(tmp_path, {"slicer_name": "Cura"}))
     assert any("preferred_format" in e for e in errors)
+
+
+def test_interface_min_area_optional_and_positive(profile_file):
+    assert validate_profile(profile_file(VALID_PROFILE)) == []
+    with open(os.path.join(SKILL_ROOT, "src", "profile.default.json")) as fh:
+        default = json.load(fh)
+    assert default["constraints"]["interface_min_area_mm2"] == 4.0
+    for bad in (0, -1):
+        prof = {**VALID_PROFILE, "constraints": {**VALID_PROFILE["constraints"]}}
+        prof["constraints"]["interface_min_area_mm2"] = bad
+        assert validate_profile(profile_file(prof)) != []
+    prof = {**VALID_PROFILE, "constraints": {**VALID_PROFILE["constraints"]}}
+    prof["constraints"]["interface_min_area_mm2"] = 2.5
+    assert validate_profile(profile_file(prof)) == []
