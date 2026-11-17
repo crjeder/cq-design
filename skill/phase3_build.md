@@ -58,8 +58,8 @@ stamp, validation fails with `acceptance.json not reconciled`.
 
 Every user-facing message follows `skill/phase2_planning.md`'s vocabulary rules (compass
 terms, clock positions for rotations). Before acting on a spatial or unagreed feature
-reference from the user, restate it with the plan name and its callout badge number
-(e.g. "widening `cable_slot` (2)"); when it could mean more than one feature, ask.
+reference from the user, restate it with the agreed feature name shown on the labeled preview
+(e.g. "widening `cable_slot`"); when it could mean more than one feature, ask.
 
 ## Routing
 

@@ -319,7 +319,7 @@ def _check_copy_of(plan: dict[str, Any]) -> list[str]:
 def _check_interface_names(plan: dict[str, Any]) -> list[str]:
     """Interface `name` values must be unique within a part; unnamed interfaces are
     skipped. Unlike `_check_unions` (model-wide -- union ids share one namespace for
-    files and 3MF objects), this scope is per-part: callout badges are rendered one
+    files and 3MF objects), this scope is per-part: labeled previews are rendered one
     part at a time, so a duplicate only creates ambiguity within that part's legend.
     The same name on two different parts is fine -- the part id disambiguates them."""
     errors = []

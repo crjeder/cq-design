@@ -182,14 +182,6 @@ def validate_args(plan: dict, part: dict, is_final: bool = True) -> str:
         "--strict --preview --preview-dir preview --cross-sections --auto-sections",
         f"--attempts-log build/attempts.jsonl --model {part_author_model()}",
     ]
-    for itf in part.get("interfaces") or []:
-        if not itf.get("name"):
-            continue
-        if itf.get("position_mm"):
-            center = ",".join(f"{v:g}" for v in itf["position_mm"])
-            args.append(f'--callout "name={itf["name"]};center={center}"')
-        else:
-            args.append(f"--unlocated-name {itf['name']}")
     args += [f'--feature "{feature_spec(itf)}"' for itf in ranked_interfaces(plan, part)]
     args.append("--sheet")
     return " ".join(args)

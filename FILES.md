@@ -79,6 +79,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
     zbuffer.py               # numpy z-buffer rasterizer + orthographic camera (no OpenGL)
     render_preview.py        # Subprocess entry point for preview.py
     section_select.py        # Picks axis-aligned section planes through bore/boss axes (render_preview --auto-sections; standalone CLI)
+    export_design_stl.py     # Runs a part script, writes <id>_design.stl (designed pose) + .features.json (per verify_boolean/verify_stage label: operation, bbox, centroid, instances)
+    render_labeled.py        # Five-view name-labeled reference PNG from design STL + features (colour labels, leader lines, legend); build.py writes preview/<id>_preview_labeled.png
     feature_frame.py         # Derives a named feature's bbox, axis-snapped normal and depth from the built solid (render_preview --feature; standalone CLI)
     mesh_io.py               # Trimesh loader + watertightness validation; lateral_area() feeds toolpath_speed.py;
                              # fold_metrics() finds fin/knife-edge folds for quality_gate's sliver_fin
