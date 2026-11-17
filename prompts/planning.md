@@ -293,6 +293,14 @@ Use the profile's `printer`, `material`, `nozzle_mm`, and `constraints`, unless 
 states a different value: then use the stated value and note the deviation in
 `planning_notes`. With no profile, take these from the request.
 
+**Slicer process:** when the profile has `orca.processes` and `orca.process_purpose` is
+not `user`, judge the print's purpose -- `visual` (seen surfaces, decor, fine detail),
+`functional` (loaded or mating parts), `draft` (test fit, throwaway) -- and choose the
+preset from `orca.processes` that fits it (layer height for surface quality; `wall_loops`
+and `infill_density` for load). Record it as one `planning_notes` line
+`PROCESS: <exact preset name> | <purpose> | <why, a few words>`, even when it is the
+current `orca.process`.
+
 ## Required output schema
 
 Optional fields: `intent_ts` (rule 16), `probes` (rule 17), `acceptance_bindings` and
