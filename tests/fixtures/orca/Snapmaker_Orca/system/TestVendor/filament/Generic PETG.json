@@ -1,0 +1,13 @@
+{
+    "name": "Generic PETG",
+    "inherits": "fdm_filament_common",
+    "from": "system",
+    "instantiation": "true",
+    "compatible_printers": [],
+    "filament_type": [
+        "PETG"
+    ],
+    "slow_down_layer_time": [
+        "12"
+    ]
+}

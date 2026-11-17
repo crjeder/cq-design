@@ -5,7 +5,7 @@ description: Design or redesign 3D-printable parts as parametric CadQuery models
 
 # cq-design
 
-Commands (`/cq-design:design`, `plan`, `edit`, `init`, `update`, `build`, `render`, `status`) are plugin
+Commands (`/cq-design:design`, `plan`, `edit`, `init`, `update`, `build`, `render`, `status`, `sync-profile`) are plugin
 files in `commands/`; each states its own steps. This file is the pipeline contract they share.
 
 ## Prerequisites

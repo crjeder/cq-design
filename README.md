@@ -43,8 +43,8 @@ Install [uv](https://docs.astral.sh/uv/), then in Claude Code:
 
 Commands: `/cq-design:design` (full pipeline), `:plan` (phases 1-2), `:edit <file> <change>` (apply a
 change to a STEP/BREP solid in its own coordinates, delivers `out/<stem>_edited.step`), `:init` (prepare a
-directory), `:update` (refresh a bundled project's tooling), `:build [format]` (generate
-model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only). The Python
+directory; imports printer, process and filament values from an OrcaSlicer-family install when found), `:update` (refresh a bundled project's tooling), `:build [format]` (generate
+model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only), `:sync-profile` (refresh `profile.json` from OrcaSlicer-family presets). The Python
 environment lives in the plugin's data directory and survives plugin updates.
 
 ### Installer details
