@@ -20,6 +20,7 @@ V1.0 is released.
 
 ## Defects
 - [ ] in D:\3D Druck\Kamerahalter\preview\holder_preview_labeled.png is a labeled preview which every project should have. tools/export_design_stl.py runs build/holder.py and writes preview/design.stl. chnage the preview generation accordingly. check first if the recent changes are enough.
+- [ ] 
 
 ## 1. Pipeline enforcement and process hygiene
 Rating: **High** (build123d-mcp comparison ranked the state machine #1 by impact; the open defect is the same idea).
@@ -122,6 +123,10 @@ Rating: **Low** (judgement: no rated source; each depends on slicer or format de
 - [x] Calculate and export slicer parameters (wall loops, infill, support, brim) -- layer height and infill exported via `--formats estampo`; walls/support/brim remain -- [details](documentation/todo-import-export.md#multi-material-and-slicer-parameters)
 - [ ] Add textures capability
 - [ ] Accept Markdown / formatted UTF-8 text input
+
+## Geometry
+- [ ] full priter profile including all hardware capabilities and limits (bed size, max bridge, max overhang), orca slicer format (plus own file)
+
 
 ## Related ideas
 Surveyed projects, ratings and open ideas live in [documentation/related_projects.md](documentation/related_projects.md).
