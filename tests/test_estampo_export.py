@@ -2,6 +2,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SKILL_ROOT, "src"))
@@ -92,3 +93,17 @@ def test_enable_support_true_for_non_bridge_overhang(tmp_path):
     from estampo_export import part_flags
 
     assert part_flags(str(tmp_path / "t.stl"), 45.0, 10.0)["enable_support"] is True
+
+
+def test_designed_support_stems_disable_support(tmp_path):
+    import trimesh
+
+    post = trimesh.creation.box(extents=(10, 10, 20))
+    arm = trimesh.creation.box(extents=(40, 10, 4))
+    arm.apply_translation((15, 0, 12))
+    stl = tmp_path / "t.stl"
+    trimesh.util.concatenate([post, arm]).export(str(stl))
+    on = write_estampo_toml([str(stl)], PROFILE, str(tmp_path))
+    assert "enable_support = true" in Path(on).read_text(encoding="utf-8")
+    off = write_estampo_toml([str(stl)], PROFILE, str(tmp_path), designed_support={"t"})
+    assert "enable_support = false" in Path(off).read_text(encoding="utf-8")

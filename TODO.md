@@ -97,7 +97,6 @@ Rating: **Low-Medium** (`fetch_step.py` is stated low priority; the rest are unr
 - [ ] Generic parametric SCAD importer -> build blocks on the fly
 - [ ] Search tool for specific parametric cadquery / SCAD / build123d models
 - [ ] `src/fetch_step.py`: query the step.parts API and download verified STEP to `build/refs/` -- [details](documentation/todo-sources.md#step-fetch-script)
-- [ ] Custom support, see https://github.com/gittrahan/support-fins
 - [ ] PCB clip generator: combine standoffs and clip heads instead of screws
 - [ ] Tool to create enclosures (all major maker boards, cutouts for widely used connectors)
 - [ ] Tool to produce cable traces where cables are held press fit

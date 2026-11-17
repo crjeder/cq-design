@@ -31,6 +31,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     skill_version.py         # Reports the installed commit (.version.json / symlink target / checkout) and diffs it against a repo
     install_check.py         # Reports whether the plugin and the standalone skill are both installed (read-only)
     print_orientation.py     # Computes bed-relative print orientation by minimizing support/overhang cost.
+    fin_placement.py        # Suggests breakaway-fin placements for a print-pose STL's overhangs (advisory JSON)
     print_finishing.py       # Print-pose helpers: orientation scoring on the finished solid, pose-stability guard
                               # `--speed-model` (toolpath_speed.py) adds a min_print_time mode.
     fem_check.py              # FEM stress advisor (optional `fem` dep group): solves a declared load case,
@@ -96,6 +97,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
       hardware.py            # cq_warehouse-backed fastener geometry
       joints.py              # dovetail_groove / dovetail_tongue sliding joints
       gridfinity.py          # Gridfinity bins, baseplates, feet, socket cutters (42 mm grid standard)
+      supports.py            # breakaway_fin / place_fin designed-in support fins (reference/support_fins.md)
       imported.py            # import_solid: grader-criterion STEP/BREP import with staged ShapeFix heal
       inventory.json         # Machine-readable block descriptors
       inventory_schema.json  # JSON Schema for inventory.json
@@ -177,6 +179,8 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_printer_profile_validate.py # profile.json schema + write-back -- fast, no CadQuery
     test_edge_treatment_check.py     # Chamfer/fillet rule check (CadQuery)
     test_toolpath_speed.py           # Corner/crowding print-time advisor (CadQuery)
+    test_supports_block.py           # breakaway_fin / place_fin geometry (CadQuery)
+    test_fin_placement.py           # fin_placement suggestions + gate fin_hint / sacrificial handling (CadQuery)
     test_gridfinity.py               # Gridfinity blocks + conformance check (CadQuery)
     test_minimal_cutout_search.py    # Parameter bisection search against a kinematics entry (CadQuery)
     test_sliver_fin.py               # Fin detection on a real part (fixtures/rim_fillet_fins.py.txt) with four zero-thickness fins (CadQuery)
