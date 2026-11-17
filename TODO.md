@@ -18,6 +18,9 @@ Ties are ordered by the best-ranked item. Items inside a cluster are ordered the
 # V1.1.0
 V1.0 is released.
 
+## Defects
+- [ ] in D:\3D Druck\Kamerahalter\preview\holder_preview_labeled.png is a labeled preview which every project should have. tools/export_design_stl.py runs build/holder.py and writes preview/design.stl. chnage the preview generation accordingly. check first if the recent changes are enough.
+
 ## 1. Pipeline enforcement and process hygiene
 Rating: **High** (build123d-mcp comparison ranked the state machine #1 by impact; the open defect is the same idea).
 
@@ -72,6 +75,7 @@ Rating: **Medium** (build123d-mcp item 3 and the optimisation gains; ranked by s
 ## 6. Preview and visual review
 Rating: **Medium** (judgement: the open `every named feature is shown` defect and blank cross-sections both trace here).
 
+- [ ] The preview directory contains renders from previous runs delete them at the beginning of a new run.
 - [ ] Phase 3: mandatory visual self-review after any geometry change; builder picks extra views that show the edited feature (`section_select.py` is a start) -- [details](documentation/todo-preview.md#preview-ideas)
 - [ ] Draw feature edges on preview renders (lower value, worth a look) -- [details](documentation/todo-preview.md#preview-ideas)
 - [ ] Face labels / stable references drawn on the preview PNG so a user can point at a feature -- [details](documentation/todo-preview.md#preview-ideas)
