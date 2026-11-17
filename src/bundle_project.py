@@ -42,6 +42,13 @@ BUNDLE_MODULES = (
     "interface_area.py",
     "plan_params.py",
     "log.py",
+    "export_design_stl.py",
+    "render_labeled.py",
+    "render_preview.py",
+    "preview.py",
+    "zbuffer.py",
+    "feature_frame.py",
+    "section_select.py",
 )
 BUNDLE_PACKAGES = ("exporters", "blocks")
 

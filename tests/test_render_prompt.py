@@ -90,11 +90,10 @@ def test_fallback_cut_uses_wall_axis_else_largest_component():
     assert rp.fallback_cut(part["interfaces"][1]) == "x=30"  # largest component
 
 
-def test_validate_args_callouts_and_unlocated():
+def test_validate_args_have_no_callouts():
     plan, part = _plan()
     args = rp.validate_args(plan, part)
-    assert '--callout "name=a;center=10,-25,2"' in args
-    assert "--unlocated-name e" in args
+    assert "--callout" not in args and "--unlocated-name" not in args
     assert "--expected-dims 80,50,4" in args
     assert "--attempts-log build/attempts.jsonl --model " in args
 
