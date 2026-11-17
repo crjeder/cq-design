@@ -106,6 +106,10 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
    across a seam to a separately printed part; a **kinematic axis** (`joint_axis`, `axis`,
    `ball`/`ball_socket`, ...) for a moving joint; `union` for a block fused into the same
    part's body.
+   A `union` block must meet the body through at least `constraints.interface_min_area_mm2`
+   (default 4.0 mm^2, about a 2.3 mm circle): a feature stacked on another body through a
+   sliver of contact snaps off, so give it a footprint, for example a column down to the
+   build plate.
 
 5a. **A functional opening is a typed interface.** A void that must stay open (hand/finger
     access, card or coin exit, drain, vent, cable pass-through, window) gets an

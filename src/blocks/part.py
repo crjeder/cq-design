@@ -36,8 +36,10 @@ import cadquery as cq
 import plan_params
 import probes as pr
 from blocks.validate import load_inventory
+from interface_area import interface_area
 
 _VOLUME_EPS_MM3 = 1e-3
+_DEFAULT_INTERFACE_MIN_AREA_MM2 = 4.0
 
 
 def _fail(kind: str, label: str, detail: str) -> RuntimeError:
@@ -125,6 +127,9 @@ class Part:
             raise _fail("step_plan", part_id, f"part {part_id!r} not in {path}")
         self.id = part_id
         self.plan_part = part
+        self.interface_min = plan.get("constraints", {}).get(
+            "interface_min_area_mm2", _DEFAULT_INTERFACE_MIN_AREA_MM2
+        )
         self.instances = {
             b["id"]: b for b in part.get("blocks_needed", []) if isinstance(b, dict) and "id" in b
         }
@@ -293,6 +298,42 @@ class Part:
             if i.get("instance") == id and "position_mm" in i
         ]
 
+    def _check_interface(self, step: dict, handle: Handle, before, tools: list, into) -> None:
+        """Record the join area of each placed copy; fail the step if the smallest is too small."""
+        found = [interface_area(before, t) for t in tools]
+        area, loc = min(found, key=lambda r: r[0])
+        step["interface"] = {
+            "area_mm2": round(area, 3),
+            "location_xyz_mm": [round(v, 2) for v in loc],
+        }
+        if len(found) > 1:
+            step["interface"]["copies_mm2"] = [round(a, 3) for a, _ in found]
+        if area >= self.interface_min:
+            return
+        equiv = round(2 * (area / 3.141592653589793) ** 0.5, 2)
+        joins = f" onto {into!r}" if into is not None else ""
+        hint = (
+            f"give {handle.id!r} a footprint of at least {self.interface_min} mm^2 at the join, "
+            "for example a column from the feature down to the build plate"
+        )
+        err = self._error(
+            step,
+            "small_interface",
+            f"{handle.id!r}{joins} joins the body through {area:.2f} mm^2 "
+            f"(equivalent diameter {equiv} mm) at {step['interface']['location_xyz_mm']}, "
+            f"below interface_min_area_mm2 {self.interface_min}; {hint}",
+        )
+        step["error"].update(
+            area_mm2=round(area, 3),
+            equiv_diameter_mm=equiv,
+            threshold_mm2=self.interface_min,
+            instance=handle.id,
+            joins=into,
+            location_xyz_mm=step["interface"]["location_xyz_mm"],
+            hint=hint,
+        )
+        raise err
+
     def place(
         self, handle: Handle, at=None, rotate=(0, 0, 0), op: str = "union", into=None, member=None
     ):
@@ -321,6 +362,7 @@ class Part:
             "op": op,
             "into": into,
             "member": member,
+            "interface_min": self.interface_min,
         }
         key = self._chain("place", args, handle.entry["module"])
         hit = self._cached(key, step)
@@ -381,6 +423,8 @@ class Part:
             raise self._error(step, "probe_failed", f"cut removed no volume ({dv:.3f} mm^3)")
         if any(n != 1 for n in solids):
             raise self._error(step, "probe_failed", f"body is {step['solids']} solids, expected 1")
+        if op == "union":
+            self._check_interface(step, handle, before, tools, into)
         if failed:
             raise self._error(step, "probe_failed", f"{len(failed)} probe(s) failed: {failed}")
         self.last_good = self._state()
