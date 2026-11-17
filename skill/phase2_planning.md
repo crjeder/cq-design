@@ -59,6 +59,18 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/printer_profile_validate.py
 
 and tell the user ("Updated profile.json: nozzle_mm -> 0.6").
 
+**Slicer process:** when `planning_notes` has a `PROCESS: <name> | <purpose> | <why>` line
+whose name differs from `profile.json`'s `orca.process`, and `orca.process_purpose` is not
+`user`:
+
+```bash
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/orca_profile.py" select-process profile.json --process "<name>" --purpose <purpose> --write
+```
+
+Keep its `process_reason` for the plan summary. When the user names another preset at the
+checkpoint, run the same command without `--purpose` (records it as the user's choice,
+which later plans keep).
+
 ## Vocabulary (all user-facing text in Phases 2 and 3)
 
 - Spatial references use compass/up-down terms (North = +Y, East = +X, Up = +Z);
@@ -83,6 +95,10 @@ applicable. Then add:
 
 - **Design proposals:** anything `planning_notes` proposes on the planner's initiative
   (e.g. `shadow_gap` on a visible seam), one line each, to accept or decline.
+- **Slicer process:** when the profile has `orca`, one line: the `process_reason` (e.g.
+  "selected 0.16mm Standard @Snapmaker U1 (0.4 nozzle) (layer 0.16 mm) for visual
+  quality") or, unchanged, the current `orca.process`, plus the planner's `why`, and that
+  the user can name any preset from `orca.processes` instead.
 
 **Load cases:** every stress number the FEM advisor (Phase 3) produces scales linearly
 with `magnitude_n`, and that value is a derivation (`mass_g * 9.81 / 1000 * safety_factor`,
