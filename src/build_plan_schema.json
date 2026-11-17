@@ -124,7 +124,7 @@
                 "name": {
                   "type": "string",
                   "pattern": "^[a-z][a-z0-9_]*$",
-                  "description": "The agreed vocabulary word for this feature (same normalized snake_case form as a part id), used for callout badges and legends"
+                  "description": "The agreed vocabulary word for this feature (same normalized snake_case form as a part id), used for feature labels and legends"
                 },
                 "connector": {
                   "type": "string",

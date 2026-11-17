@@ -572,8 +572,6 @@ def _render_preview(
     cross_sections: bool = False,
     extra_sections: list[str] | None = None,
     details: list[str] | None = None,
-    callouts: list[str] | None = None,
-    unlocated_names: list[str] | None = None,
     preview_dir: str | None = None,
     density_g_cm3: float = 1.24,
     material: str = "PLA",
@@ -588,12 +586,7 @@ def _render_preview(
     forwarded as repeated --extra-section flags. `details` is a list of raw
     "name=...;center=x,y,z;size=..." specs, forwarded as repeated --detail flags
     (see render_preview.py --help for the full format); each produces one or two
-    additional standalone, feature-named preview files. `callouts` is a list of
-    raw "name=...;center=x,y,z" specs, forwarded as repeated --callout flags: a
-    numbered badge + leader line on the tile's three orthographic panels, plus a
-    legend line. `unlocated_names` is a list of raw feature-name strings,
-    forwarded as repeated --unlocated-name flags: unbadged legend entries for
-    named features with no known position. `features` is a list of raw
+    additional standalone, feature-named preview files. `features` is a list of raw
     "name=...;center=x,y,z[;diameter=..|size=..]" specs forwarded as --feature
     flags, and `sheet` forwards --sheet. render_preview.py parses and
     validates all of these.
@@ -637,10 +630,6 @@ def _render_preview(
         cmd.extend(["--extra-section", spec])
     for spec in details or []:
         cmd.extend(["--detail", spec])
-    for spec in callouts or []:
-        cmd.extend(["--callout", spec])
-    for name in unlocated_names or []:
-        cmd.extend(["--unlocated-name", name])
     for spec in features or []:
         cmd.extend(["--feature", spec])
     if sheet:
@@ -778,8 +767,6 @@ def _handle_preview(args, script_path: str, skill_root: str, env: dict, result: 
         args.cross_sections,
         args.extra_section,
         args.detail,
-        args.callout,
-        args.unlocated_name,
         args.preview_dir,
         args.density,
         args.material,
@@ -915,27 +902,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Forward --sheet to render_preview.py (requires --preview): a 2 x 2 sheet of at "
             "most 4 tiles (--feature tiles, then whole-part sections)"
-        ),
-    )
-    parser.add_argument(
-        "--callout",
-        action="append",
-        default=[],
-        metavar="SPEC",
-        help=(
-            "Numbered badge + leader line for a named feature (requires --preview): "
-            "'name=<feature>;center=x,y,z'. Repeatable; badge numbers follow supply "
-            "order. Adds a legend line mapping badges to names to the tile caption."
-        ),
-    )
-    parser.add_argument(
-        "--unlocated-name",
-        action="append",
-        default=[],
-        metavar="NAME",
-        help=(
-            "Named feature with no known position (requires --preview): listed in "
-            "the tile legend as 'NAME (not located)' without a badge. Repeatable."
         ),
     )
     parser.add_argument(

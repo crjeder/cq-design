@@ -114,11 +114,11 @@ def test_render_section_returns_none_on_cut_failure(box_workplane):
     assert result is None
 
 
-def test_render_cq_view_ortho_option(box_workplane):
-    """The ortho path renders without error and returns an image of the requested size."""
+def test_render_cq_view_size(box_workplane):
+    """A single view renders without error and returns an image of the requested size."""
     from PIL import Image
 
-    img = preview._render_cq_view(box_workplane, 0, -90, 200, 200, ortho=True)
+    img = preview._render_cq_view(box_workplane, 0, -90, 200, 200)
     assert isinstance(img, Image.Image)
     assert img.size == (200, 200)
 
@@ -233,62 +233,8 @@ def test_north_face_marker_confirms_compass_mapping(tmp_path):
     assert above_diff > south_diff
 
 
-def test_legend_line_matches_names_verbatim():
-    line = preview._legend_line(
-        [
-            {"name": "handle", "center": (0, 0, 0)},
-            {"name": "cable_slot", "center": (1, 1, 1)},
-        ],
-        ["boss_sw"],
-    )
-    assert line == "1 handle   2 cable_slot   boss_sw (not located)"
-
-
-def test_legend_line_none_without_callouts():
-    assert preview._legend_line(None, None) is None
-    assert preview._legend_line([], []) is None
-
-
-def test_callout_drawn_on_first_panel_where_visible(box_workplane, tmp_path):
-    """An anchor on the south face is visible in the south panel and occluded in the
-    west and above panels: only the south panel changes."""
-    from PIL import Image
-
-    view_size = 200
-    callouts = [{"name": "corner", "center": (-4, -5, 4)}]
-
-    plain_png = tmp_path / "plain.png"
-    calledout_png = tmp_path / "calledout.png"
-    preview.render_multi_view(box_workplane, str(plain_png), view_size=view_size)
-    preview.render_multi_view(
-        box_workplane, str(calledout_png), view_size=view_size, callouts=callouts
-    )
-
-    plain_img = np.asarray(Image.open(plain_png).convert("RGB"), dtype=int)
-    calledout_img = np.asarray(Image.open(calledout_png).convert("RGB"), dtype=int)
-
-    header_h = 40
-    label_h = 24
-    gap = 4
-    diffs = []
-    for idx in range(4):
-        col, row = idx % 2, idx // 2
-        px = col * (view_size + gap)
-        py = header_h + label_h + row * (view_size + gap + label_h)
-        p_crop = plain_img[py : py + view_size, px : px + view_size]
-        c_crop = calledout_img[py : py + view_size, px : px + view_size]
-        diffs.append(int(np.abs(p_crop - c_crop).sum()))
-
-    south_diff, west_diff, above_diff, iso_diff = diffs
-    assert south_diff > 0
-    assert west_diff == 0
-    assert above_diff == 0
-    assert iso_diff == 0
-
-
-def test_no_callouts_renders_unchanged_tile(box_workplane, tmp_path):
-    """With no callouts and no unlocated names, the tile is identical to the
-    pre-callout-feature baseline (no legend row, same dimensions)."""
+def test_tile_has_no_legend_row(box_workplane, tmp_path):
+    """The 2x2 tile is two panels wide with no legend row."""
     out = tmp_path / "unchanged.png"
     preview.render_multi_view(box_workplane, str(out), view_size=100)
     from PIL import Image
@@ -303,16 +249,16 @@ def test_flat_face_shades_uniformly_and_nearer_occludes(tmp_path):
     big = cq.Workplane("XY").box(20, 20, 4)
     both = big.union(cq.Workplane("XY").workplane(offset=2).box(6, 6, 4))
 
-    flat = np.asarray(preview._render_cq_view(big, 90, -90, 200, 200, ortho=True), dtype=int)
+    flat = np.asarray(preview._render_cq_view(big, 90, -90, 200, 200), dtype=int)
     center = flat[80:120, 80:120].reshape(-1, 3)
     assert (center == center[0]).all()
 
-    img = np.asarray(preview._render_cq_view(both, 90, -90, 200, 200, ortho=True), dtype=int)
+    img = np.asarray(preview._render_cq_view(both, 90, -90, 200, 200), dtype=int)
     # Top of the small box and the big top face share +Z normal (same shade), so
     # check the side view instead: small box silhouette rises above the big box.
-    side = np.asarray(preview._render_cq_view(both, 0, -90, 200, 200, ortho=True), dtype=int)
+    side = np.asarray(preview._render_cq_view(both, 0, -90, 200, 200), dtype=int)
     bg = np.array([0xE8, 0xE8, 0xEC])
-    side_big = np.asarray(preview._render_cq_view(big, 0, -90, 200, 200, ortho=True), dtype=int)
+    side_big = np.asarray(preview._render_cq_view(big, 0, -90, 200, 200), dtype=int)
 
     def rows(a):
         return (np.abs(a - bg).sum(axis=-1) > 10).any(axis=1).sum()
@@ -402,35 +348,3 @@ def test_visible_occluded_anchor():
     )
     assert preview._visible((0, 0, 5), project, depth)
     assert not preview._visible((0, 0, -5), project, depth)
-
-
-def test_hidden_callout_listed_and_no_badge(tmp_path):
-    enclosed = cq.Workplane("XY").box(20, 20, 20).cut(cq.Workplane("XY").box(6, 6, 6))
-    out = tmp_path / "t.png"
-    preview.render_multi_view(
-        enclosed, str(out), view_size=200, callouts=[{"name": "void_post", "center": (0, 0, 0)}]
-    )
-    _, legend, hidden = preview._place_callouts(
-        [{"name": "void_post", "center": (0, 0, 0)}],
-        [
-            (r[1], r[2])
-            for r in [
-                preview._render_panel(enclosed, e, a, 200, 200)
-                for e, a, _l, _o in preview.MULTI_VIEW_PANELS
-            ]
-        ],
-        200,
-    )
-    assert hidden == ["void_post"] and legend == []
-    assert preview._legend_line(legend, None, hidden) == "void_post (hidden)"
-
-
-def test_coincident_callouts_merge_into_one_badge():
-    box = cq.Workplane("XY").box(20, 20, 20)
-    panels = [
-        preview._render_panel(box, e, a, 200, 200) for e, a, _l, _o in preview.MULTI_VIEW_PANELS
-    ]
-    callouts = [{"name": "rim_rails", "center": (x, -10, 0)} for x in (0.0, 0.1, 0.2, 0.3)]
-    badges, legend, hidden = preview._place_callouts(callouts, [(r[1], r[2]) for r in panels], 200)
-    assert sum(len(b) for b in badges) == 1
-    assert legend == [{"name": "rim_rails x4"}] and hidden == []

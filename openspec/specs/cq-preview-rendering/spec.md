@@ -119,9 +119,6 @@ The preview renderer SHALL rasterize tessellated geometry with a per-pixel depth
 - **WHEN** a smaller box protrudes toward the camera from a larger box
 - **THEN** the rendered silhouette and pixels reflect the nearer geometry regardless of triangle order
 
-#### Scenario: Callouts follow the projection
-- **WHEN** callouts are supplied to a multi-view render
-- **THEN** badges appear on the three orthographic panels at the feature's projected position and not on the isometric panel
 
 ### Requirement: Render command treats its argument as one script path
 The `/cq-design:render` command SHALL pass its argument to `run_cadquery_model.py` as a single quoted argument.

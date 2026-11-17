@@ -168,7 +168,10 @@ def _get_font(size=14):
                 return ImageFont.truetype(path, size)
             except Exception:
                 continue
-    return ImageFont.load_default()
+    try:  # Pillow's bundled scalable font (no system font needed, e.g. on Windows)
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def _info_lines(wp, n_triangles, density_g_cm3=1.24, material="PLA"):
@@ -212,7 +215,6 @@ def _draw_callouts(img, badges):
 _CAP_COLOR = np.array([0.95, 0.55, 0.15])
 _EDGE_RGB = (40, 40, 50)
 _VISIBLE_TOL = 0.01
-_MERGE_PX = 12
 
 
 class SectionPath(str):
@@ -325,42 +327,6 @@ def _draw_marker(img, project, depth, anchor):
         _draw_callouts(img, [(1, tuple(project(anchor)[:2]))])
 
 
-def _place_callouts(callouts, panels, view_size):
-    """Assign each callout to the first panel where it is visible, merging near badges.
-
-    `panels` is a list of `(project, depth)` in preference order. Returns
-    `(badges_per_panel, legend_callouts, hidden_names)`: badges as `(number, (x, y))`
-    per panel, legend entries as `{"name"}` dicts (`"name xN"` for merged groups),
-    and names visible in no panel.
-    """
-    radius = _MERGE_PX * view_size / DEFAULT_VIEW_SIZE
-    groups: list[tuple[int, list, list[str]]] = []  # (panel_idx, [xy, ...], [name, ...])
-    hidden: list[str] = []
-    for c in callouts:
-        for pi, (project, depth) in enumerate(panels):
-            if project is None or not _visible(c["center"], project, depth):
-                continue
-            xy = project(c["center"])[:2]
-            for g in groups:
-                gx, gy = np.mean(g[1], axis=0)
-                if g[0] == pi and np.hypot(xy[0] - gx, xy[1] - gy) <= radius:
-                    g[1].append(xy)
-                    g[2].append(c["name"])
-                    break
-            else:
-                groups.append((pi, [xy], [c["name"]]))
-            break
-        else:
-            hidden.append(c["name"])
-    badges: list[list] = [[] for _ in panels]
-    legend: list[dict] = []
-    for num, (pi, xys, names) in enumerate(groups, start=1):
-        badges[pi].append((num, tuple(np.mean(xys, axis=0))))
-        label = names[0] if len(set(names)) == 1 else " + ".join(names)
-        legend.append({"name": f"{label} x{len(names)}" if len(names) > 1 else label})
-    return badges, legend, hidden
-
-
 def _render_cq_view(
     wp,
     elev,
@@ -368,8 +334,6 @@ def _render_cq_view(
     width=DEFAULT_VIEW_SIZE,
     height=DEFAULT_VIEW_SIZE,
     focus=None,
-    ortho=False,
-    callouts=None,
 ):
     """Render one view of a CadQuery object. Returns a PIL Image (RGB).
 
@@ -381,20 +345,8 @@ def _render_cq_view(
     whole-mesh-fit framing with a fixed-size window centered on a point -- used for
     feature detail views where the feature is small relative to the whole part and
     would be imperceptible at the default whole-part framing.
-
-    `callouts` (with `ortho=True`) is a list of `{"name": str, "center": (x, y, z)}`
-    badged where the anchor is visible; the tile path (`render_multi_view`) places
-    callouts across panels itself.
     """
-    img, project, depth, _ = _render_panel(wp, elev, azim, width, height, focus)
-    if callouts and ortho and project is not None:
-        badges = [
-            (i, project(c["center"])[:2])
-            for i, c in enumerate(callouts, start=1)
-            if _visible(c["center"], project, depth)
-        ]
-        _draw_callouts(img, badges)
-    return img
+    return _render_panel(wp, elev, azim, width, height, focus)[0]
 
 
 def render_view(wp, elev, azim, width=DEFAULT_VIEW_SIZE, height=DEFAULT_VIEW_SIZE):
@@ -610,16 +562,6 @@ def render_feature_section(wp, output_path, frame, anchor, view_size=DETAIL_VIEW
     )
 
 
-def _legend_line(callouts, unlocated_names, hidden_names=None):
-    """Caption legend row mapping badge numbers to names, or None if no callouts."""
-    if not callouts and not unlocated_names and not hidden_names:
-        return None
-    parts = [f"{i} {c['name']}" for i, c in enumerate(callouts or [], start=1)]
-    parts += [f"{name} (hidden)" for name in (hidden_names or [])]
-    parts += [f"{name} (not located)" for name in (unlocated_names or [])]
-    return "   ".join(parts)
-
-
 SHEET_MAX_TILES = 4
 
 
@@ -680,8 +622,6 @@ def render_multi_view(
     title="Model Preview",
     subtitle=None,
     view_size=DEFAULT_VIEW_SIZE,
-    callouts=None,
-    unlocated_names=None,
     density_g_cm3=1.24,
     material="PLA",
 ):
@@ -706,36 +646,19 @@ def render_multi_view(
     this tile; they are rendered as separate files (see render_preview.py
     --cross-sections).
 
-    `callouts`, when given, is a list of `{"name": str, "center": (x, y, z)}`
-    (build pose) -- each gets a numbered badge + leader line on the first panel
-    (orthographic panels, then isometric) where a z-buffer test shows it unoccluded;
-    badges within 12 px merge ("name xN"); a callout visible nowhere is listed
-    "name (hidden)". The caption legend maps badge numbers to names.
-
-    `unlocated_names` are named features with no known position: listed in the
-    legend unbadged as "name (not located)" so the tile still carries the complete
-    agreed vocabulary. Neither argument changes anything when omitted.
     """
     _, triangles = _tessellate(wp)
     rendered = [
         _render_panel(wp, elev, azim, view_size, view_size)
         for elev, azim, _label, _ortho in MULTI_VIEW_PANELS
     ]
-    legend_callouts, hidden = callouts, []
-    if callouts:
-        badges, legend_callouts, hidden = _place_callouts(
-            callouts, [(r[1], r[2]) for r in rendered], view_size
-        )
-        for r, panel_badges in zip(rendered, badges, strict=True):
-            _draw_callouts(r[0], panel_badges)
-    legend_line = _legend_line(legend_callouts, unlocated_names, hidden)
     images = [(r[0], p[2]) for r, p in zip(rendered, MULTI_VIEW_PANELS, strict=True)]
 
     cols = 2
     rows = (len(images) + cols - 1) // cols
     gap = 4
     header_h = 40 + (20 if subtitle else 0)
-    footer_h = 55 + (20 if legend_line else 0)
+    footer_h = 55
     label_h = 24
     w = view_size * cols + gap * (cols - 1)
     h = view_size * rows + gap * (rows - 1) + header_h + footer_h + label_h * rows
@@ -767,13 +690,8 @@ def render_multi_view(
         )
 
     line1, line2 = _info_lines(wp, len(triangles), density_g_cm3, material)
-    if legend_line:
-        draw.text((w // 2, h - 50), line1, fill="gray", font=info_font, anchor="mb")
-        draw.text((w // 2, h - 30), line2, fill="gray", font=info_font, anchor="mb")
-        draw.text((w // 2, h - 10), legend_line, fill="#333333", font=info_font, anchor="mb")
-    else:
-        draw.text((w // 2, h - 30), line1, fill="gray", font=info_font, anchor="mb")
-        draw.text((w // 2, h - 10), line2, fill="gray", font=info_font, anchor="mb")
+    draw.text((w // 2, h - 30), line1, fill="gray", font=info_font, anchor="mb")
+    draw.text((w // 2, h - 10), line2, fill="gray", font=info_font, anchor="mb")
 
     canvas.save(output_path)
     return output_path

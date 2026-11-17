@@ -167,6 +167,41 @@ def load_preferred_format(profile_path: str) -> tuple[str, str | None, dict]:
     return fmt, slicer.get("slicer_name"), profile
 
 
+def write_labeled_previews(
+    plan: dict, plan_path: str, parts_dir: str, preview_dir: str
+) -> list[str]:
+    """Write `<id>_design.stl` + `<id>_preview_labeled.png` per part script; return the PNGs.
+
+    A part whose recorded script hash still matches is not re-exported. A failing part is
+    reported on stderr and skipped: the preview never fails the build.
+    """
+    import export_design_stl
+    import render_labeled
+
+    pngs = []
+    for part in plan.get("parts", []):
+        script = os.path.join(parts_dir, f"{part['id']}.py")
+        if is_copy(part) or not os.path.isfile(script):
+            continue
+        stl = os.path.join(preview_dir, f"{part['id']}_design.stl")
+        feats = os.path.join(preview_dir, f"{part['id']}_design.features.json")
+        png = os.path.join(preview_dir, f"{part['id']}_preview_labeled.png")
+        try:
+            with open(feats, encoding="utf-8") as f:
+                recorded = json.load(f).get("source_script_hash")
+        except (OSError, ValueError):
+            recorded = None
+        if not (os.path.isfile(png) and os.path.isfile(stl)) or recorded != script_hash(script):
+            report = export_design_stl.export_design_stl(script, stl)
+            if not report["success"]:
+                msg = report["errors"][0]["message"]
+                sys.stderr.write(f"labeled preview skipped for {part['id']}: {msg}\n")
+                continue
+            render_labeled.render_labeled(stl, feats, png, part["id"], plan_path)
+        pngs.append(png)
+    return pngs
+
+
 def _print_summary(summary: dict[str, dict], result: dict, recomputed: list[str]) -> None:
     """Print the chosen orientation per union, then the files written per format."""
     for pid, chosen in summary.items():
@@ -216,6 +251,16 @@ def main() -> None:
         help=f"Formats to write, comma-separated ({', '.join(FORMATS)}); "
         "default: the profile's preferred_format",
     )
+    parser.add_argument(
+        "--preview-dir",
+        default=os.path.join(project_root, "preview"),
+        help="Directory for the labeled preview files (default: <project root>/preview)",
+    )
+    parser.add_argument(
+        "--no-labeled-preview",
+        action="store_true",
+        help="Skip the design STL export and the labeled preview PNG",
+    )
     args = parser.parse_args()
     formats = [f for f in args.formats.split(",") if f]
     bad = [f for f in formats if f not in FORMATS]
@@ -252,6 +297,9 @@ def main() -> None:
         sys.exit(1)
 
     _print_summary(summary, result, recomputed)
+    if not (args.no_labeled_preview or os.environ.get("CQ_NO_LABELED_PREVIEW")):
+        for png in write_labeled_previews(plan, args.plan, args.parts_dir, args.preview_dir):
+            print(f"labeled preview: {png}")
     sys.exit(0)
 
 

@@ -47,6 +47,69 @@ def _solid(obj):
     return obj.val() if hasattr(obj, "val") else obj
 
 
+# Stage recorder: off (None) unless export_design_stl.py turns it on. While on,
+# verify_boolean/verify_stage append one record per label (first call wins) holding only
+# numbers -- never the shapes -- so a large model is not kept alive.
+_RECORD: list[dict] | None = None
+
+
+def start_stage_recording() -> None:
+    """Begin recording one feature record per labeled stage."""
+    global _RECORD
+    _RECORD = []
+
+
+def stop_stage_recording() -> list[dict]:
+    """Stop recording and return the records (empty when recording was never started)."""
+    global _RECORD
+    out, _RECORD = _RECORD or [], None
+    return out
+
+
+def _parts(delta, limit: int = 16) -> list[dict]:
+    """`{bbox, centroid}` of the largest solids of `delta` (one per feature instance)."""
+    out = []
+    for sol in sorted(delta.Solids(), key=lambda x: -abs(x.Volume()))[:limit]:
+        bb, c = sol.BoundingBox(), sol.Center()
+        out.append(
+            {
+                "bbox": [bb.xmin, bb.xmax, bb.ymin, bb.ymax, bb.zmin, bb.zmax],
+                "centroid": [c.x, c.y, c.z],
+            }
+        )
+    return out
+
+
+def _record(label: str, operation: str, before, after) -> None:
+    """Append `{name, operation, bbox, centroid, volume_mm3}` of the stage's geometry change."""
+    if _RECORD is None or not label or any(r["name"] == label for r in _RECORD):
+        return
+    sa = _solid(after)
+    try:
+        if before is after:  # a stage marker: no before/after, the whole body is the feature
+            delta = sa
+        else:
+            sb = _solid(before)
+            added, removed = sa.cut(sb), sb.cut(sa)
+            delta = added if added.Volume() >= removed.Volume() else removed
+        bb = delta.BoundingBox()
+        centroid = delta.Center()
+    except Exception:  # degenerate delta: fall back to the whole post-operation body
+        delta = sa
+        bb = delta.BoundingBox()
+        centroid = delta.Center()
+    _RECORD.append(
+        {
+            "name": label,
+            "operation": operation,
+            "bbox": [bb.xmin, bb.xmax, bb.ymin, bb.ymax, bb.zmin, bb.zmax],
+            "centroid": [centroid.x, centroid.y, centroid.z],
+            "volume_mm3": abs(delta.Volume()),
+            "parts": _parts(delta),
+        }
+    )
+
+
 def _centroid(shape) -> tuple[float, float, float]:
     """Bounding-box center of a Shape, used as a cheap position signature."""
     bb = shape.BoundingBox()
@@ -76,6 +139,7 @@ def verify_boolean(before, after, operation: str = "cut", label: str = ""):
             f"{operation} produced no change (volume {vol_before:.3f} -> {vol_after:.3f} mm^3, "
             f"faces {faces_before} -> {faces_after}); the tool likely does not overlap the body",
         )
+    _record(label, operation, before, after)
     return after
 
 
@@ -156,6 +220,7 @@ def verify_stage(
                 f"volume {volume:.3f} mm^3 is below expected minimum {vol_min:.3f} mm^3",
             )
 
+    _record(label, "stage", wp, wp)
     return wp
 
 

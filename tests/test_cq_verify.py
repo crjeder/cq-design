@@ -184,3 +184,27 @@ def test_ligament():
         cq_verify.check_ligament(6, 5, 1.2, "m5_boss")
     assert "cq-verify:thin_ligament:m5_boss" in str(exc.value)
     assert cq_verify.check_ligament(10, 5, 1.2, "m5_boss") == 2.5
+
+
+# ---- stage recorder ----
+
+
+def test_recorder_off_by_default():
+    body = cq.Workplane("XY").box(20, 20, 20)
+    cq_verify.verify_boolean(body, body.cut(cq.Workplane("XY").box(5, 5, 30)), "cut", "slot")
+    assert cq_verify.stop_stage_recording() == []
+
+
+def test_recorder_captures_delta_per_label():
+    body = cq.Workplane("XY").box(20, 20, 20)
+    cq_verify.start_stage_recording()
+    cut = cq_verify.verify_boolean(body, body.cut(cq.Workplane("XY").box(4, 4, 30)), "cut", "slot")
+    cq_verify.verify_boolean(body, cut, "cut", "slot")  # same label: first wins
+    cq_verify.verify_stage(cut, "base", bbox=(-10, 10, -10, 10, -10, 10))
+    recs = cq_verify.stop_stage_recording()
+    assert [r["name"] for r in recs] == ["slot", "base"]
+    slot = recs[0]
+    assert slot["operation"] == "cut"
+    assert slot["bbox"] == pytest.approx([-2, 2, -2, 2, -10, 10])
+    assert slot["volume_mm3"] == pytest.approx(4 * 4 * 20)
+    assert recs[1]["operation"] == "stage"
