@@ -220,3 +220,36 @@ def test_interface_min_area_optional_and_positive(profile_file):
     prof = {**VALID_PROFILE, "constraints": {**VALID_PROFILE["constraints"]}}
     prof["constraints"]["interface_min_area_mm2"] = 2.5
     assert validate_profile(profile_file(prof)) == []
+
+
+ORCA_BLOCK: dict[str, Any] = {
+    "app": "Snapmaker_Orca",
+    "data_dir": "/x/Snapmaker_Orca",
+    "machine": "M",
+    "process": "P",
+    "process_purpose": "functional",
+    "filaments": ["F"],
+    "processes": [
+        {
+            "name": "P",
+            "layer_height_mm": 0.2,
+            "wall_loops": 2,
+            "infill_density": 0.15,
+            "user": False,
+        }
+    ],
+    "digest": "sha256:0",
+}
+
+
+def test_orca_block_accepted_and_incomplete_rejected(profile_file):
+    assert validate_profile(profile_file({**VALID_PROFILE, "orca": ORCA_BLOCK})) == []
+    partial = {k: v for k, v in ORCA_BLOCK.items() if k != "digest"}
+    errors = validate_profile(profile_file({**VALID_PROFILE, "orca": partial}))
+    assert any("digest" in e for e in errors)
+
+
+def test_build_volume_accepted_and_partial_rejected(profile_file):
+    volume = {"x": 270, "y": 270, "z": 270}
+    assert validate_profile(profile_file({**VALID_PROFILE, "build_volume_mm": volume})) == []
+    assert validate_profile(profile_file({**VALID_PROFILE, "build_volume_mm": {"x": 270}}))

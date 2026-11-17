@@ -1,0 +1,17 @@
+{
+    "name": "fdm_filament_common",
+    "from": "system",
+    "instantiation": "false",
+    "filament_density": [
+        "1.24"
+    ],
+    "filament_max_volumetric_speed": [
+        "12"
+    ],
+    "slow_down_layer_time": [
+        "8"
+    ],
+    "filament_shrink": [
+        "100%"
+    ]
+}

@@ -1,0 +1,6 @@
+{
+    "name": "0.16mm Standard @Test U1 (0.4 nozzle) - Copy",
+    "inherits": "0.16mm Standard @Test U1 (0.4 nozzle)",
+    "from": "User",
+    "sparse_infill_density": "5%"
+}
