@@ -25,6 +25,7 @@ Usage:
 
 import argparse
 import ast
+import contextlib
 import json
 import math
 import os
@@ -32,7 +33,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 SKILL_ROOT = os.path.dirname(os.path.abspath(__file__))
 MAX_FIX_ROUNDS = 2
@@ -215,6 +216,65 @@ def _clearance_opening_zones(plan: dict, part: dict, rotate: list[dict] | None) 
         radius = math.hypot(*(s / 2 for s in size)) + 1.0 if size else 5.0
         zones.append({"center": center, "radius_mm": radius, "name": interface.get("name")})
     return zones
+
+
+def _fin_hint_issues(
+    stl_path: str, overhang_deg: float, rotate: list[dict] | None, bridge_max_mm: float
+) -> list[dict]:
+    """A `fin_hint` info issue listing suggested breakaway fins (advisory; never blocking)."""
+    try:
+        import trimesh
+
+        from fin_placement import suggest_fins, to_build_pose
+
+        tm = trimesh.load(stl_path, force="mesh")
+        if rotate:
+            from placement import to_matrix
+
+            tm.apply_transform(to_matrix({"rotate": rotate}))
+        fins = suggest_fins(tm, overhang_deg, bridge_max_mm)
+        if rotate:
+            fins = to_build_pose(fins, rotate)
+    except Exception:  # advisory only: a failed hint must never fail the gate
+        return []
+    if not fins:
+        return []
+    return [
+        {
+            "source": "geometry",
+            "severity": "info",
+            "type": "fin_hint",
+            "message": f"{len(fins)} overhang region(s) could take a designed-in breakaway fin",
+            "hint": (
+                "Optional: build each with blocks.breakaway_fin + place_fin (see "
+                "reference/support_fins.md) as a `sacrificial` union, or set "
+                "constraints.fin_hints=false in BUILD_PLAN.json to silence this."
+            ),
+            "fins": fins,
+        }
+    ]
+
+
+def _designed_support_issue(fin_stls: list[str]) -> dict:
+    """One `designed_support` info issue for the plan's sacrificial (fin) unions."""
+    import trimesh
+
+    volume = 0.0
+    for p in fin_stls:
+        with contextlib.suppress(Exception):
+            volume += abs(float(cast(trimesh.Trimesh, trimesh.load(p, force="mesh")).volume))
+    return {
+        "source": "geometry",
+        "severity": "info",
+        "type": "designed_support",
+        "message": (
+            f"{len(fin_stls)} sacrificial support union(s), {volume:.1f} mm3 of fin material "
+            "(dimensions not yet print-tested)"
+        ),
+        "hint": "Sacrificial unions are skipped by overhang, sliver, thin-region and brim checks.",
+        "fin_union_count": len(fin_stls),
+        "fin_volume_mm3": round(volume, 3),
+    }
 
 
 def _analyze_stl(
@@ -1286,6 +1346,10 @@ def run_gate(
     overhang_deg = plan.get("constraints", {}).get("overhang_max_deg", 45)
     bridge_max_mm = plan.get("constraints", {}).get("bridge_max_mm", 10.0)
     layer_height = _layer_height_mm(plan, plan_path)
+    fin_hints = plan.get("constraints", {}).get("fin_hints", True)
+    from units import union_entries
+
+    sacrificial = {u for u, e in union_entries(plan).items() if e.get("sacrificial")}
     if stl_dir is None:
         stl_dir = os.path.dirname(os.path.abspath(script_path))
 
@@ -1318,19 +1382,30 @@ def run_gate(
             # rotate from orientations.json; --orientation alone can't say which union it is.
             orients = _read_orientations(script_path, None) if multi else {}
             geo_issues = []
+            fin_stls: list[str] = []
             for stl in effective_stls:
                 uid = os.path.splitext(os.path.basename(stl))[0]
+                if uid in sacrificial:
+                    fin_stls.append(stl)
+                    continue
                 rotate = ((orients.get(uid) if multi else orientation) or {}).get("rotate")
                 clearance_zones = _clearance_opening_zones(plan, part, rotate) if part else []
                 stl_issues = _analyze_stl(
                     stl, overhang_deg, rotate, clearance_zones, bridge_max_mm, layer_height
                 )
+                if fin_hints and any(
+                    i["type"] == "overhang_exceeded" and i["severity"] == "warning"
+                    for i in stl_issues
+                ):
+                    stl_issues += _fin_hint_issues(stl, overhang_deg, rotate, bridge_max_mm)
                 if multi:
                     stl_issues = [
                         {**i, "union": uid, "message": f"[{uid}] {i['message']}"}
                         for i in stl_issues
                     ]
                 geo_issues.extend(stl_issues)
+            if fin_stls:
+                geo_issues.append(_designed_support_issue(fin_stls))
         else:
             geo_issues = [
                 {
@@ -1342,6 +1417,7 @@ def run_gate(
                 }
             ]
 
+        wrapper_issues = [i for i in wrapper_issues if i.get("union") not in sacrificial]
         all_issues = wrapper_issues + geo_issues
         errors = [i for i in all_issues if i["severity"] == "error"]
 

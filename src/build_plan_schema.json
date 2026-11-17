@@ -326,6 +326,10 @@
                   "type": "integer",
                   "minimum": 1,
                   "description": "1-based filament slot (slicer extruder number) this union prints with. Not checked against the printer; the slicer flags a slot it does not have."
+                },
+                "sacrificial": {
+                  "type": "boolean",
+                  "description": "True for a union that is designed-in breakaway support (e.g. blocks.breakaway_fin geometry). The quality gate skips it for overhang, sliver, thin-region and brim findings and reports it as `designed_support`. Default false."
                 }
               }
             }
@@ -563,6 +567,10 @@
           "minimum": 0,
           "maximum": 90,
           "description": "Maximum overhang angle before support required"
+        },
+        "fin_hints": {
+          "type": "boolean",
+          "description": "Whether the quality gate suggests designed-in breakaway fins (a `fin_hint` info finding) for overhangs it flags. Default true; set false to opt out (e.g. the user wants slicer supports or no support geometry)."
         },
         "bridge_max_mm": {
           "type": "number",

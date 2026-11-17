@@ -337,6 +337,12 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/src/pipeline.py" advance \
 
 ## Print finishing
 
+A `fin_hint` gate finding lists optional breakaway-fin placements for flagged overhangs
+(see `reference/support_fins.md`). Take it only if the user wants designed-in supports:
+build each with `blocks.breakaway_fin` + `blocks.place_fin(..., up=print_up())` as a
+`sacrificial` union. `constraints.fin_hints: false` in `BUILD_PLAN.json` silences the hint;
+set it when the user declines designed-in supports.
+
 Orientation-dependent features (teardrop peak direction) are authored through
 `blocks.print_up()`, which returns +Z until the accepted pose is known. No separate
 command: `write_assembly.py --orientations build/orientations.json` (next section),
