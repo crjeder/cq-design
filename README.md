@@ -234,8 +234,6 @@ Required options are marked **(req)**. Exit codes and JSON output shapes are in
 | `--feature SPEC` | none | Per-feature view along the feature normal plus an axis section, `name=<feature>;center=x,y,z[;diameter=<mm>\|;size=<w>,<h>]`; repeatable (needs `--preview`) |
 | `--sheet` | off | Compose a 2 x 2 `<stem>_sheet.png` from at most 4 tiles (`--feature` tiles, then sections; needs `--preview`) |
 | `--detail SPEC` | none | High-resolution detail view, `name=<feature>;center=x,y,z;size=<mm>[;section=<axis>=<pos>]`; repeatable |
-| `--callout SPEC` | none | Numbered badge for a feature, `name=<feature>;center=x,y,z`; repeatable |
-| `--unlocated-name NAME` | none | Legend entry for a feature with no known position; repeatable |
 | `--strict` | off | Fail if an STL is not watertight or none was produced |
 | `--timeout SEC` | 180 | Model run timeout |
 | `--expected-dims W,D,H` | none | Expected bounding box in mm |
@@ -265,7 +263,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 - `build.py --formats step` (also `3mf`, `stl`, `obj`, `iges`, `scad`, `estampo`) writes `<union-id>.step` per union, in the print pose, into `out/`; `run_cadquery_model.py --deliver` does not accept `estampo`; with no `--formats` it writes only the profile's `preferred_format`.
 - `fem_check.py` takes a part's exported STEP file as its positional input.
 
-**`render_preview.py`** (preview subprocess) takes `--script` **(req)**, `--output` **(req)**, `--views`, `--title`, `--subtitle`, `--density`, `--material`, `--cross-sections`, `--auto-sections`, `--extra-section`, `--detail`, `--feature`, `--sheet`, `--callout`, `--unlocated-name` with the same meaning as above. `preview.py --help-note` prints a usage note.
+**`render_preview.py`** (preview subprocess) takes `--script` **(req)**, `--output` **(req)**, `--views`, `--title`, `--subtitle`, `--density`, `--material`, `--cross-sections`, `--auto-sections`, `--extra-section`, `--detail`, `--feature`, `--sheet` with the same meaning as above. `preview.py --help-note` prints a usage note.
 
 **`section_select.py <script>`** picks section planes through bore/boss axes: `--max N` (default 3), `--reserve AXIS=MM` (repeatable).
 

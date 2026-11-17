@@ -69,32 +69,6 @@ def _parse_detail_spec(spec: str) -> dict:
     return {"name": name, "center": center, "size": size, "section": section}
 
 
-def _parse_callout_spec(spec: str) -> dict:
-    """Parse one `--callout` spec into `{name, center}`.
-
-    Format: `name=<feature>;center=x,y,z` (build-pose center). Raises
-    ValueError with a message naming the problem on any malformed spec.
-    """
-    parts = dict(item.split("=", 1) for item in spec.split(";") if item)
-    for required in ("name", "center"):
-        if required not in parts:
-            raise ValueError(f"missing '{required}=' in --callout spec '{spec}'")
-
-    name = parts["name"].strip()
-    if not name:
-        raise ValueError(f"empty name= in --callout spec '{spec}'")
-
-    center_parts = parts["center"].split(",")
-    if len(center_parts) != 3:
-        raise ValueError(f"center= must be 3 comma-separated values in --callout spec '{spec}'")
-    try:
-        center = tuple(float(v) for v in center_parts)
-    except ValueError as exc:
-        raise ValueError(f"non-numeric center in --callout spec '{spec}'") from exc
-
-    return {"name": name, "center": center}
-
-
 def _parse_feature_spec(spec: str) -> dict:
     """Parse one `--feature` spec into `{name, center, diameter, size, section}`.
 
@@ -145,18 +119,6 @@ def _parse_features(args) -> list[dict]:
             print(f"ERROR: {exc}", file=sys.stderr)
             sys.exit(1)
     return features
-
-
-def _parse_callouts(args) -> list[dict]:
-    """Parse and validate every `--callout` spec, exiting on error."""
-    callouts = []
-    for spec in args.callout:
-        try:
-            callouts.append(_parse_callout_spec(spec))
-        except ValueError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            sys.exit(1)
-    return callouts
 
 
 def _compound(result):
@@ -384,7 +346,6 @@ def _render_all(
     args,
     extra_sections: list[tuple[str, float]],
     details: list[dict],
-    callouts: list[dict],
     features: list[dict] | None = None,
 ) -> list[str]:
     """Render the main preview plus any cross-section/detail files. Return extra preview paths."""
@@ -405,8 +366,6 @@ def _render_all(
             args.output,
             title=title,
             subtitle=args.subtitle,
-            callouts=callouts,
-            unlocated_names=args.unlocated_name,
             density_g_cm3=args.density,
             material=args.material,
         )
@@ -556,33 +515,10 @@ def main():
             "appear only as '(not shown)' legend entries."
         ),
     )
-    parser.add_argument(
-        "--callout",
-        action="append",
-        default=[],
-        metavar="SPEC",
-        help=(
-            "Numbered badge + leader line at a feature's projected position on the "
-            "tile's three orthographic panels (multi view only): "
-            "'name=<feature>;center=x,y,z'. Repeatable; badge numbers follow "
-            "supply order. Adds a legend row mapping badges to names."
-        ),
-    )
-    parser.add_argument(
-        "--unlocated-name",
-        action="append",
-        default=[],
-        metavar="NAME",
-        help=(
-            "Named feature with no known position: listed in the legend as "
-            "'NAME (not located)' without a badge. Repeatable."
-        ),
-    )
     args = parser.parse_args()
 
     extra_sections = _parse_extra_sections(args)
     details = _parse_details(args)
-    callouts = _parse_callouts(args)
     features = _parse_features(args)
 
     script_path = os.path.abspath(args.script)
@@ -590,7 +526,7 @@ def main():
     result = _load_script_result(script_path, skill_root)
 
     try:
-        extra_previews = _render_all(result, args, extra_sections, details, callouts, features)
+        extra_previews = _render_all(result, args, extra_sections, details, features)
     except Exception as exc:
         print(f"ERROR: preview render failed: {exc}", file=sys.stderr)
         sys.exit(1)

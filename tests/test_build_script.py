@@ -8,6 +8,7 @@ CadQuery-backed, so integration-speed.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -424,3 +425,27 @@ def test_build_py_missing_profile_fails_with_legacy_hint(tmp_path, skill_src):
 
     assert proc.returncode == 1
     assert "profile.json" in proc.stderr and "rename" in proc.stderr
+
+
+def test_build_py_writes_labeled_preview_and_reuses_it(tmp_path, skill_src):
+    build_dir = _setup(tmp_path, skill_src, [{"id": "base", "description": "b"}], {"base": _FLAT})
+    png = tmp_path / "preview" / "base_preview_labeled.png"
+
+    env = {k: v for k, v in os.environ.items() if k != "CQ_NO_LABELED_PREVIEW"}
+    first = _run(build_dir, env)
+    assert first.returncode == 0, first.stderr
+    assert png.exists() and (tmp_path / "preview" / "base_design.stl").exists()
+    stamp = png.stat().st_mtime_ns
+
+    assert _run(build_dir, env).returncode == 0
+    assert png.stat().st_mtime_ns == stamp  # script unchanged: not re-rendered
+
+    _write_part(build_dir, "base", _POST)
+    assert _run(build_dir, env).returncode == 0
+    assert png.stat().st_mtime_ns != stamp  # script changed: regenerated
+
+
+def test_build_py_no_labeled_preview_flag_skips_it(tmp_path, skill_src):
+    build_dir = _setup(tmp_path, skill_src, [{"id": "base", "description": "b"}], {"base": _FLAT})
+    assert _run(build_dir, None, "--no-labeled-preview").returncode == 0
+    assert not (tmp_path / "preview").exists()

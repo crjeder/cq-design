@@ -194,3 +194,13 @@ def test_registered_script_passes(tmp_path):
         tests={"test_foo.py": "import foo\n"},
     )
     assert check_src_registered(root) == []
+
+
+def test_no_callout_flags_remain_in_skill_docs_or_prompts():
+    """The numbered-callout path is replaced by the labeled preview; no doc may thread it."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    files = [root / "SKILL.md", *(root / "skill").glob("*.md"), *(root / "prompts").glob("*.md")]
+    hits = [f.name for f in files if "--callout" in f.read_text(encoding="utf-8")]
+    assert hits == []

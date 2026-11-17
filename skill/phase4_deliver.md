@@ -26,7 +26,8 @@ Report to the user:
    stated remedies (flatter pose, thicker stalling feature, more copies on the plate) and
    **ask before changing plate layout or part count** -- more copies is never applied
    without the user's explicit approval (see `reference/scripts.md`, `src/toolpath_speed.py`)
-2. **Preview images** - display any `.png` files from `preview/`
+2. **Preview images** - display any `.png` files from `preview/`, including each part's
+   `<part_id>_preview_labeled.png` (feature names on five views; cite these names in prose)
 3. **Print recipe** - show each union's `print_recipe` from its `build/<union_id>.quality_gate.json`
 4. **Output files** - list the files `build.py` wrote to `out/`, and note
    that the working directory is a self-contained uv project (committed `uv.lock`): the
@@ -57,7 +58,7 @@ Report to the user:
      standalone/ <part_id>.py + only the helpers they import, pyproject.toml (cadquery only)
      stl/     <part_id>.stl (assembled pose, input to the checks), export_manifest.json
      out/     the requested model files, all in print pose: model.3mf, or <part_id>.stl + plate_<n>.stl, or step/obj/iges/scad per union
-     preview/ <part_id>_preview.png, _section_*.png, _detail_*.png
+     preview/ <part_id>_preview.png, <part_id>_preview_labeled.png, _design.stl, _section_*.png, _detail_*.png
      ```
    - A one-line pointer to `REGENERATE.md` (see step 7)
 7. **Write `REGENERATE.md`** at the project root -- the prompt that lets the user rebuild
