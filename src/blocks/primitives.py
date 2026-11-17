@@ -113,6 +113,18 @@ def fillet_box(
     return cq.Workplane("XY").box(w, d, h, centered=centered).edges("|Z").fillet(r)
 
 
+def fillet_box_probes(
+    w: float, d: float, h: float, r: float, centered: tuple[bool, bool, bool] = (True, True, False)
+) -> list:
+    x0 = -w / 2 if centered[0] else 0.0
+    y0 = -d / 2 if centered[1] else 0.0
+    z0 = -h / 2 if centered[2] else 0.0
+    return [
+        solid_at((x0 + w / 2, y0 + d / 2, z0 + h / 2)),
+        bbox((x0, y0, z0), (x0 + w, y0 + d, z0 + h)),
+    ]
+
+
 def hollow_box(
     w: float, d: float, h: float, wall: float, floor_t: float, corner_r: float = 0.0
 ) -> cq.Workplane:
