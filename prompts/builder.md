@@ -117,6 +117,10 @@ the script from it; `snapshot compare <a> <b> ...` diffs two of them.
      geometry: dimensions live in `BUILD_PLAN.json`, so you cannot fix it in the script.
      Return `blocked` (`probe_stuck` if the report says so, else describe the plan change
      in `error_summary`).
+   - `small_interface` (the step's `error` has `area_mm2`, `instance`, `location_xyz_mm`):
+     the placed block joins the body through too little area and will snap off. Add or
+     widen a block under it (a column down to the build plate) so the join reaches the
+     threshold; do not shrink the threshold in the script.
    - `full` failing (`disconnected_body`, wall, dimensions): edit the steps it implicates.
 4. **Iterate** as many runs as needed: step failures do not count against you. Stop and
    return `blocked` only when the report sets `probe_stuck: true` (reason `probe_stuck`)

@@ -4,6 +4,7 @@
   "nozzle_mm": 0.4,
   "constraints": {
     "wall_min_mm": 1.2,
+    "interface_min_area_mm2": 4.0,
     "overhang_max_deg": 45,
     "bridge_max_mm": 10.0,
     "dimension_tolerance_mm": 0.5

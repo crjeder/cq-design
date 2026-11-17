@@ -39,6 +39,7 @@ BUNDLE_MODULES = (
     "cq_verify.py",
     "cq_compat.py",
     "probes.py",
+    "interface_area.py",
     "plan_params.py",
     "log.py",
 )

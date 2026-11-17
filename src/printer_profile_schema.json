@@ -126,6 +126,11 @@
           "minimum": 0.4,
           "description": "Minimum wall thickness for DFM check"
         },
+        "interface_min_area_mm2": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Minimum area of the join between a placed block and the body it is unioned onto; absent means 4.0"
+        },
         "overhang_max_deg": {
           "type": "number",
           "minimum": 0,
