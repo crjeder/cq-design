@@ -86,6 +86,49 @@
         }
       }
     },
+    "orca": {
+      "type": "object",
+      "description": "Orca-family slicer presets this profile was imported from (orca_profile.py). The plain fields hold the resolved snapshot; digest detects drift.",
+      "required": ["app", "data_dir", "machine", "process", "process_purpose", "filaments", "processes", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "app": {"type": "string", "enum": ["OrcaSlicer", "Snapmaker_Orca", "BambuStudio"]},
+        "data_dir": {"type": "string", "minLength": 1},
+        "machine": {"type": "string", "minLength": 1},
+        "process": {"type": "string", "minLength": 1},
+        "process_purpose": {"type": "string", "enum": ["visual", "functional", "draft", "user"]},
+        "filaments": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+        "processes": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Every process preset compatible with the machine, for the planner to choose from",
+          "items": {
+            "type": "object",
+            "required": ["name", "layer_height_mm", "wall_loops", "infill_density", "user"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "layer_height_mm": {"type": "number", "exclusiveMinimum": 0},
+              "wall_loops": {"type": "integer", "minimum": 0},
+              "infill_density": {"type": "number", "minimum": 0, "maximum": 1},
+              "user": {"type": "boolean"}
+            }
+          }
+        },
+        "digest": {"type": "string", "minLength": 1}
+      }
+    },
+    "build_volume_mm": {
+      "type": "object",
+      "description": "Printable volume in build-plate axes",
+      "required": ["x", "y", "z"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {"type": "number", "exclusiveMinimum": 0},
+        "y": {"type": "number", "exclusiveMinimum": 0},
+        "z": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
     "fit_clearance_mm": {
       "type": "object",
       "description": "Mating-face clearance per fit type for this printer/material. Optional; absent means the planning prompt's built-in table (press 0.0, snap 0.15, sliding 0.25, loose 0.5).",

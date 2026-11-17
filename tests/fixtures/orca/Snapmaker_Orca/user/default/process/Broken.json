@@ -1,0 +1,8 @@
+{
+    "name": "Broken",
+    "inherits": "Nonexistent parent",
+    "from": "User",
+    "compatible_printers": [
+        "Test U1 (0.4 nozzle)"
+    ]
+}

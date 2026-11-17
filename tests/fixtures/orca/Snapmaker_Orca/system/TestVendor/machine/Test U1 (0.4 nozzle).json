@@ -1,0 +1,23 @@
+{
+    "name": "Test U1 (0.4 nozzle)",
+    "inherits": "fdm_klipper",
+    "from": "system",
+    "instantiation": "true",
+    "printer_model": "Test U1",
+    "nozzle_diameter": [
+        "0.4",
+        "0.4",
+        "0.4",
+        "0.4"
+    ],
+    "printable_area": [
+        "0.5x1",
+        "270.5x1",
+        "270.5x271",
+        "0.5x271"
+    ],
+    "printable_height": "270",
+    "bed_exclude_area": [
+        "0x0"
+    ]
+}
