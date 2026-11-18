@@ -392,3 +392,13 @@ projects -- see [`SBOM.md`](documentation/SBOM.md).
 ## License
 
 The skill and scripts are licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Free to use, modify, and distribute for noncommercial purposes.
+
+## Disclaimer
+
+This project is for educational purposes only. Use it at your own risk. Generated models
+are not engineered or certified for any application, and FDM-printed parts can fail
+without warning, especially along layer lines. Do not use printed parts where a failure
+could injure someone or damage property: loads over people (shelves, ceiling hooks, TV
+mounts), climbing or fitness gear, children's products, vehicle or bicycle structural
+parts, pressurized parts, or pet restraints. For those, use a certified off-the-shelf or
+metal part.
