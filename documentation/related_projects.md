@@ -216,6 +216,7 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [EFFECT OF INFILL PARAMETERS](https://www.revistadyna.com/Articulos/Ficha.aspx?IdMenu=33094c58-1bb5-4163-8382-a0d0942862d2&Cod=9674) | Infill / Strengh relation | |
 | [3MF spec](https://3mf.io/spec/) | | |
 | https://completecalculators.com/calculators/3d-printing/infill-weight-strength-calculator | infill strength calculator | | 
+| https://3dprintcalcs.uk/ | calculators | |
 
 ## Details
 
