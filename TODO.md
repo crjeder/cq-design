@@ -21,6 +21,7 @@ V1.0 is released.
 ## Defects
 - [ ] in D:\3D Druck\Kamerahalter\preview\holder_preview_labeled.png is a labeled preview which every project should have. tools/export_design_stl.py runs build/holder.py and writes preview/design.stl. chnage the preview generation accordingly. check first if the recent changes are enough.
 - [ ] Parameters should be used to eayily edit / customize parts. they are variables used in the cadquery code, not external hand-written notes! comment says "not imported by the build". parameters.py is the source of all recherched, measured, infered, .. dimensions.
+- [ ] actualy show (preview) visual diff on edit tasks or an improvement round (code exists)
 
 ## 1. Pipeline enforcement and process hygiene
 Rating: **High** (build123d-mcp comparison ranked the state machine #1 by impact; the open defect is the same idea).
@@ -127,7 +128,6 @@ Rating: **Low** (judgement: no rated source; each depends on slicer or format de
 - [ ] full priter profile including all hardware capabilities and limits (bed size), process profile (max bridge, max overhang), orca slicer format (plus own file)
 - [ ] printer calibration: a standard object (yet to be designed) is printed by the user for some important filament / process combinations. user answers questions about how the print turned out. result is written to a calibration file. tool. no ai needed
 - [ ] multi printer support for profiles
-- [ ] show (preview) visual diff on edit tasks or an improvement round
 
 ## Related ideas
 Surveyed projects, ratings and open ideas live in [documentation/related_projects.md](documentation/related_projects.md).
