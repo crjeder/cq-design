@@ -193,8 +193,6 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [dashs20/CRAP](https://github.com/dashs20/CRAP) | build123d cycloidal reducer generator: solver-derived dimensions, full-turn collision check, toleranced STEP / STL | Low-Medium | Read the README: block-source reference for cycloidal drives next to `cq_gears`; no license, so reference only |
 | [phillipthelen/awesome-build123d](https://github.com/phillipthelen/awesome-build123d) | CC0 curated list of build123d code and resources | Low | Discovery source for further block candidates and projects |
 | G-code viewers and checkers (12 surveyed) | Human review step after headless slicing, ranked by whether they flag dangerous G-code | Medium | **Open:** GcodeGuard `scan` as the safety gate plus the PrusaSlicer G-code Viewer (layer slider and legend, like Orca's Preview tab) for the human reviewer ([details](#g-code-review-after-headless-slicing)) |
-
-
 | https://github.com/fangzhengfelix9461/Text2CAD-GC | MIT pilot benchmark + RL toolkit: per-seam G0/G1/G2 geometric-continuity analyzer (OCC) over 90 analytic two-surface STEPs, layered reward for PPO/GRPO | Low | Read the README: targets NURBS seam continuity that Chamfer / watertight metrics miss; this skill's box/bracket parts rarely have freeform seams, and the RL side is not applicable |
 | https://github.com/shivamrajput-py/Archgen-Text2CAD | Architecture docs for a proprietary 9-agent text -> FreeCAD script system (hybrid RAG, cross-iteration memory, auto 2D drawing, physics report, per-axis quality score) | Low | Read the README: "the production codebase is proprietary", only docs; cross-iteration memory echoes the Text2CAD (MLYengineering) Learning Agent row above |
 | https://github.com/WaterXiao-git/text2cad-parametric | Chinese task text -> structured hard constraints (`taskspec.py`) -> one dedicated parametric builder per task (40 builders + generic fallback), Shapely 2D + manifold3d booleans, FDM printability (support-free, stable base) designed in at modeling time | Low-Medium | Read the README: competition-style hand-written builders, not LLM codegen; the "merge boolean tags with numeric limits like 'height at most 90 mm' into hard constraints" step parallels `request_log`. No license |
@@ -210,6 +208,11 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | https://github.com/tengfeizhang666/text2cad-rag | Derivative of giuliano-t/openAI-to-freeCAD-workflow: pluggable local LLM, Chroma + BGE reranker RAG over a few-shot cookbook, FreeCAD headless run, trimesh validity check (closed, consistent winding, volume > 0) | Low | Read the README: RAG over examples and a trimesh sanity check, both already covered (`reference/`, wrapper `watertight`) |
 | https://github.com/Principle-of-Procrastination/text2cad | SOLIDWORKS 2026 C# add-in MVP: server proposes an `ExecutionPlan` (versioned DSL), local client validates strictly, previews, user confirms, bridge creates native features | Low | Read the README: proprietary-CAD bridge; the validate-preview-confirm-execute plan DSL mirrors `BUILD_PLAN.json` approval, nothing new |
 | [burr](https://crates.io/crates/burr) | | |
+| [mesh2cad](https://github.com/emirmrkaljevic/mesh2cad) | transforms STL to CadQuery. MCP available | | 
+| [Obico](https://github.com/TheSpaghettiDetective/obico-server) | smart 3D printing platform | |
+| [TheSpaghettiDetective](https://github.com/TheSpaghettiDetective/OctoPrint-TheSpaghettiDetective) | detecting print errors while printing - physical world feedback? | |
+| [mica-slicer](https://github.com/steenfeldt/mica-slicer) | alternative slicer | |
+| [Strecs3D](https://github.com/tomohiron907/Strecs3D) |  preprocessing software that generates optimized infill for 3D printing based on structural analysis | |
 
 ## Details
 
