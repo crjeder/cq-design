@@ -1,10 +1,3 @@
-Primary Load Case,Primary Slicer Lever,Recommended Infill Pattern,Why (Mechanical Mechanism)
-"Uniaxial Tension (Straps, links, hooks)",4–6+ Walls; orient load in XY plane,Concentric or Rectilinear (±45∘),Aligns continuous polymer strands directly with the principal tensile vector; avoids curved-path compliance.
-"Z-Axis Compression (Spacers, feet, jigs)",50–80% Infill + 3–4 Walls,Honeycomb or Grid,Vertical cell walls act as parallel columns loaded in pure axial compression without buckling.
-"Multi-Axial Compression / Shear (Housings, blocks)",40–60% Infill + 4 Walls,Cubic or Octet,"Angled 3D truss planes triangulate forces in X, Y, and Z, preventing lateral shear collapse."
-"Bending / Torsion (Brackets, levers, arms)",5–6 Walls + 1.2–1.6 mm Top/Bottom; 20–30% Infill,Triangles or Cubic,Outer shells carry peak bending moment (I∝y3); triangulated core acts as a rigid shear web.
-"Impact / Cyclic Fatigue (Bumpers, TPU parts)",3–4 Walls + 15–30% Infill,Gyroid,Lack of sharp vertices eliminates stress concentrations; curved walls flex elastically without delaminating.
-
 In Fused Filament Fabrication (FFF/FDM), a printed part is not a continuous isotropic solid; it is a **composite laminate structure** made of continuous perimeter shells (walls) bonded to a cellular core (infill), stacked in anisotropic layers.
 
 Empirical mechanical testing (ASTM D638 for tension, D695 for compression, D790 for flexure) consistently debunks the internet trope that a single infill pattern (such as Gyroid) is universally "strongest." In reality, **wall count (shell thickness) is the primary driver of structural strength in almost every load case except pure crushing**, and infill geometry only matters insofar as how it aligns with the principal stress vector or prevents shell buckling.
