@@ -127,6 +127,7 @@ Rating: **Low** (judgement: no rated source; each depends on slicer or format de
 - [ ] full priter profile including all hardware capabilities and limits (bed size), process profile (max bridge, max overhang), orca slicer format (plus own file)
 - [ ] printer calibration: a standard object (yet to be designed) is printed by the user for some important filament / process combinations. user answers questions about how the print turned out. result is written to a calibration file. tool. no ai needed
 - [ ] multi printer support for profiles
+- [ ] show (preview) visual diff on edit tasks or an improvement round
 
 ## Related ideas
 Surveyed projects, ratings and open ideas live in [documentation/related_projects.md](documentation/related_projects.md).
