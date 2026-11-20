@@ -214,6 +214,7 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [mica-slicer](https://github.com/steenfeldt/mica-slicer) | alternative slicer | |
 | [Strecs3D](https://github.com/tomohiron907/Strecs3D) |  preprocessing software that generates optimized infill for 3D printing based on structural analysis | |
 | [EFFECT OF INFILL PARAMETERS](https://www.revistadyna.com/Articulos/Ficha.aspx?IdMenu=33094c58-1bb5-4163-8382-a0d0942862d2&Cod=9674) | Infill / Strengh relation | |
+| [3MF spec](https://3mf.io/spec/) | | |
 
 ## Details
 
