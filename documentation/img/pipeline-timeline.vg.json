@@ -267,7 +267,7 @@
                 "value": "#000"
               },
               "angle": {
-                "signal": "datum['direction'] === '→' ? 0 : 180"
+                "signal": "datum['direction'] === '➤' ? 0 : 180"
               },
               "align": {
                 "value": "center"
