@@ -21,6 +21,7 @@ V1.0 is released.
 ## Defects
 - [ ] in D:\3D Druck\Kamerahalter\preview\holder_preview_labeled.png is a labeled preview which every project should have. tools/export_design_stl.py runs build/holder.py and writes preview/design.stl. chnage the preview generation accordingly. check first if the recent changes are enough.
 - [ ] Parameters should be used to eayily edit / customize parts. they are variables used in the cadquery code, not external hand-written notes! comment says "not imported by the build". parameters.py is the source of all recherched, measured, infered, .. dimensions.
+- [ ] actualy show (preview) visual diff on edit tasks or an improvement round (code exists)
 
 ## 1. Pipeline enforcement and process hygiene
 Rating: **High** (build123d-mcp comparison ranked the state machine #1 by impact; the open defect is the same idea).

@@ -7,7 +7,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
 .
   .claude-plugin/        # plugin.json (skills: ["."]) + marketplace.json; repo root is the plugin root
   agents/                # Role agents (sourcing research planner builder auditor oracle): minimal tools + model; installers ship them; init copies to .claude/agents/cq-design-<role>.md
-  commands/              # /cq-design:design plan edit init update build render status
+  commands/              # /cq-design:design plan edit init update build render status sync-profile
   src/
     run_cadquery_model.py    # Model runner / DFM wrapper (emits JSON contract)
     run_model_shim.py        # runpy shim that auto-exports `result` to STL
@@ -46,6 +46,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     bundle_project.py        # Copies build.py, lib/ tooling, and the uv project template into a working directory; stamps .bundle_version.json; --check reports staleness
     export_standalone.py     # Minimal per-part deliverable: standalone/ = part scripts + only the helpers they import
     printer_profile_validate.py # profile.json schema validation + field write-back
+    orca_profile.py          # Imports OrcaSlicer-family machine/process/filament presets into profile.json; process selection by purpose; snapshot staleness check
     kinematic_check.py       # Whole-model range-of-motion sweep (trimesh + fcl)
     minimal_cutout_search.py # Bisects a part-script parameter to the minimal value clearing a kinematics entry
     plate_clearance_check.py # Whole-model co-plated union clearance check (trimesh + fcl)
@@ -179,6 +180,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_import_external_corpus.py   # External-corpus importer filter/sampling/golden gen (CadQuery)
     test_eval_corpus.py              # Corpus sanity: plans validate, goldens match dims
     test_printer_profile_validate.py # profile.json schema + write-back -- fast, no CadQuery
+    test_orca_profile.py             # Orca preset discovery, inheritance, field mapping, process selection, staleness (fixtures/orca/) -- fast, no CadQuery
     test_edge_treatment_check.py     # Chamfer/fillet rule check (CadQuery)
     test_toolpath_speed.py           # Corner/crowding print-time advisor (CadQuery)
     test_supports_block.py           # breakaway_fin / place_fin geometry (CadQuery)
@@ -195,4 +197,5 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_process_hygiene.py          # Repo hygiene: every test reached, no retries/bare skips, src/ scripts registered -- fast, no CadQuery
     test_prompt_examples.py          # Prompt fenced examples validate/run; reference/ paths resolve (CadQuery)
     fixtures/
+      orca/                          # Trimmed Snapmaker_Orca data dir (system + user presets, .conf) for test_orca_profile.py
 ```
