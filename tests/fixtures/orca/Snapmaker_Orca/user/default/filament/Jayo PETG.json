@@ -1,0 +1,8 @@
+{
+    "name": "Jayo PETG",
+    "inherits": "Generic PETG",
+    "from": "User",
+    "nozzle_temperature": [
+        "250"
+    ]
+}

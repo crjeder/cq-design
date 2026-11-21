@@ -43,8 +43,8 @@ Install [uv](https://docs.astral.sh/uv/), then in Claude Code:
 
 Commands: `/cq-design:design` (full pipeline), `:plan` (phases 1-2), `:edit <file> <change>` (apply a
 change to a STEP/BREP solid in its own coordinates, delivers `out/<stem>_edited.step`), `:init` (prepare a
-directory), `:update` (refresh a bundled project's tooling), `:build [format]` (generate
-model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only). The Python
+directory; imports printer, process and filament values from an OrcaSlicer-family install when found), `:update` (refresh a bundled project's tooling), `:build [format]` (generate
+model files with the project's `build/build.py`), `:render <script>`, `:status` (versions and staleness, read-only), `:sync-profile` (refresh `profile.json` from OrcaSlicer-family presets). The Python
 environment lives in the plugin's data directory and survives plugin updates.
 
 ### Installer details
@@ -392,3 +392,13 @@ projects -- see [`SBOM.md`](documentation/SBOM.md).
 ## License
 
 The skill and scripts are licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Free to use, modify, and distribute for noncommercial purposes.
+
+## Disclaimer
+
+This project is for educational purposes only. Use it at your own risk. Generated models
+are not engineered or certified for any application, and FDM-printed parts can fail
+without warning, especially along layer lines. Do not use printed parts where a failure
+could injure someone or damage property: loads over people (shelves, ceiling hooks, TV
+mounts), climbing or fitness gear, children's products, vehicle or bicycle structural
+parts, pressurized parts, or pet restraints. For those, use a certified off-the-shelf or
+metal part.
