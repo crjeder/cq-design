@@ -124,7 +124,7 @@ Rating: **Low** (judgement: no rated source; each depends on slicer or format de
 - [ ] Accept Markdown / formatted UTF-8 text input
 
 ## other
-- [ ] full priter profile including all hardware capabilities and limits (bed size), process profile (max bridge, max overhang), orca slicer format (plus own file)
+- [x] full priter profile including all hardware capabilities and limits (bed size), process profile (max bridge, max overhang), orca slicer format (plus own file)
 - [ ] printer calibration: a standard object (yet to be designed) is printed by the user for some important filament / process combinations. user answers questions about how the print turned out. result is written to a calibration file. tool. no ai needed
 - [ ] multi printer support for profiles
 
