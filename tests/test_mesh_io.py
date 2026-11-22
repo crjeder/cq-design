@@ -398,3 +398,44 @@ def test_seeded_ctx_and_bulk_gate_match_per_region_bridge_flags():
         sel[r["faces"]] = True
         ref = mesh_io._is_bridge(mesh, r["faces"], sel, angles, mesh_io.BRIDGE_MAX_MM, {})
         assert ref == r["bridge"]
+
+
+def _cyl(x, y, z, r, h):
+    return trimesh.creation.cylinder(
+        radius=r, height=h, transform=trimesh.transformations.translation_matrix((x, y, z))
+    )
+
+
+@pytest.mark.parametrize(
+    "build, expected",
+    [
+        (lambda b: b, 0),
+        (
+            lambda b: b.difference(
+                trimesh.util.concatenate([_cyl(x, 0, 0, 2, 20) for x in (-10, 0, 10)])
+            ),
+            3,
+        ),
+        (
+            lambda b: b.difference(
+                trimesh.util.concatenate([_cyl(x, 0, 5, 2, 8) for x in (-10, 10)])
+            ),
+            0,
+        ),
+        (lambda b: b.difference(trimesh.creation.box((5, 5, 5))), 0),
+        (
+            lambda b: trimesh.util.concatenate(
+                [
+                    trimesh.creation.annulus(2, 4, 3),
+                    trimesh.creation.annulus(2, 4, 3).apply_translation((20, 0, 0)),
+                ]
+            ),
+            2,
+        ),
+    ],
+    ids=["box", "three_through", "two_blind", "internal_void", "two_rings"],
+)
+def test_genus(build, expected):
+    mesh = build(trimesh.creation.box((30, 10, 10)))
+    assert mesh.is_watertight
+    assert mesh_io.genus(mesh) == expected

@@ -2208,3 +2208,10 @@ def test_fin_hints_must_be_boolean(plan_file):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["constraints"]["fin_hints"] = "no"
     assert validate_plan(plan_file(plan)) != []
+
+
+@pytest.mark.parametrize("value, ok", [(0, True), (3, True), (-1, False), (1.5, False)])
+def test_through_count_validation(plan_file, value, ok):
+    plan = json.loads(json.dumps(VALID_PLAN))
+    plan["parts"][0]["interfaces"][0]["through_count"] = value
+    assert (validate_plan(plan_file(plan)) == []) is ok
