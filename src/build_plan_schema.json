@@ -162,6 +162,11 @@
                   "type": "string",
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "description": "blocks_needed instance id this interface positions; a step script's part.positions(id) returns these position_mm values in order"
+                },
+                "through_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Openings closed by material all round that this interface cuts through the part: 1 through hole, 0 blind/tapped hole or edge notch, N for an N-hole grid. Summed per part and compared with the built mesh genus (b1) by the quality gate"
                 }
               },
               "additionalProperties": false
