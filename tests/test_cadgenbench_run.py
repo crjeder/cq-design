@@ -109,3 +109,19 @@ def test_package_keeps_every_fixture_folder_and_does_not_agree(tmp_path):
         names = set(zf.namelist())
         assert {"meta.json", "101/", "101/output.step", "201/"} <= names
         assert json.loads(zf.read("meta.json"))["agree_to_publish"] is False
+
+
+def test_generate_keeps_work_dir_but_prunes_venv(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    (data / "101").mkdir(parents=True)
+
+    def fake_run(fixture_dir, work, timeout_s):
+        (work / ".venv").mkdir(parents=True)
+        (work / ".venv" / "x").write_text("v")
+        (work / "BUILD_PLAN.json").write_text("{}")
+        return False
+
+    monkeypatch.setattr(cadgenbench_run, "run_fixture", fake_run)
+    cadgenbench_run.generate(tmp_path / "run", data, ["101"], 1, False)
+    work = tmp_path / "run" / "_work" / "101"
+    assert (work / "BUILD_PLAN.json").is_file() and not (work / ".venv").exists()
