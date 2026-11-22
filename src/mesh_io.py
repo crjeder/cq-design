@@ -424,3 +424,11 @@ def lateral_area(mesh):
     up = float(mesh.area_faces[nz > 1e-6].sum())
     down = float(mesh.area_faces[nz < -1e-6].sum())
     return round(float(mesh.area_faces.sum()) - up - down, 3)
+
+
+def genus(mesh) -> int:
+    """Through-hole count (b1) of a closed mesh: `c - chi/2` summed over its c surface
+    components. An internal void adds a sphere component (chi +2, c +1), so it counts 0.
+    Only meaningful on a watertight mesh."""
+    c = len(mesh.split(only_watertight=False))
+    return c - mesh.euler_number // 2

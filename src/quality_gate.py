@@ -255,6 +255,46 @@ def _fin_hint_issues(
     ]
 
 
+def _through_hole_issues(part: dict | None, stls: list[str]) -> list[dict]:
+    """Built b1 (summed mesh genus) vs the plan's summed interfaces[].through_count.
+
+    Runs only when an interface on the part declares through_count; skipped when any
+    union mesh is not watertight (non_watertight already reports that)."""
+    counts = [
+        i["through_count"] for i in (part or {}).get("interfaces", []) if "through_count" in i
+    ]
+    if not counts or not stls:
+        return []
+    from mesh_io import genus, load_mesh
+
+    meshes = []
+    for stl in stls:
+        try:
+            tm = load_mesh(stl)
+        except ValueError:
+            return []
+        if not tm.is_watertight:
+            return []
+        meshes.append(tm)
+    planned, built = sum(counts), sum(genus(m) for m in meshes)
+    if planned == built:
+        return []
+    return [
+        {
+            "source": "geometry",
+            "severity": "error",
+            "type": "through_hole_count_mismatch",
+            "planned_b1": planned,
+            "built_b1": built,
+            "message": f"Built solid has {built} through opening(s); the plan's "
+            f"interfaces[].through_count sums to {planned}",
+            "hint": "Too many: a planned blind (tapped/depth) hole was cut through, or a cut "
+            "broke through a wall. Too few: a planned through hole stops short of the far "
+            "face or two openings merged.",
+        }
+    ]
+
+
 def _designed_support_issue(fin_stls: list[str]) -> dict:
     """One `designed_support` info issue for the plan's sacrificial (fin) unions."""
     import trimesh
@@ -1406,6 +1446,9 @@ def run_gate(
                 geo_issues.extend(stl_issues)
             if fin_stls:
                 geo_issues.append(_designed_support_issue(fin_stls))
+            geo_issues += _through_hole_issues(
+                part, [s for s in effective_stls if s not in fin_stls]
+            )
         else:
             geo_issues = [
                 {
