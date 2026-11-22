@@ -59,6 +59,9 @@ SKILL_CONFIG_SRC = (
     if (REPO_ROOT / "skill_config.json").is_file()
     else REPO_ROOT / "src" / "skill_config.default.json"
 )
+# Pinned: an unpinned `claude -p` took the CLI default, which was Sonnet on
+# cgb-104-119-150 and cost fixtures 104/119 their pipeline run (v1 ran Opus).
+MODEL = "claude-opus-5-5"
 ALLOWED_TOOLS = [
     "Read",
     "Write",
@@ -143,6 +146,8 @@ def run_fixture(fixture_dir: Path, work_dir: Path, timeout_s: int) -> bool:
         "claude",
         "-p",
         build_prompt(fixture_dir),
+        "--model",
+        MODEL,
         "--output-format",
         "json",
         "--permission-mode",
@@ -167,7 +172,7 @@ def run_fixture(fixture_dir: Path, work_dir: Path, timeout_s: int) -> bool:
         print(f"  {fixture_dir.name}: `claude -p` error: {result}", file=sys.stderr)
         if any(m in result for m in LIMIT_MARKERS):
             return True
-    keys = ("session_id", "num_turns", "duration_ms", "total_cost_usd", "usage")
+    keys = ("session_id", "num_turns", "duration_ms", "total_cost_usd", "usage", "modelUsage")
     cost = {k: env.get(k) for k in keys}
     (work_dir / "cost.json").write_text(json.dumps(cost, indent=2) + "\n", encoding="utf-8")
     return False
