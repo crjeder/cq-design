@@ -229,7 +229,15 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | https://github.com/Rocketmanwookie/FreeCAD-MCP-Workbench | | |
 | https://github.com/Atmel2005/CAD-AI-Studio | | |
 | https://github.com/JiangNanGenius/floe-agent | | |
-
+| https://github.com/PartBuddy/partbuddy | | | 
+| https://github.com/AeroMatrix-M/claire | | |
+| https://github.com/praditya0830-ai/Idris-ai | | |
+| https://github.com/uriel-lapin/Axiom | | |
+| https://github.com/KingDragon8/cadwiz | | |
+| https://github.com/Atmel2005/CAD-AI-Studio | | |
+| https://github.com/cadlab-agent-app/ai-cad-v0 | | |
+| https://github.com/dkgv/cadpad | | |
+| https://github.com/barocss/cad | | |
 
 
 ## Details
