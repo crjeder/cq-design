@@ -11,6 +11,11 @@
   },
   "then": {"required": ["root_part"]},
   "properties": {
+    "design_intent": {
+      "type": "string",
+      "enum": ["print", "cad"],
+      "description": "\"print\" (default when absent): design for FDM. \"cad\": nominal geometry, no print clearances, wall minimums, overhang fixes or print-pose rotation."
+    },
     "planning_notes": {
       "type": "string",
       "description": "Bounded to three categories only: (a) decisions made against something, with the reason; (b) invariants binding more than one part; (c) the assembly procedure and non-printed hardware it consumes. Not a restatement of any structured field (placement, load, dimensions, etc). Describes the CURRENT design state only -- never a round-by-round changelog; that history belongs exclusively in request_log."

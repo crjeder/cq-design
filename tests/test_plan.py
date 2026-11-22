@@ -2215,3 +2215,20 @@ def test_through_count_validation(plan_file, value, ok):
     plan = json.loads(json.dumps(VALID_PLAN))
     plan["parts"][0]["interfaces"][0]["through_count"] = value
     assert (validate_plan(plan_file(plan)) == []) is ok
+
+
+def test_plan_schema_design_intent_enum():
+    import json
+    from pathlib import Path
+
+    import jsonschema
+
+    prop = json.loads(
+        (Path(__file__).parent.parent / "src" / "build_plan_schema.json").read_text(
+            encoding="utf-8"
+        )
+    )["properties"]["design_intent"]
+    jsonschema.validate("cad", prop)
+    jsonschema.validate("print", prop)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate("bogus", prop)

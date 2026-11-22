@@ -49,6 +49,8 @@ every `blocks_needed[].params` value that derives from one as an expression over
 names (`"w": "BASKET_RIM_OD_MM + GROOVE_CLEARANCE_MM"`), never as a hand-computed literal.
 `plan.py validate` evaluates the expressions; an unknown name is an error.
 
+**Design intent:** a profile `design_intent` of `"cad"` (nominal geometry, no FDM design; e.g. benchmarks) is copied to the plan's top level by the planner. The gate then skips printability checks and `build.py` delivers in build pose. Absent or `"print"` changes nothing.
+
 **Printer profile write-back:** for each `printer`, `material`, `nozzle_mm`, or
 `constraints` value that differs from `profile.json` and was not flagged as a
 one-time exception:

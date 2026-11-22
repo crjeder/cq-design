@@ -406,3 +406,20 @@ def test_render_builder_scope_line():
     plan, part = _plan()
     text, _ = rp.render_builder(plan, part, None, None)
     assert f"Your scope is part `{part['id']}`" in text
+
+
+def test_render_planning_cad_intent_drops_print_rules(tmp_path):
+    base = {
+        "printer": "P",
+        "material": "PLA",
+        "nozzle_mm": 0.4,
+        "constraints": {"wall_min_mm": 1.2, "overhang_max_deg": 45, "dimension_tolerance_mm": 0.5},
+    }
+    out = {}
+    for name, extra in (("print", {}), ("cad", {"design_intent": "cad"})):
+        profile = tmp_path / f"{name}.json"
+        profile.write_text(json.dumps({**base, **extra}), encoding="utf-8")
+        out[name] = rp.render_planning("req", None, profile)[0]
+    assert rp.CAD_INTENT_NOTE not in out["print"]
+    assert rp.CAD_INTENT_NOTE in out["cad"]
+    assert "(omitted: design_intent is cad)" in out["cad"]

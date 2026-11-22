@@ -57,6 +57,21 @@ _ACTION_OVERRIDE = {
 _DEFAULT_ACTION = {"error": "fix", "warning": "warn_only", "info": "warn_only"}
 
 
+# Findings about printability only; dropped when the plan's design_intent is "cad".
+PRINT_ONLY_TYPES = frozenset(
+    {
+        "thin_interface",
+        "sliver_fin",
+        "bridges_detected",
+        "overhang_exceeded",
+        "brim_recommended",
+        "vertical_feature_below_layer",
+        "fin_hint",
+        "designed_support",
+    }
+)
+
+
 def _classify_action(issue: dict) -> str:
     """Caller-routing action for a finding, derived from its `type` and `severity`."""
     return _ACTION_OVERRIDE.get(issue["type"], _DEFAULT_ACTION[issue["severity"]])
@@ -92,14 +107,22 @@ def _run_wrapper_check(
     # Line width approximates nozzle diameter * 1.1; drives the brittle thin-wall
     # threshold in the wrapper's thin-interface check.
     line_width = round(plan.get("nozzle_mm", 0.4) * 1.1, 2)
+    # design_intent "cad": no --wall-min, so the wrapper's thin-interface check stays off
+    thin_args = (
+        []
+        if plan.get("design_intent") == "cad"
+        else [
+            "--wall-min",
+            str(constraints.get("wall_min_mm", 1.2)),
+            "--line-width",
+            str(line_width),
+        ]
+    )
     cmd = [
         sys.executable,
         os.path.join(SKILL_ROOT, "run_cadquery_model.py"),
         script_path,
-        "--wall-min",
-        str(constraints.get("wall_min_mm", 1.2)),
-        "--line-width",
-        str(line_width),
+        *thin_args,
         "--density",
         str(_material_density(material)),
         "--material",
@@ -1436,7 +1459,8 @@ def run_gate(
     overhang_deg = plan.get("constraints", {}).get("overhang_max_deg", 45)
     bridge_max_mm = plan.get("constraints", {}).get("bridge_max_mm", 10.0)
     layer_height = _layer_height_mm(plan, plan_path)
-    fin_hints = plan.get("constraints", {}).get("fin_hints", True)
+    cad = plan.get("design_intent") == "cad"
+    fin_hints = plan.get("constraints", {}).get("fin_hints", True) and not cad
     from units import union_entries
 
     sacrificial = {u for u, e in union_entries(plan).items() if e.get("sacrificial")}
@@ -1512,6 +1536,8 @@ def run_gate(
 
         wrapper_issues = [i for i in wrapper_issues if i.get("union") not in sacrificial]
         all_issues = wrapper_issues + geo_issues
+        if cad:
+            all_issues = [i for i in all_issues if i["type"] not in PRINT_ONLY_TYPES]
         errors = [i for i in all_issues if i["severity"] == "error"]
 
         if not errors:
@@ -1568,7 +1594,8 @@ def run_gate(
         # ---- kinematic range check (once, outside the fix loop) ----
         all_issues += _run_kinematic_stage(plan, stl_dir, parts_dir)
         # ---- plate clearance check (once, outside the fix loop) ----
-        all_issues += _run_plate_clearance_stage(plan, stl_dir, parts_dir, plan_path)
+        if not cad:
+            all_issues += _run_plate_clearance_stage(plan, stl_dir, parts_dir, plan_path)
         # ---- keep-out zone check (once, outside the fix loop) ----
         all_issues += _run_keep_out_stage(plan, stl_dir, parts_dir)
         # ---- all-pairs rest-pose interference (once, outside the fix loop) ----
@@ -1578,7 +1605,8 @@ def run_gate(
         edge_issues, feature_issues = _run_hooked_stages(plan, script_path, orientation)
         all_issues += edge_issues
         # ---- toolpath-speed advisor (corner/crowding print-time; once, outside the fix loop) ----
-        all_issues += _run_toolpath_speed_stage(plan, plan_path, script_path, stl_dir)
+        if not cad:
+            all_issues += _run_toolpath_speed_stage(plan, plan_path, script_path, stl_dir)
         all_issues += feature_issues
         # ---- oracle acceptance statements (only when acceptance.json exists) ----
         all_issues += _run_oracle_stage(plan, plan_path, script_path, feature_issues)
@@ -1587,7 +1615,8 @@ def run_gate(
         # ---- hinge-guard-lint (revolute-hinge script missing its seating guard; advisory) ----
         all_issues += _run_hinge_guard_stage(plan, script_path)
         # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
-        all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
+        if not cad:
+            all_issues += _run_cosmetic_slope_stage(plan, script_path, orientation)
         # ---- Gridfinity conformance (Gridfinity parts only, once, outside the fix loop) ----
         all_issues += _run_gridfinity_stage(script_path)
         # ---- parameter-routing check (edit outside a parameter entry's targets; advisory) ----

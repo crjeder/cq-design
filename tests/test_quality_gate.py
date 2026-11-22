@@ -1018,3 +1018,39 @@ def test_blind_hole_built_through_mismatch(monkeypatch, tmp_path):
 def test_legacy_plan_has_no_b1_check(monkeypatch, tmp_path):
     ifaces = [{"type": "hole"} for _ in range(4)]
     assert _gate_b1(monkeypatch, tmp_path, _plate_with_through_holes(2), ifaces) == []
+
+
+@pytest.mark.parametrize("intent,expected", [("cad", False), ("print", True)])
+def test_run_gate_cad_intent_drops_print_only_findings(
+    monkeypatch, tmp_path, multi_overhang_stl, intent, expected
+):
+    plan = tmp_path / "BUILD_PLAN.json"
+    plan.write_text(
+        json.dumps({"design_intent": intent, "constraints": {"overhang_max_deg": OVERHANG_DEG}})
+    )
+    script = tmp_path / "part.py"
+    script.write_text("result = None\n")
+    monkeypatch.setattr(
+        quality_gate,
+        "_run_wrapper_check",
+        lambda *a, **k: ([], multi_overhang_stl, {}, [multi_overhang_stl]),
+    )
+    monkeypatch.setattr(quality_gate, "_run_plan_validation_stage", lambda *a, **k: [])
+
+    report = quality_gate.run_gate(str(script), str(plan))
+    assert bool(_issues_of(report["issues"], "overhang_exceeded")) is expected
+
+
+def test_wrapper_check_cad_intent_omits_wall_min(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return type("R", (), {"stdout": "{}", "stderr": ""})()
+
+    monkeypatch.setattr(quality_gate.subprocess, "run", fake_run)
+    script = str(tmp_path / "part.py")
+    quality_gate._run_wrapper_check(script, {"design_intent": "cad", "constraints": {}})
+    assert "--wall-min" not in seen["cmd"]
+    quality_gate._run_wrapper_check(script, {"constraints": {}})
+    assert "--wall-min" in seen["cmd"]
