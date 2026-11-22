@@ -28,7 +28,7 @@ the main session regardless of routing.
 
 ## Python Version Constraint
 
-**Python 3.10-3.12 only.** CadQuery's OpenCASCADE (OCC) kernel has no wheels for 3.13+.
+**Python 3.11-3.14 only.** CadQuery 2.8 needs 3.11+; its OpenCASCADE (OCC) kernel wheels stop at 3.14.
 This is enforced by `requires-python` in `pyproject.toml`; uv handles version selection automatically.
 
 ## Setup

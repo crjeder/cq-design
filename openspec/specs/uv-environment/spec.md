@@ -14,15 +14,15 @@ The project SHALL be installable with `uv sync` on a clean clone, with no prior 
 - **WHEN** a user runs `uv sync` in the project root after cloning
 - **THEN** uv downloads CPython 3.12, creates a `.venv`, and installs all runtime and dev dependencies
 
-#### Scenario: Fresh clone on machine with Python 3.13 only
+#### Scenario: Fresh clone on machine with Python 3.15 only
 - **WHEN** a user runs `uv sync`
-- **THEN** uv uses `.python-version` to select 3.12 (downloading if needed) rather than the system 3.13, and the install succeeds
+- **THEN** uv uses `.python-version` to select 3.12 (downloading if needed) rather than the system 3.15, and the install succeeds
 
 ### Requirement: Python version constraint is enforced
-The project SHALL declare `requires-python = ">=3.10,<3.13"` so that uv rejects incompatible interpreters with a clear error before attempting to install CadQuery.
+The project SHALL declare `requires-python = ">=3.11,<3.15"` so that uv rejects incompatible interpreters with a clear error before attempting to install CadQuery.
 
-#### Scenario: User attempts install with Python 3.13+
-- **WHEN** uv resolves dependencies and the only available interpreter is 3.13+
+#### Scenario: User attempts install with Python 3.15+
+- **WHEN** uv resolves dependencies and the only available interpreter is 3.15+
 - **THEN** uv emits an error referencing the `requires-python` constraint and does not proceed
 
 ### Requirement: Dependency versions are reproducible
