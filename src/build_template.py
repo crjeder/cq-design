@@ -84,6 +84,15 @@ def resolve_orientations(
     Raises RuntimeError naming the union when a part script cannot be loaded or
     oriented, so the caller can fail fast with an actionable message.
     """
+    if plan.get("design_intent") == "cad":
+        # nominal geometry: print pose == build pose
+        ident: dict[str, dict] = {
+            uid: {"rotate": []}
+            for part in plan.get("parts", [])
+            for uid in ([u["id"] for u in part.get("unions", [])] or [part["id"]])
+        }
+        return ident, {uid: {"rotate": []} for uid in ident}, []
+
     accepted: dict[str, dict] = {}
     if os.path.isfile(orientations_path):
         with open(orientations_path, encoding="utf-8") as f:

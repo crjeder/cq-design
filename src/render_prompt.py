@@ -480,6 +480,14 @@ def _index_lines(entries: list[dict], with_file: bool) -> str:
     return "\n".join(f"- **{e['name']}** -- {e['use']}" for e in entries)
 
 
+CAD_INTENT_NOTE = (
+    'design_intent is "cad": model nominal geometry exactly as the request or drawing gives '
+    'it. Copy `design_intent: "cad"` to the plan\'s top level. Set every interface '
+    "`clearance_mm` to 0 unless the request states one; skip rule 4's clearance table and "
+    "material allowances, the FDM Design Guidelines, and wall, overhang, bridge and fin "
+    "rules. Printer constraints stay in the plan only as schema-required values."
+)
+
 NO_PROFILE_NOTE = (
     "(none -- take printer, material, nozzle, and constraints from the user's Phase 1 answers)"
 )
@@ -515,11 +523,21 @@ def render_planning(
             profile_text = json.dumps(
                 {
                     k: profile[k]
-                    for k in ("printer", "material", "nozzle_mm", "constraints", "fit_clearance_mm")
+                    for k in (
+                        "printer",
+                        "material",
+                        "nozzle_mm",
+                        "constraints",
+                        "fit_clearance_mm",
+                        "design_intent",
+                    )
                     if k in profile
                 },
                 indent=2,
             )
+            if profile.get("design_intent") == "cad":
+                profile_text += "\n\n" + CAD_INTENT_NOTE
+                fdm = "(omitted: design_intent is cad)"
 
     text = fill(
         _read(SKILL_DIR / "prompts/planning.md"),

@@ -24,7 +24,7 @@ import os
 import re
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -765,7 +765,7 @@ def check_bom_coverage(plan: dict[str, Any], inventory_path: str = _INVENTORY_PA
 def _parse_ts(value: str) -> datetime:
     """Parse an ISO-8601 timestamp (trailing `Z` allowed on Python 3.10); naive means UTC."""
     dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def _check_intent_reconciled(plan: dict[str, Any]) -> list[str]:
@@ -1106,7 +1106,7 @@ def check_block_thinness(plan: dict[str, Any]) -> list[str]:
     """
     findings: list[str] = []
     wall_min = plan.get("constraints", {}).get("wall_min_mm")
-    if not wall_min:
+    if not wall_min or plan.get("design_intent") == "cad":
         return findings
 
     for part in plan.get("parts", []):

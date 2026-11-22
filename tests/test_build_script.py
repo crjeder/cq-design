@@ -449,3 +449,21 @@ def test_build_py_no_labeled_preview_flag_skips_it(tmp_path, skill_src):
     build_dir = _setup(tmp_path, skill_src, [{"id": "base", "description": "b"}], {"base": _FLAT})
     assert _run(build_dir, None, "--no-labeled-preview").returncode == 0
     assert not (tmp_path / "preview").exists()
+
+
+def test_build_py_cad_intent_keeps_build_pose(tmp_path, skill_src):
+    build_dir = _setup(
+        tmp_path,
+        skill_src,
+        [{"id": "post", "description": "tall post"}],
+        {"post": _POST},
+    )
+    plan_path = build_dir.parent / "BUILD_PLAN.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan["design_intent"] = "cad"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+    proc = _run(build_dir)
+    assert proc.returncode == 0, proc.stderr
+    z = float(trimesh.load(build_dir.parent / "out" / "model.3mf").extents[2])
+    assert abs(z - 20) < 0.1  # authored height, not tipped for strength

@@ -253,3 +253,9 @@ def test_build_volume_accepted_and_partial_rejected(profile_file):
     volume = {"x": 270, "y": 270, "z": 270}
     assert validate_profile(profile_file({**VALID_PROFILE, "build_volume_mm": volume})) == []
     assert validate_profile(profile_file({**VALID_PROFILE, "build_volume_mm": {"x": 270}}))
+
+
+def test_design_intent_accepts_print_and_cad_rejects_other(profile_file):
+    assert validate_profile(profile_file({**VALID_PROFILE, "design_intent": "cad"})) == []
+    assert validate_profile(profile_file({**VALID_PROFILE, "design_intent": "print"})) == []
+    assert validate_profile(profile_file({**VALID_PROFILE, "design_intent": "bogus"}))

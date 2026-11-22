@@ -6,6 +6,11 @@
   "required": ["printer", "material", "nozzle_mm", "constraints"],
   "additionalProperties": false,
   "properties": {
+    "design_intent": {
+      "type": "string",
+      "enum": ["print", "cad"],
+      "description": "\"print\" (default when absent): design for FDM. \"cad\": nominal geometry, no print clearances, wall minimums, overhang fixes or print-pose rotation."
+    },
     "motion": {
       "type": "object",
       "description": "Machine motion + slicer profile constants consumed by the toolpath-speed-advisor capability. Optional -- absent means the advisor is skipped, never defaulted.",

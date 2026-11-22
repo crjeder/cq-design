@@ -125,3 +125,19 @@ def test_generate_keeps_work_dir_but_prunes_venv(tmp_path, monkeypatch):
     cadgenbench_run.generate(tmp_path / "run", data, ["101"], 1, False)
     work = tmp_path / "run" / "_work" / "101"
     assert (work / "BUILD_PLAN.json").is_file() and not (work / ".venv").exists()
+
+
+def test_run_fixture_seeds_cad_intent_profile(tmp_path, monkeypatch):
+    fixture = tmp_path / "fx"
+    fixture.mkdir()
+    (fixture / "description.yaml").write_text("x: 1")
+    monkeypatch.setattr(
+        cadgenbench_run.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, "{}", ""),
+    )
+    work = tmp_path / "work"
+    cadgenbench_run.run_fixture(fixture, work, 1)
+    profile = json.loads((work / "profile.json").read_text(encoding="utf-8"))
+    assert profile["design_intent"] == "cad"
+    assert "clearance" not in cadgenbench_run.FIDELITY

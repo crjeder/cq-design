@@ -81,12 +81,11 @@ UNATTENDED = (
     "attempt to build/attempts.jsonl as the skill directs."
 )
 FIDELITY = (
-    "This is a CAD-accuracy benchmark, not a print job: model the nominal geometry "
-    "exactly, in millimetres, as ONE single solid. Model every feature and every "
-    "radius the drawing shows (all views and sections, including pins, sockets, "
-    "slots and ribs). Do not add print clearances, elephant-foot compensation, or "
-    "any chamfer or fillet the drawing does not show, and do not split it into "
-    "several parts."
+    "This is a CAD-accuracy benchmark, not a print job (profile.json sets design_intent "
+    '"cad"): model the nominal geometry exactly, in millimetres, as ONE single solid. '
+    "Model every feature and every radius the drawing shows (all views and sections, "
+    "including pins, sockets, slots and ribs). Do not add any chamfer or fillet the "
+    "drawing does not show, and do not split it into several parts."
 )
 
 
@@ -137,6 +136,9 @@ def run_fixture(fixture_dir: Path, work_dir: Path, timeout_s: int) -> bool:
     """Run cq-design in work_dir via `claude -p`; return True if it hit a usage limit."""
     shutil.copytree(fixture_dir, work_dir, dirs_exist_ok=True)
     shutil.copyfile(SKILL_CONFIG_SRC, work_dir / "skill_config.json")
+    profile = json.loads((REPO_ROOT / "src" / "profile.default.json").read_text(encoding="utf-8"))
+    profile["design_intent"] = "cad"
+    (work_dir / "profile.json").write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8")
     cmd = [
         "claude",
         "-p",
