@@ -221,6 +221,15 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | https://github.com/er-fo/CADAgent | MIT Fusion 360 add-in + self-hosted FastAPI backend that turns requests into tool calls the add-in executes | None | Read the README: proprietary-CAD bridge with auth/quota/deploy infra; nothing to adopt |
 | https://github.com/paul356/KiCad-AI-Assistant | MIT KiCad 10 action plugin: in-app LLM chat plus a built-in MCP server over schematic / PCB / DRC / routing tools | Low | Read the README: PCB domain; only relevant if the board-enclosure generator (issue #380) ever reads board outlines and connector positions from a KiCad file instead of a datasheet |
 | https://github.com/hireshBrem/cad-ai | Next.js "Cursor for CAD" demo over Zoo's KittyCAD text-to-CAD API (OpenAI + Redis) | None | Read the README: thin wrapper around a hosted model; no license; nothing to adopt |
+| https://github.com/pietrobb/Ketchup | | |
+| https://github.com/quintin-lee/SnapSCAD | | |
+| https://github.com/dbt-ethz/tekto | | |
+| https://github.com/varun29ankuS/Roshera-CAD | | |
+| https://github.com/bertwinshine/shapebert-mcp | | |
+| https://github.com/Rocketmanwookie/FreeCAD-MCP-Workbench | | |
+| https://github.com/Atmel2005/CAD-AI-Studio | | |
+| https://github.com/JiangNanGenius/floe-agent | | |
+
 
 
 ## Details
