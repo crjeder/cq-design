@@ -43,10 +43,12 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/scrip
    ```bash
    uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" --timeout 600 build/edit_input.py --deliver --formats stl --output-dir build/edit_diff
    uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" --timeout 600 build/<stem>_edited.py --deliver --formats stl --output-dir build/edit_diff
-   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/diff_models.py" build/edit_diff/edit_input.stl build/edit_diff/<stem>_edited.stl --png build/edit_diff/diff.png
+   uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/diff_models.py" build/edit_diff/edit_input.stl build/edit_diff/<stem>_edited.stl --png build/edit_diff/diff.png --region <xmin,ymin,zmin,xmax,ymax,zmax> --expect-volume <lo,hi>
    ```
 
-   `identical: true` means the edit did nothing: revise `build/<stem>_edited.py` (a section command on the section at fault). Also revise when `only_a_volume` (removed) / `only_b_volume` (added) or `bbox_delta` contradict the change -- material removed when it only adds, the bounding box moving when the change is internal. Look at the input preview (run step 3 on `build/edit_input.py` once), the result preview and `build/edit_diff/diff.png` (common gray, removed red, added green) before accepting.
+   `--region` is the bounding box of the feature the change names, measured from the imported input (`BoundingBox()` of its face/edge/feature) and padded by at least 2 mm; include anything the edit moves (a raised face carries its attached features). `--expect-volume` is the net volume change (`only_b_volume - only_a_volume`) your arithmetic on the change's dimensions gives, as a range (blend radius, height delta, diameter delta). State both in the report.
+
+   `identical: true` means the edit did nothing: revise `build/<stem>_edited.py` (a section command on the section at fault). Also revise when `only_a_volume` (removed) / `only_b_volume` (added) or `bbox_delta` contradict the change -- material removed when it only adds, the bounding box moving when the change is internal. Also revise when `localized` is false (changed material outside the region: the edit hit the wrong feature or leaked elsewhere), `volume_in_range` is false, or `region_fraction` is above 0.5 (the region is too broad to prove anything: re-measure it tighter). Look at the input preview (run step 3 on `build/edit_input.py` once), the result preview and `build/edit_diff/diff.png` (common gray, removed red, added green) before accepting.
 
    When a revision turns a run that had `success: true` into a failing one, or fails a diff check the previous revision passed, undo it before revising again -- never by editing the text back (every run's source is kept):
 
@@ -54,7 +56,13 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/scrip
    uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/script_history.py" restore @prev build/<stem>_edited.py
    ```
 
-5. After 5 failed iterations of steps 2-4, stop: deliver nothing and report the last errors and diff.
+5. After 5 failed iterations of steps 2-4, or when the checks cannot be satisfied, do not deliver an edited body. A wrong edit scores below the unedited input, so deliver the input unchanged (never the repaired body, never overwriting the input):
+
+   ```bash
+   mkdir -p out && cp "<absolute path of the input>" "out/<stem>_edited.step"
+   ```
+
+   Report that the edit is unverified and the input was delivered unchanged, with the last errors and diff. A `step_unrepairable` input still delivers nothing.
 
 6. Deliver; this writes `out/<stem>_edited.step`. Never write to the input file.
 
@@ -62,4 +70,4 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/scrip
    uv run --project "${CLAUDE_PLUGIN_ROOT}" python "${CLAUDE_PLUGIN_ROOT}/src/run_cadquery_model.py" --timeout 600 build/<stem>_edited.py --deliver --formats step --output-dir out
    ```
 
-Report: the delivered path, the repair line if there was one, `only_a_volume`, `only_b_volume`, `bbox_delta`, `build/edit_diff/diff.png`, how you read the change's directions, and any assumption you made.
+Report: the delivered path, the repair line if there was one, `only_a_volume`, `only_b_volume`, `bbox_delta`, `localized`, `volume_in_range`, the region and expected volume used, `build/edit_diff/diff.png`, how you read the change's directions, and any assumption you made.
