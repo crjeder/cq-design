@@ -69,7 +69,13 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
    becomes a new `# design choice` constant first. A position the script must place a
    feature at goes in an `interfaces[]` entry with `position_mm` (feature center) and
    `"instance": "<id>"`; one interface per placed copy, in placement order. Add
-   `extents_mm` when it helps the thin-block check.
+   `extents_mm` when it helps the thin-block check. Every hole, slot and cutout interface
+   states `through_count`: the openings it cuts that are closed by material all round (1
+   through hole, 0 blind hole, 0 edge notch or slot open to an edge, N for an N-hole vent
+   grid). From a drawing, a hole is through only when a section view shows it through or
+   its callout says THRU; a tapped (M4, M6) or depth-dimensioned callout without THRU is
+   blind (`through_count: 0`). Any other closed opening (a hanging loop, a slot between
+   two bosses) gets its own interface entry so the plan total matches the built solid.
 
 3c. **Cosmetic edges are plan values.** A chamfer or fillet that is there for looks or
     handling goes on the instance as `"edges": {"<edge set>": <mm>}`, using the edge sets

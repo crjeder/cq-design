@@ -965,3 +965,56 @@ def test_parameters_traceability_advisories(tmp_path):
     types = sorted(i["type"] for i in issues)
     assert types == ["parameter_literal_duplicates_constant", "parameters_untagged"]
     assert "GAP_MM" in next(i for i in issues if i["type"] == "parameters_untagged")["message"]
+
+
+def _gate_b1(monkeypatch, tmp_path, mesh, interfaces):
+    stl = tmp_path / "part.stl"
+    mesh.export(str(stl))
+    plan = tmp_path / "BUILD_PLAN.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "constraints": {"overhang_max_deg": OVERHANG_DEG},
+                "parts": [{"id": "part", "interfaces": interfaces}],
+            }
+        )
+    )
+    script = tmp_path / "part.py"
+    script.write_text("result = None\n")
+    monkeypatch.setattr(
+        quality_gate, "_run_wrapper_check", lambda *a, **k: ([], str(stl), {}, [str(stl)])
+    )
+    monkeypatch.setattr(quality_gate, "_analyze_stl", lambda *a, **k: [])
+    monkeypatch.setattr(quality_gate, "_run_plan_validation_stage", lambda *a, **k: [])
+    return _issues_of(
+        quality_gate.run_gate(str(script), str(plan))["issues"], "through_hole_count_mismatch"
+    )
+
+
+def _plate_with_through_holes(n):
+    plate = trimesh.creation.box((60, 20, 5))
+    cutters = [
+        trimesh.creation.cylinder(
+            radius=2, height=20, transform=trimesh.transformations.translation_matrix((x, 0, 0))
+        )
+        for x in np.linspace(-20, 20, n)
+    ]
+    return plate.difference(trimesh.util.concatenate(cutters))
+
+
+def test_through_hole_count_matches(monkeypatch, tmp_path):
+    ifaces = [{"type": "hole", "through_count": 1} for _ in range(4)]
+    assert _gate_b1(monkeypatch, tmp_path, _plate_with_through_holes(4), ifaces) == []
+
+
+def test_blind_hole_built_through_mismatch(monkeypatch, tmp_path):
+    ifaces = [{"type": "hole", "through_count": c} for c in (1, 1, 0, 0)]
+    found = _gate_b1(monkeypatch, tmp_path, _plate_with_through_holes(4), ifaces)
+    assert len(found) == 1
+    assert found[0]["planned_b1"] == 2 and found[0]["built_b1"] == 4
+    assert found[0]["severity"] == "error"
+
+
+def test_legacy_plan_has_no_b1_check(monkeypatch, tmp_path):
+    ifaces = [{"type": "hole"} for _ in range(4)]
+    assert _gate_b1(monkeypatch, tmp_path, _plate_with_through_holes(2), ifaces) == []
