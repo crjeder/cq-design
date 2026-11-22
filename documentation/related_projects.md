@@ -237,23 +237,23 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | https://github.com/Misterbra/fusion360-claude-ultimate | Fusion 360 control from Claude Desktop via MCP | None | Description only: proprietary-CAD MCP bridge |
 | https://github.com/jhacksman/OpenSCAD-MCP-Server | OpenSCAD MCP server (prompt -> preview image + 3D file), "Devin's attempt" | Low | Description only: OpenSCAD MCP; this skill avoids MCP and OpenSCAD |
 | https://github.com/RobertCoop/openscad-mcp | OpenSCAD modeling and rendering MCP server | Low | Description only: OpenSCAD MCP; nothing beyond the row above |
-| https://github.com/pietrobb/Ketchup | | |
-| https://github.com/quintin-lee/SnapSCAD | | |
-| https://github.com/dbt-ethz/tekto | | |
-| https://github.com/varun29ankuS/Roshera-CAD | | |
-| https://github.com/bertwinshine/shapebert-mcp | | |
-| https://github.com/Rocketmanwookie/FreeCAD-MCP-Workbench | | |
-| https://github.com/Atmel2005/CAD-AI-Studio | | |
-| https://github.com/JiangNanGenius/floe-agent | | |
-| https://github.com/PartBuddy/partbuddy | | | 
-| https://github.com/AeroMatrix-M/claire | | |
-| https://github.com/praditya0830-ai/Idris-ai | | |
-| https://github.com/uriel-lapin/Axiom | | |
-| https://github.com/KingDragon8/cadwiz | | |
-| https://github.com/Atmel2005/CAD-AI-Studio | | |
-| https://github.com/cadlab-agent-app/ai-cad-v0 | | |
-| https://github.com/dkgv/cadpad | | |
-| https://github.com/barocss/cad | | |
+| https://github.com/pietrobb/Ketchup | Apache-2.0 Rust + OCCT 2D/3D modeler for furniture / timber / CNC: Starlark rule programs, MCP, undoable AI edits, cut lists and drawing sets | Low | Read the README: woodworking / CNC domain with its own kernel; undo-everything AI edits echo the rollback idea already tracked, nothing FDM-specific |
+| https://github.com/quintin-lee/SnapSCAD | Photo(s) -> VLM -> JSON spec -> OpenSCAD with compile self-heal, render-vs-photo review loop (3 rounds, regression guard), printability check, STL/3MF/DXF export | Low-Medium | Read the README: the render-vs-source-image review loop with a regression guard is the one idea, relevant to the Picture-to-CAD route (#402); OpenSCAD CSG-primitive output is not portable |
+| https://github.com/dbt-ethz/tekto | AI-first browser CAD playground: one function = one interactive sketch app; viewport markup resolved to objects, world coordinates and source lines; headless-Chrome snapshots | Low | Read the README: markup-to-source-line resolution is a nice edit-UX idea but needs a GUI; architecture-teaching focus |
+| https://github.com/varun29ankuS/Roshera-CAD | Rust B-Rep kernel exposed to LLM agents; every op returns a ten-part validity certificate (watertight, manifold, self-intersection, feature consistency) | Low-Medium | Read the README: the fail-closed validity certificate per operation parallels `cq_verify.py` + wrapper `watertight`; proprietary-style kernel swap is out of scope |
+| https://github.com/bertwinshine/shapebert-mcp | MCP server + Claude skill for FreeCAD: classifies the engineering domain, asks for dimensions it must not guess, runs calculators (gear, sheet metal, weld, fastener, shaft), post-build checks incl. printed-part overhangs; saves corrections as examples | Medium | Read the README: closest in spirit (skill + domain knowledge files + deterministic calculators). Adoptable: calculators as `src/` tools and saving user corrections as reusable examples; FreeCAD backend not portable |
+| https://github.com/Rocketmanwookie/FreeCAD-MCP-Workbench | FreeCAD addon + MCP server for live build / inspect / animate / FEA from Claude Code etc. | Low | Read the README: generic FreeCAD bridge; FEA is covered by the existing fem work |
+| https://github.com/Atmel2005/CAD-AI-Studio | Windows PySide6 app: LLM calls CAD tools (build123d/OCC engine, FreeCAD, Solid Edge), auto printability check, STL/STEP/3MF, plus SDF organic and photo-to-3D (Stable Fast 3D) | Low | Read the README: tool-calling GUI app; organic/SDF paths out of scope; printability check duplicates the gate |
+| https://github.com/JiangNanGenius/floe-agent | Mobile (iOS/iPadOS/Android) agent app with bridge companions | None | Read the README: general-purpose mobile agent, no CAD content |
+| https://github.com/PartBuddy/partbuddy | Windows desktop app: AI assistant builds FDM parts step by step in the SolidCraft kernel, editable parameters, pre-slicer ready-to-print check | Low-Medium | Read the README: same goal (print-ready parts, clarifying questions, parameters) on a different kernel and GUI; ready-to-print check duplicates the gate |
+| https://github.com/AeroMatrix-M/claire | Proprietary Linux beta: AI parametric build123d CAD with Gmsh meshing, Kratos FEA and optional CFD | None | Read the README: closed source, GUI app; training-data collector in the free tier |
+| https://github.com/praditya0830-ai/Idris-ai | Hosted engineering backend: requirements -> scored gearbox variants, assembly/BOM/drawings, 27 benchmarked FEA/modal/thermal solvers | Low | Read the README: gearbox-specific; solver-with-published-benchmark-and-stated-limits discipline is worth echoing for the fem checks, nothing to adopt |
+| https://github.com/uriel-lapin/Axiom | Pre-alpha pure-Rust declarative 3D modeling language / kernel (relational constraints, no topological naming problem) | None | Read the README: new kernel and language, pre-alpha, does not run CadQuery |
+| https://github.com/KingDragon8/cadwiz | FreeCAD panel for 3D-printer owners: Claude or ChatGPT edits real FreeCAD files, version history with step-back, markup on the model, checks the part against the user's printer | Low-Medium | Read the README: per-printer checks echo `profile.json`; version step-back echoes the undo/rollback idea. FreeCAD-bound |
+| https://github.com/Atmel2005/CAD-AI-Studio | Duplicate entry | None | Duplicate -- same project assessed in the row above |
+| https://github.com/cadlab-agent-app/ai-cad-v0 | Hugging Face demo: four fixed parametric templates (plate, bushing, bracket, enclosure), STEP/STL download, validity and volume checks | None | Read the README: fixed templates, no AI path in the shipped version |
+| https://github.com/dkgv/cadpad | macOS Tauri app for CadQuery projects: assistant, face/edge picking, rebuild, STEP/STL export, MCP for external agents | Low-Medium | Read the README: same CadQuery files as this skill; face/edge picking for referencing geometry in edits is the only idea (cf. Vibe-Cading face naming) |
+| https://github.com/barocss/cad | TypeScript CAD system with its own B-rep/NURBS kernel, browser Studio, Viewer, agent tools | None | Read the README: new JS kernel; nothing for a CadQuery skill |
 
 
 ## Details
