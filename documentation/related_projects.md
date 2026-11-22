@@ -216,6 +216,14 @@ already shaped the pipeline), `Medium-High`, `Medium` (a concrete transferable i
 | [3MF spec](https://3mf.io/spec/) | | |
 | https://completecalculators.com/calculators/3d-printing/infill-weight-strength-calculator | infill strength calculator | | 
 | https://3dprintcalcs.uk/ | calculators | |
+| https://github.com/xiangechen/chili3d | |
+| https://github.com/Shpigford/nurb | |
+| https://github.com/neka-nat/cad3dify | |
+| https://github.com/er-fo/CADAgent | |
+| https://github.com/paul356/KiCad-AI-Assistant | |
+| https://github.com/jdilla1277/agentcad | |
+| https://github.com/hireshBrem/cad-ai | |
+
 
 ## Details
 
