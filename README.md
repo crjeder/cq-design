@@ -76,7 +76,7 @@ Options:
   variable) installs to a different skills directory.
 
 `uv` must be on your PATH; the installer stops with the install URL if it is
-not. Python 3.12 is managed automatically. CadQuery requires Python 3.10-3.12;
+not. Python 3.12 is managed automatically. CadQuery requires Python 3.11-3.14;
 uv enforces this constraint and downloads the right Python version if needed.
 
 To work in the repo directly without installing, just run `uv sync`.
@@ -144,7 +144,7 @@ uv sync
 uv run python build/build.py
 ```
 
-`uv sync` downloads a compatible Python (3.10-3.12) and installs the pinned dependencies
+`uv sync` downloads a compatible Python (3.11-3.14) and installs the pinned dependencies
 (CadQuery, trimesh, ...); later runs reuse the synced `.venv`. With no arguments the
 build writes only the format your slicer prefers (`slicer.preferred_format` in
 `profile.json`); pick others with `--formats` (`3mf`, `stl`, `step`, `obj`, `iges`,

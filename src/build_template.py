@@ -18,7 +18,7 @@ build with uv from the working-directory root:
     uv sync
     uv run python build/build.py
 
-`uv sync` downloads a compatible Python (3.10-3.12) and installs the pinned
+`uv sync` downloads a compatible Python (3.11-3.14) and installs the pinned
 dependencies (CadQuery, trimesh, ...). Subsequent runs reuse the synced `.venv`.
 With no arguments only the format your slicer prefers (profile.json's
 `slicer.preferred_format`) is written. Ask for others with `--formats`:

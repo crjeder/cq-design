@@ -38,9 +38,9 @@ WAREHOUSE_SOURCE = (
 PYPROJECT = """[project]
 name = "cq-design-part"
 version = "0.1.0"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.11,<3.15"
 dependencies = [
-    "cadquery>=2.6.1,<3",{warehouse_dep}
+    "cadquery>=2.8,<3",{warehouse_dep}
 ]
 {sources}"""
 
