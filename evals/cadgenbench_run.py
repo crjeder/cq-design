@@ -81,8 +81,11 @@ UNATTENDED = (
 )
 FIDELITY = (
     "This is a CAD-accuracy benchmark, not a print job: model the nominal geometry "
-    "exactly, in millimetres, as ONE single solid. Do not add print clearances, "
-    "chamfers, fillets, elephant-foot compensation, or split it into several parts."
+    "exactly, in millimetres, as ONE single solid. Model every feature and every "
+    "radius the drawing shows (all views and sections, including pins, sockets, "
+    "slots and ribs). Do not add print clearances, elephant-foot compensation, or "
+    "any chamfer or fillet the drawing does not show, and do not split it into "
+    "several parts."
 )
 
 
