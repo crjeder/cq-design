@@ -147,7 +147,7 @@ def _draw_view(tri, cen, nrm, feats, spec, font):
     colors = _BASE * (0.45 + 0.55 * np.clip(nrm @ (light / np.linalg.norm(light)), 0, 1))[:, None]
     arr, depth = zbuffer.rasterize_with_depth(tri, colors, project, w, h, _bg())
     arr[zbuffer.edge_mask(depth)] = _EDGE_RGB
-    img = Image.fromarray(arr, "RGB")
+    img = Image.fromarray(arr)
     draw = ImageDraw.Draw(img)
     placed: list[tuple[float, float, float, float]] = []
     dots: list[tuple[float, float, float, float]] = []

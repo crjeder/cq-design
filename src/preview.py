@@ -304,7 +304,7 @@ def _render_panel(wp, elev, azim, width, height, focus=None, cap=None, uncut=Non
             & cap_mask[1:-1, 2:]
         )
         arr[cap_mask & ~inner] = _EDGE_RGB
-    return Image.fromarray(arr, "RGB"), project, depth, informative
+    return Image.fromarray(arr), project, depth, informative
 
 
 def _visible(center, project, depth):

@@ -7,7 +7,7 @@ dependencies = [
     "trimesh>=4.0,<5",
     # matplotlib: headless preview rendering via Agg backend (no OpenGL required)
     "matplotlib>=3.7,<4",
-    "pillow>=12.3.0,<13",
+    "pillow>=13.0.0,<14",
     "numpy>=1.24,<3",
     "lxml>=4.9,<7",
     # jsonschema: BUILD_PLAN.json draft-7 validation (enum + additionalProperties)
