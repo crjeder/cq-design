@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: cq-design-skill
 Version: 0.1.0
-Requires-Python: <3.13,>=3.10
+Requires-Python: <3.15,>=3.11
 License-File: LICENSE
 Requires-Dist: cadquery<3,>=2.6.1
 Requires-Dist: trimesh<5,>=4.0

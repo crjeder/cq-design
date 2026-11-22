@@ -334,12 +334,17 @@ def _ordered_edges(wire: Any) -> list[Any]:
 
 
 def _ends(edge: Any) -> tuple[tuple, tuple]:
-    """(start, end) in traversal order; startPoint()/endPoint() follow the curve's own
-    parameter and ignore an edge reversed in its wire."""
-    from OCP.TopAbs import TopAbs_REVERSED
+    """(start, end) in traversal order, honoring an edge reversed in its wire.
+    Uses TopExp with CumOri directly: CadQuery's startPoint()/endPoint() changed
+    meaning in 2.8 (orientation-aware since then, curve-parameter order before)."""
+    from OCP.BRep import BRep_Tool
+    from OCP.TopExp import TopExp
 
-    p0, p1 = edge.startPoint().toTuple(), edge.endPoint().toTuple()
-    return (p1, p0) if edge.wrapped.Orientation() == TopAbs_REVERSED else (p0, p1)
+    def pt(v):
+        p = BRep_Tool.Pnt_s(v)
+        return (p.X(), p.Y(), p.Z())
+
+    return pt(TopExp.FirstVertex_s(edge.wrapped, True)), pt(TopExp.LastVertex_s(edge.wrapped, True))
 
 
 def _direction(edge: Any):
