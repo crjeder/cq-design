@@ -259,6 +259,15 @@ features). Nothing else -- non-printed hardware goes in `bom` (rule 3b), not her
     instance's place step builds the feature; otherwise the probe is checked on the
     finished part.
 
+    **Thin-walled and sheet-metal drawings:** before decomposing, derive the 3D form from
+    the section views. For each thickness dimension, state in `planning_notes` which face
+    it references and which side of that face the material lies on; for each bend, whether
+    the radius is inside or outside; for each flange, its direction. Then author a
+    `solid_at`/`empty_at` bracket for every dimensioned wall face (points half the
+    thickness from the face, never under 0.1 mm) and a `solid_at` near every flange tip,
+    each `label` naming its view (`"SECTION A-A: 2 mm wall, outer face y=57"`). The gate
+    fails the part when the built solid contradicts one.
+
 18. **Bind every acceptance statement.** The statements below were written from the
     approved intent by a separate agent and approved by the user; they are fixed -- never
     reinterpret, weaken or drop one. For each statement except `part_count`, add an
