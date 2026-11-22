@@ -1063,16 +1063,66 @@ def _run_oracle_stage(
         b["part"] == stem and kinds.get(b["statement"]) in ("extent", "probe")
         for b in plan.get("acceptance_bindings") or []
     )
-    body = None
-    if needs_body:
-        import cadquery as cq
-
-        from exporters import _load_result
-        from units import resolve_unions
-
-        unions = resolve_unions(part, _load_result(script_path))
-        body = cq.Compound.makeCompound([v for _, wp in unions for v in wp.vals()])
+    body = _load_part_body(part, script_path) if needs_body else None
     return oracle.verify(plan, doc, stem, body, feature_issues, consts)
+
+
+def _load_part_body(part: dict, script_path: str):
+    """The part's finished build-pose body: every union's solids as one compound."""
+    import cadquery as cq
+
+    from exporters import _load_result
+    from units import resolve_unions
+
+    unions = resolve_unions(part, _load_result(script_path))
+    return cq.Compound.makeCompound([v for _, wp in unions for v in wp.vals()])
+
+
+def _run_plan_probes_stage(plan: dict, script_path: str) -> list[dict]:
+    """`probe_unmet` errors for the part's authored `probes[]` on its finished body.
+
+    Labels bound to an acceptance statement are skipped: the oracle stage owns them.
+    """
+    import probes as probes_mod
+
+    stem = os.path.splitext(os.path.basename(script_path))[0]
+    part = next((p for p in plan.get("parts", []) if p.get("id") == stem), None)
+    bound = {
+        label
+        for b in plan.get("acceptance_bindings") or []
+        if b.get("part") == stem
+        for label in b.get("probes") or []
+    }
+    entries = [e for e in (part or {}).get("probes") or [] if e.get("label") not in bound]
+    if part is None or not entries:
+        return []
+    body = _load_part_body(part, script_path)
+    # plan_probes on a probes-only part yields just the authored entries (lists as tuples)
+    authored, _ = probes_mod.plan_probes({"probes": entries})
+    issues = []
+    for probe in authored:
+        ok, got = probes_mod.evaluate(probe, body)
+        if ok:
+            continue
+        expected = probes_mod.as_dict(probe)
+        issues.append(
+            {
+                "source": "geometry",
+                "severity": "error",
+                "type": "probe_unmet",
+                "label": probe.label,
+                "kind": probe.kind,
+                "expected": expected,
+                "observed": got,
+                "message": f"probe {probe.label!r} ({probe.kind}) failed: observed {got}",
+                "hint": (
+                    "The built solid disagrees with the drawing at this point. Re-read the "
+                    "view the label cites: which side of the dimension the material lies "
+                    "on, bend radius side, flange direction."
+                ),
+            }
+        )
+    return issues
 
 
 def _run_toolpath_speed_stage(
@@ -1532,6 +1582,8 @@ def run_gate(
         all_issues += feature_issues
         # ---- oracle acceptance statements (only when acceptance.json exists) ----
         all_issues += _run_oracle_stage(plan, plan_path, script_path, feature_issues)
+        # ---- authored plan probes on the finished body (drawing profile; plain scripts too) ----
+        all_issues += _run_plan_probes_stage(plan, script_path)
         # ---- hinge-guard-lint (revolute-hinge script missing its seating guard; advisory) ----
         all_issues += _run_hinge_guard_stage(plan, script_path)
         # ---- cosmetic-slope check (visual_quality parts only, once, outside the fix loop) ----
