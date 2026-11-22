@@ -7,8 +7,9 @@ after you upload the zip yourself. Steps, each skipped when its output exists:
 1. fetch   the public inputs dataset (HuggingAI4Engineering/cadgenbench-data),
            pinned to the dataset commit it resolves, into --data-dir.
 2. generate one unattended `claude -p` cq-design run per fixture (costs tokens) in
-           <run>/_work/<id>/, then fuses the delivered STEP(s), moves the result into
-           the canonical pose (bbox centre at the origin, extents Lx >= Ly >= Lz)
+           <run>/_work/<id>/ (kept, minus its .venv), then fuses the delivered STEP(s),
+           moves the result into the canonical pose (bbox centre at the origin,
+           extents Lx >= Ly >= Lz)
            and writes <run>/<id>/output.step. The run gets an explicit tool
            allowlist (ALLOWED_TOOLS), not --dangerously-skip-permissions; a tool
            outside it is denied, not prompted. Generation stops at the first
@@ -308,7 +309,10 @@ def generate(
             continue
         work = run_dir / "_work" / fid
         print(f"generating {fid} ...")
-        if run_fixture(data_dir / fid, work, timeout_s):
+        limit_hit = run_fixture(data_dir / fid, work, timeout_s)
+        # keep scripts and logs for diagnosis; the venv is the bulk and is regenerable
+        shutil.rmtree(work / ".venv", ignore_errors=True)
+        if limit_hit:
             print(f"  usage limit hit at {fid}: stopping; rerun to resume", file=sys.stderr)
             return
         steps = delivered_steps(work)
