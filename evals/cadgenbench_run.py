@@ -45,6 +45,9 @@ from OCP.gp import gp_Trsf
 
 EVALS_DIR = Path(__file__).parent
 REPO_ROOT = EVALS_DIR.parent
+sys.path.insert(0, str(REPO_ROOT / "src"))
+import pipeline  # noqa: E402
+
 DATA_REPO = "HuggingAI4Engineering/cadgenbench-data"
 HF = "https://huggingface.co"
 # The commit the leaderboard's grader image installs (CADGENBENCH_SHA=8ae1432 in the
@@ -126,16 +129,37 @@ def build_prompt(fixture_dir: Path) -> str:
             + f"\n\n{UNATTENDED}\n\n{FIDELITY}"
         )
     drawings = ", ".join(sorted(p.name for p in fixture_dir.glob("input*.png")))
+    # a slash command only expands at the start of the prompt; the rest is its argument
     return (
-        "Use the cq-design skill to fulfil this request in the current directory. "
-        f"{UNATTENDED}\n\n{FIDELITY} Deliver the STEP format (build/build.py --formats "
-        f"step).\n\nReproduce the part shown in the engineering drawing ({drawings} in "
-        "the current directory; read it with the Read tool). The drawing's dimensions "
-        "are authoritative."
+        "/cq-design:design Reproduce the part shown in the engineering drawing "
+        f"({drawings} in the current directory; read it with the Read tool). The drawing's "
+        "dimensions are authoritative. Deliver the STEP format (build/build.py --formats "
+        f"step).\n\n{UNATTENDED}\n\n{FIDELITY}"
     )
 
 
-def run_fixture(fixture_dir: Path, work_dir: Path, timeout_s: int) -> bool:
+def audit_pipeline(work: Path) -> dict[str, bool]:
+    """Did the fixture's run go through plan, gate and the b1 check? Read from artifacts."""
+    done = pipeline.status(work, "design")["done"]
+    reports = list((work / "build").glob("*.quality_gate.json"))
+    gate_passed = bool(reports) and all(
+        json.loads(r.read_text(encoding="utf-8")).get("passed") is True for r in reports
+    )
+    return {
+        "plan": (work / "BUILD_PLAN.json").is_file(),
+        "gate_result": "phase3/gate_result" in done,
+        "gate_passed": gate_passed,
+        "b1_checked": bool(pipeline.approved_b1(work)),
+    }
+
+
+def run_fixture(
+    fixture_dir: Path,
+    work_dir: Path,
+    timeout_s: int,
+    plugin_dir: Path | None = None,
+    effort: str | None = None,
+) -> bool:
     """Run cq-design in work_dir via `claude -p`; return True if it hit a usage limit."""
     shutil.copytree(fixture_dir, work_dir, dirs_exist_ok=True)
     shutil.copyfile(SKILL_CONFIG_SRC, work_dir / "skill_config.json")
@@ -155,6 +179,10 @@ def run_fixture(fixture_dir: Path, work_dir: Path, timeout_s: int) -> bool:
         "--allowedTools",
         *ALLOWED_TOOLS,
     ]
+    if plugin_dir:
+        cmd += ["--plugin-dir", str(plugin_dir.resolve())]
+    if effort:
+        cmd += ["--effort", effort]
     try:
         proc = subprocess.run(
             cmd, cwd=work_dir, timeout=timeout_s, check=False, capture_output=True, text=True
@@ -307,7 +335,13 @@ def package(run_dir: Path, fixtures: list[str], meta: dict) -> Path:
 
 
 def generate(
-    run_dir: Path, data_dir: Path, fixtures: list[str], timeout_s: int, force: bool
+    run_dir: Path,
+    data_dir: Path,
+    fixtures: list[str],
+    timeout_s: int,
+    force: bool,
+    plugin_dir: Path | None = None,
+    effort: str | None = None,
 ) -> None:
     """Run cq-design per fixture and write each canonical-pose output.step."""
     for fid in fixtures:
@@ -316,7 +350,7 @@ def generate(
             continue
         work = run_dir / "_work" / fid
         print(f"generating {fid} ...")
-        limit_hit = run_fixture(data_dir / fid, work, timeout_s)
+        limit_hit = run_fixture(data_dir / fid, work, timeout_s, plugin_dir, effort)
         # keep scripts and logs for diagnosis; the venv is the bulk and is regenerable
         shutil.rmtree(work / ".venv", ignore_errors=True)
         if limit_hit:
@@ -346,6 +380,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--name", required=True, help="meta.json submission_name")
     parser.add_argument("--agent-url", default="https://github.com/crjeder/cq-design")
     parser.add_argument("--notes", default=None)
+    parser.add_argument(
+        "--plugin-dir", type=Path, help="load cq-design from this checkout (claude --plugin-dir)"
+    )
+    parser.add_argument(
+        "--effort",
+        choices=["low", "medium", "high", "xhigh", "max"],
+        help="claude --effort per fixture run (default: the user's setting)",
+    )
     args = parser.parse_args(argv)
 
     sha = fetch_dataset(args.data_dir)
@@ -359,7 +401,9 @@ def main(argv: list[str] | None = None) -> int:
 
     run_dir: Path = args.run_dir
     if not args.skip_generate:
-        generate(run_dir, args.data_dir, chosen, args.timeout, args.force)
+        generate(
+            run_dir, args.data_dir, chosen, args.timeout, args.force, args.plugin_dir, args.effort
+        )
 
     sanity = {}
     for fid in fixtures:
@@ -368,6 +412,17 @@ def main(argv: list[str] | None = None) -> int:
             passed, output = sanity_check(args.data_dir, step)
             sanity[fid] = {"passed": passed, "output": output}
             print(f"  {fid}: {'PASS' if passed else 'FAIL'}")
+    n_pass = sum(1 for v in sanity.values() if v["passed"])
+    n_cand = len(sanity)
+    bypassed = []
+    for fid in fixtures:
+        work = run_dir / "_work" / fid
+        if (args.data_dir / fid / "edit_description.txt").is_file() or not work.is_dir():
+            continue
+        audit = audit_pipeline(work)
+        sanity.setdefault(fid, {})["pipeline"] = audit
+        if not all(audit.values()):
+            bypassed.append(fid)
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "sanity.json").write_text(json.dumps(sanity, indent=2) + "\n", encoding="utf-8")
 
@@ -379,8 +434,9 @@ def main(argv: list[str] | None = None) -> int:
         "agree_to_publish": False,
     }
     zip_path = package(run_dir, fixtures, meta)
-    n_pass = sum(1 for v in sanity.values() if v["passed"])
-    print(f"{len(sanity)}/{len(fixtures)} candidates, {n_pass} pass the validity gate")
+    print(f"{n_cand}/{len(fixtures)} candidates, {n_pass} pass the validity gate")
+    if bypassed:
+        print(f"pipeline bypassed or incomplete (see sanity.json): {', '.join(bypassed)}")
     print(f"wrote {zip_path} (agree_to_publish=false: set it true in meta.json to submit)")
     return 0
 

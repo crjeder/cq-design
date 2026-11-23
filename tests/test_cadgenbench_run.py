@@ -115,7 +115,7 @@ def test_generate_keeps_work_dir_but_prunes_venv(tmp_path, monkeypatch):
     data = tmp_path / "data"
     (data / "101").mkdir(parents=True)
 
-    def fake_run(fixture_dir, work, timeout_s):
+    def fake_run(fixture_dir, work, timeout_s, plugin_dir=None, effort=None):
         (work / ".venv").mkdir(parents=True)
         (work / ".venv" / "x").write_text("v")
         (work / "BUILD_PLAN.json").write_text("{}")
@@ -141,3 +141,67 @@ def test_run_fixture_seeds_cad_intent_profile(tmp_path, monkeypatch):
     profile = json.loads((work / "profile.json").read_text(encoding="utf-8"))
     assert profile["design_intent"] == "cad"
     assert "clearance" not in cadgenbench_run.FIDELITY
+
+
+def test_run_fixture_passes_effort_only_when_set(tmp_path, monkeypatch):
+    fixture = tmp_path / "fx"
+    fixture.mkdir()
+    cmds = []
+
+    def fake_run(cmd, **kwargs):
+        cmds.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "{}", "")
+
+    monkeypatch.setattr(cadgenbench_run.subprocess, "run", fake_run)
+    cadgenbench_run.run_fixture(fixture, tmp_path / "a", 1)
+    cadgenbench_run.run_fixture(fixture, tmp_path / "b", 1, effort="medium")
+    assert "--effort" not in cmds[0]
+    i = cmds[1].index("--effort")
+    assert cmds[1][i + 1] == "medium"
+
+
+def test_build_prompt_generation_uses_design_command(tmp_path):
+    (tmp_path / "input.png").write_text("x")
+    prompt = cadgenbench_run.build_prompt(tmp_path)
+    assert prompt.startswith("/cq-design:design ")
+    assert "input.png" in prompt and cadgenbench_run.FIDELITY in prompt
+
+
+def _work(tmp_path, journal=(), plan=None, reports=None):
+    (tmp_path / "build").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "build" / "journal.md").write_text("".join(f"- {ln}\n" for ln in journal))
+    if plan is not None:
+        (tmp_path / "BUILD_PLAN.json").write_text(json.dumps(plan))
+    for name, passed in (reports or {}).items():
+        (tmp_path / "build" / name).write_text(json.dumps({"passed": passed}))
+    return tmp_path
+
+
+def test_audit_pipeline_plan_less_run(tmp_path):
+    work = _work(tmp_path)
+    (work / "build" / "plate.py").write_text("result = 1\n")
+    audit = cadgenbench_run.audit_pipeline(work)
+    assert audit == {
+        "plan": False,
+        "gate_result": False,
+        "gate_passed": False,
+        "b1_checked": False,
+    }
+
+
+def test_audit_pipeline_full_run_ignores_round_copy(tmp_path):
+    plan = {"design_intent": "cad", "parts": [{"id": "block", "interfaces": []}]}
+    journal = [
+        "phase1/dimensions_approved: ok",
+        "phase2/plan_written: ok",
+        "phase2/plan_approved: ok b1=block:0",
+        "phase3/part_accepted:block: ok",
+        "phase3/design_approved: ok",
+        "phase3/orientation_chosen: ok",
+        "phase3/assembly_written: ok",
+        "phase3/gate_result: pass, 0 remaining findings",
+    ]
+    reports = {"block.quality_gate.json": True, "block.quality_gate.round1.json": False}
+    work = _work(tmp_path, journal, plan, reports)
+    (work / "build" / "block.py").write_text("result = 1\n")
+    assert all(cadgenbench_run.audit_pipeline(work).values())
