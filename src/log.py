@@ -2,7 +2,7 @@
 """Append-or-search the pipeline's build-time logs: the milestone journal, the
 per-attempt telemetry log, and a plan's request_log.
 
-    python log.py journal append build/journal.md phase3/part_accepted:lid "audit passed"
+    python log.py journal append build/journal.md phase0/restart "user started over"
     python log.py attempt append build/attempts.jsonl '{"part_id": ...}'
     python log.py attempt append build/attempts.jsonl --field part_id=housing \
         --field attempt=2 --field outcome=fail
@@ -31,7 +31,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -110,7 +110,7 @@ def append_attempt(path: str | Path, record: dict) -> dict:
     if problems:
         raise ValueError("; ".join(problems))
     record = dict(record)
-    record.setdefault("ts", datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    record.setdefault("ts", datetime.now(UTC).isoformat(timespec="seconds"))
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(record, ensure_ascii=False)
@@ -371,7 +371,7 @@ def add_request_log_entry(
         raise ValueError("add does not accept --kind initial (written once by the planner)")
 
     entry: dict = {
-        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ts": datetime.now(UTC).isoformat(timespec="seconds"),
         "kind": kind,
         "text": text,
     }
@@ -459,6 +459,16 @@ def _cmd_add(args: argparse.Namespace) -> int:
 
 
 def _cmd_journal_append(args: argparse.Namespace) -> int:
+    from pipeline import MILESTONES  # lazy: pipeline imports this module
+
+    if args.milestone.partition(":")[0] in MILESTONES:
+        print(
+            f"journal: {args.milestone} is a pipeline milestone; record it with "
+            f'`pipeline.py advance {args.milestone} "<text>"`, which checks prerequisites '
+            "and adds the b1=/sha= records",
+            file=sys.stderr,
+        )
+        return 1
     try:
         append_line(args.journal, args.milestone, args.text)
     except OSError as exc:
@@ -507,9 +517,11 @@ def main(argv: list[str] | None = None) -> int:
 
     journal = sub.add_parser("journal", help="build/journal.md milestone log")
     jsub = journal.add_subparsers(dest="command", required=True)
-    ja = jsub.add_parser("append", help="append one milestone line")
+    ja = jsub.add_parser(
+        "append", help="append a non-pipeline line (phase0/restart); milestones use pipeline.py"
+    )
     ja.add_argument("journal", help="path to journal.md (e.g. build/journal.md)")
-    ja.add_argument("milestone", help="<phase>/<milestone_key>, e.g. phase3/part_accepted:lid")
+    ja.add_argument("milestone", help="<phase>/<key>, e.g. phase0/restart")
     ja.add_argument("text", help="the fact being recorded, one line")
     ja.set_defaults(func=_cmd_journal_append)
 

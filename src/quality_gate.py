@@ -278,15 +278,22 @@ def _fin_hint_issues(
     ]
 
 
-def _through_hole_issues(part: dict | None, stls: list[str]) -> list[dict]:
-    """Built b1 (summed mesh genus) vs the plan's summed interfaces[].through_count.
+def _through_hole_issues(
+    part: dict | None,
+    stls: list[str],
+    approved: int | None = None,
+    cad: bool = False,
+) -> list[dict]:
+    """Built b1 (summed mesh genus) vs the part's planned b1.
 
-    Runs only when an interface on the part declares through_count; skipped when any
-    union mesh is not watertight (non_watertight already reports that)."""
+    Planned is the plan-approval record when `approved` is given, else the live sum of
+    interfaces[].through_count. Runs under CAD intent (missing count = 0) or when an
+    interface declares through_count; skipped when any union mesh is not watertight
+    (non_watertight already reports that)."""
     counts = [
         i["through_count"] for i in (part or {}).get("interfaces", []) if "through_count" in i
     ]
-    if not counts or not stls:
+    if not (counts or cad or approved is not None) or not stls:
         return []
     from mesh_io import genus, load_mesh
 
@@ -299,23 +306,41 @@ def _through_hole_issues(part: dict | None, stls: list[str]) -> list[dict]:
         if not tm.is_watertight:
             return []
         meshes.append(tm)
-    planned, built = sum(counts), sum(genus(m) for m in meshes)
+    plan_b1 = sum(counts)
+    planned, built = (plan_b1 if approved is None else approved), sum(genus(m) for m in meshes)
     if planned == built:
         return []
-    return [
-        {
-            "source": "geometry",
-            "severity": "error",
-            "type": "through_hole_count_mismatch",
-            "planned_b1": planned,
-            "built_b1": built,
-            "message": f"Built solid has {built} through opening(s); the plan's "
-            f"interfaces[].through_count sums to {planned}",
-            "hint": "Too many: a planned blind (tapped/depth) hole was cut through, or a cut "
-            "broke through a wall. Too few: a planned through hole stops short of the far "
-            "face or two openings merged.",
-        }
-    ]
+    issue = {
+        "source": "geometry",
+        "severity": "error",
+        "type": "through_hole_count_mismatch",
+        "planned_b1": planned,
+        "built_b1": built,
+        "message": f"Built solid has {built} through opening(s); the plan's "
+        f"interfaces[].through_count sums to {planned}",
+        "hint": "Too many: a planned blind (tapped/depth) hole was cut through, or a cut "
+        "broke through a wall. Too few: a planned through hole stops short of the far "
+        "face or two openings merged.",
+    }
+    if approved is not None and plan_b1 != approved:
+        issue["approved_b1"] = approved
+        issue["plan_b1"] = plan_b1
+        issue["message"] = (
+            f"Built solid has {built} through opening(s); the plan approved {approved} but "
+            f"interfaces[].through_count now sums to {plan_b1} (plan changed after approval)"
+        )
+        issue["hint"] = (
+            "Fix the part script to match the approved count. Changing through_count "
+            "means re-approving the plan, which voids every accepted part."
+        )
+    return [issue]
+
+
+def _approved_b1(plan_path: str) -> dict[str, int]:
+    """Planned b1 per part from the journal beside the plan ({} when there is none)."""
+    from pipeline import approved_b1
+
+    return approved_b1(Path(plan_path).resolve().parent)
 
 
 def _designed_support_issue(fin_stls: list[str]) -> dict:
@@ -1520,8 +1545,9 @@ def run_gate(
                 geo_issues.extend(stl_issues)
             if fin_stls:
                 geo_issues.append(_designed_support_issue(fin_stls))
+            approved = _approved_b1(plan_path).get(stem)
             geo_issues += _through_hole_issues(
-                part, [s for s in effective_stls if s not in fin_stls]
+                part, [s for s in effective_stls if s not in fin_stls], approved, cad
             )
         else:
             geo_issues = [

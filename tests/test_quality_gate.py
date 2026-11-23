@@ -967,13 +967,20 @@ def test_parameters_traceability_advisories(tmp_path):
     assert "GAP_MM" in next(i for i in issues if i["type"] == "parameters_untagged")["message"]
 
 
-def _gate_b1(monkeypatch, tmp_path, mesh, interfaces):
+def _gate_b1(monkeypatch, tmp_path, mesh, interfaces, intent="print", approved_b1=None):
     stl = tmp_path / "part.stl"
     mesh.export(str(stl))
     plan = tmp_path / "BUILD_PLAN.json"
+    if approved_b1 is not None:
+        (tmp_path / "build").mkdir()
+        (tmp_path / "build" / "journal.md").write_text(
+            "- phase1/dimensions_approved: ok\n- phase2/plan_written: ok\n"
+            f"- phase2/plan_approved: ok b1=part:{approved_b1}\n"
+        )
     plan.write_text(
         json.dumps(
             {
+                "design_intent": intent,
                 "constraints": {"overhang_max_deg": OVERHANG_DEG},
                 "parts": [{"id": "part", "interfaces": interfaces}],
             }
@@ -1018,6 +1025,29 @@ def test_blind_hole_built_through_mismatch(monkeypatch, tmp_path):
 def test_legacy_plan_has_no_b1_check(monkeypatch, tmp_path):
     ifaces = [{"type": "hole"} for _ in range(4)]
     assert _gate_b1(monkeypatch, tmp_path, _plate_with_through_holes(2), ifaces) == []
+
+
+def test_cad_intent_checks_b1_without_declared_interfaces(monkeypatch, tmp_path):
+    found = _gate_b1(monkeypatch, tmp_path, _plate_with_through_holes(4), [], intent="cad")
+    assert len(found) == 1
+    assert found[0]["planned_b1"] == 0 and found[0]["built_b1"] == 4
+
+
+def test_plan_lowered_after_approval_still_fails(monkeypatch, tmp_path):
+    ifaces = [{"type": "hole", "through_count": 1} for _ in range(2)]
+    found = _gate_b1(
+        monkeypatch, tmp_path, _plate_with_through_holes(2), ifaces, intent="cad", approved_b1=4
+    )
+    assert len(found) == 1
+    f = found[0]
+    assert (f["planned_b1"], f["built_b1"], f["approved_b1"], f["plan_b1"]) == (4, 2, 4, 2)
+    assert "after approval" in f["message"]
+
+
+def test_approved_b1_met_passes(monkeypatch, tmp_path):
+    ifaces = [{"type": "hole", "through_count": 1} for _ in range(4)]
+    mesh = _plate_with_through_holes(4)
+    assert _gate_b1(monkeypatch, tmp_path, mesh, ifaces, intent="cad", approved_b1=4) == []
 
 
 @pytest.mark.parametrize("intent,expected", [("cad", False), ("print", True)])

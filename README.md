@@ -344,7 +344,7 @@ uv run python src/run_cadquery_model.py part.py --deliver --formats stl,step --o
 | Command | Arguments and options |
 |---|---|
 | `--hook` | Read a PostToolUse payload from stdin; append a base attempt record |
-| `journal append <journal> <milestone> <text>` | `milestone` is `<phase>/<key>`, e.g. `phase3/part_accepted:lid` |
+| `journal append <journal> <key> <text>` | `key` is `<phase>/<name>`, e.g. `phase0/restart`; pipeline milestones are refused (use `pipeline.py advance`) |
 | `attempt append <file> [json]` | `--field KEY=VALUE` (JSON-parsed, repeatable) |
 | `attempt audit-fail` | `--part` **(req)**, `--audit FILE` **(req)**, `--file` (default `build/attempts.jsonl`) |
 | `request search <plan>` | `--query`, `--kind {initial,clarification,correction}`, `--level {functional,operation,parameter}`, `--target` |

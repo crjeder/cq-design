@@ -41,21 +41,24 @@ def test_repeated_milestone_key_appends_new_line(tmp_path):
 
 def test_cli_append(tmp_path):
     path = tmp_path / "journal.md"
-    rc = log.main(
-        ["journal", "append", str(path), "phase4/delivered", "README.md + REGENERATE.md written"]
-    )
+    rc = log.main(["journal", "append", str(path), "phase0/restart", "user started over"])
     assert rc == 0
-    assert (
-        path.read_text(encoding="utf-8")
-        == "- phase4/delivered: README.md + REGENERATE.md written\n"
-    )
+    assert path.read_text(encoding="utf-8") == "- phase0/restart: user started over\n"
+
+
+@pytest.mark.parametrize("key", ["phase2/plan_approved", "phase3/part_accepted:lid"])
+def test_cli_refuses_pipeline_milestone(tmp_path, capsys, key):
+    path = tmp_path / "journal.md"
+    assert log.main(["journal", "append", str(path), key, "ok"]) == 1
+    assert not path.exists()
+    assert "pipeline.py advance" in capsys.readouterr().err
 
 
 def test_cli_unwritable_path_exits_nonzero(tmp_path, capsys):
     # Parent directory does not exist and is not created -- matches journal.md's
     # contract that build/ already exists by the time any milestone is written.
     missing = tmp_path / "does-not-exist" / "journal.md"
-    rc = log.main(["journal", "append", str(missing), "phase0/rung_decision", "rung 5"])
+    rc = log.main(["journal", "append", str(missing), "phase0/restart", "again"])
     assert rc == 1
     assert "journal" in capsys.readouterr().err
 

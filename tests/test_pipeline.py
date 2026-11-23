@@ -186,3 +186,39 @@ def test_milestone_table_matches_resume_doc():
     keys = set(re.findall(r"^\| \d \| `(\w+)(?::<part_id>)?` \|", doc, re.M))
     ours = {k.split("/")[1] for k in pipeline.MILESTONES}
     assert ours | {"restart"} == keys
+
+
+def _plan(root, intent, parts):
+    plan = {"design_intent": intent, "parts": parts}
+    (root / "BUILD_PLAN.json").write_text(json.dumps(plan), encoding="utf-8")
+
+
+def test_approval_records_cad_b1_missing_as_zero(tmp_path):
+    root = project(tmp_path, [DIMS, WRITTEN], parts=())
+    ifs = [{"through_count": 1}, {"through_count": 1}, {"type": "hole"}]
+    _plan(root, "cad", [{"id": "block", "interfaces": ifs}])
+    line, errs = pipeline.advance(root, "phase2/plan_approved", "ok", "design")
+    assert errs == [] and line == "- phase2/plan_approved: ok b1=block:2"
+    assert st(root)["approved_b1"] == {"block": 2}
+
+
+def test_approval_print_plan_without_counts_has_no_b1(tmp_path):
+    root = project(tmp_path, [DIMS, WRITTEN], parts=())
+    _plan(root, "print", [{"id": "lid", "interfaces": [{"type": "hole"}]}])
+    line, _ = pipeline.advance(root, "phase2/plan_approved", "ok", "design")
+    assert line is not None and "b1=" not in line
+    assert st(root)["approved_b1"] == {}
+
+
+def test_reapproval_replaces_b1_and_voids_acceptance(tmp_path):
+    root = project(tmp_path, [DIMS, WRITTEN], parts=(), scripts=["elbow"])
+    _plan(root, "cad", [{"id": "elbow", "interfaces": [{"through_count": 1}] * 9}])
+    pipeline.advance(root, "phase2/plan_approved", "ok", "design")
+    pipeline.advance(root, "phase3/part_accepted:elbow", "audit passed", "design")
+    assert st(root)["approved_b1"] == {"elbow": 9}
+    _plan(root, "cad", [{"id": "elbow", "interfaces": [{"through_count": 1}] * 6}])
+    pipeline.advance(root, "phase2/plan_written", "ok", "design")
+    pipeline.advance(root, "phase2/plan_approved", "ok", "design")
+    s = st(root)
+    assert s["approved_b1"] == {"elbow": 6}
+    assert "phase3/part_accepted:elbow" not in s["done"]

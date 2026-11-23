@@ -410,6 +410,11 @@ finding by its own `action` field, not by its `type`:
     and start the next round's resume with `fix: previous edit reverted (<delta>): ...`.
   - otherwise keep the edit and re-run `script_history.py mark accepted build/<part_id>.py`.
 
+  A `through_hole_count_mismatch` is fixed in the part script, never by editing
+  `interfaces[].through_count`: the gate compares against the count recorded when the plan
+  was approved. Re-read the drawing; if the plan really was wrong, take it back through plan
+  approval (this voids every accepted part), do not edit it in place.
+
   At most 2 rounds per part; then summarize the remaining findings to the user. If the
   last round was reverted, first re-export and re-run the gate from the restored script,
   so the delivered files come from `accepted`.

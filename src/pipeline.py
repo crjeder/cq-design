@@ -51,6 +51,7 @@ PLAN_LAST = "phase2/plan_approved"
 _LINE = re.compile(r"^- (\S+): (.*)$")
 _SHA = re.compile(r"\bsha=([0-9a-f]{64})\b")
 _RUNG = re.compile(r"^rung (\d)\b")
+_B1 = re.compile(r"\bb1=(\w+:\d+(?:,\w+:\d+)*)")
 
 
 def _err(type_: str, message: str, hint: str) -> dict:
@@ -68,6 +69,20 @@ def _plan_part_ids(root: Path) -> list[str] | None:
         return [p["id"] for p in plan["parts"]]
     except (OSError, ValueError, KeyError, TypeError):
         return None
+
+
+def plan_b1(plan: dict) -> dict[str, int]:
+    """Planned through-hole count per part: sum of interfaces[].through_count.
+
+    A part is listed when an interface declares through_count, or for every part under
+    design_intent "cad" (missing counts as 0)."""
+    cad = plan.get("design_intent") == "cad"
+    out: dict[str, int] = {}
+    for part in plan.get("parts", []):
+        counts = [i["through_count"] for i in part.get("interfaces", []) if "through_count" in i]
+        if counts or cad:
+            out[part["id"]] = sum(counts)
+    return out
 
 
 def _read_journal(root: Path) -> list[tuple[str, str]]:
@@ -158,6 +173,18 @@ def _evaluate(root: Path) -> dict:
         "ids": ids,
         "rung": rung if _sourcing_rung_valid(lines, latest, valid) else None,
     }
+
+
+def approved_b1(root: Path) -> dict[str, int]:
+    """Per-part planned b1 recorded on the latest valid plan_approved line ({} if none)."""
+    ev = _evaluate(root)
+    j = ev["latest"].get(PLAN_LAST)
+    if j is None or not ev["valid"].get(j):
+        return {}
+    m = _B1.search(ev["lines"][j][1])
+    if m is None:
+        return {}
+    return {k: int(v) for k, v in (e.split(":") for e in m.group(1).split(","))}
 
 
 def _sourcing_rung_valid(lines, latest, valid) -> bool:
@@ -291,6 +318,7 @@ def status(root: Path, route: str) -> dict:
             "skipped_phases": [],
             "allowed_next": list(EDIT_STEPS),
             "blocked": [],
+            "approved_b1": {},
             "complete": False,
         }
     ev = _evaluate(root)
@@ -314,6 +342,7 @@ def status(root: Path, route: str) -> dict:
         "skipped_phases": ["phase1", "phase2", "phase3"] if src == "rung_3" else [],
         "allowed_next": allowed,
         "blocked": blocked,
+        "approved_b1": approved_b1(root),
         "complete": complete,
     }
 
@@ -335,6 +364,14 @@ def advance(root: Path, key: str, text: str, route: str) -> tuple[str | None, li
         script = root / "build" / f"{pid}.py"
         if script.is_file():
             text = f"{text} sha={script_hash(str(script))}".strip()
+    if base == PLAN_LAST and "b1=" not in text:
+        try:
+            plan = json.loads((root / "BUILD_PLAN.json").read_text(encoding="utf-8"))
+            b1 = plan_b1(plan)
+        except (OSError, ValueError, KeyError, TypeError):
+            b1 = {}
+        if b1:
+            text = f"{text} b1={','.join(f'{k}:{v}' for k, v in b1.items())}".strip()
     journal = root / "build" / "journal.md"
     journal.parent.mkdir(parents=True, exist_ok=True)
     return append_line(journal, key, text), []
