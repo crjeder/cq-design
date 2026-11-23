@@ -121,6 +121,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     cadprompt_bench.py   # External benchmark: delivers cadprompt/parts/*.py, scores vs local CADPrompt
     cadprompt/           # parts/p<id>.py (one script per selected prompt), sample_run.md
     cadgenbench_run.py   # CADGenBench: fetch fixtures, generate output.step, sanity-check, zip
+    cadgenbench_proxy.py # CADGenBench: local score vs best published candidates as proxy GT
     README.md            # Eval-runner contract (scoring, cost sources, --generate)
 
   prompts/
@@ -174,6 +175,7 @@ Repository layout, one line per file. Full per-script contract detail lives in
     test_regen_prompt.py             # Regeneration-prompt rendering + CLI -- fast, no CadQuery
     test_run_evals.py                # Eval runner scoring path -- fast, no CadQuery
     test_cadprompt_bench.py          # CADPrompt scoring (normalize/ICP/Chamfer/IoU) -- no CadQuery
+    test_cadgenbench_proxy.py        # CADGenBench proxy-GT pick + zip member lookup
     test_cadgenbench_run.py          # CADGenBench prompts, canonical pose + zip packaging (CadQuery)
     test_edit_command.py             # /cq-design:edit import -> diff -> STEP sequence, frame kept (CadQuery)
     test_import_solid.py             # import_solid staged heal + wrapper invalid_brep/step_unrepairable (CadQuery)
